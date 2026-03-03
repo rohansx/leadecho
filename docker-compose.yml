@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: leadecho-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: leadecho
+      POSTGRES_PASSWORD: leadecho
+      POSTGRES_DB: leadecho_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadecho"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: leadecho-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pinchtab:
+    image: pinchtab/pinchtab:latest
+    container_name: leadecho-pinchtab
+    ports:
+      - "127.0.0.1:9867:9867"
+    environment:
+      BRIDGE_TOKEN: ${PINCHTAB_TOKEN:-changeme}
+      BRIDGE_HEADLESS: "true"
+      BRIDGE_STEALTH: full
+      BRIDGE_BLOCK_IMAGES: "true"
+      BRIDGE_BLOCK_MEDIA: "true"
+      BRIDGE_MAX_TABS: "5"
+    volumes:
+      - pinchtab_profiles:/root/.pinchtab
+    mem_limit: 2g
+    cpus: "2.0"
+    profiles:
+      - browser
+
+  camoufox:
+    build: ./camoufox-sidecar
+    container_name: leadecho-camoufox
+    ports:
+      - "127.0.0.1:9868:9868"
+    environment:
+      CAMOUFOX_TOKEN: ${CAMOUFOX_TOKEN:-changeme}
+      CAMOUFOX_PORT: "9868"
+      DISPLAY: ":99"
+    mem_limit: 512m
+    profiles:
+      - browser-pro
+
+volumes:
+  pgdata:
+  pinchtab_profiles:

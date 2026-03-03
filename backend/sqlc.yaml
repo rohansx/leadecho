@@ -1,0 +1,26 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/database/queries/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "database"
+        out: "internal/database"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_interface: true
+        emit_exact_table_names: false
+        emit_empty_slices: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "string"
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "platform_type"
+            go_type: "string"
+          - db_type: "vector"
+            go_type:
+              import: "github.com/pgvector/pgvector-go"
+              type: "Vector"

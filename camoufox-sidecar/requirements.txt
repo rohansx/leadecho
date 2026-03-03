@@ -1,0 +1,3 @@
+camoufox
+fastapi
+uvicorn[standard]

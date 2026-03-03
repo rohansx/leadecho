@@ -1,0 +1,52 @@
+LeadEcho — Social Intent Monitor & Reply Assistant
+
+Find people who need your product before they find your competitors.
+
+LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, and Indie Hackers for posts that match your pain-point profiles — then scores, ranks, and helps you reply from a single side panel.
+
+── HOW IT WORKS ──────────────────────────────────────────────────
+
+1. Define pain-point profiles in the LeadEcho dashboard (describe what problems your customers have — no keyword list needed).
+
+2. The extension collects signals as you browse: post content, author context, and engagement signals are sent to your own LeadEcho backend for AI scoring.
+
+3. Scored leads appear in the side panel ranked by conversion probability. "Leads Ready" shows people most likely to convert. "Worth Watching" surfaces valuable future pipeline.
+
+4. Approve replies in the dashboard. Click "Post Now" in the extension queue. The extension types the reply with human-like timing so it looks natural on the platform.
+
+── FEATURES ──────────────────────────────────────────────────────
+
+✓ Side panel with three tabs: Leads · Reply Queue · Settings
+✓ Real-time mention feed — polls your backend every 60 seconds
+✓ Reply queue — approved replies ready to post in one click
+✓ Human-mimicry typing engine — Gaussian keystroke timing, punctuation pauses, pre-engagement delay
+✓ Works on Reddit, Twitter/X, and LinkedIn post pages
+✓ UTM short-link generation for conversion attribution
+✓ Zero tracking: your data goes only to your own LeadEcho instance
+✓ Open source — full source at github.com/your-org/leadecho
+
+── SUPPORTED PLATFORMS ───────────────────────────────────────────
+
+• Reddit — comments and posts (authenticated via browser session)
+• Twitter / X — tweets and replies (authenticated)
+• LinkedIn — search results and posts (authenticated via li_at cookie)
+• Hacker News, Dev.to, Lobsters, Indie Hackers — passive signal collection
+
+── SETUP ─────────────────────────────────────────────────────────
+
+1. Deploy LeadEcho (Docker compose, one command — see GitHub)
+2. Generate an Extension Key in Settings → Extension Token
+3. Paste your backend URL and Extension Key in the extension Settings tab
+4. The status dot turns green when connected
+
+── PRIVACY ───────────────────────────────────────────────────────
+
+LeadEcho collects only the text content of posts you visit on supported platforms. No cookies, no tracking pixels, no analytics. All data is sent exclusively to the LeadEcho backend URL you configure — which you control. You can revoke the extension key at any time from the dashboard, immediately stopping all data transmission.
+
+See the full privacy policy at: [your domain]/privacy
+
+── REQUIREMENTS ──────────────────────────────────────────────────
+
+• A running LeadEcho backend (self-hosted or cloud)
+• Extension Key from the LeadEcho dashboard
+• Chrome 114+ or any Chromium-based browser

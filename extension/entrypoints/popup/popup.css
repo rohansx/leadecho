@@ -1,0 +1,67 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e8eaf0; }
+
+.popup-root { width: 300px; padding: 16px; }
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.popup-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+
+.popup-status { font-size: 12px; font-weight: 500; }
+
+.popup-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  background: #1a1d27;
+  border-radius: 8px;
+  border: 1px solid #2a2d3a;
+}
+
+.popup-count { font-size: 32px; font-weight: 700; color: #27c17b; line-height: 1; }
+.popup-label { font-size: 11px; color: #888; margin-top: 4px; }
+
+.popup-form { display: flex; flex-direction: column; gap: 6px; }
+
+.popup-field-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.popup-input {
+  padding: 8px 10px;
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  border-radius: 6px;
+  color: #e8eaf0;
+  font-size: 13px;
+  width: 100%;
+}
+
+.popup-input:focus { outline: none; border-color: #27c17b; }
+
+.popup-btn {
+  margin-top: 6px;
+  padding: 9px;
+  background: #27c17b;
+  color: #0f1117;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.popup-btn:hover { background: #22a86b; }
