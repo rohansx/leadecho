@@ -60,7 +60,7 @@ services:
       context: ./dashboard
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.rohan.sh}
+        VITE_API_URL: ${VITE_API_URL:-https://api.cos.rohan.sh}
     ports:
       - "127.0.0.1:3100:3100"
     restart: unless-stopped

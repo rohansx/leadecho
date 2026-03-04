@@ -7,7 +7,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-ARG VITE_API_URL=https://api.rohan.sh
+ARG VITE_API_URL=https://api.cos.rohan.sh
 ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm build
 
