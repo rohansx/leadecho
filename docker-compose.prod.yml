@@ -2,6 +2,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # Adds: backend API, dashboard (nginx), and DB migration service.
+# Joins dokploy-network so Traefik can route to the containers by name.
 
 services:
   postgres:
@@ -36,6 +37,9 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
+    networks:
+      - default
+      - dokploy-network
 
   dashboard:
     build:
@@ -44,3 +48,10 @@ services:
     ports:
       - "127.0.0.1:3100:3100"
     restart: unless-stopped
+    networks:
+      - default
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
