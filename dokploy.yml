@@ -61,7 +61,7 @@ services:
       context: ./dashboard
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.cos.rohan.sh}
+        VITE_API_URL: ${VITE_API_URL:-https://api.leadecho.app}
     restart: unless-stopped
     networks:
       - default
