@@ -1,0 +1,46 @@
+# Production compose override — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Adds: backend API, dashboard (nginx), and DB migration service.
+
+services:
+  postgres:
+    ports: []   # don't expose postgres to host in prod
+
+  redis:
+    ports: []   # don't expose redis to host in prod
+
+  migrate:
+    image: golang:1.23-alpine
+    working_dir: /migrations
+    command: >
+      sh -c "GOPATH=/tmp/go go install github.com/pressly/goose/v3/cmd/goose@latest &&
+             /tmp/go/bin/goose -dir /migrations postgres '${DATABASE_URL}' up"
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8090:8090"
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:3100:3100"
+    restart: unless-stopped
