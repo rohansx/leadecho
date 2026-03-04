@@ -1,0 +1,85 @@
+# Single-file production compose for Dokploy deployment.
+# Managed via Dokploy UI at illuminate.sh
+# Env vars are injected by Dokploy from the project environment.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ${COMPOSE_PROJECT_NAME:-leadecho}-postgres
+    environment:
+      POSTGRES_USER: leadecho
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-leadecho}
+      POSTGRES_DB: leadecho_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadecho"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-leadecho}-redis
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  migrate:
+    image: golang:1.25-alpine
+    working_dir: /migrations
+    command: >
+      sh -c "GOPATH=/tmp/go go install github.com/pressly/goose/v3/cmd/goose@latest &&
+             /tmp/go/bin/goose -dir /migrations postgres '${DATABASE_URL}' up"
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.leadecho-api.rule=Host(`api.rohan.sh`)"
+      - "traefik.http.routers.leadecho-api.entrypoints=websecure"
+      - "traefik.http.routers.leadecho-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.leadecho-api-http.rule=Host(`api.rohan.sh`)"
+      - "traefik.http.routers.leadecho-api-http.entrypoints=web"
+      - "traefik.http.routers.leadecho-api-http.middlewares=redirect-https"
+      - "traefik.http.services.leadecho-api.loadbalancer.server.port=8090"
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.rohan.sh}
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.leadecho-app.rule=Host(`app.rohan.sh`)"
+      - "traefik.http.routers.leadecho-app.entrypoints=websecure"
+      - "traefik.http.routers.leadecho-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.leadecho-app-http.rule=Host(`app.rohan.sh`)"
+      - "traefik.http.routers.leadecho-app-http.entrypoints=web"
+      - "traefik.http.routers.leadecho-app-http.middlewares=redirect-https"
+      - "traefik.http.services.leadecho-app.loadbalancer.server.port=3100"
+
+volumes:
+  pgdata:
