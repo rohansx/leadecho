@@ -47,13 +47,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "127.0.0.1:8090:8090"
     env_file: .env
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
+    networks:
+      - default
+      - dokploy-network
 
   dashboard:
     build:
@@ -61,9 +62,14 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-https://api.cos.rohan.sh}
-    ports:
-      - "127.0.0.1:3100:3100"
     restart: unless-stopped
+    networks:
+      - default
+      - dokploy-network
 
 volumes:
   pgdata:
+
+networks:
+  dokploy-network:
+    external: true
