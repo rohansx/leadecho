@@ -1,11 +1,10 @@
 # Single-file production compose for Dokploy deployment.
 # Managed via Dokploy UI at illuminate.sh
-# Env vars are injected by Dokploy from the project environment.
+# Routes via Traefik file config at /etc/dokploy/traefik/dynamic/leadecho.yml
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: ${COMPOSE_PROJECT_NAME:-leadecho}-postgres
     environment:
       POSTGRES_USER: leadecho
       POSTGRES_PASSWORD: ${DB_PASSWORD:-leadecho}
@@ -21,7 +20,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-leadecho}-redis
     command: redis-server --save 60 1 --loglevel warning
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -49,20 +47,13 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8090:8090"
     env_file: .env
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.leadecho-api.rule=Host(`api.rohan.sh`)"
-      - "traefik.http.routers.leadecho-api.entrypoints=websecure"
-      - "traefik.http.routers.leadecho-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.leadecho-api-http.rule=Host(`api.rohan.sh`)"
-      - "traefik.http.routers.leadecho-api-http.entrypoints=web"
-      - "traefik.http.routers.leadecho-api-http.middlewares=redirect-https"
-      - "traefik.http.services.leadecho-api.loadbalancer.server.port=8090"
 
   dashboard:
     build:
@@ -70,16 +61,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-https://api.rohan.sh}
+    ports:
+      - "127.0.0.1:3100:3100"
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.leadecho-app.rule=Host(`app.rohan.sh`)"
-      - "traefik.http.routers.leadecho-app.entrypoints=websecure"
-      - "traefik.http.routers.leadecho-app.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.leadecho-app-http.rule=Host(`app.rohan.sh`)"
-      - "traefik.http.routers.leadecho-app-http.entrypoints=web"
-      - "traefik.http.routers.leadecho-app-http.middlewares=redirect-https"
-      - "traefik.http.services.leadecho-app.loadbalancer.server.port=3100"
 
 volumes:
   pgdata:
