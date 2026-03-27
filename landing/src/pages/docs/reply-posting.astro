@@ -1,0 +1,242 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Reply Posting" description="AI-assisted reply drafting workflow with human-mimicry posting via the Chrome extension.">
+  <h1>Reply Posting</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho generates AI-drafted replies for high-signal mentions, routes them through
+    a human-in-the-loop approval workflow, and posts them via the Chrome extension
+    with human-mimicry typing delays to avoid detection.
+  </p>
+
+  <h2>Drafting a Reply</h2>
+
+  <p>
+    LeadEcho uses a <strong>two-stage AI pipeline</strong> for reply drafting. The system first
+    decides whether a mention is worth replying to (pre-filter), then fetches full thread context
+    and generates a reply using one of 5 template styles matched to the buyer's awareness level.
+  </p>
+
+  <p>
+    For full details on the smart drafting pipeline, template styles, awareness levels, and
+    thread context fetching, see <a href="/docs/smart-reply-drafting">Smart Reply Drafting</a>.
+  </p>
+
+  <pre><code>POST /api/v1/mentions/&#123;id&#125;/draft-reply
+Authorization: Bearer &lt;jwt&gt;</code></pre>
+
+  <h3>AI Drafting Parameters</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Pre-filter temperature</td>
+        <td>0.1 (deterministic)</td>
+      </tr>
+      <tr>
+        <td>Draft temperature</td>
+        <td>0.7–0.9 (varied per call for diversity)</td>
+      </tr>
+      <tr>
+        <td>Thread context</td>
+        <td>Top ~10 comments from the thread (~4,000 chars)</td>
+      </tr>
+      <tr>
+        <td>KB context</td>
+        <td>Up to 3 documents (500 chars each)</td>
+      </tr>
+      <tr>
+        <td>Template styles</td>
+        <td>value_first, storytelling, technical_deep_dive, casual_helpful, contrarian</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Approval Workflow</h2>
+
+  <pre><code>AI drafts reply
+      │  status: "draft"
+      ▼
+[Optional] Edit content
+      │  PATCH /replies/&#123;id&#125;/content
+      ▼
+Approve reply
+      │  PATCH /replies/&#123;id&#125;/status → "approved"
+      ▼
+Extension picks up from reply-queue
+      │  GET /extension/reply-queue
+      ▼
+Extension posts with human-mimicry typing
+      │
+      ▼
+Mark as posted
+      │  PATCH /extension/replies/&#123;id&#125;/mark-posted
+      ▼
+Status: "posted"</code></pre>
+
+  <h3>Reply Statuses</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>draft</code></td>
+        <td>AI-generated, awaiting review</td>
+      </tr>
+      <tr>
+        <td><code>approved</code></td>
+        <td>Ready for posting — visible in extension queue</td>
+      </tr>
+      <tr>
+        <td><code>posted</code></td>
+        <td>Successfully submitted by extension</td>
+      </tr>
+      <tr>
+        <td><code>rejected</code></td>
+        <td>Discarded by human reviewer</td>
+      </tr>
+      <tr>
+        <td><code>failed</code></td>
+        <td>Extension attempted to post but encountered an error</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Human-Mimicry Typing Engine</h2>
+
+  <p>
+    When the Chrome extension posts a reply, it types each character individually
+    using realistic timing distributions to avoid bot detection systems.
+  </p>
+
+  <h3>Timing Parameters</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Event</th>
+        <th>Delay</th>
+        <th>Method</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Pre-engagement</td>
+        <td>2–8 seconds</td>
+        <td>Random uniform</td>
+      </tr>
+      <tr>
+        <td>Per character</td>
+        <td>~80ms ± 40ms (min 20ms)</td>
+        <td>Box-Muller Gaussian distribution</td>
+      </tr>
+      <tr>
+        <td>After period (<code>.</code>)</td>
+        <td>+300ms</td>
+        <td>Fixed pause</td>
+      </tr>
+      <tr>
+        <td>After comma (<code>,</code>)</td>
+        <td>+150ms</td>
+        <td>Fixed pause</td>
+      </tr>
+      <tr>
+        <td>After newline</td>
+        <td>+500ms</td>
+        <td>Fixed pause (paragraph break)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Insertion Method</h3>
+
+  <p>
+    Characters are inserted using <code>document.execCommand("insertText")</code> on the target
+    <code>contentEditable</code> element. This triggers native browser input events (unlike setting
+    <code>innerHTML</code> directly) and is indistinguishable from real keyboard input at the DOM level.
+  </p>
+
+  <pre><code>// Simplified pseudocode of the typing engine
+async function typeReply(element, text) &#123;
+  await sleep(random(2000, 8000)); // pre-engagement
+  element.focus();
+
+  for (const char of text) &#123;
+    document.execCommand('insertText', false, char);
+    const delay = gaussianMs(80, 40); // Box-Muller
+    await sleep(Math.max(20, delay + punctuationPause(char)));
+  &#125;
+&#125;</code></pre>
+
+  <h2>Reply API Endpoints</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Auth</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/replies</code></td>
+        <td>JWT</td>
+        <td>List all replies for the workspace</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/mentions/&#123;id&#125;/draft-reply</code></td>
+        <td>JWT</td>
+        <td>Generate AI reply draft for a mention</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/replies/&#123;id&#125;/content</code></td>
+        <td>JWT</td>
+        <td>Edit reply content before posting</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/replies/&#123;id&#125;/status</code></td>
+        <td>JWT</td>
+        <td>Approve or reject a reply</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/extension/reply-queue</code></td>
+        <td>Extension key</td>
+        <td>Get approved replies pending posting</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/extension/replies/&#123;id&#125;/mark-posted</code></td>
+        <td>Extension key</td>
+        <td>Mark a reply as successfully posted</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    <p>
+      <strong>Community guidelines reminder:</strong> Always review AI drafts before approving.
+      Ensure your replies genuinely add value and comply with each platform's terms of service.
+      Do not use the reply system to spam or deceive.
+    </p>
+  </blockquote>
+</DocsLayout>

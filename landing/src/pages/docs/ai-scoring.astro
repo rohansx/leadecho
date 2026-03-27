@@ -1,0 +1,320 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="AI Scoring" description="LeadEcho's 4-stage AI scoring pipeline — rules filter, semantic matching, intent classification, lead qualification.">
+  <h1>AI Scoring Pipeline</h1>
+
+  <p style="margin-top: 16px;">
+    Every post collected from monitored platforms passes through a four-stage scoring pipeline.
+    Each stage either eliminates noise or adds signal, producing a relevance score and intent
+    classification that determines where the post lands in the inbox.
+  </p>
+
+  <pre><code>Incoming post
+     │
+     ▼
+┌──────────────────────────────────────┐
+│  Stage 1: Rules Filter               │  Fast — no AI calls
+│  Rejects spam, too-short content     │
+└─────────────────┬────────────────────┘
+                  │ pass
+                  ▼
+┌──────────────────────────────────────┐
+│  Stage 2: Semantic Matching          │  Voyage AI embeddings
+│  Cosine similarity vs pain profiles  │
+└─────────────────┬────────────────────┘
+                  │ score ≥ 0.40 (or no profiles)
+                  ▼
+┌──────────────────────────────────────┐
+│  Stage 3: Intent Classification      │  LLM call (GLM / OpenAI)
+│  intent + conversion_probability     │
+│  + relevance_score (0–10)            │
+│  + awareness_level                   │
+└─────────────────┬────────────────────┘
+                  │
+                  ▼
+┌──────────────────────────────────────┐
+│  Stage 4: Lead Qualification         │  Local logic
+│  Auto-creates lead if score ≥ 7.0   │
+│  + buy_signal / recommendation_ask   │
+└──────────────────────────────────────┘</code></pre>
+
+  <h2>Stage 1 — Rules Filter</h2>
+
+  <p>The rules filter is a cheap, synchronous pass that runs before any API call:</p>
+
+  <h3>Rejection Criteria</h3>
+
+  <ul>
+    <li>Content length under <strong>50 characters</strong> — too short to contain meaningful signal.</li>
+    <li>Spam keyword match — any of the following phrases trigger immediate rejection:</li>
+  </ul>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Spam Phrase</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>click here to win</code></td></tr>
+      <tr><td><code>free money</code></td></tr>
+      <tr><td><code>limited time offer</code></td></tr>
+      <tr><td><code>act now</code></td></tr>
+      <tr><td><code>buy followers</code></td></tr>
+      <tr><td><code>crypto airdrop</code></td></tr>
+    </tbody>
+  </table>
+
+  <p>Posts rejected at Stage 1 are dropped silently — they never reach the database.</p>
+
+  <h2>Stage 2 — Semantic Matching</h2>
+
+  <p>
+    If at least one pain-point profile exists and a <code>VOYAGE_API_KEY</code> is configured,
+    Stage 2 embeds the incoming post and computes cosine similarity against stored profile embeddings.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Embedding model</td>
+        <td><code>voyage-3-lite</code></td>
+      </tr>
+      <tr>
+        <td>Vector dimensions</td>
+        <td>1024</td>
+      </tr>
+      <tr>
+        <td>Index type</td>
+        <td>HNSW (pgvector)</td>
+      </tr>
+      <tr>
+        <td>Distance function</td>
+        <td>Cosine similarity</td>
+      </tr>
+      <tr>
+        <td>Minimum threshold</td>
+        <td>0.40</td>
+      </tr>
+      <tr>
+        <td>Content truncation</td>
+        <td>2000 chars (cost control)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Stage 2 Skip Conditions</h3>
+
+  <ul>
+    <li>No pain-point profiles configured for the workspace.</li>
+    <li><code>VOYAGE_API_KEY</code> not set (falls back to keyword-only matching).</li>
+  </ul>
+
+  <p>When Stage 2 is skipped, all posts that passed Stage 1 proceed to Stage 3.</p>
+
+  <h2>Stage 3 — Intent Classification</h2>
+
+  <p>
+    An LLM call classifies the post's intent and assigns numerical scores.
+    Temperature is kept at <strong>0.1</strong> to produce consistent, deterministic results.
+  </p>
+
+  <h3>Provider Selection</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Priority</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Zhipu AI (GLM)</td>
+        <td><code>glm-4.5-flash</code></td>
+        <td>1st — preferred</td>
+      </tr>
+      <tr>
+        <td>OpenAI</td>
+        <td><code>gpt-4o-mini</code></td>
+        <td>2nd — fallback</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Intent Categories</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Intent</th>
+        <th>Description</th>
+        <th>Example</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>buy_signal</code></td>
+        <td>Actively looking to purchase or switch tools</td>
+        <td>"Looking for a better CRM, budget is $200/mo"</td>
+      </tr>
+      <tr>
+        <td><code>recommendation_ask</code></td>
+        <td>Asking for tool recommendations</td>
+        <td>"What do you use for client reporting?"</td>
+      </tr>
+      <tr>
+        <td><code>complaint</code></td>
+        <td>Expressing frustration with a current solution</td>
+        <td>"Salesforce is overkill for a 3-person team"</td>
+      </tr>
+      <tr>
+        <td><code>comparison</code></td>
+        <td>Comparing options</td>
+        <td>"HubSpot vs Pipedrive for agencies?"</td>
+      </tr>
+      <tr>
+        <td><code>general</code></td>
+        <td>Informational, no clear purchase intent</td>
+        <td>"Interesting article about CRM adoption"</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Awareness Level</h3>
+
+  <p>
+    In addition to intent, Stage 3 now classifies the buyer's <strong>awareness level</strong> — how far
+    along they are in the buying journey. This drives reply template selection in
+    <a href="/docs/smart-reply-drafting">Smart Reply Drafting</a> and appears as color-coded badges in the inbox.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Level</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>problem_aware</code></td>
+        <td>Knows they have a problem but hasn't started looking for solutions</td>
+      </tr>
+      <tr>
+        <td><code>solution_aware</code></td>
+        <td>Actively researching solution categories</td>
+      </tr>
+      <tr>
+        <td><code>product_aware</code></td>
+        <td>Comparing specific products by name</td>
+      </tr>
+      <tr>
+        <td><code>purchase_ready</code></td>
+        <td>Ready to buy — mentions budget, timeline, or specific requirements</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>LLM Output Schema</h3>
+
+  <pre><code>&#123;
+  "intent": "buy_signal",
+  "conversion_probability": 0.82,
+  "relevance_score": 8.5,
+  "reasoning": "Author explicitly states budget and urgency...",
+  "awareness_level": "purchase_ready"
+&#125;</code></pre>
+
+  <h2>Stage 4 — Lead Qualification</h2>
+
+  <p>Stage 4 is synchronous local logic — no additional API calls.</p>
+
+  <h3>Auto-Qualification Criteria</h3>
+
+  <p>A lead is automatically created when <strong>all</strong> of the following are true:</p>
+
+  <ul>
+    <li><code>relevance_score</code> ≥ <strong>7.0</strong></li>
+    <li><code>intent</code> is one of: <code>buy_signal</code>, <code>recommendation_ask</code>, <code>complaint</code></li>
+  </ul>
+
+  <p>Auto-qualified leads receive the tag <code>auto-qualified</code> and appear immediately in the Leads section.
+  Duplicate leads (same post URL already seen) are silently skipped.</p>
+
+  <h2>Smart Inbox Tiers</h2>
+
+  <p>All scored posts are routed into the Smart Inbox based on their final score:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tier</th>
+        <th>Score Range</th>
+        <th>Intents</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Leads Ready</td>
+        <td>≥ 7.0</td>
+        <td>buy_signal, recommendation_ask, complaint</td>
+      </tr>
+      <tr>
+        <td>Worth Watching</td>
+        <td>4.0 – 6.9</td>
+        <td>Any</td>
+      </tr>
+      <tr>
+        <td>Informational</td>
+        <td>&lt; 4.0</td>
+        <td>general, comparison</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Cost Estimates</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Component</th>
+        <th>Cost per 1,000 posts</th>
+        <th>Monthly (2,000 posts)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>GPT-4o-mini scoring</td>
+        <td>~$0.025</td>
+        <td>~$0.05</td>
+      </tr>
+      <tr>
+        <td>Voyage AI embeddings</td>
+        <td>~$0.001</td>
+        <td>~$0.002</td>
+      </tr>
+      <tr>
+        <td>GLM-4.5-flash (alternative)</td>
+        <td>~$0.010</td>
+        <td>~$0.02</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    <p>
+      Costs scale linearly with post volume. The 2,000 post/month estimate is typical for
+      monitoring 3–5 keywords across 4 platforms. Heavy usage (20+ keywords) may reach $1–5/month.
+    </p>
+  </blockquote>
+</DocsLayout>

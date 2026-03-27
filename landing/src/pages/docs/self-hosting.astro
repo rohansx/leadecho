@@ -1,0 +1,216 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Self-Hosting" description="Deploy LeadEcho on your own VPS with Docker Compose, Traefik TLS, and Dokploy.">
+  <h1>Self-Hosting</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho is designed to run on any Linux VPS with Docker installed.
+    A minimal deployment needs 1 GB RAM; production workloads with sidecars
+    are comfortable with 2–4 GB.
+  </p>
+
+  <h2>Docker Compose (Standard VPS)</h2>
+
+  <pre><code># Clone the repository
+git clone https://github.com/rohansx/leadecho
+cd leadecho
+
+# Create production environment file
+cp .env.example .env
+nano .env  # fill in required values
+
+# Start production stack
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Run migrations
+docker compose exec api make migrate-up</code></pre>
+
+  <h2>Traefik Setup</h2>
+
+  <p>
+    The production compose file is designed to work with a Traefik reverse proxy
+    for automatic TLS certificate issuance via Let's Encrypt.
+  </p>
+
+  <h3>Service Routes</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Domain</th>
+        <th>Target</th>
+        <th>Port</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>app.yourdomain.com</code></td>
+        <td>dashboard container</td>
+        <td>3100</td>
+      </tr>
+      <tr>
+        <td><code>api.yourdomain.com</code></td>
+        <td>api container</td>
+        <td>8090</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Traefik Dynamic Config</h3>
+
+  <pre><code># /etc/dokploy/traefik/dynamic/leadecho.yml
+http:
+  routers:
+    leadecho-dashboard:
+      rule: "Host(`app.yourdomain.com`)"
+      service: leadecho-dashboard-svc
+      tls:
+        certResolver: letsencrypt
+
+    leadecho-api:
+      rule: "Host(`api.yourdomain.com`)"
+      service: leadecho-api-svc
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    leadecho-dashboard-svc:
+      loadBalancer:
+        servers:
+          - url: "http://dashboard:3100"
+
+    leadecho-api-svc:
+      loadBalancer:
+        servers:
+          - url: "http://api:8090"</code></pre>
+
+  <p>
+    Traefik auto-issues TLS certificates via ACME (Let's Encrypt) once DNS A records
+    are pointed to your server IP.
+  </p>
+
+  <h2>Production Checklist</h2>
+
+  <ol>
+    <li>Generate a strong <code>JWT_SECRET</code>: <code>openssl rand -hex 32</code></li>
+    <li>Set a separate <code>ENCRYPTION_KEY</code> for session/key encryption</li>
+    <li>Set <code>DATABASE_URL</code> to the internal Docker network PostgreSQL</li>
+    <li>Configure at least one AI key (<code>GLM_API_KEY</code> or <code>OPENAI_API_KEY</code>)</li>
+    <li>Add <code>VOYAGE_API_KEY</code> for semantic pain-point matching</li>
+    <li>Set <code>FRONTEND_URL</code> to your dashboard domain (for CORS)</li>
+    <li>Point DNS A records for both subdomains to your server IP</li>
+    <li>Wait for Traefik to issue TLS certs (usually within 60 seconds of first request)</li>
+    <li>Verify HTTPS works before pasting any real credentials</li>
+  </ol>
+
+  <h2>Dokploy</h2>
+
+  <p>
+    If you're using <a href="https://dokploy.com" target="_blank" rel="noreferrer">Dokploy</a>
+    for VPS management, a single-file <code>dokploy.yml</code> is included in the repository root.
+    Import it in the Dokploy UI to set up the full stack with one click.
+  </p>
+
+  <pre><code># dokploy.yml is pre-configured with:
+# - api service (Go backend)
+# - dashboard service (React + nginx)
+# - postgres (with pgvector)
+# - redis
+# - dokploy-network for inter-container routing</code></pre>
+
+  <h2>Backend Dockerfile Details</h2>
+
+  <pre><code># backend/Dockerfile
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o api ./cmd/api/main.go
+
+FROM alpine:latest
+COPY --from=builder /app/api /api
+EXPOSE 8090
+CMD ["/api"]</code></pre>
+
+  <ul>
+    <li>Multi-stage build — final image has no Go toolchain</li>
+    <li>Static binary — no runtime dependencies</li>
+    <li>Final image size: ~15 MB</li>
+    <li>Requires Go 1.25+ (specified in <code>go.mod</code>)</li>
+  </ul>
+
+  <h2>Dashboard Dockerfile Details</h2>
+
+  <pre><code># dashboard/Dockerfile
+FROM node:20-alpine AS builder
+ARG VITE_API_URL=https://api.rohan.sh
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm && pnpm install
+COPY . .
+RUN VITE_API_URL=$VITE_API_URL pnpm build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 3100</code></pre>
+
+  <ul>
+    <li>Pass <code>VITE_API_URL</code> as a build arg to point the SPA at your API domain</li>
+    <li>Served by nginx — fast and minimal</li>
+    <li>SPA routing: nginx config handles all paths returning <code>index.html</code></li>
+  </ul>
+
+  <h2>Database Maintenance</h2>
+
+  <pre><code># Check migration status
+docker compose exec api make migrate-status
+
+# Back up the database
+docker compose exec postgres pg_dump -U leadecho leadecho > backup.sql
+
+# Restore from backup
+docker compose exec -T postgres psql -U leadecho leadecho < backup.sql</code></pre>
+
+  <h2>Resource Requirements</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Setup</th>
+        <th>Min RAM</th>
+        <th>Recommended RAM</th>
+        <th>Storage</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Core stack only</td>
+        <td>1 GB</td>
+        <td>2 GB</td>
+        <td>10 GB</td>
+      </tr>
+      <tr>
+        <td>With Pinchtab sidecar</td>
+        <td>2 GB</td>
+        <td>4 GB</td>
+        <td>20 GB</td>
+      </tr>
+      <tr>
+        <td>With all sidecars</td>
+        <td>4 GB</td>
+        <td>8 GB</td>
+        <td>40 GB</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    <p>
+      pgvector with large embedding stores (100k+ entries) benefits from additional RAM for the HNSW index.
+      Plan for ~200 MB RAM per 100,000 embeddings.
+    </p>
+  </blockquote>
+</DocsLayout>

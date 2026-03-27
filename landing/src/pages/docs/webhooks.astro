@@ -1,0 +1,156 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Webhooks" description="Configure Slack, Discord, and email webhook notifications for new leads and high-intent mentions.">
+  <h1>Webhooks</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho sends real-time notifications to Slack, Discord, or email when important
+    events occur — new high-intent mentions, auto-qualified leads, and more.
+    Configure webhooks in <strong>Dashboard → Alerts</strong>.
+  </p>
+
+  <h2>Notification Channels</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Channel</th>
+        <th>Format</th>
+        <th>Requirement</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Slack</strong></td>
+        <td>mrkdwn-formatted message</td>
+        <td>Slack Incoming Webhook URL</td>
+      </tr>
+      <tr>
+        <td><strong>Discord</strong></td>
+        <td>Markdown-formatted embed</td>
+        <td>Discord Webhook URL</td>
+      </tr>
+      <tr>
+        <td><strong>Email</strong></td>
+        <td>HTML email via Resend</td>
+        <td><code>RESEND_API_KEY</code> env var</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Trigger Events</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Event</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>on_new_mention</code></td>
+        <td>Any new mention that passes the scoring pipeline</td>
+      </tr>
+      <tr>
+        <td><code>on_high_intent</code></td>
+        <td>Mentions with relevance score ≥ 7.0</td>
+      </tr>
+      <tr>
+        <td><code>on_new_lead</code></td>
+        <td>When an auto-qualified lead is created</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Configuration</h2>
+
+  <h3>Get Current Webhook Config</h3>
+
+  <pre><code>GET /api/v1/notifications/webhooks
+Authorization: Bearer &lt;jwt&gt;
+
+# Response:
+&#123;
+  "slack_webhook_url": "https://hooks.slack.com/...",
+  "discord_webhook_url": null,
+  "email_recipients": ["team@yourco.com"],
+  "triggers": ["on_high_intent", "on_new_lead"]
+&#125;</code></pre>
+
+  <h3>Update Webhook Config</h3>
+
+  <pre><code>PUT /api/v1/notifications/webhooks
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "slack_webhook_url": "https://hooks.slack.com/services/T.../B.../...",
+  "discord_webhook_url": "https://discord.com/api/webhooks/.../...",
+  "email_recipients": ["founder@yourco.com"],
+  "triggers": ["on_high_intent", "on_new_lead"]
+&#125;</code></pre>
+
+  <h3>Send Test Notification</h3>
+
+  <pre><code>POST /api/v1/notifications/webhooks/test
+Authorization: Bearer &lt;jwt&gt;
+
+# Sends a sample notification to all configured channels</code></pre>
+
+  <h2>Slack Message Format</h2>
+
+  <pre><code>*New Lead Ready* — Reddit
+>  Score: *8.5/10* | Intent: `buy_signal` | Probability: 82%
+>
+> "We're drowning in client management. Looking for something that doesn't cost $500/mo..."
+>
+> by *u/devfounder* • &lt;https://reddit.com/r/...|View post&gt;
+> &lt;https://leadecho.app/inbox/men_01hx...|Open in LeadEcho&gt;</code></pre>
+
+  <h2>Discord Embed Format</h2>
+
+  <pre><code>&#123;
+  "embeds": [&#123;
+    "title": "New Lead Ready — Reddit",
+    "color": 14164999,  // #D8A017 gold
+    "description": "\"We're drowning in client management...\"",
+    "fields": [
+      &#123; "name": "Score", "value": "8.5/10", "inline": true &#125;,
+      &#123; "name": "Intent", "value": "buy_signal", "inline": true &#125;,
+      &#123; "name": "Author", "value": "u/devfounder", "inline": true &#125;
+    ],
+    "url": "https://leadecho.app/inbox/men_01hx..."
+  &#125;]
+&#125;</code></pre>
+
+  <h2>Notification Log</h2>
+
+  <p>
+    All notifications are logged to the <code>notifications</code> table with status
+    (<code>sent</code>, <code>failed</code>) and error details. View notification history
+    in <strong>Dashboard → Alerts → History</strong>.
+  </p>
+
+  <h2>Setting Up Slack Webhook</h2>
+
+  <ol>
+    <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer">api.slack.com/apps</a></li>
+    <li>Create a new app → <strong>From scratch</strong></li>
+    <li>Enable <strong>Incoming Webhooks</strong></li>
+    <li>Click <strong>Add New Webhook to Workspace</strong></li>
+    <li>Select your notification channel</li>
+    <li>Copy the webhook URL and paste it into LeadEcho Alerts settings</li>
+  </ol>
+
+  <h2>Setting Up Discord Webhook</h2>
+
+  <ol>
+    <li>Open your Discord server → go to the channel settings</li>
+    <li>Navigate to <strong>Integrations → Webhooks → New Webhook</strong></li>
+    <li>Name it "LeadEcho", optionally set an avatar</li>
+    <li>Click <strong>Copy Webhook URL</strong> and paste it into LeadEcho</li>
+  </ol>
+</DocsLayout>

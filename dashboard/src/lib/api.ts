@@ -14,6 +14,7 @@ import type {
   ExtensionTokenInfo,
   OnboardingStatus,
   UTMLink,
+  ProductAnalysis,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -328,8 +329,13 @@ export interface ClassifyResponse {
 }
 
 export interface DraftReplyResponse {
-  reply: Reply;
-  tone: string;
+  reply?: Reply;
+  tone?: string;
+  template_style?: string;
+  should_reply: boolean;
+  reason?: string;
+  awareness_level?: string;
+  thread_context_used?: boolean;
 }
 
 export function classifyMention(id: string) {
@@ -422,6 +428,27 @@ export function getOnboardingStatus() {
 export function updateOnboarding(data: { step?: number; completed?: boolean }) {
   return request<OnboardingStatus>("/settings/onboarding", {
     method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function analyzeProductURL(url: string) {
+  return request<ProductAnalysis>("/settings/onboarding/analyze-url", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}
+
+export function completeOnboarding(data: {
+  product_name: string;
+  description: string;
+  pain_points: string[];
+  keywords: string[];
+  platforms: string[];
+  subreddits: string[];
+}) {
+  return request<{ status: string; profile_id: string }>("/settings/onboarding/complete", {
+    method: "POST",
     body: JSON.stringify(data),
   });
 }

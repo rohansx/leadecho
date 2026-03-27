@@ -1,0 +1,49 @@
+---
+const testimonials = [
+  {
+    text: 'LeadEcho found a $4,200 ARR customer from a Reddit comment I would have never seen. The AI scoring is scary good at filtering noise.',
+    initials: 'JR',
+    name: 'Jake R.',
+    role: 'Founder, DevOps SaaS',
+  },
+  {
+    text: 'We replaced Mention and Brand24 with a self-hosted instance. Saving $200/mo and the intent scoring is something neither of those tools offer.',
+    initials: 'SM',
+    name: 'Sarah M.',
+    role: 'Head of Growth, Analytics Startup',
+  },
+  {
+    text: 'The Chrome extension changed my workflow completely. I browse Reddit normally and the side panel shows me which threads are worth replying to.',
+    initials: 'PK',
+    name: 'Priya K.',
+    role: 'Solo Founder',
+  },
+  {
+    text: 'Finally a social listening tool that understands context. Keyword alerts sent me garbage. LeadEcho sends me conversations where people are actually looking for what we build.',
+    initials: 'MT',
+    name: 'Marcus T.',
+    role: 'Developer Advocate',
+  },
+];
+---
+
+<section class="testimonials-section">
+  <div class="container">
+    <div class="section-label section-label-bracket">Testimonials</div>
+    <div class="section-title">Trusted by founders who<br />close deals from <span class="highlight">Social Conversations</span></div>
+    <div class="testimonials-grid">
+      {testimonials.map((t) => (
+        <div class="testimonial">
+          <p class="testimonial-text">"{t.text}"</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">{t.initials}</div>
+            <div>
+              <div class="testimonial-name">{t.name}</div>
+              <div class="testimonial-role">{t.role}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

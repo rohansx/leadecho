@@ -1,0 +1,3 @@
+scrapling[all]
+fastapi
+uvicorn[standard]

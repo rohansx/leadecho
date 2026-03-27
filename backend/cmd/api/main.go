@@ -98,11 +98,18 @@ func main() {
 		logger.Info().Str("url", cfg.CamoufoxURL).Msg("Camoufox browser client initialized")
 	}
 
-	mon := monitor.New(queries, logger, cfg.ResendAPIKey, embedder, aiProvider, pinchtab, camoufox, encKey)
+	// Scrapling stealth fallback sidecar (optional)
+	var scrapling *browser.ScraplingClient
+	if cfg.ScraplingURL != "" {
+		scrapling = browser.NewScrapling(cfg.ScraplingURL, cfg.ScraplingToken)
+		logger.Info().Str("url", cfg.ScraplingURL).Msg("Scrapling browser client initialized")
+	}
+
+	mon := monitor.New(queries, logger, cfg.ResendAPIKey, embedder, aiProvider, pinchtab, camoufox, scrapling, encKey)
 	go mon.Run(ctx, 5*time.Minute)
 
 	// Build router
-	router := api.NewRouter(logger, db, redis, cfg, embedder, pinchtab, mon)
+	router := api.NewRouter(logger, db, redis, cfg, embedder, pinchtab, scrapling, mon)
 
 	// Start server
 	srv := &http.Server{

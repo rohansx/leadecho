@@ -46,6 +46,10 @@ type Config struct {
 	// Camoufox (Pro-tier stealth Firefox sidecar for LinkedIn)
 	CamoufoxURL   string `env:"CAMOUFOX_URL,default="`
 	CamoufoxToken string `env:"CAMOUFOX_TOKEN,default="`
+
+	// Scrapling (stealth fallback sidecar — used when Pinchtab/Camoufox unavailable)
+	ScraplingURL   string `env:"SCRAPLING_URL,default="`
+	ScraplingToken string `env:"SCRAPLING_TOKEN,default="`
 }
 
 // EncryptionKeyOrDefault returns the encryption key, falling back to JWT secret.

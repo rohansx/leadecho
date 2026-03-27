@@ -1,0 +1,187 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Pain-Point Profiles" description="Configure pain-point profiles to semantically match incoming posts against customer problems.">
+  <h1>Pain-Point Profiles</h1>
+
+  <p style="margin-top: 16px;">
+    Pain-point profiles let you describe your customers' problems in plain English.
+    LeadEcho uses Voyage AI to embed each phrase and continuously matches them against
+    incoming posts via cosine similarity — surfacing conversations that are semantically
+    related even if they don't contain your exact keywords.
+  </p>
+
+  <h2>How They Work</h2>
+
+  <ol>
+    <li>You create a profile with a name and a list of pain-point phrases.</li>
+    <li>Each phrase is embedded via Voyage AI's <code>voyage-3-lite</code> model (1024-dimensional vectors) and stored in PostgreSQL with the <code>pgvector</code> extension.</li>
+    <li>As new posts arrive, they are also embedded and compared against all profile embeddings using HNSW cosine similarity.</li>
+    <li>Posts scoring above the <strong>0.40 threshold</strong> are associated with the matching profile and boosted in the scoring pipeline (Stage 2).</li>
+  </ol>
+
+  <blockquote>
+    <p>
+      Without a <code>VOYAGE_API_KEY</code>, Stage 2 (semantic matching) is skipped entirely and
+      the system falls back to keyword-only matching. Pain-point profiles still exist but have no effect.
+    </p>
+  </blockquote>
+
+  <h2>Creating a Profile</h2>
+
+  <h3>Via Dashboard</h3>
+
+  <p>
+    Navigate to <strong>Profiles</strong> in the sidebar → click <strong>New Profile</strong>.
+    Enter a descriptive name, optional description, and add pain-point phrases one per line.
+  </p>
+
+  <h3>Via API</h3>
+
+  <pre><code>POST /api/v1/profiles
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "name": "Agency management pain",
+  "description": "People struggling with client management at agencies",
+  "pain_points": [
+    "losing clients to bigger agencies",
+    "can't keep track of client deliverables",
+    "spending too much time on manual reporting",
+    "clients don't see the value we provide",
+    "agency management software too expensive"
+  ]
+&#125;</code></pre>
+
+  <h2>Example Profile</h2>
+
+  <pre><code>&#123;
+  "id": "prof_01hx...",
+  "workspace_id": "ws_01hx...",
+  "name": "Agency management pain",
+  "description": "People struggling with client management",
+  "pain_points": [
+    "losing clients to bigger agencies",
+    "can't keep track of client deliverables",
+    "spending too much time on manual reporting"
+  ],
+  "embedding_count": 3,
+  "created_at": "2025-03-01T10:00:00Z"
+&#125;</code></pre>
+
+  <h2>Similarity Threshold</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Threshold</th>
+        <th>Meaning</th>
+        <th>Typical Use</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>&lt; 0.30</code></td>
+        <td>Low similarity</td>
+        <td>Probably unrelated</td>
+      </tr>
+      <tr>
+        <td><code>0.30 – 0.40</code></td>
+        <td>Weak match</td>
+        <td>Filtered out — below threshold</td>
+      </tr>
+      <tr>
+        <td><code>0.40 – 0.60</code></td>
+        <td>Moderate match</td>
+        <td>Profile match — enters scoring pipeline</td>
+      </tr>
+      <tr>
+        <td><code>0.60 – 0.80</code></td>
+        <td>Strong match</td>
+        <td>High relevance boost in Stage 3</td>
+      </tr>
+      <tr>
+        <td><code>&gt; 0.80</code></td>
+        <td>Very strong match</td>
+        <td>Near-identical semantic meaning</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Writing Effective Pain Points</h2>
+
+  <p>Each phrase should describe a specific customer problem from <em>the customer's perspective</em>:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Ineffective</th>
+        <th>Effective</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>"project management"</td>
+        <td>"can't keep deadlines when managing multiple clients"</td>
+      </tr>
+      <tr>
+        <td>"reporting"</td>
+        <td>"spending hours each week on client status reports"</td>
+      </tr>
+      <tr>
+        <td>"losing clients"</td>
+        <td>"clients leaving because they feel we're too small"</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Guidelines:</p>
+
+  <ul>
+    <li>Use first-person perspective — "I can't..." or "we're struggling to..."</li>
+    <li>Be specific — mention the context, not just the problem type.</li>
+    <li>Aim for 5–15 pain points per profile for best coverage.</li>
+    <li>Create separate profiles for distinct customer segments or problems.</li>
+  </ul>
+
+  <h2>API Reference</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/profiles</code></td>
+        <td>List all profiles for the workspace</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/profiles</code></td>
+        <td>Create a new profile</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/profiles/&#123;id&#125;</code></td>
+        <td>Get a single profile</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/profiles/&#123;id&#125;</code></td>
+        <td>Update a profile (re-embeds all phrases)</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/profiles/&#123;id&#125;</code></td>
+        <td>Delete profile and associated embeddings</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

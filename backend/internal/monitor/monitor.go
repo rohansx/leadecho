@@ -19,15 +19,16 @@ type Monitor struct {
 	q             *database.Queries
 	logger        zerolog.Logger
 	resendAPIKey  string
-	redditBackoff time.Time                // skip Reddit crawls until this time (set on 429)
-	embedder      *embedding.Client        // Voyage AI embedder (nil if not configured)
-	aiProvider    *ai.Provider             // LLM provider for auto-classification (nil if not configured)
-	pinchtab      *browser.PinchtabClient  // browser sidecar (nil if not configured)
-	camoufox      *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
-	encKey        []byte                   // AES key for decrypting session cookies
+	redditBackoff time.Time                 // skip Reddit crawls until this time (set on 429)
+	embedder      *embedding.Client         // Voyage AI embedder (nil if not configured)
+	aiProvider    *ai.Provider              // LLM provider for auto-classification (nil if not configured)
+	pinchtab      *browser.PinchtabClient   // browser sidecar (nil if not configured)
+	camoufox      *browser.CamoufoxClient   // Pro-tier stealth Firefox sidecar (nil if not configured)
+	scrapling     *browser.ScraplingClient   // Scrapling stealth fallback sidecar (nil if not configured)
+	encKey        []byte                    // AES key for decrypting session cookies
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedder *embedding.Client, aiProvider *ai.Provider, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, encKey []byte) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedder *embedding.Client, aiProvider *ai.Provider, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte) *Monitor {
 	return &Monitor{
 		q:            q,
 		logger:       logger,
@@ -36,6 +37,7 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedd
 		aiProvider:   aiProvider,
 		pinchtab:     pinchtab,
 		camoufox:     camoufox,
+		scrapling:    scrapling,
 		encKey:       encKey,
 	}
 }
@@ -111,10 +113,16 @@ func (m *Monitor) tick(ctx context.Context) {
 			for _, platform := range kw.Platforms {
 				switch database.PlatformType(platform) {
 				case database.PlatformTypeReddit:
-					// Try Pinchtab first (authenticated, no 429s); fall back to unauthenticated
+					// Try Pinchtab → Scrapling → unauthenticated
 					if m.pinchtab != nil {
 						if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
 							alerts = append(alerts, pinchtabAlerts...)
+							break
+						}
+					}
+					if m.scrapling != nil {
+						if scraplingAlerts := m.crawlRedditScrapling(ctx, wsID, akw); scraplingAlerts != nil {
+							alerts = append(alerts, scraplingAlerts...)
 							break
 						}
 					}
@@ -129,12 +137,16 @@ func (m *Monitor) tick(ctx context.Context) {
 				case database.PlatformTypeTwitter:
 					if m.pinchtab != nil {
 						alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)
+					} else if m.scrapling != nil {
+						alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
 					}
 				case database.PlatformTypeLinkedin:
 					if m.camoufox != nil {
 						alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
 					} else if m.pinchtab != nil {
 						alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
+					} else if m.scrapling != nil {
+						alerts = append(alerts, m.crawlLinkedInScrapling(ctx, wsID, akw)...)
 					}
 				default:
 					// Phase 2 platforms

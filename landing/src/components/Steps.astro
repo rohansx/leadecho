@@ -1,0 +1,40 @@
+---
+const steps = [
+  {
+    num: '01',
+    title: 'Define pain-point profiles',
+    body: "Describe the problems your customers have in plain English. Embedding-based matching finds them even when they don't use your keywords.",
+  },
+  {
+    num: '02',
+    title: 'Auto-score every mention',
+    body: '4-stage pipeline: spam filter, semantic match, LLM intent classification, conversion probability. Runs every 5 minutes.',
+  },
+  {
+    num: '03',
+    title: 'Triaged smart inbox',
+    body: '"Leads Ready" at the top. "Worth Watching" below. Noise auto-archived. Zero manual triage required.',
+  },
+  {
+    num: '04',
+    title: 'Reply & track conversions',
+    body: 'AI drafts a reply using your knowledge base. Approve it. The Chrome extension posts with human-like timing. UTM links close the loop.',
+  },
+];
+---
+
+<section class="steps" id="how-it-works">
+  <div class="container">
+    <div class="section-label section-label-bracket">How it works</div>
+    <div class="section-title">Four steps from<br /><span class="highlight">Signal to Sale</span></div>
+    <div class="steps-grid">
+      {steps.map((s) => (
+        <div class="step">
+          <div class="step-num">{s.num}</div>
+          <h3>{s.title}</h3>
+          <p>{s.body}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

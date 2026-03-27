@@ -1,0 +1,169 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Zero-Config Onboarding" description="Paste your product URL and agents deploy automatically — AI extracts pain points, keywords, and subreddits in seconds.">
+  <h1>Zero-Config Onboarding</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho's onboarding wizard lets you go from zero to monitoring in under 60 seconds.
+    Paste your product URL, review the AI-generated setup, and deploy. No manual keyword research,
+    no guessing which subreddits to monitor.
+  </p>
+
+  <h2>How It Works</h2>
+
+  <pre><code>Step 1: Enter product URL
+     |  https://yourproduct.com
+     v
+Step 2: AI scrapes & analyzes
+     |  Extracts: product name, description, features,
+     |  pain points, competitors, target audience
+     |  Generates: keywords, subreddits, platform selection
+     v
+Step 3: Review & customize
+     |  Edit any field — add/remove pain points,
+     |  keywords, subreddits, platforms
+     v
+Step 4: Deploy agents
+     |  Profile created, embeddings generated,
+     |  keywords activated, monitoring starts
+     v
+Inbox populates within 5 minutes</code></pre>
+
+  <h2>What the AI Extracts</h2>
+
+  <p>
+    When you submit a URL, LeadEcho scrapes the page content and passes it to the configured
+    LLM provider (GLM or OpenAI) with a structured extraction prompt. The AI returns:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Description</th>
+        <th>Example</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>product_name</code></td>
+        <td>Product name extracted from the page</td>
+        <td>Acme SaaS</td>
+      </tr>
+      <tr>
+        <td><code>description</code></td>
+        <td>One-sentence product description</td>
+        <td>Infrastructure monitoring for DevOps teams</td>
+      </tr>
+      <tr>
+        <td><code>features</code></td>
+        <td>3-8 key product features</td>
+        <td>Real-time alerts, custom dashboards, ...</td>
+      </tr>
+      <tr>
+        <td><code>target_audience</code></td>
+        <td>Who the product is for</td>
+        <td>SRE teams at mid-size companies</td>
+      </tr>
+      <tr>
+        <td><code>pain_points</code></td>
+        <td>5-10 problems the product solves</td>
+        <td>"Too many false alerts", "Expensive monitoring tools", ...</td>
+      </tr>
+      <tr>
+        <td><code>competitors</code></td>
+        <td>Competitor names mentioned or implied</td>
+        <td>Datadog, New Relic, Grafana Cloud</td>
+      </tr>
+      <tr>
+        <td><code>suggested_keywords</code></td>
+        <td>5-15 monitoring keywords</td>
+        <td>Product name, competitor names, pain-point phrases</td>
+      </tr>
+      <tr>
+        <td><code>suggested_subreddits</code></td>
+        <td>3-8 relevant subreddit names</td>
+        <td>devops, sysadmin, kubernetes, sre</td>
+      </tr>
+      <tr>
+        <td><code>suggested_platforms</code></td>
+        <td>Best platforms for your product type</td>
+        <td>reddit, hackernews, devto</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>URL Scraping</h2>
+
+  <p>
+    LeadEcho uses a two-tier approach to scrape product URLs:
+  </p>
+
+  <ol>
+    <li><strong>Scrapling sidecar</strong> (primary) — If the Scrapling browser sidecar is running,
+    it navigates to the URL with anti-bot bypass and returns clean page text.</li>
+    <li><strong>HTTP fallback</strong> — If Scrapling is unavailable, a simple HTTP fetch extracts
+    visible text from the page body, stripping <code>&lt;script&gt;</code>, <code>&lt;style&gt;</code>,
+    <code>&lt;nav&gt;</code>, and <code>&lt;footer&gt;</code> tags.</li>
+  </ol>
+
+  <p>
+    Page text is truncated to ~8,000 characters before being sent to the LLM — well within
+    context limits for GPT-4o-mini or GLM-4.5-flash.
+  </p>
+
+  <h2>What Gets Created</h2>
+
+  <p>When you click "Deploy Agents", LeadEcho creates:</p>
+
+  <ol>
+    <li><strong>Monitoring profile</strong> — With your product name and description.</li>
+    <li><strong>Pain-point embeddings</strong> — Each pain point is embedded via Voyage AI and stored
+    as a 1024-dim vector for semantic matching.</li>
+    <li><strong>Keywords</strong> — One keyword entry per suggested keyword, configured for the
+    selected platforms and subreddits.</li>
+    <li><strong>Onboarding state</strong> — Marked as complete in workspace settings.</li>
+  </ol>
+
+  <p>
+    The background monitor picks up the new keywords on its next 5-minute tick and begins
+    crawling immediately.
+  </p>
+
+  <h2>Manual Setup Fallback</h2>
+
+  <p>
+    If you prefer to configure everything manually, click "Skip — set up manually" on the URL
+    input step. This drops you into an empty review form where you can type your product name,
+    pain points, keywords, and platform selection from scratch.
+  </p>
+
+  <h2>API Endpoints</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Auth</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/settings/onboarding/analyze-url</code></td>
+        <td>JWT</td>
+        <td>Scrape URL + AI product analysis</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/settings/onboarding/complete</code></td>
+        <td>JWT</td>
+        <td>Create profile, keywords, embeddings; mark onboarding done</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

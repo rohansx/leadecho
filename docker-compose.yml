@@ -60,6 +60,19 @@ services:
     profiles:
       - browser-pro
 
+  scrapling:
+    build: ./scrapling-sidecar
+    container_name: leadecho-scrapling
+    ports:
+      - "127.0.0.1:9869:9869"
+    environment:
+      SCRAPLING_TOKEN: ${SCRAPLING_TOKEN:-changeme}
+      SCRAPLING_PORT: "9869"
+      SCRAPLING_STEALTH: "true"
+    mem_limit: 1g
+    profiles:
+      - browser-scrapling
+
 volumes:
   pgdata:
   pinchtab_profiles:

@@ -1,0 +1,274 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Smart Reply Drafting" description="Two-stage AI reply pipeline with pre-filtering, thread context, 5 template styles, and awareness-level classification.">
+  <h1>Smart Reply Drafting</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho's reply drafting system uses a two-stage AI pipeline that decides whether a mention
+    is worth replying to, fetches the full thread context, selects a reply template based on
+    buyer awareness level, and generates a natural, platform-appropriate response.
+  </p>
+
+  <h2>Two-Stage Pipeline</h2>
+
+  <pre><code>POST /mentions/&#123;id&#125;/draft-reply
+     |
+     v
+┌──────────────────────────────────────┐
+|  Stage 1: Pre-Filter                 |  Cheap LLM call (temp 0.1)
+|  "Is this worth replying to?"        |
+|  Returns: should_reply + awareness   |
+└─────────────────┬────────────────────┘
+                  | should_reply: true
+                  v
+┌──────────────────────────────────────┐
+|  Fetch Thread Context                |  Reddit JSON API / HN Algolia
+|  Top ~10 comments from the thread    |
+└─────────────────┬────────────────────┘
+                  |
+                  v
+┌──────────────────────────────────────┐
+|  Stage 2: Enhanced Draft             |  Full LLM call (temp 0.7-0.9)
+|  Template style + thread context     |
+|  + KB context + awareness level      |
+└──────────────────────────────────────┘</code></pre>
+
+  <h2>Stage 1: Pre-Filter</h2>
+
+  <p>
+    Before spending tokens on a full reply draft, the pre-filter evaluates whether the mention
+    is worth engaging with. This prevents wasted LLM calls on news articles, announcements,
+    already-answered questions, and self-promotional posts.
+  </p>
+
+  <h3>Pre-Filter Returns</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>should_reply</code></td>
+        <td>boolean</td>
+        <td>Whether a reply would add value</td>
+      </tr>
+      <tr>
+        <td><code>reason</code></td>
+        <td>string</td>
+        <td>Explanation (shown in UI if false)</td>
+      </tr>
+      <tr>
+        <td><code>awareness_level</code></td>
+        <td>string</td>
+        <td>Buyer awareness classification</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Rejection Criteria</h3>
+
+  <ul>
+    <li>News articles or link shares with no discussion</li>
+    <li>Already answered questions with accepted solutions</li>
+    <li>Announcements or press releases</li>
+    <li>Self-promotional posts (someone showing off their product)</li>
+    <li>Posts with no question or pain point expressed</li>
+  </ul>
+
+  <h2>Awareness Level Classification</h2>
+
+  <p>
+    Every mention is classified into one of four buyer awareness levels, inspired by
+    the SubredditSignals scoring system. This classification drives both the reply template
+    selection and the inbox badge display.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Level</th>
+        <th>Description</th>
+        <th>Example</th>
+        <th>Badge Color</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>problem_aware</code></td>
+        <td>Knows they have a problem, hasn't started looking for solutions</td>
+        <td>"How do you handle monitoring at scale?"</td>
+        <td><span style="background: #fef08a; color: #854d0e; padding: 2px 8px; font-size: 0.75rem;">Problem Aware</span></td>
+      </tr>
+      <tr>
+        <td><code>solution_aware</code></td>
+        <td>Actively researching solution categories</td>
+        <td>"Best way to set up observability?"</td>
+        <td><span style="background: #bfdbfe; color: #1e40af; padding: 2px 8px; font-size: 0.75rem;">Solution Aware</span></td>
+      </tr>
+      <tr>
+        <td><code>product_aware</code></td>
+        <td>Comparing specific products by name</td>
+        <td>"Datadog vs Grafana Cloud?"</td>
+        <td><span style="background: #bbf7d0; color: #166534; padding: 2px 8px; font-size: 0.75rem;">Product Aware</span></td>
+      </tr>
+      <tr>
+        <td><code>purchase_ready</code></td>
+        <td>Ready to buy, mentions budget/timeline/requirements</td>
+        <td>"Need monitoring, budget $50/mo, team of 5"</td>
+        <td><span style="background: #e9d5ff; color: #6b21a8; padding: 2px 8px; font-size: 0.75rem;">Purchase Ready</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Thread Context Fetching</h2>
+
+  <p>
+    Before drafting, LeadEcho fetches the full thread context to ensure replies are contextually
+    appropriate and don't repeat what others have already said.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Method</th>
+        <th>Data Collected</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reddit</td>
+        <td>Append <code>.json</code> to post URL (Reddit JSON API)</td>
+        <td>Top ~10 comments: author, text, score</td>
+      </tr>
+      <tr>
+        <td>Hacker News</td>
+        <td>HN Algolia API (<code>/api/v1/items/&#123;id&#125;</code>)</td>
+        <td>Top ~10 comments: author, text</td>
+      </tr>
+      <tr>
+        <td>Others</td>
+        <td>Scrapling sidecar (if available)</td>
+        <td>Page text content</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Thread context is cached in the <code>threads</code> table to avoid re-fetching on subsequent
+    draft attempts for the same mention. Total context is truncated to ~4,000 characters for
+    the LLM prompt.
+  </p>
+
+  <h2>5 Template Styles</h2>
+
+  <p>
+    Each reply draft uses one of five template styles, automatically selected based on the
+    mention's intent and awareness level. The style is randomly varied to prevent pattern
+    detection across replies.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Style</th>
+        <th>When Used</th>
+        <th>Approach</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>value_first</code></td>
+        <td>recommendation_ask, purchase_ready</td>
+        <td>Answer the question directly, then mention product as one option</td>
+      </tr>
+      <tr>
+        <td><code>storytelling</code></td>
+        <td>complaint, problem_aware</td>
+        <td>"I had the same problem..." — personal narrative with natural product mention</td>
+      </tr>
+      <tr>
+        <td><code>technical_deep_dive</code></td>
+        <td>comparison, HN posts</td>
+        <td>Detailed technical analysis with product as one viable solution</td>
+      </tr>
+      <tr>
+        <td><code>casual_helpful</code></td>
+        <td>general, low-intent, problem_aware</td>
+        <td>Brief, genuinely helpful reply with NO product mention (builds karma)</td>
+      </tr>
+      <tr>
+        <td><code>contrarian</code></td>
+        <td>comparison, debate threads</td>
+        <td>Fresh perspective that challenges conventional wisdom</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Global Rules (All Styles)</h3>
+
+  <ul>
+    <li>No direct product links — mention by name only, let people Google it</li>
+    <li>Never start with "As someone who..." or "I've been using..." (pattern-detected as bots)</li>
+    <li>Match platform tone (Reddit: casual, HN: technical, LinkedIn: professional)</li>
+    <li>Read thread context — don't repeat what others already said</li>
+    <li>Vary openings across replies</li>
+    <li>Temperature varies between 0.7-0.9 per call for natural diversity</li>
+  </ul>
+
+  <h2>Reply Engagement Tracking</h2>
+
+  <p>
+    After a reply is posted via the Chrome extension, LeadEcho periodically checks its
+    engagement metrics. For posted replies in the last 7 days:
+  </p>
+
+  <ul>
+    <li>Upvotes and downvotes</li>
+    <li>Number of replies received</li>
+    <li>Whether the comment was removed by moderators</li>
+  </ul>
+
+  <p>
+    This data is stored in the <code>reply_engagements</code> table and can be used to
+    understand which reply styles work best in which communities.
+  </p>
+
+  <h2>API Response</h2>
+
+  <p>The <code>POST /mentions/&#123;id&#125;/draft-reply</code> endpoint returns different shapes depending on the pre-filter result:</p>
+
+  <h3>When should_reply is false:</h3>
+
+  <pre><code>&#123;
+  "should_reply": false,
+  "reason": "This is a news article with no discussion or question",
+  "awareness_level": "problem_aware"
+&#125;</code></pre>
+
+  <h3>When should_reply is true:</h3>
+
+  <pre><code>&#123;
+  "should_reply": true,
+  "reply": &#123; "id": "...", "content": "...", "status": "draft", ... &#125;,
+  "tone": "helpful",
+  "template_style": "value_first",
+  "awareness_level": "solution_aware",
+  "thread_context_used": true
+&#125;</code></pre>
+
+  <blockquote>
+    <p>
+      <strong>Why no compliance checker?</strong> Reddit comments are rarely moderated — rules
+      mainly apply to posts (flair, self-promo, link spam). For comments, all you need is
+      tone matching and no direct product links, which the template system handles automatically.
+    </p>
+  </blockquote>
+</DocsLayout>

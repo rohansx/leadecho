@@ -1,0 +1,238 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Configuration" description="LeadEcho environment variables, AI provider setup, and BYOK key management.">
+  <h1>Configuration</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho is configured entirely through environment variables. Copy <code>.env.example</code> to <code>.env</code>
+    and fill in the required values before starting.
+  </p>
+
+  <h2>Core Variables</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th>Required</th>
+        <th>Default</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>DATABASE_URL</code></td>
+        <td><span class="badge badge-red">Required</span></td>
+        <td>—</td>
+        <td>PostgreSQL connection string with pgvector extension</td>
+      </tr>
+      <tr>
+        <td><code>REDIS_URL</code></td>
+        <td><span class="badge badge-red">Required</span></td>
+        <td>—</td>
+        <td>Redis connection string for caching and queues</td>
+      </tr>
+      <tr>
+        <td><code>JWT_SECRET</code></td>
+        <td><span class="badge badge-red">Required</span></td>
+        <td>—</td>
+        <td>Must be 32+ characters. Used to sign auth tokens.</td>
+      </tr>
+      <tr>
+        <td><code>ENCRYPTION_KEY</code></td>
+        <td>Optional</td>
+        <td>Falls back to <code>JWT_SECRET</code></td>
+        <td>AES key for encrypting stored session cookies and API keys</td>
+      </tr>
+      <tr>
+        <td><code>PORT</code></td>
+        <td>Optional</td>
+        <td><code>8090</code></td>
+        <td>HTTP port the backend listens on</td>
+      </tr>
+      <tr>
+        <td><code>ENVIRONMENT</code></td>
+        <td>Optional</td>
+        <td><code>development</code></td>
+        <td>Set to <code>production</code> to enable prod-only behaviors</td>
+      </tr>
+      <tr>
+        <td><code>LOG_LEVEL</code></td>
+        <td>Optional</td>
+        <td><code>info</code></td>
+        <td>Zerolog level: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code></td>
+      </tr>
+      <tr>
+        <td><code>FRONTEND_URL</code></td>
+        <td>Optional</td>
+        <td><code>http://localhost:3100</code></td>
+        <td>CORS allowed origin for dashboard requests</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>AI Provider Variables</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th>Required</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GLM_API_KEY</code></td>
+        <td>One of GLM or OpenAI required</td>
+        <td>Zhipu AI (GLM) API key — preferred provider</td>
+      </tr>
+      <tr>
+        <td><code>OPENAI_API_KEY</code></td>
+        <td>One of GLM or OpenAI required</td>
+        <td>OpenAI API key — fallback if GLM not set</td>
+      </tr>
+      <tr>
+        <td><code>VOYAGE_API_KEY</code></td>
+        <td>Optional (recommended)</td>
+        <td>Voyage AI key for semantic embedding — enables pain-point profile matching</td>
+      </tr>
+      <tr>
+        <td><code>RESEND_API_KEY</code></td>
+        <td>Optional</td>
+        <td>Resend API key for email notifications</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Google OAuth Variables</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GOOGLE_CLIENT_ID</code></td>
+        <td>OAuth 2.0 client ID from Google Cloud Console</td>
+      </tr>
+      <tr>
+        <td><code>GOOGLE_CLIENT_SECRET</code></td>
+        <td>OAuth 2.0 client secret</td>
+      </tr>
+      <tr>
+        <td><code>GOOGLE_REDIRECT_URL</code></td>
+        <td>Callback URL — must match Google Console setting (e.g. <code>https://api.yourdomain.com/auth/google/callback</code>)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Browser Sidecar Variables</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th>Default</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>PINCHTAB_URL</code></td>
+        <td><code>http://localhost:9867</code></td>
+        <td>Pinchtab sidecar API endpoint</td>
+      </tr>
+      <tr>
+        <td><code>PINCHTAB_TOKEN</code></td>
+        <td>—</td>
+        <td>Auth token for the Pinchtab service</td>
+      </tr>
+      <tr>
+        <td><code>CAMOUFOX_URL</code></td>
+        <td>—</td>
+        <td>Camoufox Pro sidecar endpoint. When set, activates stealth LinkedIn crawling.</td>
+      </tr>
+      <tr>
+        <td><code>CAMOUFOX_TOKEN</code></td>
+        <td>—</td>
+        <td>Auth token for the Camoufox service</td>
+      </tr>
+      <tr>
+        <td><code>SCRAPLING_URL</code></td>
+        <td>—</td>
+        <td>Scrapling adaptive extraction sidecar endpoint</td>
+      </tr>
+      <tr>
+        <td><code>SCRAPLING_TOKEN</code></td>
+        <td>—</td>
+        <td>Auth token for the Scrapling service</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>AI Provider Priority</h2>
+
+  <p>
+    LeadEcho evaluates AI providers at startup and picks the first available one:
+  </p>
+
+  <ol>
+    <li><strong>GLM (glm-4.5-flash)</strong> — Preferred. Faster and more cost-efficient.</li>
+    <li><strong>OpenAI (gpt-4o-mini)</strong> — Used when <code>GLM_API_KEY</code> is not set.</li>
+  </ol>
+
+  <p>
+    Both providers are used for intent classification (Stage 3) and reply drafting.
+    The LLM is called with temperature <code>0.1</code> for scoring and <code>0.7</code> for reply generation.
+  </p>
+
+  <h2>BYOK API Keys</h2>
+
+  <p>
+    Each workspace can override the server-level AI keys with their own (Bring Your Own Key).
+    BYOK keys are managed through the dashboard at <strong>Settings → API Keys</strong>
+    or via the API:
+  </p>
+
+  <pre><code>PUT /api/v1/settings/api-keys
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "openai_api_key": "sk-...",
+  "voyage_api_key": "pa-..."
+&#125;</code></pre>
+
+  <p>
+    All BYOK keys are AES-256 encrypted using <code>ENCRYPTION_KEY</code> (or <code>JWT_SECRET</code> as fallback)
+    before being stored in the database. They are decrypted at runtime only when a request
+    requires an AI call for that workspace.
+  </p>
+
+  <blockquote>
+    <p>
+      <strong>Security note:</strong> Never commit your <code>.env</code> file.
+      For production, use a secret manager or inject environment variables via your deployment platform.
+      Generate a strong <code>JWT_SECRET</code> with: <code>openssl rand -hex 32</code>
+    </p>
+  </blockquote>
+
+  <h2>Minimum Working Configuration</h2>
+
+  <pre><code># Minimum .env for local development
+DATABASE_URL=postgres://leadecho:leadecho@localhost:5433/leadecho
+REDIS_URL=redis://localhost:6380/0
+JWT_SECRET=change-me-to-at-least-32-chars-long
+
+# At least one AI key is required
+GLM_API_KEY=your-glm-key
+
+# Strongly recommended
+VOYAGE_API_KEY=your-voyage-key</code></pre>
+</DocsLayout>

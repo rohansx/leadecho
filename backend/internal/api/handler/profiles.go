@@ -218,7 +218,7 @@ func (h *ProfileHandler) embedAndStorePhrases(ctx context.Context, profileID, ws
 			ProfileID:   profileID,
 			WorkspaceID: wsID,
 			Phrase:      phrase,
-			Embedding:   vectors[i],
+			Embedding:   &vectors[i],
 		})
 	}
 	return nil

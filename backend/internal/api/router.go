@@ -21,7 +21,7 @@ import (
 	"leadecho/internal/monitor"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, embedder *embedding.Client, pinchtab *browser.PinchtabClient, mon *monitor.Monitor) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, embedder *embedding.Client, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -99,7 +99,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/profiles/{id}", profiles.Delete)
 
 			// AI (intent classification + reply drafting)
-			aiHandler := handler.NewAIHandler(queries, cfg.GLMAPIKey, cfg.OpenAIAPIKey)
+			aiHandler := handler.NewAIHandler(queries, cfg.GLMAPIKey, cfg.OpenAIAPIKey, scrapling)
 			r.Post("/mentions/{id}/classify", aiHandler.Classify)
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
 
@@ -168,9 +168,11 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/settings/extension-token", ext.RevokeToken)
 
 			// Onboarding wizard
-			onboarding := handler.NewOnboardingHandler(queries)
+			onboarding := handler.NewOnboardingHandler(queries, scrapling, cfg.GLMAPIKey, cfg.OpenAIAPIKey, embedder)
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
+			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
+			r.Post("/settings/onboarding/complete", onboarding.Complete)
 
 			// UTM tracking links
 			utm := handler.NewUTMHandler(queries)

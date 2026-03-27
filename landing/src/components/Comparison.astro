@@ -1,0 +1,55 @@
+---
+const rows = [
+  { feature: 'Semantic pain-point matching', le: true, f5: false, mention: false, b24: false },
+  { feature: 'AI intent scoring (BYOK)', le: true, f5: false, mention: false, b24: false },
+  { feature: 'Automated reply posting', le: true, f5: false, mention: false, b24: false },
+  { feature: 'Chrome extension side panel', le: true, f5: false, mention: false, b24: false },
+  { feature: 'UTM conversion attribution', le: true, f5: false, mention: false, b24: false },
+  { feature: 'Knowledge base RAG', le: true, f5: false, mention: false, b24: false },
+  { feature: 'Self-hostable / open source', le: 'MIT', f5: true, mention: false, b24: false },
+  { feature: 'LinkedIn monitoring', le: true, f5: false, mention: true, b24: true },
+  { feature: 'Hacker News', le: true, f5: true, mention: false, b24: false },
+  { feature: 'Dev.to, Lobsters, IndieHackers', le: true, f5: false, mention: false, b24: false },
+  { feature: 'Starting price', le: 'Free / $29', f5: 'Free', mention: '$41/mo', b24: '$99/mo', isPrice: true },
+];
+---
+
+<section class="compare-section">
+  <div class="container">
+    <div class="section-label section-label-bracket">Comparison</div>
+    <div class="section-title">How LeadEcho compares</div>
+    <p class="section-sub">The only open-source solution that scores intent, drafts replies, and closes the attribution loop.</p>
+    <div class="compare-wrap">
+      <table class="compare">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th class="ours">LeadEcho</th>
+            <th>F5bot</th>
+            <th>Mention</th>
+            <th>Brand24</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr>
+              <td>{r.feature}</td>
+              <td class={r.le === true || typeof r.le === 'string' ? 'yes' : 'no'}>
+                {r.le === true ? '✓' : r.le === false ? '—' : r.le}
+              </td>
+              <td class={r.f5 === true || typeof r.f5 === 'string' ? (r.f5 === true ? 'yes' : '') : 'no'}>
+                {r.f5 === true ? '✓' : r.f5 === false ? '—' : r.f5}
+              </td>
+              <td class={r.mention === true || typeof r.mention === 'string' ? (r.mention === true ? 'yes' : '') : 'no'}>
+                {r.mention === true ? '✓' : r.mention === false ? '—' : r.mention}
+              </td>
+              <td class={r.b24 === true || typeof r.b24 === 'string' ? (r.b24 === true ? 'yes' : '') : 'no'}>
+                {r.b24 === true ? '✓' : r.b24 === false ? '—' : r.b24}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

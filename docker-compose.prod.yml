@@ -43,8 +43,8 @@ services:
 
   dashboard:
     build:
-      context: ./dashboard
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.frontend
     ports:
       - "127.0.0.1:3100:3100"
     restart: unless-stopped

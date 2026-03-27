@@ -24,3 +24,4 @@ sql:
             go_type:
               import: "github.com/pgvector/pgvector-go"
               type: "Vector"
+              pointer: true

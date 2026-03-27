@@ -6,6 +6,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -34,9 +36,12 @@ type Querier interface {
 	CreateMention(ctx context.Context, arg CreateMentionParams) (Mention, error)
 	CreateMonitoringProfile(ctx context.Context, arg CreateMonitoringProfileParams) (MonitoringProfile, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
+	CreateOnboardingAnalysis(ctx context.Context, arg CreateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	// ─── Pain-Point Embeddings ─────────────────────────────
 	CreatePainPointEmbedding(ctx context.Context, arg CreatePainPointEmbeddingParams) (PainPointEmbedding, error)
 	CreateReply(ctx context.Context, arg CreateReplyParams) (Reply, error)
+	CreateReplyEngagement(ctx context.Context, arg CreateReplyEngagementParams) (ReplyEngagement, error)
+	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
@@ -53,11 +58,14 @@ type Querier interface {
 	GetExtensionTokenByToken(ctx context.Context, token string) (ExtensionToken, error)
 	GetExtensionTokenByWorkspace(ctx context.Context, workspaceID string) (ExtensionToken, error)
 	GetKeyword(ctx context.Context, arg GetKeywordParams) (GetKeywordRow, error)
+	GetLatestOnboardingAnalysis(ctx context.Context, workspaceID string) (OnboardingAnalysis, error)
+	GetLatestReplyEngagement(ctx context.Context, replyID string) (ReplyEngagement, error)
 	GetLead(ctx context.Context, arg GetLeadParams) (Lead, error)
 	GetMention(ctx context.Context, arg GetMentionParams) (Mention, error)
 	GetMonitoringProfile(ctx context.Context, arg GetMonitoringProfileParams) (MonitoringProfile, error)
 	GetPlatformSession(ctx context.Context, arg GetPlatformSessionParams) (PlatformAccount, error)
 	GetReply(ctx context.Context, arg GetReplyParams) (Reply, error)
+	GetThreadByMention(ctx context.Context, mentionID string) (Thread, error)
 	GetUTMLinkByCode(ctx context.Context, code string) (UtmLink, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
@@ -87,8 +95,10 @@ type Querier interface {
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
 	ListPainPointEmbeddingsByWorkspace(ctx context.Context, workspaceID string) ([]PainPointEmbedding, error)
 	ListPlatformSessions(ctx context.Context, workspaceID string) ([]PlatformAccount, error)
+	ListPostedRepliesSince(ctx context.Context, since pgtype.Timestamptz) ([]ListPostedRepliesSinceRow, error)
 	ListRecentLeadsForWorkspace(ctx context.Context, arg ListRecentLeadsForWorkspaceParams) ([]ListRecentLeadsForWorkspaceRow, error)
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
+	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
 	ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error)
 	ListUsersByExternalID(ctx context.Context, clerkUserID string) ([]User, error)
@@ -105,14 +115,17 @@ type Querier interface {
 	UpdateKeyword(ctx context.Context, arg UpdateKeywordParams) (UpdateKeywordRow, error)
 	UpdateLead(ctx context.Context, arg UpdateLeadParams) (Lead, error)
 	UpdateLeadStage(ctx context.Context, arg UpdateLeadStageParams) (Lead, error)
+	UpdateMentionAwarenessLevel(ctx context.Context, arg UpdateMentionAwarenessLevelParams) error
 	// ─── Embedding & Scoring ──────────────────────────────
 	UpdateMentionEmbedding(ctx context.Context, arg UpdateMentionEmbeddingParams) error
 	UpdateMentionIntent(ctx context.Context, arg UpdateMentionIntentParams) (Mention, error)
 	UpdateMentionScoring(ctx context.Context, arg UpdateMentionScoringParams) (Mention, error)
 	UpdateMentionStatus(ctx context.Context, arg UpdateMentionStatusParams) (Mention, error)
 	UpdateMonitoringProfile(ctx context.Context, arg UpdateMonitoringProfileParams) (MonitoringProfile, error)
+	UpdateOnboardingAnalysis(ctx context.Context, arg UpdateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	UpdateReplyContent(ctx context.Context, arg UpdateReplyContentParams) (Reply, error)
 	UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusParams) (Reply, error)
+	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
 }

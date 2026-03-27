@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       credentials: "include",
     });
     setUser(null);
-    window.location.href = "/login";
+    window.location.href = "/login";  // lands on Astro /login page
   };
 
   return (

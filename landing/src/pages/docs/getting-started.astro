@@ -1,0 +1,221 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Getting Started" description="Quick start guide for LeadEcho — Docker setup, manual development, first steps.">
+  <h1>Getting Started</h1>
+
+  <p style="margin-top: 16px;">
+    Get LeadEcho running locally in under five minutes using Docker Compose,
+    or set up a full development environment for contributing.
+  </p>
+
+  <h2>Prerequisites</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Requirement</th>
+        <th>Version</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Docker</td>
+        <td>24+</td>
+        <td>Required for the recommended quick start</td>
+      </tr>
+      <tr>
+        <td>Docker Compose</td>
+        <td>v2.x</td>
+        <td>Included with Docker Desktop</td>
+      </tr>
+      <tr>
+        <td>Go</td>
+        <td>1.25+</td>
+        <td>Optional — only needed for local backend dev</td>
+      </tr>
+      <tr>
+        <td>Node.js + pnpm</td>
+        <td>Node 20+, pnpm 9+</td>
+        <td>Optional — only needed for dashboard/extension dev</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Quick Start (Docker)</h2>
+
+  <p>The fastest path to a running instance:</p>
+
+  <pre><code>git clone https://github.com/rohansx/leadecho
+cd leadecho
+cp .env.example .env
+# Edit .env — set JWT_SECRET and at least one AI key
+docker compose up -d
+make migrate-up</code></pre>
+
+  <h3>Default Ports</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>URL</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Dashboard</td>
+        <td><code>http://localhost:3100</code></td>
+        <td>React SPA</td>
+      </tr>
+      <tr>
+        <td>API</td>
+        <td><code>http://localhost:8090</code></td>
+        <td>Go backend</td>
+      </tr>
+      <tr>
+        <td>PostgreSQL</td>
+        <td><code>localhost:5433</code></td>
+        <td>Host-mapped for local tooling access</td>
+      </tr>
+      <tr>
+        <td>Redis</td>
+        <td><code>localhost:6380</code></td>
+        <td>Host-mapped for inspection</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>With Browser Sidecars</h2>
+
+  <p>
+    Browser sidecars enable authenticated crawling of Reddit, Twitter, and LinkedIn.
+    They run as separate Docker containers alongside the main stack.
+  </p>
+
+  <h3>Pinchtab (Reddit, Twitter, LinkedIn)</h3>
+
+  <pre><code># Start with Pinchtab sidecar
+docker compose --profile browser up -d
+
+# Required env vars:
+# PINCHTAB_TOKEN=your-token
+# PINCHTAB_URL=http://localhost:9867  (default)</code></pre>
+
+  <h3>Camoufox Pro (stealth LinkedIn)</h3>
+
+  <pre><code># Start with Camoufox sidecar (Pro tier)
+CAMOUFOX_URL=http://localhost:9868 docker compose --profile browser-pro up -d</code></pre>
+
+  <h3>Scrapling (fallback)</h3>
+
+  <pre><code># Adaptive CSS-based extraction fallback
+docker compose --profile browser-scrapling up -d</code></pre>
+
+  <h2>Manual Development Setup</h2>
+
+  <p>For local development with hot-reload:</p>
+
+  <pre><code># Install all dependencies
+make install
+
+# Start all services (backend + dashboard + postgres + redis)
+make up
+
+# Tail all logs
+make logs
+
+# Regenerate Go types after SQL changes
+make sqlc
+
+# TypeScript type check
+make web-check</code></pre>
+
+  <h3>Backend Only</h3>
+
+  <pre><code>cd backend
+go run ./cmd/api/main.go</code></pre>
+
+  <h3>Dashboard Only</h3>
+
+  <pre><code>cd dashboard
+pnpm dev</code></pre>
+
+  <h3>Extension Development</h3>
+
+  <pre><code>cd extension
+pnpm install
+pnpm dev   # watches and rebuilds on change</code></pre>
+
+  <h2>First Steps After Install</h2>
+
+  <ol>
+    <li>Open <a href="http://localhost:3100">http://localhost:3100</a> and register an account.</li>
+    <li>Complete the onboarding wizard — it guides you through keyword setup and AI key configuration.</li>
+    <li>Add your first keyword under <strong>Keywords</strong> in the sidebar.</li>
+    <li>Configure AI keys in <strong>Settings → API Keys</strong> (GLM or OpenAI required).</li>
+    <li>Optionally add a Voyage AI key for semantic pain-point matching.</li>
+    <li>Wait for the first scan cycle — the monitor runs every 5 minutes by default.</li>
+    <li>Incoming matches appear in <strong>Inbox</strong> with AI-assigned relevance scores.</li>
+  </ol>
+
+  <blockquote>
+    <p>
+      <strong>Tip:</strong> Without a Voyage AI key, LeadEcho falls back to keyword-only matching.
+      Semantic matching is significantly more accurate — grab a free key at
+      <a href="https://www.voyageai.com" target="_blank" rel="noreferrer">voyageai.com</a>.
+    </p>
+  </blockquote>
+
+  <h2>Makefile Commands Reference</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Command</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>make install</code></td>
+        <td>Install all Go and Node dependencies</td>
+      </tr>
+      <tr>
+        <td><code>make up</code></td>
+        <td>Start all services via Docker Compose</td>
+      </tr>
+      <tr>
+        <td><code>make down</code></td>
+        <td>Stop all services</td>
+      </tr>
+      <tr>
+        <td><code>make logs</code></td>
+        <td>Tail all service logs</td>
+      </tr>
+      <tr>
+        <td><code>make migrate-up</code></td>
+        <td>Run pending database migrations</td>
+      </tr>
+      <tr>
+        <td><code>make migrate-down</code></td>
+        <td>Roll back last migration</td>
+      </tr>
+      <tr>
+        <td><code>make sqlc</code></td>
+        <td>Regenerate Go types from SQL queries</td>
+      </tr>
+      <tr>
+        <td><code>make web-check</code></td>
+        <td>TypeScript type check for dashboard</td>
+      </tr>
+      <tr>
+        <td><code>make build</code></td>
+        <td>Build all Docker images</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

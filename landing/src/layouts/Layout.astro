@@ -1,0 +1,77 @@
+---
+export interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'LeadEcho — Find buyers before they find your competitors',
+  description = 'Monitor Reddit, Twitter, LinkedIn and 4 more platforms for people actively asking about your pain points. AI scoring, smart inbox, and one-click reply posting.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content="LeadEcho — Social Intent Monitor" />
+    <meta property="og:description" content="Find buyers before they find your competitors. 7 platforms. AI scoring. One-click replies." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Apply saved theme before paint to avoid flash -->
+    <script is:inline>
+      (function () {
+        const saved = localStorage.getItem('theme');
+        if (saved) document.documentElement.setAttribute('data-theme', saved);
+      })();
+    </script>
+  </head>
+  <body>
+    <slot />
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // Nav scroll state
+        const nav = document.querySelector('nav');
+        if (nav) {
+          window.addEventListener(
+            'scroll',
+            () => nav.classList.toggle('scrolled', scrollY > 20),
+            { passive: true }
+          );
+        }
+
+        // Hamburger menu
+        const hamburger = document.querySelector('.hamburger') as HTMLElement | null;
+        const navLinks = document.querySelector('.nav-links') as HTMLElement | null;
+        if (hamburger && navLinks) {
+          hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('open');
+            navLinks.classList.toggle('open');
+            document.body.style.overflow = navLinks.classList.contains('open') ? 'hidden' : '';
+          });
+          navLinks.querySelectorAll('a').forEach((a) => {
+            a.addEventListener('click', () => {
+              hamburger.classList.remove('open');
+              navLinks.classList.remove('open');
+              document.body.style.overflow = '';
+            });
+          });
+        }
+      });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+</style>

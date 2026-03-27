@@ -1,0 +1,204 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Overview" description="LeadEcho documentation overview — social intent monitoring across 7 platforms.">
+  <h1>LeadEcho Documentation</h1>
+
+  <p style="margin-top: 16px; font-size: 1rem; color: var(--text2);">
+    Social intent monitoring across 7 platforms with AI scoring, smart inbox, and one-click reply posting.
+    Find buyers before they find your competitors — paste your product URL and agents deploy in seconds.
+  </p>
+
+  <h2>Quick Links</h2>
+
+  <div class="docs-grid">
+    <a href="/docs/zero-config-onboarding" class="docs-card">
+      <div class="docs-card-label">01 — Onboarding</div>
+      <div class="docs-card-title">Zero-Config Setup</div>
+      <div class="docs-card-desc">Paste your URL, AI extracts everything, agents deploy in seconds.</div>
+    </a>
+    <a href="/docs/getting-started" class="docs-card">
+      <div class="docs-card-label">02 — Setup</div>
+      <div class="docs-card-title">Getting Started</div>
+      <div class="docs-card-desc">Docker quick start, manual dev setup, first steps after install.</div>
+    </a>
+    <a href="/docs/ai-scoring" class="docs-card">
+      <div class="docs-card-label">03 — AI</div>
+      <div class="docs-card-title">AI Scoring + Awareness</div>
+      <div class="docs-card-desc">4-stage pipeline + buyer awareness levels: Problem Aware → Purchase Ready.</div>
+    </a>
+    <a href="/docs/smart-reply-drafting" class="docs-card">
+      <div class="docs-card-label">04 — Replies</div>
+      <div class="docs-card-title">Smart Reply Drafting</div>
+      <div class="docs-card-desc">Two-stage pipeline, 5 template styles, thread context, engagement tracking.</div>
+    </a>
+    <a href="/docs/chrome-extension" class="docs-card">
+      <div class="docs-card-label">05 — Extension</div>
+      <div class="docs-card-title">Chrome Extension</div>
+      <div class="docs-card-desc">Passive signal collection and reply posting with human-mimicry typing.</div>
+    </a>
+    <a href="/docs/api-reference" class="docs-card">
+      <div class="docs-card-label">06 — API</div>
+      <div class="docs-card-title">API Reference</div>
+      <div class="docs-card-desc">Full REST API documentation — all endpoints, auth, request/response shapes.</div>
+    </a>
+    <a href="/docs/self-hosting" class="docs-card">
+      <div class="docs-card-label">07 — Deploy</div>
+      <div class="docs-card-title">Self-Hosting</div>
+      <div class="docs-card-desc">Docker Compose, Traefik TLS, Dokploy, production checklist.</div>
+    </a>
+  </div>
+
+  <h2>Architecture Overview</h2>
+
+  <p>
+    LeadEcho is composed of three independently deployable services that work together to monitor social platforms,
+    score intent signals, and surface high-value leads in a unified inbox.
+  </p>
+
+  <pre><code>┌─────────────────────────────────────────────────────────┐
+│                     LeadEcho Stack                       │
+├──────────────────┬──────────────────┬───────────────────┤
+│  Go Backend      │  React Dashboard │  Chrome Extension │
+│  (Chi + pgx)     │  (TanStack)      │  (WXT + MV3)      │
+│  port 8090       │  port 3100       │                   │
+├──────────────────┴──────────────────┴───────────────────┤
+│  PostgreSQL (pgvector)  │  Redis (queue/cache)           │
+├─────────────────────────┴───────────────────────────────┤
+│  Sidecars: Pinchtab · Camoufox · Scrapling               │
+└─────────────────────────────────────────────────────────┘</code></pre>
+
+  <h2>Tech Stack</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Layer</th>
+        <th>Technology</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Backend language</td>
+        <td><code>Go 1.25+</code></td>
+        <td>API server, background monitor, scoring pipeline</td>
+      </tr>
+      <tr>
+        <td>HTTP router</td>
+        <td><code>Chi</code></td>
+        <td>Lightweight, idiomatic routing + middleware</td>
+      </tr>
+      <tr>
+        <td>Database driver</td>
+        <td><code>pgx/v5</code></td>
+        <td>High-performance PostgreSQL driver</td>
+      </tr>
+      <tr>
+        <td>Query codegen</td>
+        <td><code>sqlc</code></td>
+        <td>Type-safe SQL → Go structs, no ORM</td>
+      </tr>
+      <tr>
+        <td>Vector search</td>
+        <td><code>pgvector</code></td>
+        <td>1024-dim HNSW cosine similarity for semantic matching</td>
+      </tr>
+      <tr>
+        <td>Logging</td>
+        <td><code>zerolog</code></td>
+        <td>Zero-alloc structured JSON logs</td>
+      </tr>
+      <tr>
+        <td>Frontend</td>
+        <td><code>React + Vite</code></td>
+        <td>Dashboard SPA</td>
+      </tr>
+      <tr>
+        <td>Router</td>
+        <td><code>TanStack Router</code></td>
+        <td>Type-safe file-based routing</td>
+      </tr>
+      <tr>
+        <td>Data fetching</td>
+        <td><code>TanStack Query</code></td>
+        <td>Server state, caching, background refetch</td>
+      </tr>
+      <tr>
+        <td>Extension framework</td>
+        <td><code>WXT 0.19</code></td>
+        <td>MV3 Chrome extension build tooling</td>
+      </tr>
+      <tr>
+        <td>AI embeddings</td>
+        <td><code>Voyage AI</code></td>
+        <td>voyage-3-lite 1024-dim semantic vectors</td>
+      </tr>
+      <tr>
+        <td>LLM scoring</td>
+        <td><code>GLM / OpenAI</code></td>
+        <td>Intent classification, reply drafting</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Platform Coverage</h2>
+
+  <p>LeadEcho monitors seven platforms across two collection modes:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Unauthenticated</th>
+        <th>Authenticated</th>
+        <th>Sidecar</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reddit</td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td>Pinchtab</td>
+      </tr>
+      <tr>
+        <td>Twitter / X</td>
+        <td>—</td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td>Pinchtab</td>
+      </tr>
+      <tr>
+        <td>LinkedIn</td>
+        <td>—</td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td>Pinchtab / Camoufox</td>
+      </tr>
+      <tr>
+        <td>Dev.to</td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Lobsters</td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>IndieHackers</td>
+        <td><span class="badge badge-green">Yes</span></td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Hacker News</td>
+        <td><span class="badge badge-green">Yes (extension)</span></td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

@@ -1,0 +1,64 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/Nav.astro';
+import Hero from '../components/Hero.astro';
+import Platforms from '../components/Platforms.astro';
+import Stats from '../components/Stats.astro';
+import UseCases from '../components/UseCases.astro';
+import Terminal from '../components/Terminal.astro';
+import Steps from '../components/Steps.astro';
+import Features from '../components/Features.astro';
+import CodeSnippet from '../components/CodeSnippet.tsx';
+import Testimonials from '../components/Testimonials.astro';
+import Pricing from '../components/Pricing.astro';
+import Comparison from '../components/Comparison.astro';
+import FAQ from '../components/FAQ.tsx';
+import Community from '../components/Community.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout>
+  <Nav />
+  <Hero />
+  <Platforms />
+  <Stats />
+  <UseCases />
+  <Terminal />
+  <Steps />
+  <Features />
+
+  <!-- Get Started -->
+  <section class="get-started">
+    <div class="container">
+      <div class="section-label section-label-bracket">Get Started</div>
+      <div class="section-title">In your terminal<br />with <span class="highlight">3 commands</span></div>
+      <p class="section-sub">
+        Need help? Check the <a href="https://github.com/rohansx/leadecho#readme">docs</a> or open an issue on <a href="https://github.com/rohansx/leadecho">GitHub</a>.
+      </p>
+      <CodeSnippet client:visible />
+    </div>
+  </section>
+
+  <Testimonials />
+  <Pricing />
+  <Comparison />
+  <FAQ client:visible />
+
+  <Community />
+
+  <!-- Final CTA -->
+  <section class="final-cta">
+    <div class="container-sm">
+      <div class="cta-box">
+        <h2>Stop missing your<br />best leads every day</h2>
+        <p>People are describing their pain on Reddit right now. Someone will reply to them &mdash; it might as well be you.</p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <a class="btn btn-primary btn-lg" href="/app/register">Start for free</a>
+          <a class="btn btn-outline btn-lg" href="https://github.com/rohansx/leadecho" target="_blank" rel="noreferrer">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</Layout>

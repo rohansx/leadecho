@@ -5,6 +5,7 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "path";
 
 export default defineConfig({
+  base: "/app/",
   plugins: [TanStackRouterVite({ quoteStyle: "double" }), react(), tailwindcss()],
   resolve: {
     alias: {

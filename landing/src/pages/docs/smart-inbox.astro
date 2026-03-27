@@ -1,0 +1,184 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Smart Inbox" description="LeadEcho's three-tier smart inbox — filtering, searching, and managing incoming social mentions.">
+  <h1>Smart Inbox</h1>
+
+  <p style="margin-top: 16px;">
+    The Smart Inbox is the primary interface for reviewing AI-scored social mentions.
+    It organizes all incoming posts into three tiers based on relevance score and intent,
+    with full-text search, platform filters, and status tracking.
+  </p>
+
+  <h2>Three Tiers</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tier</th>
+        <th>Score</th>
+        <th>Intent</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Leads Ready</strong></td>
+        <td>≥ 7.0</td>
+        <td>buy_signal, recommendation_ask, complaint</td>
+        <td>High-priority. These people need a response today.</td>
+      </tr>
+      <tr>
+        <td><strong>Worth Watching</strong></td>
+        <td>4.0 – 6.9</td>
+        <td>Any</td>
+        <td>Moderate interest. Monitor for follow-up activity.</td>
+      </tr>
+      <tr>
+        <td><strong>Informational</strong></td>
+        <td>&lt; 4.0</td>
+        <td>general, comparison</td>
+        <td>Low intent. Useful for market awareness.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Mention Statuses</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>new</code></td>
+        <td>Just arrived, not yet reviewed</td>
+      </tr>
+      <tr>
+        <td><code>reviewed</code></td>
+        <td>Viewed by a team member</td>
+      </tr>
+      <tr>
+        <td><code>replied</code></td>
+        <td>Reply drafted or posted</td>
+      </tr>
+      <tr>
+        <td><code>archived</code></td>
+        <td>Dismissed, hidden from active view</td>
+      </tr>
+      <tr>
+        <td><code>spam</code></td>
+        <td>Marked as false positive</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Filtering and Search</h2>
+
+  <p>The inbox supports the following filter dimensions:</p>
+
+  <ul>
+    <li><strong>Platform</strong> — Reddit, Twitter, LinkedIn, Dev.to, Lobsters, IndieHackers, HN</li>
+    <li><strong>Intent</strong> — buy_signal, recommendation_ask, complaint, comparison, general</li>
+    <li><strong>Relevance score</strong> — minimum score threshold slider</li>
+    <li><strong>Status</strong> — new, reviewed, replied, archived, spam</li>
+    <li><strong>Full-text search</strong> — PostgreSQL GIN index on content + author</li>
+  </ul>
+
+  <h2>Performance Indexes</h2>
+
+  <p>
+    The mentions table has specialized indexes for inbox queries:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Index Type</th>
+        <th>Columns</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Partial B-tree</td>
+        <td><code>relevance_score, status</code></td>
+        <td>Fast "high-intent new" queries (score ≥ 7.0 AND status = new)</td>
+      </tr>
+      <tr>
+        <td>GIN</td>
+        <td><code>to_tsvector(content)</code></td>
+        <td>Full-text search across all mention content</td>
+      </tr>
+      <tr>
+        <td>B-tree</td>
+        <td><code>workspace_id, platform, created_at DESC</code></td>
+        <td>Workspace-scoped platform-filtered timeline queries</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>API — List Mentions</h2>
+
+  <pre><code>GET /api/v1/mentions
+Authorization: Bearer &lt;jwt&gt;
+
+# Query parameters:
+# platform=reddit          — filter by platform
+# intent=buy_signal        — filter by intent
+# status=new               — filter by status
+# min_score=7.0            — minimum relevance score
+# q=project+management     — full-text search
+# limit=20                 — page size (default 20, max 100)
+# offset=0                 — pagination offset</code></pre>
+
+  <h3>Response</h3>
+
+  <pre><code>&#123;
+  "mentions": [
+    &#123;
+      "id": "men_01hx...",
+      "platform": "reddit",
+      "author": "u/devfounder",
+      "content": "We're drowning in client management...",
+      "url": "https://reddit.com/r/...",
+      "relevance_score": 8.5,
+      "intent": "buy_signal",
+      "conversion_probability": 0.82,
+      "status": "new",
+      "created_at": "2025-03-01T10:00:00Z"
+    &#125;
+  ],
+  "total": 142,
+  "page": 1,
+  "limit": 20
+&#125;</code></pre>
+
+  <h2>Bulk Status Updates</h2>
+
+  <pre><code>PATCH /api/v1/mentions/&#123;id&#125;
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "status": "archived"
+&#125;</code></pre>
+
+  <h2>Tier Counts</h2>
+
+  <p>Get counts for each inbox tier for badge display:</p>
+
+  <pre><code>GET /api/v1/mentions/tier-counts
+Authorization: Bearer &lt;jwt&gt;
+
+# Response:
+&#123;
+  "leads_ready": 14,
+  "worth_watching": 67,
+  "informational": 203
+&#125;</code></pre>
+</DocsLayout>

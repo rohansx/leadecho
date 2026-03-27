@@ -64,10 +64,10 @@ RETURNING id, profile_id, workspace_id, phrase, embedding, created_at
 `
 
 type CreatePainPointEmbeddingParams struct {
-	ProfileID   string             `json:"profile_id"`
-	WorkspaceID string             `json:"workspace_id"`
-	Phrase      string             `json:"phrase"`
-	Embedding   pgvector_go.Vector `json:"embedding"`
+	ProfileID   string              `json:"profile_id"`
+	WorkspaceID string              `json:"workspace_id"`
+	Phrase      string              `json:"phrase"`
+	Embedding   *pgvector_go.Vector `json:"embedding"`
 }
 
 // ─── Pain-Point Embeddings ─────────────────────────────
@@ -125,9 +125,9 @@ LIMIT $3
 `
 
 type FindSimilarPainPointsParams struct {
-	QueryEmbedding pgvector_go.Vector `json:"query_embedding"`
-	WorkspaceID    string             `json:"workspace_id"`
-	Lim            int32              `json:"lim"`
+	QueryEmbedding *pgvector_go.Vector `json:"query_embedding"`
+	WorkspaceID    string              `json:"workspace_id"`
+	Lim            int32               `json:"lim"`
 }
 
 type FindSimilarPainPointsRow struct {

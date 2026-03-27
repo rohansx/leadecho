@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math/rand/v2"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -8,17 +9,20 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/browser"
 	"leadecho/internal/database"
+	"leadecho/internal/monitor"
 )
 
 type AIHandler struct {
 	q            *database.Queries
 	glmAPIKey    string
 	openAIAPIKey string
+	scrapling    *browser.ScraplingClient
 }
 
-func NewAIHandler(q *database.Queries, glmAPIKey, openAIAPIKey string) *AIHandler {
-	return &AIHandler{q: q, glmAPIKey: glmAPIKey, openAIAPIKey: openAIAPIKey}
+func NewAIHandler(q *database.Queries, glmAPIKey, openAIAPIKey string, scrapling *browser.ScraplingClient) *AIHandler {
+	return &AIHandler{q: q, glmAPIKey: glmAPIKey, openAIAPIKey: openAIAPIKey, scrapling: scrapling}
 }
 
 // getProvider returns the system LLM provider. Tries GLM first, then OpenAI.
@@ -89,7 +93,9 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DraftReply generates an AI reply draft for a mention.
+// DraftReply generates an AI reply draft for a mention using the two-stage pipeline.
+// Stage 1: Pre-filter (is it worth replying?)
+// Stage 2: Enhanced draft with thread context and template rotation.
 // POST /mentions/{id}/draft-reply
 func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -122,6 +128,34 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 		intent = string(mention.Intent.IntentType)
 	}
 
+	// Stage 1: Pre-filter — is this mention worth replying to?
+	preFilter, err := ai.PreFilterForReply(ctx, *provider, title, mention.Content, string(mention.Platform), intent)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "pre-filter failed: "+err.Error())
+		return
+	}
+
+	// Update awareness level from pre-filter
+	if preFilter.AwarenessLevel != "" {
+		h.q.UpdateMentionAwarenessLevel(ctx, database.UpdateMentionAwarenessLevelParams{
+			AwarenessLevel: pgtype.Text{String: preFilter.AwarenessLevel, Valid: true},
+			ID:             id,
+			WorkspaceID:    wsID,
+		})
+	}
+
+	if !preFilter.ShouldReply {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"should_reply":    false,
+			"reason":          preFilter.Reason,
+			"awareness_level": preFilter.AwarenessLevel,
+		})
+		return
+	}
+
+	// Stage 2: Fetch thread context
+	threadCtx, _ := monitor.FetchThreadContext(ctx, h.q, h.scrapling, mention)
+
 	// Gather KB context from documents
 	kbContext := ""
 	docs, err := h.q.ListDocuments(ctx, wsID)
@@ -140,8 +174,20 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 		kbContext = joinStrings(parts, "\n---\n")
 	}
 
-	// Draft reply
-	result, err := ai.DraftReply(ctx, *provider, title, mention.Content, string(mention.Platform), intent, kbContext)
+	// Select template style based on intent + awareness level
+	templateStyle := selectTemplateStyle(intent, preFilter.AwarenessLevel)
+
+	// Stage 3: Enhanced draft with full context
+	result, err := ai.DraftReplyEnhanced(ctx, *provider, ai.DraftReplyOptions{
+		Title:          title,
+		Content:        mention.Content,
+		Platform:       string(mention.Platform),
+		Intent:         intent,
+		AwarenessLevel: preFilter.AwarenessLevel,
+		ThreadContext:  threadCtx,
+		KBContext:      kbContext,
+		TemplateStyle:  templateStyle,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "draft generation failed: "+err.Error())
 		return
@@ -149,10 +195,12 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 
 	// Save as draft reply in DB
 	reply, err := h.q.CreateReply(ctx, database.CreateReplyParams{
-		MentionID:   id,
-		WorkspaceID: wsID,
-		Content:     result.Reply,
-		Status:      database.ReplyStatusDraft,
+		MentionID:         id,
+		WorkspaceID:       wsID,
+		Content:           result.Reply,
+		Status:            database.ReplyStatusDraft,
+		TemplateStyle:     pgtype.Text{String: result.TemplateStyle, Valid: true},
+		ThreadContextUsed: threadCtx != "",
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save reply draft")
@@ -160,9 +208,38 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"reply": replyToResponse(reply),
-		"tone":  result.Tone,
+		"reply":              replyToResponse(reply),
+		"tone":               result.Tone,
+		"template_style":     result.TemplateStyle,
+		"should_reply":       true,
+		"awareness_level":    preFilter.AwarenessLevel,
+		"thread_context_used": threadCtx != "",
 	})
+}
+
+// selectTemplateStyle picks a reply template based on intent and awareness level.
+func selectTemplateStyle(intent, awareness string) string {
+	styles := []string{"value_first"}
+
+	switch intent {
+	case "recommendation_ask":
+		styles = []string{"value_first", "value_first", "storytelling"}
+	case "complaint":
+		styles = []string{"storytelling", "storytelling", "value_first"}
+	case "comparison":
+		styles = []string{"technical_deep_dive", "contrarian", "value_first"}
+	case "general":
+		styles = []string{"casual_helpful", "casual_helpful", "value_first"}
+	case "buy_signal":
+		styles = []string{"value_first", "technical_deep_dive", "value_first"}
+	}
+
+	// Override for low-awareness: always be helpful first, no product push
+	if awareness == "problem_aware" {
+		styles = []string{"casual_helpful", "storytelling", "casual_helpful"}
+	}
+
+	return styles[rand.IntN(len(styles))]
 }
 
 func joinStrings(parts []string, sep string) string {

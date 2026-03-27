@@ -9,9 +9,9 @@ WHERE id = @id AND workspace_id = @workspace_id;
 
 -- name: CreateReply :one
 INSERT INTO replies (
-    mention_id, workspace_id, content, status
+    mention_id, workspace_id, content, status, template_style, thread_context_used
 ) VALUES (
-    @mention_id, @workspace_id, @content, @status
+    @mention_id, @workspace_id, @content, @status, @template_style, @thread_context_used
 ) RETURNING *;
 
 -- name: UpdateReplyContent :one

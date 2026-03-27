@@ -429,17 +429,17 @@ type Document struct {
 }
 
 type DocumentChunk struct {
-	ID           string             `json:"id"`
-	DocumentID   string             `json:"document_id"`
-	WorkspaceID  string             `json:"workspace_id"`
-	Content      string             `json:"content"`
-	ContentTsv   interface{}        `json:"content_tsv"`
-	Embedding    pgvector_go.Vector `json:"embedding"`
-	ChunkIndex   int32              `json:"chunk_index"`
-	SectionTitle pgtype.Text        `json:"section_title"`
-	Metadata     []byte             `json:"metadata"`
-	TokenCount   pgtype.Int4        `json:"token_count"`
-	CreatedAt    time.Time          `json:"created_at"`
+	ID           string              `json:"id"`
+	DocumentID   string              `json:"document_id"`
+	WorkspaceID  string              `json:"workspace_id"`
+	Content      string              `json:"content"`
+	ContentTsv   interface{}         `json:"content_tsv"`
+	Embedding    *pgvector_go.Vector `json:"embedding"`
+	ChunkIndex   int32               `json:"chunk_index"`
+	SectionTitle pgtype.Text         `json:"section_title"`
+	Metadata     []byte              `json:"metadata"`
+	TokenCount   pgtype.Int4         `json:"token_count"`
+	CreatedAt    time.Time           `json:"created_at"`
 }
 
 type ExtensionToken struct {
@@ -520,6 +520,7 @@ type Mention struct {
 	UpdatedAt             time.Time          `json:"updated_at"`
 	ContentEmbedding      pgvector.Vector    `json:"content_embedding"`
 	ScoringMetadata       []byte             `json:"scoring_metadata"`
+	AwarenessLevel        pgtype.Text        `json:"awareness_level"`
 }
 
 type MonitoringProfile struct {
@@ -545,13 +546,24 @@ type Notification struct {
 	CreatedAt   time.Time           `json:"created_at"`
 }
 
+type OnboardingAnalysis struct {
+	ID           string      `json:"id"`
+	WorkspaceID  string      `json:"workspace_id"`
+	SourceUrl    string      `json:"source_url"`
+	RawText      pgtype.Text `json:"raw_text"`
+	Analysis     []byte      `json:"analysis"`
+	Status       string      `json:"status"`
+	ErrorMessage pgtype.Text `json:"error_message"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
 type PainPointEmbedding struct {
-	ID          string             `json:"id"`
-	ProfileID   string             `json:"profile_id"`
-	WorkspaceID string             `json:"workspace_id"`
-	Phrase      string             `json:"phrase"`
-	Embedding   pgvector_go.Vector `json:"embedding"`
-	CreatedAt   time.Time          `json:"created_at"`
+	ID          string              `json:"id"`
+	ProfileID   string              `json:"profile_id"`
+	WorkspaceID string              `json:"workspace_id"`
+	Phrase      string              `json:"phrase"`
+	Embedding   *pgvector_go.Vector `json:"embedding"`
+	CreatedAt   time.Time           `json:"created_at"`
 }
 
 type PlatformAccount struct {
@@ -574,22 +586,36 @@ type PlatformAccount struct {
 }
 
 type Reply struct {
-	ID             string             `json:"id"`
-	MentionID      string             `json:"mention_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	Content        string             `json:"content"`
-	EditedContent  pgtype.Text        `json:"edited_content"`
-	Status         ReplyStatus        `json:"status"`
-	PlatformPostID pgtype.Text        `json:"platform_post_id"`
-	PostedBy       pgtype.UUID        `json:"posted_by"`
-	ApprovedBy     pgtype.UUID        `json:"approved_by"`
-	UtmLinkID      pgtype.UUID        `json:"utm_link_id"`
-	SafeLinkScore  pgtype.Float4      `json:"safe_link_score"`
-	SafeLinkFlags  []byte             `json:"safe_link_flags"`
-	PostedAt       pgtype.Timestamptz `json:"posted_at"`
-	ApprovedAt     pgtype.Timestamptz `json:"approved_at"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ID                string             `json:"id"`
+	MentionID         string             `json:"mention_id"`
+	WorkspaceID       string             `json:"workspace_id"`
+	Content           string             `json:"content"`
+	EditedContent     pgtype.Text        `json:"edited_content"`
+	Status            ReplyStatus        `json:"status"`
+	PlatformPostID    pgtype.Text        `json:"platform_post_id"`
+	PostedBy          pgtype.UUID        `json:"posted_by"`
+	ApprovedBy        pgtype.UUID        `json:"approved_by"`
+	UtmLinkID         pgtype.UUID        `json:"utm_link_id"`
+	SafeLinkScore     pgtype.Float4      `json:"safe_link_score"`
+	SafeLinkFlags     []byte             `json:"safe_link_flags"`
+	PostedAt          pgtype.Timestamptz `json:"posted_at"`
+	ApprovedAt        pgtype.Timestamptz `json:"approved_at"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	TemplateStyle     pgtype.Text        `json:"template_style"`
+	ThreadContextUsed bool               `json:"thread_context_used"`
+}
+
+type ReplyEngagement struct {
+	ID          string    `json:"id"`
+	ReplyID     string    `json:"reply_id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Upvotes     int32     `json:"upvotes"`
+	Downvotes   int32     `json:"downvotes"`
+	ReplyCount  int32     `json:"reply_count"`
+	IsRemoved   bool      `json:"is_removed"`
+	CheckedAt   time.Time `json:"checked_at"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Subscription struct {

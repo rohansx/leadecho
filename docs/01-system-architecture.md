@@ -127,6 +127,37 @@ signal-engine/
 └── engine.go               # Orchestrator: starts/stops pollers
 ```
 
+### Browser Sidecar Layer
+
+The Signal Engine delegates authenticated platform crawling to **browser sidecars** — lightweight HTTP microservices wrapping headless browsers. Each sidecar exposes a uniform API (`/navigate`, `/cookies`, `/evaluate`, `/text`, `/health`) so the Go backend swaps between them seamlessly.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Monitor Dispatch                          │
+│                                                             │
+│  Reddit:   Pinchtab → Scrapling → public .json API          │
+│  Twitter:  Pinchtab → Scrapling                             │
+│  LinkedIn: Camoufox → Pinchtab → Scrapling                  │
+│  HN/DevTo: Direct API (no sidecar)                          │
+└────────┬──────────────┬──────────────┬──────────────────────┘
+         │              │              │
+   ┌─────▼─────┐  ┌────▼─────┐  ┌────▼──────┐
+   │ Pinchtab  │  │ Camoufox │  │ Scrapling  │
+   │ :9867     │  │ :9868    │  │ :9869      │
+   │ Chromium  │  │ Firefox  │  │ Chromium   │
+   │ stealth   │  │ C++ anti │  │ anti-bot   │
+   │           │  │ fingerp. │  │ bypass     │
+   └───────────┘  └──────────┘  └────────────┘
+```
+
+- **Pinchtab**: Primary sidecar for Reddit and Twitter. Persistent Chromium with full stealth mode.
+- **Camoufox**: Pro-tier sidecar for LinkedIn. Firefox with C++ fingerprint spoofing (WebGL, WebRTC, canvas).
+- **Scrapling**: Fallback sidecar using D4Vinci's Scrapling framework. StealthyFetcher with adaptive anti-bot bypass.
+
+All sidecars are **optional** (nil-checked). The system degrades gracefully — if no sidecar is configured for a platform, it falls back to public APIs or skips that platform. Session cookies are AES-encrypted in the `platform_accounts` table and injected into sidecars at crawl time.
+
+See [14-browser-sidecar-architecture.md](./14-browser-sidecar-architecture.md) for full implementation details, Docker deployment, and troubleshooting.
+
 ### RAG Brain (Go + Claude API)
 
 ```

@@ -1,0 +1,16 @@
+---
+const stats = [
+  { num: '7', label: 'Platforms Monitored' },
+  { num: '4-Stage', label: 'AI Scoring Pipeline' },
+  { num: '5 min', label: 'Scan Interval' },
+];
+---
+
+<div class="stats">
+  {stats.map((s) => (
+    <div class="stat">
+      <div class="stat-num">{s.num}</div>
+      <div class="stat-label">{s.label}</div>
+    </div>
+  ))}
+</div>

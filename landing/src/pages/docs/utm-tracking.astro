@@ -1,0 +1,171 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="UTM Tracking" description="Create UTM-tagged short links, track clicks and signups, and attribute revenue to social reply campaigns.">
+  <h1>UTM Tracking</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho's UTM link system lets you create short, trackable links to include in
+    your reply posts. Every click, signup, and conversion tied to a link is recorded,
+    giving you clear attribution from social reply to revenue.
+  </p>
+
+  <h2>How It Works</h2>
+
+  <ol>
+    <li>Create a UTM link in the dashboard or via API, pointing to your landing page.</li>
+    <li>LeadEcho generates a unique 8-character short code.</li>
+    <li>Your short URL becomes <code>&#123;`&#123;API_BASE&#125;`&#125;/r/&#123;`&#123;code&#125;`&#125;</code>.</li>
+    <li>When a visitor hits the short URL, they are redirected to your destination with UTM params appended.</li>
+    <li>Each redirect increments <code>click_count</code>.</li>
+    <li>Use the UTM params in your analytics to track signups and revenue.</li>
+  </ol>
+
+  <h2>Creating a UTM Link</h2>
+
+  <pre><code>POST /api/v1/utm-links
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "name": "Reddit agency pain thread",
+  "destination_url": "https://leadecho.app",
+  "utm_source": "reddit",
+  "utm_medium": "social_reply",
+  "utm_campaign": "agency_q1",
+  "utm_content": "buy_signal_thread"
+&#125;</code></pre>
+
+  <h3>Response</h3>
+
+  <pre><code>&#123;
+  "id": "utm_01hx...",
+  "code": "a3f9x2q1",
+  "short_url": "https://api.leadecho.app/r/a3f9x2q1",
+  "destination_url": "https://leadecho.app",
+  "utm_source": "reddit",
+  "utm_medium": "social_reply",
+  "utm_campaign": "agency_q1",
+  "click_count": 0,
+  "signup_count": 0,
+  "revenue_cents": 0,
+  "created_at": "2025-03-01T10:00:00Z"
+&#125;</code></pre>
+
+  <h2>Redirect Behavior</h2>
+
+  <p>
+    A visitor hitting <code>/r/a3f9x2q1</code> is redirected to:
+  </p>
+
+  <pre><code>https://leadecho.app?utm_source=reddit&amp;utm_medium=social_reply&amp;utm_campaign=agency_q1&amp;utm_content=buy_signal_thread</code></pre>
+
+  <p>
+    The redirect uses HTTP 302 (temporary) so click counts remain accurate even if you update
+    the destination URL later. No JavaScript tracking required.
+  </p>
+
+  <h2>Default UTM Values</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Default</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>utm_medium</code></td>
+        <td><code>social_reply</code></td>
+        <td>Auto-set when not provided</td>
+      </tr>
+      <tr>
+        <td><code>utm_source</code></td>
+        <td>—</td>
+        <td>Set to the platform name (e.g. <code>reddit</code>)</td>
+      </tr>
+      <tr>
+        <td><code>utm_campaign</code></td>
+        <td>—</td>
+        <td>Your campaign identifier</td>
+      </tr>
+      <tr>
+        <td><code>utm_content</code></td>
+        <td>—</td>
+        <td>Optional A/B test or placement identifier</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Tracking Conversions</h2>
+
+  <p>
+    LeadEcho tracks click counts automatically via the redirect endpoint.
+    For <code>signup_count</code> and <code>revenue_cents</code> tracking:
+  </p>
+
+  <pre><code>PATCH /api/v1/utm-links/&#123;id&#125;/conversion
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "signups": 1,
+  "revenue_cents": 4900
+&#125;</code></pre>
+
+  <p>
+    This is typically called from your application's payment webhook or signup handler
+    after verifying the UTM parameters match a LeadEcho-tracked campaign.
+  </p>
+
+  <h2>Dashboard Analytics</h2>
+
+  <p>
+    View UTM link performance at <strong>Dashboard → Analytics → UTM Links</strong>.
+    The section shows:
+  </p>
+
+  <ul>
+    <li>Total clicks per link</li>
+    <li>Click-to-signup conversion rate</li>
+    <li>Revenue attributed per link</li>
+    <li>Top-performing campaigns by platform</li>
+  </ul>
+
+  <h2>API Reference</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/utm-links</code></td>
+        <td>List all UTM links for the workspace</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/utm-links</code></td>
+        <td>Create a new UTM link</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/utm-links/&#123;id&#125;</code></td>
+        <td>Delete a UTM link</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/r/&#123;code&#125;</code></td>
+        <td>Public redirect endpoint (no auth, increments click count)</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

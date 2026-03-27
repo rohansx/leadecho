@@ -1,0 +1,240 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Browser Sessions" description="Configure browser sidecars for authenticated Reddit, Twitter, and LinkedIn crawling.">
+  <h1>Browser Sessions</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho supports authenticated crawling of Reddit, Twitter, and LinkedIn by
+    maintaining real browser sessions via sidecars. This unlocks significantly more content
+    than unauthenticated scraping and avoids rate-limiting.
+  </p>
+
+  <h2>Sidecar Options</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Sidecar</th>
+        <th>Technology</th>
+        <th>Platforms</th>
+        <th>Docker Profile</th>
+        <th>Port</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Pinchtab</strong></td>
+        <td>Persistent Chrome + anti-bot fingerprint spoofing</td>
+        <td>Reddit, Twitter, LinkedIn</td>
+        <td><code>browser</code></td>
+        <td>9867</td>
+      </tr>
+      <tr>
+        <td><strong>Camoufox</strong></td>
+        <td>Stealth Firefox + human-mimicry fingerprinting</td>
+        <td>LinkedIn (Pro tier)</td>
+        <td><code>browser-pro</code></td>
+        <td>9868</td>
+      </tr>
+      <tr>
+        <td><strong>Scrapling</strong></td>
+        <td>Adaptive CSS-based extraction</td>
+        <td>Fallback general crawling</td>
+        <td><code>browser-scrapling</code></td>
+        <td>9869</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Pinchtab Setup</h2>
+
+  <p>Pinchtab is the primary sidecar for authenticated social crawling.</p>
+
+  <pre><code># Start Pinchtab alongside the main stack
+docker compose --profile browser up -d
+
+# Required environment variables:
+PINCHTAB_TOKEN=your-token
+PINCHTAB_URL=http://localhost:9867  # default</code></pre>
+
+  <h2>Camoufox Pro Setup</h2>
+
+  <p>
+    Camoufox provides stealth Firefox-based browsing with advanced fingerprint spoofing.
+    It activates automatically when <code>CAMOUFOX_URL</code> is set in the environment.
+  </p>
+
+  <pre><code># Start with Camoufox Pro sidecar
+CAMOUFOX_URL=http://localhost:9868 docker compose --profile browser-pro up -d</code></pre>
+
+  <h2>Scrapling Fallback</h2>
+
+  <p>
+    Scrapling uses adaptive CSS selectors that self-heal when site layouts change.
+    It serves as a fallback when Pinchtab or Camoufox are unavailable.
+  </p>
+
+  <pre><code>docker compose --profile browser-scrapling up -d
+
+# Environment:
+SCRAPLING_URL=http://localhost:9869
+SCRAPLING_TOKEN=your-token</code></pre>
+
+  <h2>Session Cookie Configuration</h2>
+
+  <p>
+    Once a sidecar is running, you need to provide your account session cookies so the browser
+    can authenticate. Navigate to <strong>Dashboard → Browser Sessions</strong> and paste cookies
+    for each platform.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Cookie Name</th>
+        <th>Where to Find It</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reddit</td>
+        <td><code>reddit_session</code></td>
+        <td>DevTools → Application → Cookies → reddit.com</td>
+      </tr>
+      <tr>
+        <td>Twitter / X</td>
+        <td><code>auth_token</code></td>
+        <td>DevTools → Application → Cookies → x.com</td>
+      </tr>
+      <tr>
+        <td>LinkedIn</td>
+        <td><code>li_at</code></td>
+        <td>DevTools → Application → Cookies → linkedin.com</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <blockquote>
+    <p>
+      <strong>Security:</strong> Session cookies are encrypted with AES-256 using your
+      <code>ENCRYPTION_KEY</code> before being stored in the <code>platform_accounts</code> table.
+      They are never logged or exposed in API responses.
+    </p>
+  </blockquote>
+
+  <h3>Session Cookie API</h3>
+
+  <pre><code>PUT /api/v1/settings/sessions/&#123;platform&#125;
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+&#123;
+  "cookies": "reddit_session=abc123...",
+  "username": "myredditusername"
+&#125;
+
+# Test a session
+POST /api/v1/settings/sessions/&#123;platform&#125;/test
+Authorization: Bearer &lt;jwt&gt;</code></pre>
+
+  <h3>Test Response</h3>
+
+  <pre><code>&#123;
+  "ok": true,
+  "username": "myredditusername",
+  "platform": "reddit",
+  "tested_at": "2025-03-01T10:00:00Z"
+&#125;</code></pre>
+
+  <h2>Monitor Dispatch Logic</h2>
+
+  <p>
+    The monitor selects the best available crawler for each platform in priority order:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Priority 1</th>
+        <th>Priority 2</th>
+        <th>Priority 3</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reddit</td>
+        <td>Pinchtab (authenticated)</td>
+        <td>Unauthenticated API</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Twitter</td>
+        <td>Pinchtab (authenticated)</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>LinkedIn</td>
+        <td>Camoufox (if CAMOUFOX_URL set)</td>
+        <td>Pinchtab</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Dev.to</td>
+        <td>Unauthenticated HTTP</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Lobsters</td>
+        <td>Unauthenticated HTTP</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>IndieHackers</td>
+        <td>Unauthenticated HTTP</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Session Management API</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;</code></td>
+        <td>Get session status (username only, no cookies)</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;</code></td>
+        <td>Store new session cookies (encrypted)</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;</code></td>
+        <td>Remove stored session</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;/test</code></td>
+        <td>Test connectivity using stored session</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

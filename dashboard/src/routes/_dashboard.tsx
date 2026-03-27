@@ -18,7 +18,7 @@ function DashboardLayout() {
   const { data: onboarding } = useQuery({
     queryKey: ["onboarding"],
     queryFn: getOnboardingStatus,
-    enabled: !!user || window.location.hostname === "localhost",
+    enabled: !!user,
     retry: false,
   });
 
@@ -41,10 +41,7 @@ function DashboardLayout() {
     );
   }
 
-  // If Google OAuth is configured and user is not authenticated, redirect to login
-  // In dev mode (no Google OAuth configured), /auth/me returns 404 and user is null,
-  // so we allow access without auth for development
-  if (!user && window.location.hostname !== "localhost") {
+  if (!user) {
     return <Navigate to="/login" />;
   }
 

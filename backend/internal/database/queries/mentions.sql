@@ -100,9 +100,15 @@ UPDATE mentions
 SET intent = @intent,
     conversion_probability = @conversion_probability,
     relevance_score = @relevance_score,
-    scoring_metadata = @scoring_metadata
+    scoring_metadata = @scoring_metadata,
+    awareness_level = @awareness_level
 WHERE id = @id AND workspace_id = @workspace_id
 RETURNING *;
+
+-- name: UpdateMentionAwarenessLevel :exec
+UPDATE mentions
+SET awareness_level = @awareness_level
+WHERE id = @id AND workspace_id = @workspace_id;
 
 -- ─── Smart Inbox Tiers ────────────────────────────────
 

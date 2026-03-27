@@ -1,6 +1,8 @@
 export type Platform = "reddit" | "hackernews" | "twitter" | "linkedin" | "devto" | "lobsters" | "indiehackers";
 export type MentionStatus = "new" | "reviewed" | "replied" | "archived" | "spam";
 export type IntentType = "buy_signal" | "complaint" | "recommendation_ask" | "comparison" | "general";
+export type AwarenessLevel = "problem_aware" | "solution_aware" | "product_aware" | "purchase_ready";
+export type TemplateStyle = "value_first" | "storytelling" | "technical_deep_dive" | "casual_helpful" | "contrarian";
 export type LeadStage = "prospect" | "qualified" | "engaged" | "converted" | "lost";
 export type ReplyStatus = "draft" | "approved" | "posted" | "failed";
 
@@ -19,6 +21,7 @@ export interface Mention {
   author_account_age_days: number | null;
   relevance_score: number | null;
   intent: IntentType | null;
+  awareness_level: AwarenessLevel | null;
   conversion_probability: number | null;
   status: MentionStatus;
   assigned_to: string | null;
@@ -70,8 +73,22 @@ export interface Reply {
   content: string;
   edited_content: string | null;
   status: ReplyStatus;
+  template_style: TemplateStyle | null;
+  thread_context_used: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProductAnalysis {
+  product_name: string;
+  description: string;
+  features: string[];
+  target_audience: string;
+  pain_points: string[];
+  competitors: string[];
+  suggested_keywords: string[];
+  suggested_subreddits: string[];
+  suggested_platforms: Platform[];
 }
 
 export interface Document {

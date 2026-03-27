@@ -8,345 +8,346 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root"
-import { Route as PrivacyRouteImport } from "./routes/privacy"
-import { Route as DashboardRouteImport } from "./routes/_dashboard"
-import { Route as AuthRouteImport } from "./routes/_auth"
-import { Route as IndexRouteImport } from "./routes/index"
-import { Route as DashboardWorkflowsRouteImport } from "./routes/_dashboard/workflows"
-import { Route as DashboardSettingsRouteImport } from "./routes/_dashboard/settings"
-import { Route as DashboardProfilesRouteImport } from "./routes/_dashboard/profiles"
-import { Route as DashboardPipelineRouteImport } from "./routes/_dashboard/pipeline"
-import { Route as DashboardOnboardingRouteImport } from "./routes/_dashboard/onboarding"
-import { Route as DashboardKnowledgeBaseRouteImport } from "./routes/_dashboard/knowledge-base"
-import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywords"
-import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
-import { Route as DashboardBrowserSessionsRouteImport } from "./routes/_dashboard/browser-sessions"
-import { Route as DashboardAnalyticsRouteImport } from "./routes/_dashboard/analytics"
-import { Route as DashboardAlertsRouteImport } from "./routes/_dashboard/alerts"
-import { Route as AuthRegisterRouteImport } from "./routes/_auth/register"
-import { Route as AuthLoginRouteImport } from "./routes/_auth/login"
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as DashboardRouteImport } from './routes/_dashboard'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as DashboardWorkflowsRouteImport } from './routes/_dashboard/workflows'
+import { Route as DashboardSettingsRouteImport } from './routes/_dashboard/settings'
+import { Route as DashboardProfilesRouteImport } from './routes/_dashboard/profiles'
+import { Route as DashboardPipelineRouteImport } from './routes/_dashboard/pipeline'
+import { Route as DashboardKnowledgeBaseRouteImport } from './routes/_dashboard/knowledge-base'
+import { Route as DashboardKeywordsRouteImport } from './routes/_dashboard/keywords'
+import { Route as DashboardInboxRouteImport } from './routes/_dashboard/inbox'
+import { Route as DashboardBrowserSessionsRouteImport } from './routes/_dashboard/browser-sessions'
+import { Route as DashboardAnalyticsRouteImport } from './routes/_dashboard/analytics'
+import { Route as DashboardAlertsRouteImport } from './routes/_dashboard/alerts'
+import { Route as AuthRegisterRouteImport } from './routes/_auth/register'
+import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 
 const PrivacyRoute = PrivacyRouteImport.update({
-  id: "/privacy",
-  path: "/privacy",
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
-  id: "/_dashboard",
+  id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
-  id: "/_auth",
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardWorkflowsRoute = DashboardWorkflowsRouteImport.update({
-  id: "/workflows",
-  path: "/workflows",
+  id: '/workflows',
+  path: '/workflows',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
-  id: "/settings",
-  path: "/settings",
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardProfilesRoute = DashboardProfilesRouteImport.update({
-  id: "/profiles",
-  path: "/profiles",
+  id: '/profiles',
+  path: '/profiles',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
-  id: "/pipeline",
-  path: "/pipeline",
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardOnboardingRoute = DashboardOnboardingRouteImport.update({
-  id: "/onboarding",
-  path: "/onboarding",
+  id: '/pipeline',
+  path: '/pipeline',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardKnowledgeBaseRoute = DashboardKnowledgeBaseRouteImport.update({
-  id: "/knowledge-base",
-  path: "/knowledge-base",
+  id: '/knowledge-base',
+  path: '/knowledge-base',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardKeywordsRoute = DashboardKeywordsRouteImport.update({
-  id: "/keywords",
-  path: "/keywords",
+  id: '/keywords',
+  path: '/keywords',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardInboxRoute = DashboardInboxRouteImport.update({
-  id: "/inbox",
-  path: "/inbox",
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardBrowserSessionsRoute =
   DashboardBrowserSessionsRouteImport.update({
-    id: "/browser-sessions",
-    path: "/browser-sessions",
+    id: '/browser-sessions',
+    path: '/browser-sessions',
     getParentRoute: () => DashboardRoute,
   } as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
-  id: "/analytics",
-  path: "/analytics",
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardAlertsRoute = DashboardAlertsRouteImport.update({
-  id: "/alerts",
-  path: "/alerts",
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => DashboardRoute,
 } as any)
 const AuthRegisterRoute = AuthRegisterRouteImport.update({
-  id: "/register",
-  path: "/register",
+  id: '/register',
+  path: '/register',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
-  id: "/login",
-  path: "/login",
+  id: '/login',
+  path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute
-  "/privacy": typeof PrivacyRoute
-  "/login": typeof AuthLoginRoute
-  "/register": typeof AuthRegisterRoute
-  "/alerts": typeof DashboardAlertsRoute
-  "/analytics": typeof DashboardAnalyticsRoute
-  "/browser-sessions": typeof DashboardBrowserSessionsRoute
-  "/inbox": typeof DashboardInboxRoute
-  "/keywords": typeof DashboardKeywordsRoute
-  "/knowledge-base": typeof DashboardKnowledgeBaseRoute
-  "/onboarding": typeof DashboardOnboardingRoute
-  "/pipeline": typeof DashboardPipelineRoute
-  "/profiles": typeof DashboardProfilesRoute
-  "/settings": typeof DashboardSettingsRoute
-  "/workflows": typeof DashboardWorkflowsRoute
+  '/': typeof IndexRoute
+  '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
+  '/login': typeof AuthLoginRoute
+  '/register': typeof AuthRegisterRoute
+  '/alerts': typeof DashboardAlertsRoute
+  '/analytics': typeof DashboardAnalyticsRoute
+  '/browser-sessions': typeof DashboardBrowserSessionsRoute
+  '/inbox': typeof DashboardInboxRoute
+  '/keywords': typeof DashboardKeywordsRoute
+  '/knowledge-base': typeof DashboardKnowledgeBaseRoute
+  '/pipeline': typeof DashboardPipelineRoute
+  '/profiles': typeof DashboardProfilesRoute
+  '/settings': typeof DashboardSettingsRoute
+  '/workflows': typeof DashboardWorkflowsRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute
-  "/privacy": typeof PrivacyRoute
-  "/login": typeof AuthLoginRoute
-  "/register": typeof AuthRegisterRoute
-  "/alerts": typeof DashboardAlertsRoute
-  "/analytics": typeof DashboardAnalyticsRoute
-  "/browser-sessions": typeof DashboardBrowserSessionsRoute
-  "/inbox": typeof DashboardInboxRoute
-  "/keywords": typeof DashboardKeywordsRoute
-  "/knowledge-base": typeof DashboardKnowledgeBaseRoute
-  "/onboarding": typeof DashboardOnboardingRoute
-  "/pipeline": typeof DashboardPipelineRoute
-  "/profiles": typeof DashboardProfilesRoute
-  "/settings": typeof DashboardSettingsRoute
-  "/workflows": typeof DashboardWorkflowsRoute
+  '/': typeof IndexRoute
+  '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
+  '/login': typeof AuthLoginRoute
+  '/register': typeof AuthRegisterRoute
+  '/alerts': typeof DashboardAlertsRoute
+  '/analytics': typeof DashboardAnalyticsRoute
+  '/browser-sessions': typeof DashboardBrowserSessionsRoute
+  '/inbox': typeof DashboardInboxRoute
+  '/keywords': typeof DashboardKeywordsRoute
+  '/knowledge-base': typeof DashboardKnowledgeBaseRoute
+  '/pipeline': typeof DashboardPipelineRoute
+  '/profiles': typeof DashboardProfilesRoute
+  '/settings': typeof DashboardSettingsRoute
+  '/workflows': typeof DashboardWorkflowsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  "/": typeof IndexRoute
-  "/_auth": typeof AuthRouteWithChildren
-  "/_dashboard": typeof DashboardRouteWithChildren
-  "/privacy": typeof PrivacyRoute
-  "/_auth/login": typeof AuthLoginRoute
-  "/_auth/register": typeof AuthRegisterRoute
-  "/_dashboard/alerts": typeof DashboardAlertsRoute
-  "/_dashboard/analytics": typeof DashboardAnalyticsRoute
-  "/_dashboard/browser-sessions": typeof DashboardBrowserSessionsRoute
-  "/_dashboard/inbox": typeof DashboardInboxRoute
-  "/_dashboard/keywords": typeof DashboardKeywordsRoute
-  "/_dashboard/knowledge-base": typeof DashboardKnowledgeBaseRoute
-  "/_dashboard/onboarding": typeof DashboardOnboardingRoute
-  "/_dashboard/pipeline": typeof DashboardPipelineRoute
-  "/_dashboard/profiles": typeof DashboardProfilesRoute
-  "/_dashboard/settings": typeof DashboardSettingsRoute
-  "/_dashboard/workflows": typeof DashboardWorkflowsRoute
+  '/': typeof IndexRoute
+  '/_auth': typeof AuthRouteWithChildren
+  '/_dashboard': typeof DashboardRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
+  '/_auth/login': typeof AuthLoginRoute
+  '/_auth/register': typeof AuthRegisterRoute
+  '/_dashboard/alerts': typeof DashboardAlertsRoute
+  '/_dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/_dashboard/browser-sessions': typeof DashboardBrowserSessionsRoute
+  '/_dashboard/inbox': typeof DashboardInboxRoute
+  '/_dashboard/keywords': typeof DashboardKeywordsRoute
+  '/_dashboard/knowledge-base': typeof DashboardKnowledgeBaseRoute
+  '/_dashboard/pipeline': typeof DashboardPipelineRoute
+  '/_dashboard/profiles': typeof DashboardProfilesRoute
+  '/_dashboard/settings': typeof DashboardSettingsRoute
+  '/_dashboard/workflows': typeof DashboardWorkflowsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | "/"
-    | "/privacy"
-    | "/login"
-    | "/register"
-    | "/alerts"
-    | "/analytics"
-    | "/browser-sessions"
-    | "/inbox"
-    | "/keywords"
-    | "/knowledge-base"
-    | "/onboarding"
-    | "/pipeline"
-    | "/profiles"
-    | "/settings"
-    | "/workflows"
+    | '/'
+    | '/onboarding'
+    | '/privacy'
+    | '/login'
+    | '/register'
+    | '/alerts'
+    | '/analytics'
+    | '/browser-sessions'
+    | '/inbox'
+    | '/keywords'
+    | '/knowledge-base'
+    | '/pipeline'
+    | '/profiles'
+    | '/settings'
+    | '/workflows'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | "/"
-    | "/privacy"
-    | "/login"
-    | "/register"
-    | "/alerts"
-    | "/analytics"
-    | "/browser-sessions"
-    | "/inbox"
-    | "/keywords"
-    | "/knowledge-base"
-    | "/onboarding"
-    | "/pipeline"
-    | "/profiles"
-    | "/settings"
-    | "/workflows"
+    | '/'
+    | '/onboarding'
+    | '/privacy'
+    | '/login'
+    | '/register'
+    | '/alerts'
+    | '/analytics'
+    | '/browser-sessions'
+    | '/inbox'
+    | '/keywords'
+    | '/knowledge-base'
+    | '/pipeline'
+    | '/profiles'
+    | '/settings'
+    | '/workflows'
   id:
-    | "__root__"
-    | "/"
-    | "/_auth"
-    | "/_dashboard"
-    | "/privacy"
-    | "/_auth/login"
-    | "/_auth/register"
-    | "/_dashboard/alerts"
-    | "/_dashboard/analytics"
-    | "/_dashboard/browser-sessions"
-    | "/_dashboard/inbox"
-    | "/_dashboard/keywords"
-    | "/_dashboard/knowledge-base"
-    | "/_dashboard/onboarding"
-    | "/_dashboard/pipeline"
-    | "/_dashboard/profiles"
-    | "/_dashboard/settings"
-    | "/_dashboard/workflows"
+    | '__root__'
+    | '/'
+    | '/_auth'
+    | '/_dashboard'
+    | '/onboarding'
+    | '/privacy'
+    | '/_auth/login'
+    | '/_auth/register'
+    | '/_dashboard/alerts'
+    | '/_dashboard/analytics'
+    | '/_dashboard/browser-sessions'
+    | '/_dashboard/inbox'
+    | '/_dashboard/keywords'
+    | '/_dashboard/knowledge-base'
+    | '/_dashboard/pipeline'
+    | '/_dashboard/profiles'
+    | '/_dashboard/settings'
+    | '/_dashboard/workflows'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   DashboardRoute: typeof DashboardRouteWithChildren
+  OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/privacy": {
-      id: "/privacy"
-      path: "/privacy"
-      fullPath: "/privacy"
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_dashboard": {
-      id: "/_dashboard"
-      path: ""
-      fullPath: "/"
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_dashboard': {
+      id: '/_dashboard'
+      path: ''
+      fullPath: '/'
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_auth": {
-      id: "/_auth"
-      path: ""
-      fullPath: "/"
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/": {
-      id: "/"
-      path: "/"
-      fullPath: "/"
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_dashboard/workflows": {
-      id: "/_dashboard/workflows"
-      path: "/workflows"
-      fullPath: "/workflows"
+    '/_dashboard/workflows': {
+      id: '/_dashboard/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
       preLoaderRoute: typeof DashboardWorkflowsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/settings": {
-      id: "/_dashboard/settings"
-      path: "/settings"
-      fullPath: "/settings"
+    '/_dashboard/settings': {
+      id: '/_dashboard/settings'
+      path: '/settings'
+      fullPath: '/settings'
       preLoaderRoute: typeof DashboardSettingsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/profiles": {
-      id: "/_dashboard/profiles"
-      path: "/profiles"
-      fullPath: "/profiles"
+    '/_dashboard/profiles': {
+      id: '/_dashboard/profiles'
+      path: '/profiles'
+      fullPath: '/profiles'
       preLoaderRoute: typeof DashboardProfilesRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/pipeline": {
-      id: "/_dashboard/pipeline"
-      path: "/pipeline"
-      fullPath: "/pipeline"
+    '/_dashboard/pipeline': {
+      id: '/_dashboard/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
       preLoaderRoute: typeof DashboardPipelineRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/onboarding": {
-      id: "/_dashboard/onboarding"
-      path: "/onboarding"
-      fullPath: "/onboarding"
-      preLoaderRoute: typeof DashboardOnboardingRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    "/_dashboard/knowledge-base": {
-      id: "/_dashboard/knowledge-base"
-      path: "/knowledge-base"
-      fullPath: "/knowledge-base"
+    '/_dashboard/knowledge-base': {
+      id: '/_dashboard/knowledge-base'
+      path: '/knowledge-base'
+      fullPath: '/knowledge-base'
       preLoaderRoute: typeof DashboardKnowledgeBaseRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/keywords": {
-      id: "/_dashboard/keywords"
-      path: "/keywords"
-      fullPath: "/keywords"
+    '/_dashboard/keywords': {
+      id: '/_dashboard/keywords'
+      path: '/keywords'
+      fullPath: '/keywords'
       preLoaderRoute: typeof DashboardKeywordsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/inbox": {
-      id: "/_dashboard/inbox"
-      path: "/inbox"
-      fullPath: "/inbox"
+    '/_dashboard/inbox': {
+      id: '/_dashboard/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
       preLoaderRoute: typeof DashboardInboxRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/browser-sessions": {
-      id: "/_dashboard/browser-sessions"
-      path: "/browser-sessions"
-      fullPath: "/browser-sessions"
+    '/_dashboard/browser-sessions': {
+      id: '/_dashboard/browser-sessions'
+      path: '/browser-sessions'
+      fullPath: '/browser-sessions'
       preLoaderRoute: typeof DashboardBrowserSessionsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/analytics": {
-      id: "/_dashboard/analytics"
-      path: "/analytics"
-      fullPath: "/analytics"
+    '/_dashboard/analytics': {
+      id: '/_dashboard/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/alerts": {
-      id: "/_dashboard/alerts"
-      path: "/alerts"
-      fullPath: "/alerts"
+    '/_dashboard/alerts': {
+      id: '/_dashboard/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
       preLoaderRoute: typeof DashboardAlertsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_auth/register": {
-      id: "/_auth/register"
-      path: "/register"
-      fullPath: "/register"
+    '/_auth/register': {
+      id: '/_auth/register'
+      path: '/register'
+      fullPath: '/register'
       preLoaderRoute: typeof AuthRegisterRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/login": {
-      id: "/_auth/login"
-      path: "/login"
-      fullPath: "/login"
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
@@ -372,7 +373,6 @@ interface DashboardRouteChildren {
   DashboardInboxRoute: typeof DashboardInboxRoute
   DashboardKeywordsRoute: typeof DashboardKeywordsRoute
   DashboardKnowledgeBaseRoute: typeof DashboardKnowledgeBaseRoute
-  DashboardOnboardingRoute: typeof DashboardOnboardingRoute
   DashboardPipelineRoute: typeof DashboardPipelineRoute
   DashboardProfilesRoute: typeof DashboardProfilesRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
@@ -386,7 +386,6 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardInboxRoute: DashboardInboxRoute,
   DashboardKeywordsRoute: DashboardKeywordsRoute,
   DashboardKnowledgeBaseRoute: DashboardKnowledgeBaseRoute,
-  DashboardOnboardingRoute: DashboardOnboardingRoute,
   DashboardPipelineRoute: DashboardPipelineRoute,
   DashboardProfilesRoute: DashboardProfilesRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
@@ -401,6 +400,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
+  OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
 }
 export const routeTree = rootRouteImport

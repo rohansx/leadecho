@@ -1,0 +1,528 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="API Reference" description="Complete LeadEcho REST API documentation — all endpoints, authentication, and response formats.">
+  <h1>API Reference</h1>
+
+  <p style="margin-top: 16px;">
+    The LeadEcho REST API is served at <code>/api/v1/</code>. All endpoints require authentication
+    unless marked as public. The API returns JSON for all responses.
+  </p>
+
+  <h2>Authentication</h2>
+
+  <p>Two authentication modes are supported:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Mode</th>
+        <th>Header</th>
+        <th>Used By</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>JWT Bearer</td>
+        <td><code>Authorization: Bearer &lt;token&gt;</code></td>
+        <td>Dashboard, all user-facing endpoints</td>
+      </tr>
+      <tr>
+        <td>Extension Key</td>
+        <td><code>X-Extension-Key: ext_01hx...</code></td>
+        <td>Chrome extension endpoints only</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Register</h3>
+  <pre><code>POST /api/v1/auth/register
+Content-Type: application/json
+
+&#123; "email": "user@example.com", "password": "strongpass123" &#125;</code></pre>
+
+  <h3>Login</h3>
+  <pre><code>POST /api/v1/auth/login
+Content-Type: application/json
+
+&#123; "email": "user@example.com", "password": "strongpass123" &#125;
+
+# Response sets httpOnly JWT cookie + returns user object</code></pre>
+
+  <h3>Google OAuth</h3>
+  <pre><code>GET /api/v1/auth/google           # Redirects to Google
+GET /api/v1/auth/google/callback  # Google redirects here after auth</code></pre>
+
+  <h3>Current User</h3>
+  <pre><code>GET /api/v1/auth/me
+Authorization: Bearer &lt;jwt&gt;</code></pre>
+
+  <h3>Logout</h3>
+  <pre><code>POST /api/v1/auth/logout
+Authorization: Bearer &lt;jwt&gt;</code></pre>
+
+  <h2>Mentions</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/mentions</code></td>
+        <td>List mentions (filter by platform, intent, status, score, text)</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/mentions/counts</code></td>
+        <td>Total counts by status</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/mentions/tier-counts</code></td>
+        <td>Leads Ready / Worth Watching / Informational counts</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/mentions/&#123;id&#125;</code></td>
+        <td>Get a single mention with full scoring details</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/mentions/&#123;id&#125;</code></td>
+        <td>Update mention status (new/reviewed/replied/archived/spam)</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/mentions/&#123;id&#125;/classify</code></td>
+        <td>Re-run AI classification on a mention</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/mentions/&#123;id&#125;/draft-reply</code></td>
+        <td>Generate AI reply draft with optional tone parameter</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Pain-Point Profiles</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/profiles</code></td>
+        <td>List all profiles</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/profiles</code></td>
+        <td>Create a profile (embeds all pain points)</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/profiles/&#123;id&#125;</code></td>
+        <td>Get a single profile</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/profiles/&#123;id&#125;</code></td>
+        <td>Update a profile (re-embeds all phrases)</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/profiles/&#123;id&#125;</code></td>
+        <td>Delete profile and embeddings</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Keywords</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/keywords</code></td>
+        <td>List all monitored keywords</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/keywords</code></td>
+        <td>Add a new keyword</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/keywords/&#123;id&#125;</code></td>
+        <td>Remove a keyword</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Leads</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/leads</code></td>
+        <td>List leads with optional stage filter</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/leads/counts</code></td>
+        <td>Count per pipeline stage</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/leads/&#123;id&#125;</code></td>
+        <td>Get a single lead</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/leads</code></td>
+        <td>Manually create a lead from a mention</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/leads/&#123;id&#125;/stage</code></td>
+        <td>Move lead to a different pipeline stage</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Replies</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/replies</code></td>
+        <td>List all replies</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/mentions/&#123;id&#125;/draft-reply</code></td>
+        <td>Generate AI reply draft</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/replies/&#123;id&#125;/content</code></td>
+        <td>Edit reply content</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/replies/&#123;id&#125;/status</code></td>
+        <td>Approve or reject a reply</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Documents (Knowledge Base)</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/documents</code></td>
+        <td>List all knowledge base documents</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/documents</code></td>
+        <td>Upload and embed a document</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/documents/&#123;id&#125;</code></td>
+        <td>Get a document</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/documents/&#123;id&#125;</code></td>
+        <td>Update document content</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/documents/&#123;id&#125;</code></td>
+        <td>Delete document and embeddings</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Analytics</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/analytics/overview</code></td>
+        <td>Summary stats — total mentions, leads, replies</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/analytics/mentions-per-day</code></td>
+        <td>Daily mention volume (last 30 days)</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/analytics/mentions-per-platform</code></td>
+        <td>Breakdown by platform</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/analytics/mentions-per-intent</code></td>
+        <td>Breakdown by intent classification</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/analytics/funnel</code></td>
+        <td>Mention → lead → reply → posted conversion funnel</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/analytics/top-keywords</code></td>
+        <td>Keywords ranked by mention volume and intent quality</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Notifications</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/notifications/webhooks</code></td>
+        <td>Get webhook configuration</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/notifications/webhooks</code></td>
+        <td>Update webhook URLs and triggers</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/notifications/webhooks/test</code></td>
+        <td>Send test notification to all channels</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Settings</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/settings/api-keys</code></td>
+        <td>Get stored BYOK key names (not values)</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/settings/api-keys</code></td>
+        <td>Store/update BYOK API keys (encrypted)</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;</code></td>
+        <td>Get session status for a platform</td>
+      </tr>
+      <tr>
+        <td><code>PUT</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;</code></td>
+        <td>Store session cookies</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;</code></td>
+        <td>Remove session</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/settings/sessions/&#123;platform&#125;/test</code></td>
+        <td>Test session connection</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/settings/extension-token</code></td>
+        <td>Get current extension token metadata</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/settings/extension-token</code></td>
+        <td>Generate new extension token</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/settings/extension-token</code></td>
+        <td>Revoke extension token</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/settings/onboarding</code></td>
+        <td>Get onboarding state from workspace settings</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/api/v1/settings/onboarding</code></td>
+        <td>Update onboarding step progress</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>UTM Links</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Auth</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/v1/utm-links</code></td>
+        <td>JWT</td>
+        <td>List UTM links</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/utm-links</code></td>
+        <td>JWT</td>
+        <td>Create UTM link</td>
+      </tr>
+      <tr>
+        <td><code>DELETE</code></td>
+        <td><code>/api/v1/utm-links/&#123;id&#125;</code></td>
+        <td>JWT</td>
+        <td>Delete UTM link</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/r/&#123;code&#125;</code></td>
+        <td>None (public)</td>
+        <td>Redirect with UTM params, increment click count</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Extension API</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Auth</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/v1/extension/signals</code></td>
+        <td>Extension key</td>
+        <td>Ingest collected social signals</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/extension/mentions</code></td>
+        <td>Extension key</td>
+        <td>Recent high-signal mentions for the side panel</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/extension/reply-queue</code></td>
+        <td>Extension key</td>
+        <td>Approved replies ready to post</td>
+      </tr>
+      <tr>
+        <td><code>PATCH</code></td>
+        <td><code>/extension/replies/&#123;id&#125;/mark-posted</code></td>
+        <td>Extension key</td>
+        <td>Mark a reply as successfully posted</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Standard Response Format</h2>
+
+  <pre><code>// Success
+&#123;
+  "data": &#123; ... &#125;,
+  "meta": &#123; "total": 142, "page": 1, "limit": 20 &#125;  // pagination only
+&#125;
+
+// Error
+&#123;
+  "error": "not_found",
+  "message": "Mention not found",
+  "status": 404
+&#125;</code></pre>
+</DocsLayout>

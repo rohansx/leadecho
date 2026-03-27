@@ -45,17 +45,19 @@ func (q *Queries) CountRepliesByStatus(ctx context.Context, workspaceID string) 
 
 const createReply = `-- name: CreateReply :one
 INSERT INTO replies (
-    mention_id, workspace_id, content, status
+    mention_id, workspace_id, content, status, template_style, thread_context_used
 ) VALUES (
-    $1, $2, $3, $4
-) RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used
 `
 
 type CreateReplyParams struct {
-	MentionID   string      `json:"mention_id"`
-	WorkspaceID string      `json:"workspace_id"`
-	Content     string      `json:"content"`
-	Status      ReplyStatus `json:"status"`
+	MentionID         string      `json:"mention_id"`
+	WorkspaceID       string      `json:"workspace_id"`
+	Content           string      `json:"content"`
+	Status            ReplyStatus `json:"status"`
+	TemplateStyle     pgtype.Text `json:"template_style"`
+	ThreadContextUsed bool        `json:"thread_context_used"`
 }
 
 func (q *Queries) CreateReply(ctx context.Context, arg CreateReplyParams) (Reply, error) {
@@ -64,6 +66,8 @@ func (q *Queries) CreateReply(ctx context.Context, arg CreateReplyParams) (Reply
 		arg.WorkspaceID,
 		arg.Content,
 		arg.Status,
+		arg.TemplateStyle,
+		arg.ThreadContextUsed,
 	)
 	var i Reply
 	err := row.Scan(
@@ -83,12 +87,14 @@ func (q *Queries) CreateReply(ctx context.Context, arg CreateReplyParams) (Reply
 		&i.ApprovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TemplateStyle,
+		&i.ThreadContextUsed,
 	)
 	return i, err
 }
 
 const getReply = `-- name: GetReply :one
-SELECT id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at FROM replies
+SELECT id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used FROM replies
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -117,6 +123,8 @@ func (q *Queries) GetReply(ctx context.Context, arg GetReplyParams) (Reply, erro
 		&i.ApprovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TemplateStyle,
+		&i.ThreadContextUsed,
 	)
 	return i, err
 }
@@ -169,7 +177,7 @@ func (q *Queries) ListApprovedRepliesByWorkspace(ctx context.Context, workspaceI
 }
 
 const listRepliesByMention = `-- name: ListRepliesByMention :many
-SELECT id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at FROM replies
+SELECT id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used FROM replies
 WHERE mention_id = $1 AND workspace_id = $2
 ORDER BY created_at DESC
 `
@@ -205,6 +213,8 @@ func (q *Queries) ListRepliesByMention(ctx context.Context, arg ListRepliesByMen
 			&i.ApprovedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TemplateStyle,
+			&i.ThreadContextUsed,
 		); err != nil {
 			return nil, err
 		}
@@ -220,7 +230,7 @@ const markReplyPosted = `-- name: MarkReplyPosted :one
 UPDATE replies
 SET status = 'posted', posted_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at
+RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used
 `
 
 type MarkReplyPostedParams struct {
@@ -248,6 +258,8 @@ func (q *Queries) MarkReplyPosted(ctx context.Context, arg MarkReplyPostedParams
 		&i.ApprovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TemplateStyle,
+		&i.ThreadContextUsed,
 	)
 	return i, err
 }
@@ -256,7 +268,7 @@ const updateReplyContent = `-- name: UpdateReplyContent :one
 UPDATE replies
 SET edited_content = $1
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at
+RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used
 `
 
 type UpdateReplyContentParams struct {
@@ -285,6 +297,8 @@ func (q *Queries) UpdateReplyContent(ctx context.Context, arg UpdateReplyContent
 		&i.ApprovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TemplateStyle,
+		&i.ThreadContextUsed,
 	)
 	return i, err
 }
@@ -293,7 +307,7 @@ const updateReplyStatus = `-- name: UpdateReplyStatus :one
 UPDATE replies
 SET status = $1
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at
+RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used
 `
 
 type UpdateReplyStatusParams struct {
@@ -322,6 +336,8 @@ func (q *Queries) UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusPa
 		&i.ApprovedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TemplateStyle,
+		&i.ThreadContextUsed,
 	)
 	return i, err
 }

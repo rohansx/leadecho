@@ -75,7 +75,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 				// Find similar pain points
 				bestSim := 0.0
 				similar, err := m.q.FindSimilarPainPoints(ctx, database.FindSimilarPainPointsParams{
-					QueryEmbedding: vectors[i],
+					QueryEmbedding: &vectors[i],
 					WorkspaceID:    wsID,
 					Lim:            3,
 				})
@@ -96,6 +96,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 						ID:              a.ID,
 						WorkspaceID:     wsID,
 						ScoringMetadata: jsonBytes(map[string]any{"stage": "stage2_low_similarity", "best_similarity": bestSim, "auto_scored": true}),
+						AwarenessLevel:  pgtype.Text{},
 					})
 					continue
 				}
@@ -127,9 +128,10 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			"best_similarity": c.similarity,
 			"auto_scored":     true,
 			"reasoning":       result.Reasoning,
+			"awareness_level": result.AwarenessLevel,
 		}
 
-		// Update mention with classification
+		// Update mention with classification + awareness level
 		m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 			ID:                    c.alert.ID,
 			WorkspaceID:           c.alert.WorkspaceID,
@@ -137,6 +139,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			ConversionProbability: pgtype.Float4{Float32: float32(result.ConversionProbability), Valid: true},
 			RelevanceScore:        pgtype.Float4{Float32: float32(result.RelevanceScore), Valid: true},
 			ScoringMetadata:       jsonBytes(meta),
+			AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
 		})
 
 		// Stage 4: Lead qualification

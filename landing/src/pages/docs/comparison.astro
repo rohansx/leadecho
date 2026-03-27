@@ -1,0 +1,265 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Comparison" description="How LeadEcho compares to F5bot, Mention, and Brand24 for social intent monitoring.">
+  <h1>Comparison</h1>
+
+  <p style="margin-top: 16px;">
+    LeadEcho was built to solve a specific gap: existing tools monitor brand mentions
+    but don't capture <em>buyer intent</em>. Here's how it differs from the alternatives.
+  </p>
+
+  <h2>Feature Matrix</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>LeadEcho</th>
+        <th>F5bot</th>
+        <th>Mention</th>
+        <th>Brand24</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reddit monitoring</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>Twitter / X monitoring</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="yes">✓</span></td>
+      </tr>
+      <tr>
+        <td>LinkedIn monitoring</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>Dev.to / Lobsters / IndieHackers</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>AI intent classification</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td>Partial</td>
+      </tr>
+      <tr>
+        <td>Semantic pain-point matching</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>Lead pipeline (CRM-lite)</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>AI reply drafting</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>One-click reply posting</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>Human-mimicry typing</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>UTM attribution tracking</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td>Partial</td>
+      </tr>
+      <tr>
+        <td>Knowledge base / RAG replies</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>Chrome extension</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>BYOK API keys</td>
+        <td><span class="yes">✓</span></td>
+        <td>N/A</td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>Self-hostable</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+        <td><span class="no">—</span></td>
+      </tr>
+      <tr>
+        <td>Open source</td>
+        <td><span class="yes">✓</span></td>
+        <td>Closed</td>
+        <td>Closed</td>
+        <td>Closed</td>
+      </tr>
+      <tr>
+        <td>Free tier</td>
+        <td><span class="yes">✓</span></td>
+        <td><span class="yes">✓</span></td>
+        <td>Trial only</td>
+        <td>Trial only</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Positioning Deep-Dive</h2>
+
+  <h3>LeadEcho vs F5bot</h3>
+
+  <p>
+    F5bot is a free Reddit monitoring tool that sends email alerts when your keywords appear.
+    It's simple and useful for personal use, but has no AI scoring, no reply features,
+    and only covers Reddit. LeadEcho uses F5bot-style keyword monitoring as just the
+    <em>entry point</em> of a much deeper pipeline.
+  </p>
+
+  <ul>
+    <li><strong>F5bot:</strong> Keyword match → email alert. Done.</li>
+    <li><strong>LeadEcho:</strong> Keyword match → semantic scoring → intent classification → lead creation → AI reply → posting → UTM attribution.</li>
+  </ul>
+
+  <h3>LeadEcho vs Mention</h3>
+
+  <p>
+    Mention is a brand monitoring platform focused on PR teams and marketing departments.
+    It tracks brand name mentions across the web and social media, but is not designed for
+    outbound engagement or lead generation. There is no reply workflow, no intent scoring,
+    and no LinkedIn coverage.
+  </p>
+
+  <ul>
+    <li><strong>Mention:</strong> Tracks what people say about your brand.</li>
+    <li><strong>LeadEcho:</strong> Finds people who need what you sell — even if they've never mentioned your brand.</li>
+  </ul>
+
+  <h3>LeadEcho vs Brand24</h3>
+
+  <p>
+    Brand24 is the closest competitor — it has AI sentiment analysis and some basic
+    reach metrics. However, it's oriented toward brand health monitoring and doesn't
+    offer a reply workflow, lead pipeline, knowledge-base RAG, or Chrome extension.
+    It also doesn't cover LinkedIn or developer-focused platforms.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Dimension</th>
+        <th>LeadEcho</th>
+        <th>Brand24</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Primary use case</td>
+        <td>Lead generation via intent monitoring</td>
+        <td>Brand health and PR monitoring</td>
+      </tr>
+      <tr>
+        <td>Target user</td>
+        <td>Founders, growth teams, B2B SaaS</td>
+        <td>Marketing and communications teams</td>
+      </tr>
+      <tr>
+        <td>LinkedIn coverage</td>
+        <td>Yes (via Pinchtab / Camoufox)</td>
+        <td>No</td>
+      </tr>
+      <tr>
+        <td>Reply workflow</td>
+        <td>Full pipeline with human-mimicry posting</td>
+        <td>None</td>
+      </tr>
+      <tr>
+        <td>Pricing model</td>
+        <td>Self-host free or cloud subscription</td>
+        <td>Cloud-only, starts at $99/mo</td>
+      </tr>
+      <tr>
+        <td>AI scoring</td>
+        <td>4-stage pipeline (rules + embeddings + LLM)</td>
+        <td>Sentiment only</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>When to Use Each Tool</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th>Best Tool</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Simple Reddit keyword alerts, personal use</td>
+        <td>F5bot (free, no setup)</td>
+      </tr>
+      <tr>
+        <td>Brand reputation monitoring for PR team</td>
+        <td>Mention or Brand24</td>
+      </tr>
+      <tr>
+        <td>B2B lead generation via social intent</td>
+        <td>LeadEcho</td>
+      </tr>
+      <tr>
+        <td>Founder doing outreach across 7 platforms</td>
+        <td>LeadEcho</td>
+      </tr>
+      <tr>
+        <td>Agency selling to clients who complain about competitors</td>
+        <td>LeadEcho</td>
+      </tr>
+      <tr>
+        <td>Need LinkedIn + HN coverage specifically</td>
+        <td>LeadEcho (only option)</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

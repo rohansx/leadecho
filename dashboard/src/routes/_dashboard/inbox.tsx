@@ -43,6 +43,20 @@ const intentColors: Record<string, string> = {
   general: "bg-muted text-muted-foreground",
 };
 
+const awarenessColors: Record<string, string> = {
+  problem_aware: "bg-yellow-200 text-yellow-900",
+  solution_aware: "bg-blue-200 text-blue-900",
+  product_aware: "bg-green-200 text-green-900",
+  purchase_ready: "bg-purple-200 text-purple-900",
+};
+
+const awarenessLabels: Record<string, string> = {
+  problem_aware: "Problem Aware",
+  solution_aware: "Solution Aware",
+  product_aware: "Product Aware",
+  purchase_ready: "Purchase Ready",
+};
+
 const platformColors: Record<string, string> = {
   reddit: "bg-orange-100 text-orange-800",
   hackernews: "bg-amber-100 text-amber-800",
@@ -67,7 +81,7 @@ function InboxPage() {
   const [platformFilter, setPlatformFilter] = useState<string>("");
   const [search, setSearch] = useState("");
   const [expandedDraft, setExpandedDraft] = useState<string | null>(null);
-  const [draftContent, setDraftContent] = useState<Record<string, { reply: Reply; tone: string }>>({});
+  const [draftContent, setDraftContent] = useState<Record<string, { reply?: Reply; tone?: string; should_reply: boolean; reason?: string; awareness_level?: string; template_style?: string; thread_context_used?: boolean }>>({});
   const [copied, setCopied] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
@@ -289,6 +303,13 @@ function InboxPage() {
                       {mention.intent.replace("_", " ")}
                     </span>
                   )}
+                  {mention.awareness_level && (
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${awarenessColors[mention.awareness_level] ?? ""}`}
+                    >
+                      {awarenessLabels[mention.awareness_level] ?? mention.awareness_level}
+                    </span>
+                  )}
                   {mention.relevance_score != null && (
                     <Badge variant="surface" size="sm">
                       {mention.relevance_score.toFixed(1)}/10
@@ -364,39 +385,64 @@ function InboxPage() {
               {/* Draft reply panel */}
               {expandedDraft === mention.id && draftContent[mention.id] && (
                 <div className="mt-4 p-4 rounded-lg border-2 border-border bg-muted/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Text as="p" className="font-medium text-sm">
-                        AI Draft
+                  {!draftContent[mention.id].should_reply ? (
+                    <div>
+                      <Text as="p" className="font-medium text-sm text-muted-foreground mb-1">
+                        Not worth replying
                       </Text>
-                      <Badge variant="outline" size="sm">
-                        {draftContent[mention.id].tone}
-                      </Badge>
+                      <Text as="p" className="text-sm text-muted-foreground">
+                        {draftContent[mention.id].reason}
+                      </Text>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        handleCopy(
-                          mention.id,
-                          draftContent[mention.id].reply.content,
-                        )
-                      }
-                    >
-                      {copied === mention.id ? (
-                        <Check className="h-3.5 w-3.5 mr-1.5" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      )}
-                      {copied === mention.id ? "Copied" : "Copy"}
-                    </Button>
-                  </div>
-                  <Text
-                    as="p"
-                    className="text-sm leading-relaxed whitespace-pre-wrap"
-                  >
-                    {draftContent[mention.id].reply.content}
-                  </Text>
+                  ) : draftContent[mention.id].reply ? (
+                    <>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Text as="p" className="font-medium text-sm">
+                            AI Draft
+                          </Text>
+                          {draftContent[mention.id].tone && (
+                            <Badge variant="outline" size="sm">
+                              {draftContent[mention.id].tone}
+                            </Badge>
+                          )}
+                          {draftContent[mention.id].template_style && (
+                            <Badge variant="outline" size="sm" className="text-xs">
+                              {draftContent[mention.id].template_style?.replace("_", " ")}
+                            </Badge>
+                          )}
+                          {draftContent[mention.id].thread_context_used && (
+                            <Badge variant="outline" size="sm" className="text-xs border-blue-300 text-blue-700">
+                              Thread context
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            handleCopy(
+                              mention.id,
+                              draftContent[mention.id].reply!.content,
+                            )
+                          }
+                        >
+                          {copied === mention.id ? (
+                            <Check className="h-3.5 w-3.5 mr-1.5" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                          )}
+                          {copied === mention.id ? "Copied" : "Copy"}
+                        </Button>
+                      </div>
+                      <Text
+                        as="p"
+                        className="text-sm leading-relaxed whitespace-pre-wrap"
+                      >
+                        {draftContent[mention.id].reply!.content}
+                      </Text>
+                    </>
+                  ) : null}
                 </div>
               )}
             </CardContent>

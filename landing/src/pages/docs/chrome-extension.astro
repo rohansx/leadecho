@@ -1,0 +1,241 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Chrome Extension" description="LeadEcho Chrome extension — passive signal collection and reply posting with human-mimicry typing.">
+  <h1>Chrome Extension</h1>
+
+  <p style="margin-top: 16px;">
+    The LeadEcho Chrome extension (MV3, built with WXT 0.19) runs passively in the background,
+    collecting social signals from platforms you browse and posting approved replies
+    with human-mimicry timing.
+  </p>
+
+  <h2>Installation</h2>
+
+  <h3>From Source (Development)</h3>
+
+  <pre><code>cd extension
+pnpm install
+pnpm build
+
+# In Chrome: go to chrome://extensions
+# Enable "Developer mode" (top right toggle)
+# Click "Load unpacked" → select the dist/ directory</code></pre>
+
+  <h3>From Chrome Web Store</h3>
+
+  <p>
+    Search for "LeadEcho" in the Chrome Web Store, or install directly from the product dashboard
+    at <strong>Settings → Chrome Extension → Install</strong>.
+  </p>
+
+  <h2>Initial Configuration</h2>
+
+  <ol>
+    <li>Click the LeadEcho extension icon in your toolbar to open the side panel.</li>
+    <li>Navigate to the <strong>Settings</strong> tab.</li>
+    <li>Enter your <strong>API URL</strong> (e.g. <code>https://api.yourdomain.com</code> or <code>http://localhost:8090</code>).</li>
+    <li>Paste your <strong>Extension Key</strong> (see below).</li>
+    <li>Click <strong>Save</strong> — the extension will verify the connection.</li>
+  </ol>
+
+  <h3>Getting Your Extension Key</h3>
+
+  <p>In the dashboard, go to <strong>Settings → Extension Token → Generate</strong>.</p>
+
+  <pre><code>POST /api/v1/settings/extension-token
+Authorization: Bearer &lt;jwt&gt;
+
+# Response:
+&#123;
+  "token": "ext_01hx...",
+  "created_at": "2025-03-01T10:00:00Z"
+&#125;</code></pre>
+
+  <blockquote>
+    <p>Extension tokens are long-lived and workspace-scoped. Regenerating invalidates the previous token.</p>
+  </blockquote>
+
+  <h2>Passive Signal Collection</h2>
+
+  <p>
+    Content scripts run on supported domains and scan the DOM for posts, comments, and threads.
+    Signals are de-duplicated locally, buffered, and flushed to the backend periodically.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Domain</th>
+        <th>Collected Content</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reddit</td>
+        <td><code>reddit.com</code></td>
+        <td>Post titles, comment text, author</td>
+      </tr>
+      <tr>
+        <td>Twitter / X</td>
+        <td><code>x.com</code></td>
+        <td>Tweet text, author handle</td>
+      </tr>
+      <tr>
+        <td>LinkedIn</td>
+        <td><code>linkedin.com</code></td>
+        <td>Post text, author name</td>
+      </tr>
+      <tr>
+        <td>Hacker News</td>
+        <td><code>news.ycombinator.com</code></td>
+        <td>Story titles, comment text</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Flush Behavior</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Trigger</th>
+        <th>Condition</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Time-based</td>
+        <td>Every 30 seconds</td>
+      </tr>
+      <tr>
+        <td>Buffer-based</td>
+        <td>When buffer reaches 20 signals</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Signal Ingestion Endpoint</h3>
+
+  <pre><code>POST /api/v1/extension/signals
+X-Extension-Key: ext_01hx...
+Content-Type: application/json
+
+&#123;
+  "signals": [
+    &#123;
+      "platform": "reddit",
+      "content": "We're drowning in client management...",
+      "author": "devfounder",
+      "url": "https://reddit.com/r/...",
+      "collected_at": "2025-03-01T10:00:00Z"
+    &#125;
+  ]
+&#125;</code></pre>
+
+  <p>
+    Signals immediately enter the AI scoring pipeline — Stage 1 (rules filter) runs synchronously
+    before the response is returned. Stages 2–4 run asynchronously.
+  </p>
+
+  <h2>Side Panel</h2>
+
+  <p>The extension side panel has three tabs:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tab</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Leads</strong></td>
+        <td>Recent high-signal mentions (relevance ≥ 7.0) from your workspace</td>
+      </tr>
+      <tr>
+        <td><strong>Queue</strong></td>
+        <td>Approved replies pending posting — click "Post" to trigger</td>
+      </tr>
+      <tr>
+        <td><strong>Settings</strong></td>
+        <td>API URL and Extension Key configuration</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Reply Posting Flow</h2>
+
+  <ol>
+    <li>Open the side panel → <strong>Queue</strong> tab.</li>
+    <li>Click <strong>Post</strong> next to an approved reply.</li>
+    <li>The extension opens the target URL in a new tab (or focuses it if already open).</li>
+    <li>It locates the reply/comment input field via DOM selectors.</li>
+    <li>Types the reply using the human-mimicry engine (see <a href="/docs/reply-posting">Reply Posting</a>).</li>
+    <li>Submits the form.</li>
+    <li>Marks the reply as posted via <code>PATCH /extension/replies/&#123;id&#125;/mark-posted</code>.</li>
+  </ol>
+
+  <h2>Development Build</h2>
+
+  <pre><code>cd extension
+
+# Type checking
+pnpm typecheck
+
+# Dev mode with hot reload
+pnpm dev
+
+# Production build
+pnpm build
+
+# Build output
+ls dist/</code></pre>
+
+  <h3>Extension Configuration File</h3>
+
+  <pre><code>// extension/wxt.config.ts
+export default defineConfig(&#123;
+  manifest: &#123;
+    name: 'LeadEcho',
+    permissions: ['storage', 'sidePanel', 'activeTab', 'scripting'],
+    host_permissions: ['*://reddit.com/*', '*://x.com/*', '*://linkedin.com/*', '*://news.ycombinator.com/*']
+  &#125;
+&#125;);</code></pre>
+
+  <h2>Permissions Explained</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Permission</th>
+        <th>Why It's Needed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>storage</code></td>
+        <td>Persist API URL and extension key locally</td>
+      </tr>
+      <tr>
+        <td><code>sidePanel</code></td>
+        <td>Show the side panel UI</td>
+      </tr>
+      <tr>
+        <td><code>activeTab</code></td>
+        <td>Access the currently active tab for posting</td>
+      </tr>
+      <tr>
+        <td><code>scripting</code></td>
+        <td>Inject content scripts for DOM interaction</td>
+      </tr>
+      <tr>
+        <td>host_permissions</td>
+        <td>Read and interact with supported platform pages</td>
+      </tr>
+    </tbody>
+  </table>
+</DocsLayout>

@@ -87,4 +87,4 @@ If this policy changes materially, the extension version will be updated and the
 
 ## Contact
 
-For questions about this privacy policy, please open an issue at: https://github.com/your-org/leadecho/issues
+For questions about this privacy policy, please open an issue at: https://github.com/rohansx/leadecho/issues

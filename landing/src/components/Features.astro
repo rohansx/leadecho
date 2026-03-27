@@ -1,0 +1,81 @@
+---
+const features = [
+  {
+    icon: '🚀',
+    title: 'Zero-config onboarding',
+    body: 'Paste your product URL. AI scrapes it, extracts pain points, keywords, and target subreddits. Agents deploy in seconds — no manual setup.',
+  },
+  {
+    icon: '🔍',
+    title: 'Semantic pain-point matching',
+    body: 'Voyage AI embeddings match posts to your profiles by meaning, not keywords. Catches buyers who describe problems differently.',
+  },
+  {
+    icon: '🧠',
+    title: '4-stage AI scoring + awareness levels',
+    body: 'Spam filter, semantic similarity, LLM intent classification, lead qualification. Classifies buyer awareness: Problem Aware → Purchase Ready.',
+  },
+  {
+    icon: '📥',
+    title: 'Smart tiered inbox',
+    body: 'Three tiers: Leads Ready, Worth Watching, Informational. Filter by platform, intent, awareness level, relevance score.',
+  },
+  {
+    icon: '💬',
+    title: 'Smart reply drafting',
+    body: '2-stage pipeline: pre-filter (is it worth replying?) then full-thread context + 5 template styles. Value-first, storytelling, technical, casual, contrarian.',
+  },
+  {
+    icon: '🧩',
+    title: 'Chrome extension + side panel',
+    body: 'Collects passive signals as you browse. Side panel shows your leads and reply queue without leaving the page.',
+  },
+  {
+    icon: '⌨️',
+    title: 'Human-mimicry reply posting',
+    body: 'Types replies with Gaussian keystroke timing and natural pauses. Uses the platform\'s own input system.',
+  },
+  {
+    icon: '📊',
+    title: 'Reply engagement tracking',
+    body: 'After posting, tracks upvotes, replies, and removal status. Know which reply styles resonate with each community.',
+  },
+  {
+    icon: '🔗',
+    title: 'UTM attribution',
+    body: 'Every reply gets a unique short link. Track clicks back to signups and revenue. Close the attribution loop.',
+  },
+  {
+    icon: '📚',
+    title: 'Knowledge base RAG',
+    body: 'Upload docs, FAQs, and positioning guides. AI replies are grounded in your actual product.',
+  },
+  {
+    icon: '🛡️',
+    title: 'Authenticated crawling',
+    body: 'Use your own browser cookies for Reddit/Twitter/LinkedIn. Pinchtab sidecar + optional Camoufox for LinkedIn.',
+  },
+  {
+    icon: '🔔',
+    title: 'Webhook notifications',
+    body: 'Slack, Discord, or email alerts when high-intent mentions arrive. Configurable per workspace.',
+  },
+];
+---
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-label section-label-bracket">Features</div>
+    <div class="section-title">Everything in one<br /><span class="highlight">Open-Source Stack</span></div>
+    <p class="section-sub">No stitching together 5 different tools. The full workflow lives in one codebase you can host yourself.</p>
+    <div class="feature-grid">
+      {features.map((f) => (
+        <div class="feat">
+          <span class="feat-icon">{f.icon}</span>
+          <h3>{f.title}</h3>
+          <p>{f.body}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

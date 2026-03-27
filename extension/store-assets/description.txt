@@ -23,7 +23,7 @@ LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, an
 ✓ Works on Reddit, Twitter/X, and LinkedIn post pages
 ✓ UTM short-link generation for conversion attribution
 ✓ Zero tracking: your data goes only to your own LeadEcho instance
-✓ Open source — full source at github.com/your-org/leadecho
+✓ Open source — full source at https://github.com/rohansx/leadecho
 
 ── SUPPORTED PLATFORMS ───────────────────────────────────────────
 
@@ -43,7 +43,7 @@ LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, an
 
 LeadEcho collects only the text content of posts you visit on supported platforms. No cookies, no tracking pixels, no analytics. All data is sent exclusively to the LeadEcho backend URL you configure — which you control. You can revoke the extension key at any time from the dashboard, immediately stopping all data transmission.
 
-See the full privacy policy at: [your domain]/privacy
+See the full privacy policy at: https://leadecho.app/privacy
 
 ── REQUIREMENTS ──────────────────────────────────────────────────
 
