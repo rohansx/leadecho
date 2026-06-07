@@ -15,11 +15,12 @@ import (
 	"leadecho/internal/database"
 )
 
-// validKeywordPlatforms is the set of crawlable sources a keyword can target.
-// keywords.platforms is a text[] (NOT the 4-value platform_type enum), so it
-// includes the extra crawler sources the UI offers (devto/lobsters/indiehackers).
-// validMatchTypes mirrors the match strategies the UI offers; the signal matcher
-// (internal/monitor/filter.go) treats everything but "exact" as a contains match.
+// validKeywordPlatforms must equal the platform_type enum exactly (7 values incl.
+// devto/lobsters/indiehackers): keywords.platforms is platform_type[], so an
+// unknown value fails the enum cast at insert time (a 500) — hence we validate
+// before the DB call. validMatchTypes mirrors the match strategies the UI offers;
+// the signal matcher (internal/monitor/filter.go) treats everything but "exact"
+// as a contains match.
 var (
 	validKeywordPlatforms = map[string]bool{
 		"reddit": true, "hackernews": true, "devto": true, "lobsters": true,
@@ -176,6 +177,18 @@ func (h *KeywordHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
+	}
+
+	// Validate the same way Create does, but only for fields actually supplied.
+	if body.MatchType != "" && !validMatchTypes[body.MatchType] {
+		writeError(w, http.StatusBadRequest, "invalid match_type")
+		return
+	}
+	for _, p := range body.Platforms {
+		if !validKeywordPlatforms[p] {
+			writeError(w, http.StatusBadRequest, "invalid platform: "+p)
+			return
+		}
 	}
 
 	existing, err := h.q.GetKeyword(r.Context(), database.GetKeywordParams{ID: id, WorkspaceID: wsID})

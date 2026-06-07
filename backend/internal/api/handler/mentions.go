@@ -15,11 +15,19 @@ import (
 	"leadecho/internal/database"
 )
 
-// validMentionStatuses mirrors the mention_status enum in the database.
-var validMentionStatuses = map[string]bool{
-	"new": true, "reviewed": true, "replied": true,
-	"archived": true, "spam": true,
-}
+// validMentionStatuses mirrors the mention_status enum; validMentionIntents
+// mirrors the intent_type enum. Unknown filter values must be rejected before
+// the query, otherwise they reach the enum-typed column and fail the cast (500).
+var (
+	validMentionStatuses = map[string]bool{
+		"new": true, "reviewed": true, "replied": true,
+		"archived": true, "spam": true,
+	}
+	validMentionIntents = map[string]bool{
+		"buy_signal": true, "complaint": true, "recommendation_ask": true,
+		"comparison": true, "general": true,
+	}
+)
 
 type MentionHandler struct {
 	q *database.Queries
@@ -164,6 +172,22 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 		Search:      r.URL.Query().Get("search"),
 		Lim:         limit,
 		Off:         offset,
+	}
+
+	// Reject unknown enum filter values up front (400) rather than letting them
+	// fail an enum cast deep in the query (500). platform_type is shared with
+	// keywords (validKeywordPlatforms).
+	if params.Status != "" && !validMentionStatuses[params.Status] {
+		writeError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+	if params.Platform != "" && !validKeywordPlatforms[params.Platform] {
+		writeError(w, http.StatusBadRequest, "invalid platform")
+		return
+	}
+	if params.Intent != "" && !validMentionIntents[params.Intent] {
+		writeError(w, http.StatusBadRequest, "invalid intent")
+		return
 	}
 
 	mentions, err := h.q.ListMentionsComposed(ctx, params)

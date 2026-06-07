@@ -474,8 +474,10 @@ test.describe("analytics / charts & breakdown sections", () => {
 
       // Real behavior: the new row renders its destination, source · campaign, and
       // a generated /r/<code> short link, starting at "0 clicks".
+      // Scope to the row div (class border-b); a bare .locator("div") also matches
+      // the card wrapper holding every row's Delete button (strict-mode clash).
       const newRow = utmCard
-        .locator("div")
+        .locator("div.border-b")
         .filter({ hasText: destination })
         .filter({ hasText: source })
         .first();

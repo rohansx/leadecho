@@ -183,8 +183,11 @@ test.describe("overview / analytics stats", () => {
     await utmCard.getByRole("button", { name: "Create" }).click();
 
     // The new link row renders its destination URL and the unique source label.
+    // Scope to the row div (class border-b) — a bare .locator("div") also matches
+    // the card wrapper, which holds every row's Delete button (strict-mode clash
+    // once more than one link exists).
     const newRow = utmCard
-      .locator("div")
+      .locator("div.border-b")
       .filter({ hasText: destination })
       .filter({ hasText: source })
       .first();

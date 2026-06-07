@@ -70,6 +70,26 @@ test.describe("backend regressions: error mapping & validation", () => {
     for (const m of searchTwitter.data) expect(m.platform).toBe("twitter");
   });
 
+  test("inbox rejects unknown enum filter values with 400 (not a 500 enum-cast)", async ({
+    page,
+  }) => {
+    for (const qs of [
+      "status=bogus",
+      "platform=bogus",
+      "intent=bogus",
+      "tier=filtered&status=bogus", // composed: must still validate
+      "search=foo&platform=bogus",
+    ]) {
+      const res = await page.request.get(`/api/v1/mentions?${qs}`);
+      expect(res.status(), `${qs} -> 400`).toBe(400);
+    }
+    // Valid values still return 200.
+    expect(
+      (await page.request.get("/api/v1/mentions?platform=hackernews&status=new"))
+        .status(),
+    ).toBe(200);
+  });
+
   test("mention status update: invalid status -> 400, bogus id -> 404", async ({
     page,
   }) => {
@@ -136,6 +156,15 @@ test.describe("backend regressions: error mapping & validation", () => {
     expect(
       (await page.request.delete("/api/v1/keywords/not-a-uuid")).status(),
       "malformed id -> 400",
+    ).toBe(400);
+    // 36-char but non-hex must also be 400 (not a uuid-cast 500).
+    expect(
+      (
+        await page.request.delete(
+          "/api/v1/keywords/zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz",
+        )
+      ).status(),
+      "36-char non-hex id -> 400",
     ).toBe(400);
     expect(
       (

@@ -79,6 +79,16 @@ Branch: `e2e-hardening` (off `master` @ 884134e). No pushes without approval.
 - Sidebar: removed duplicate /analytics 'Tracking' entry, unique keys, logo→/inbox.
 - Regression: tests/frontend-ux.spec.ts.
 
+### Batch E [DONE, committed] inbox filter composition + low-pri fixes
+- ListMentionsComposed/CountMentionsComposed: all filters AND together + real total.
+- MaskKey: 4-char prefix, len>=12 gate (was revealing 9–11 char keys).
+
+### Batch F [DONE] self-review fixes (adversarial diff review of my own changes)
+- mentions List: validate status/platform/intent enums → 400 (composition made bad
+  values reach the DB → 500). parseUUID: strict canonical form + hex check (Delete
+  of 36-char non-hex id was 500, now 400). keyword Update: same validation as Create.
+  Fixed two stale comments (keywords platform_type[], MaskKey example).
+
 ### Still open (lower priority, noted not fixed)
 - LOW: list `total` returns page size not full count (mentions/leads); pipeline
   column counts can exceed rendered cards >100/stage; crypto.MaskKey reveals

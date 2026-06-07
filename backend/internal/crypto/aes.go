@@ -70,7 +70,7 @@ func Decrypt(key []byte, encoded string) (string, error) {
 }
 
 // MaskKey returns a masked version of an API key for display.
-// e.g. "sk-ant-api03-abc...xyz" → "sk-ant-...cxyz"
+// e.g. "sk-ant-api03-secretxyz" → "sk-a...rxyz"
 func MaskKey(key string) string {
 	// Require enough length that a 4-char prefix and 4-char suffix leave at least
 	// 4 hidden characters in the middle. Below that, the old 7+4 slices overlapped

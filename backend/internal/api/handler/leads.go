@@ -300,31 +300,34 @@ func (h *LeadHandler) Counts(w http.ResponseWriter, r *http.Request) {
 
 func parseUUID(s string) pgtype.UUID {
 	var u pgtype.UUID
-	if len(s) != 36 {
+	// Require the canonical 8-4-4-4-12 form with dashes in the right spots, and
+	// reject any non-hex digit — otherwise garbage like a 36-char non-hex string
+	// would pass and later fail a uuid cast in the DB with a generic 500.
+	if len(s) != 36 || s[8] != '-' || s[13] != '-' || s[18] != '-' || s[23] != '-' {
 		return u
 	}
-	// Parse hex pairs, skipping dashes
-	hex := func(c byte) byte {
+	hexVal := func(c byte) (byte, bool) {
 		switch {
 		case '0' <= c && c <= '9':
-			return c - '0'
+			return c - '0', true
 		case 'a' <= c && c <= 'f':
-			return c - 'a' + 10
+			return c - 'a' + 10, true
 		case 'A' <= c && c <= 'F':
-			return c - 'A' + 10
+			return c - 'A' + 10, true
 		}
-		return 0
+		return 0, false
 	}
-	src := s
 	dst := 0
-	for i := 0; i < len(src); i++ {
-		if src[i] == '-' {
-			continue
+	for i := 0; i < len(s); i++ {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			continue // dash positions (already validated above)
 		}
-		if i+1 >= len(src) {
-			return u
+		hi, ok1 := hexVal(s[i])
+		lo, ok2 := hexVal(s[i+1])
+		if !ok1 || !ok2 {
+			return pgtype.UUID{} // non-hex digit → invalid
 		}
-		u.Bytes[dst] = hex(src[i])<<4 | hex(src[i+1])
+		u.Bytes[dst] = hi<<4 | lo
 		dst++
 		i++
 	}
