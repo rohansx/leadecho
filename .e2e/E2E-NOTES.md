@@ -57,14 +57,36 @@ Branch: `e2e-hardening` (off `master` @ 884134e). No pushes without approval.
   in responses; Delete non-existent→404; name trim.
 - Regression spec: tests/api-regression.spec.ts (11 tests, all green).
 
-### Remaining batches (TODO)
-- B security: open-redirect /r/{code}, SSRF webhook test, ENCRYPTION_KEY/JWT_SECRET
-  required in non-dev.
-- C engine: onboarding Complete (nil subreddits + error handling + idempotency),
-  7 sidecar crawlers missing Status, profile is_active not respected by scorer,
-  analytics silent-zero error swallowing.
-- D frontend: api.ts raw-error leak, sidebar duplicate /analytics, logo→landing,
-  no react-query error surface.
+### Batch B [DONE, committed] security
+- UTM open-redirect: reject non-http(s) destinations on create + re-validate before
+  redirect; build query via net/url (no raw concat).
+- Webhook SSRF: provider host allowlist (https only) + dial-time block of
+  private/loopback/link-local/CGNAT IPs (DNS-rebind safe) + no redirects +
+  non-2xx treated as failure.
+- config: refuse to boot outside development if JWT_SECRET missing/default or
+  ENCRYPTION_KEY unset/reused.
+
+### Batch C [DONE, committed] engine
+- onboarding Complete idempotent + nil normalization + keyword error handling.
+- monitor.insertMention defaults empty Status→new (fixes 7 sidecar crawlers).
+- FindSimilarPainPoints joins monitoring_profiles WHERE is_active=true.
+- analytics Overview propagates query errors (500) instead of silent zeros.
+- Deduped 12 accumulated test-workspace profiles (pre-idempotency noise).
+
+### Batch D [DONE, committed] frontend
+- api.ts surfaces clean { error } message (no "<status>: {json}" leak).
+- Global mutation error toast (MutationCache.onError) — failures no longer silent.
+- Sidebar: removed duplicate /analytics 'Tracking' entry, unique keys, logo→/inbox.
+- Regression: tests/frontend-ux.spec.ts.
+
+### Still open (lower priority, noted not fixed)
+- LOW: list `total` returns page size not full count (mentions/leads); pipeline
+  column counts can exceed rendered cards >100/stage; crypto.MaskKey reveals
+  9–11-char keys; webhook URLs stored plaintext in settings; BYOK keys stored but
+  never consumed by AI handlers; RotateToken non-transactional; sessions per-user
+  vs per-workspace divergence; WorkspaceID() fail-open dev fallback (latent).
+- MEDIUM: inbox filters don't compose (tier/status/platform/search mutually
+  exclusive); voyage EmbedTexts sparse-result guard.
 
 ## Feature surface to cover
 Pages: index(overview), inbox, pipeline, keywords, knowledge-base, profiles,
