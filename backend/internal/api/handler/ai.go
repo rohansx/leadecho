@@ -16,18 +16,35 @@ import (
 
 type AIHandler struct {
 	q              *database.Queries
-	glmAPIKey      string
+	nvidiaAPIKey   string
+	nvidiaModel    string
 	deepSeekAPIKey string
+	glmAPIKey      string
 	openAIAPIKey   string
 	scrapling      *browser.ScraplingClient
 }
 
-func NewAIHandler(q *database.Queries, glmAPIKey, deepSeekAPIKey, openAIAPIKey string, scrapling *browser.ScraplingClient) *AIHandler {
-	return &AIHandler{q: q, glmAPIKey: glmAPIKey, deepSeekAPIKey: deepSeekAPIKey, openAIAPIKey: openAIAPIKey, scrapling: scrapling}
+func NewAIHandler(q *database.Queries, nvidiaAPIKey, nvidiaModel, deepSeekAPIKey, glmAPIKey, openAIAPIKey string, scrapling *browser.ScraplingClient) *AIHandler {
+	return &AIHandler{
+		q:              q,
+		nvidiaAPIKey:   nvidiaAPIKey,
+		nvidiaModel:    nvidiaModel,
+		deepSeekAPIKey: deepSeekAPIKey,
+		glmAPIKey:      glmAPIKey,
+		openAIAPIKey:   openAIAPIKey,
+		scrapling:      scrapling,
+	}
 }
 
-// getProvider returns the system LLM provider. Tries GLM first, then DeepSeek, then OpenAI.
+// getProvider returns the system LLM provider. Priority: NVIDIA → DeepSeek → GLM → OpenAI.
 func (h *AIHandler) getProvider() *ai.Provider {
+	if h.nvidiaAPIKey != "" {
+		p := ai.DefaultProvider("nvidia", h.nvidiaAPIKey)
+		if h.nvidiaModel != "" {
+			p.Model = h.nvidiaModel
+		}
+		return &p
+	}
 	if h.glmAPIKey != "" {
 		p := ai.DefaultProvider("glm", h.glmAPIKey)
 		return &p

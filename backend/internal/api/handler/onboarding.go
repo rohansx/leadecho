@@ -19,17 +19,35 @@ import (
 type OnboardingHandler struct {
 	q              *database.Queries
 	scrapling      *browser.ScraplingClient
-	glmAPIKey      string
+	nvidiaAPIKey   string
+	nvidiaModel    string
 	deepSeekAPIKey string
+	glmAPIKey      string
 	openAIKey      string
 	embedder       *embedding.Client
 }
 
-func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, glmAPIKey, deepSeekAPIKey, openAIKey string, embedder *embedding.Client) *OnboardingHandler {
-	return &OnboardingHandler{q: q, scrapling: scrapling, glmAPIKey: glmAPIKey, deepSeekAPIKey: deepSeekAPIKey, openAIKey: openAIKey, embedder: embedder}
+func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, nvidiaAPIKey, nvidiaModel, deepSeekAPIKey, glmAPIKey, openAIKey string, embedder *embedding.Client) *OnboardingHandler {
+	return &OnboardingHandler{
+		q:              q,
+		scrapling:      scrapling,
+		nvidiaAPIKey:   nvidiaAPIKey,
+		nvidiaModel:    nvidiaModel,
+		deepSeekAPIKey: deepSeekAPIKey,
+		glmAPIKey:      glmAPIKey,
+		openAIKey:      openAIKey,
+		embedder:       embedder,
+	}
 }
 
 func (h *OnboardingHandler) getProvider() *ai.Provider {
+	if h.nvidiaAPIKey != "" {
+		p := ai.DefaultProvider("nvidia", h.nvidiaAPIKey)
+		if h.nvidiaModel != "" {
+			p.Model = h.nvidiaModel
+		}
+		return &p
+	}
 	if h.glmAPIKey != "" {
 		p := ai.DefaultProvider("glm", h.glmAPIKey)
 		return &p

@@ -36,3 +36,7 @@ coverage.html
 
 # Docker volumes
 pgdata/
+
+# Tool caches / local-only indexes
+.fastembed_cache/
+.illuminate/

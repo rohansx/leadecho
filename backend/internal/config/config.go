@@ -56,8 +56,11 @@ type Config struct {
 	FrontendURL string `env:"FRONTEND_URL,default=http://localhost:3100"`
 
 	// System-level AI keys (fallback when no BYOK key is set)
-	GLMAPIKey      string `env:"GLM_API_KEY,default="`
+	// Priority at startup: NVIDIA → DeepSeek → GLM → OpenAI
+	NVIDIAAPIKey   string `env:"NVIDIA_API_KEY,default="`
+	NVIDIAModel    string `env:"NVIDIA_MODEL,default=nvidia/llama-3.3-nemotron-super-49b-v1"`
 	DeepSeekAPIKey string `env:"DEEPSEEK_API_KEY,default="`
+	GLMAPIKey      string `env:"GLM_API_KEY,default="`
 	OpenAIAPIKey   string `env:"OPENAI_API_KEY,default="`
 
 	// Voyage AI (embeddings)

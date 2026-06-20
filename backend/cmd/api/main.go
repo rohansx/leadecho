@@ -63,29 +63,24 @@ func main() {
 		logger.Info().Msg("Voyage AI embedding client initialized")
 	}
 
-	// AI provider (optional — nil if no LLM key)
+	// AI provider (optional — nil if no LLM key). Priority: NVIDIA → DeepSeek → GLM → OpenAI.
 	var aiProvider *ai.Provider
-	if cfg.GLMAPIKey != "" {
-		aiProvider = &ai.Provider{
-			Name:    "glm",
-			APIKey:  cfg.GLMAPIKey,
-			BaseURL: "https://open.bigmodel.cn/api/paas/v4",
-			Model:   "glm-4.5-flash",
+	if cfg.NVIDIAAPIKey != "" {
+		p := ai.DefaultProvider("nvidia", cfg.NVIDIAAPIKey)
+		if cfg.NVIDIAModel != "" {
+			p.Model = cfg.NVIDIAModel
 		}
+		aiProvider = &p
+		logger.Info().Str("model", p.Model).Msg("NVIDIA AI provider initialized")
 	} else if cfg.DeepSeekAPIKey != "" {
-		aiProvider = &ai.Provider{
-			Name:    "deepseek",
-			APIKey:  cfg.DeepSeekAPIKey,
-			BaseURL: "https://api.deepseek.com/v1",
-			Model:   "deepseek-chat",
-		}
+		p := ai.DefaultProvider("deepseek", cfg.DeepSeekAPIKey)
+		aiProvider = &p
+	} else if cfg.GLMAPIKey != "" {
+		p := ai.DefaultProvider("glm", cfg.GLMAPIKey)
+		aiProvider = &p
 	} else if cfg.OpenAIAPIKey != "" {
-		aiProvider = &ai.Provider{
-			Name:    "openai",
-			APIKey:  cfg.OpenAIAPIKey,
-			BaseURL: "https://api.openai.com/v1",
-			Model:   "gpt-4o-mini",
-		}
+		p := ai.DefaultProvider("openai", cfg.OpenAIAPIKey)
+		aiProvider = &p
 	}
 
 	// Encryption key for session cookies

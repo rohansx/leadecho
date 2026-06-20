@@ -30,15 +30,37 @@ type ClassifyResult struct {
 
 // ProductAnalysis holds the output from analyzing a product URL.
 type ProductAnalysis struct {
-	ProductName         string   `json:"product_name"`
-	Description         string   `json:"description"`
-	Features            []string `json:"features"`
-	TargetAudience      string   `json:"target_audience"`
-	PainPoints          []string `json:"pain_points"`
-	Competitors         []string `json:"competitors"`
-	SuggestedKeywords   []string `json:"suggested_keywords"`
-	SuggestedSubreddits []string `json:"suggested_subreddits"`
-	SuggestedPlatforms  []string `json:"suggested_platforms"`
+	ProductName         string     `json:"product_name"`
+	Description         string     `json:"description"`
+	Features            []string   `json:"features"`
+	TargetAudience      flexString `json:"target_audience"`
+	PainPoints          []string   `json:"pain_points"`
+	Competitors         []string   `json:"competitors"`
+	SuggestedKeywords   []string   `json:"suggested_keywords"`
+	SuggestedSubreddits []string   `json:"suggested_subreddits"`
+	SuggestedPlatforms  []string   `json:"suggested_platforms"`
+}
+
+// flexString accepts either a JSON string or a JSON array of strings (joined with ", "),
+// so the parser tolerates the common LLM mistake of returning an array for a singular field.
+type flexString string
+
+func (f *flexString) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*f = flexString(s)
+		return nil
+	}
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*f = flexString(strings.Join(arr, ", "))
+		return nil
+	}
+	return fmt.Errorf("flexString: expected string or []string, got %s", string(data))
+}
+
+func (f flexString) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(f))
 }
 
 // PreFilterResult holds the output from the reply pre-filter.
@@ -95,6 +117,19 @@ type chatResponse struct {
 	} `json:"choices"`
 }
 
+// prependNemotronDirective inserts "detailed_thinking off" so Nemotron answers
+// directly instead of streaming its chain-of-thought first.
+func prependNemotronDirective(messages []chatMessage) []chatMessage {
+	const directive = "detailed_thinking off"
+	if len(messages) > 0 && messages[0].Role == "system" {
+		out := make([]chatMessage, len(messages))
+		copy(out, messages)
+		out[0] = chatMessage{Role: "system", Content: directive + "\n\n" + messages[0].Content}
+		return out
+	}
+	return append([]chatMessage{{Role: "system", Content: directive}}, messages...)
+}
+
 // DefaultProvider returns provider config based on provider name.
 func DefaultProvider(name, apiKey string) Provider {
 	switch name {
@@ -112,6 +147,13 @@ func DefaultProvider(name, apiKey string) Provider {
 			BaseURL: "https://api.deepseek.com/v1",
 			Model:   "deepseek-chat",
 		}
+	case "nvidia":
+		return Provider{
+			Name:    "nvidia",
+			APIKey:  apiKey,
+			BaseURL: "https://integrate.api.nvidia.com/v1",
+			Model:   "nvidia/llama-3.3-nemotron-super-49b-v1",
+		}
 	default:
 		return Provider{
 			Name:    "openai",
@@ -124,6 +166,12 @@ func DefaultProvider(name, apiKey string) Provider {
 
 // callChat makes an OpenAI-compatible chat completion request.
 func callChat(ctx context.Context, p Provider, messages []chatMessage, temp float64) (string, error) {
+	// NVIDIA Nemotron has reasoning enabled by default — disable it for structured-output
+	// calls so latency matches a standard Llama-3.3-70B.
+	if p.Name == "nvidia" && strings.Contains(p.Model, "nemotron") {
+		messages = prependNemotronDirective(messages)
+	}
+
 	body := chatRequest{
 		Model:       p.Model,
 		Messages:    messages,
@@ -143,7 +191,7 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("do request: %w", err)

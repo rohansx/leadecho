@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
-import { analyzeProductURL, completeOnboarding } from "@/lib/api";
+import { analyzeProductURL, completeOnboarding, getOnboardingStatus } from "@/lib/api";
 import type { ProductAnalysis } from "@/lib/types";
 
 export const Route = createFileRoute("/onboarding")({
@@ -32,8 +32,22 @@ const DEPLOY_STEPS = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading } = useAuth();
   const [step, setStep] = useState(1);
+
+  const { data: onboarding } = useQuery({
+    queryKey: ["onboarding"],
+    queryFn: getOnboardingStatus,
+    enabled: !!user,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (onboarding?.completed) {
+      navigate({ to: "/inbox" });
+    }
+  }, [onboarding, navigate]);
 
   // Step 1: URL input
   const [url, setUrl] = useState("");
@@ -82,6 +96,8 @@ function OnboardingPage() {
         subreddits,
       }),
     onSuccess: () => {
+      // Refresh cached onboarding status so the dashboard guard sees completed=true
+      queryClient.invalidateQueries({ queryKey: ["onboarding"] });
       // Start deploy animation
       setStep(3);
       let i = 0;
