@@ -20,11 +20,12 @@ type Client struct {
 	http    *http.Client
 }
 
-// New creates a Voyage AI embedding client using the voyage-3-lite model (1024-dim).
+// New creates a Voyage AI embedding client using the voyage-3 model (1024-dim).
+// voyage-3-lite returns 512-dim which is incompatible with the vector(1024) columns.
 func New(apiKey string) *Client {
 	return &Client{
 		apiKey:  apiKey,
-		model:   "voyage-3-lite",
+		model:   "voyage-3",
 		baseURL: "https://api.voyageai.com/v1",
 		http:    &http.Client{Timeout: 30 * time.Second},
 	}

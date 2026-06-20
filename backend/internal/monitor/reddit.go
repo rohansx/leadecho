@@ -41,10 +41,22 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 		return nil // no subreddits configured — skip
 	}
 
+	// If Reddit recently returned 403, the public JSON API is blocked.
+	// Skip all subreddit fetches until the backoff window expires instead of
+	// hammering Reddit and generating a wall of 403 logs every tick.
+	if time.Now().Before(m.redditBackoff) {
+		return nil
+	}
+
 	var alerts []mentionAlert
 	for _, sub := range kw.Subreddits {
 		results := m.fetchSubreddit(ctx, wsID, kw, sub)
 		alerts = append(alerts, results...)
+
+		// If fetchSubreddit triggered a 403 backoff, stop hitting more subreddits.
+		if time.Now().Before(m.redditBackoff) {
+			break
+		}
 
 		// Pause between subreddit requests to stay under rate limits
 		select {
@@ -80,6 +92,14 @@ func (m *Monitor) fetchSubreddit(ctx context.Context, wsID string, kw database.L
 	if resp.StatusCode == 429 {
 		m.redditBackoff = time.Now().Add(10 * time.Minute)
 		m.logger.Warn().Str("subreddit", subreddit).Time("retry_after", m.redditBackoff).Msg("reddit: rate limited, backing off 10m")
+		return nil
+	}
+
+	if resp.StatusCode == 403 {
+		// Reddit now blocks unauthenticated JSON API access entirely.
+		// Back off for 30 minutes to avoid spamming 403s every tick.
+		m.redditBackoff = time.Now().Add(30 * time.Minute)
+		m.logger.Warn().Str("subreddit", subreddit).Time("retry_after", m.redditBackoff).Msg("reddit: blocked (403), backing off 30m — configure authenticated crawl via Pinchtab or Reddit OAuth2")
 		return nil
 	}
 

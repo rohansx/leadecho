@@ -34,7 +34,7 @@ func (m *Monitor) crawlLinkedInScrapling(ctx context.Context, wsID string, kw da
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, "linkedin.com")
+	cookies := parseCookieString(cookieStr, ".linkedin.com")
 	if err := m.scrapling.InjectCookies(ctx, cookies); err != nil {
 		m.logger.Warn().Err(err).Msg("linkedin-scrapling: failed to inject cookies")
 		return nil

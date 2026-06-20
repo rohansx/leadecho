@@ -72,3 +72,27 @@ func containsWord(text, term string) bool {
 func isWordChar(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
+
+// extractFirstWord returns the first meaningful single word from a phrase.
+// Used for platforms like dev.to that only support single-word tag filters.
+// Words shorter than 3 characters or purely numeric are skipped.
+func extractFirstWord(term string) string {
+	for _, word := range strings.Fields(term) {
+		word = strings.Trim(strings.ToLower(word), ".,;:!?\"'()[]{}")
+		if len(word) < 3 {
+			continue
+		}
+		// Must contain at least one letter — skip pure numbers like "12345"
+		hasLetter := false
+		for _, r := range word {
+			if unicode.IsLetter(r) {
+				hasLetter = true
+				break
+			}
+		}
+		if hasLetter {
+			return word
+		}
+	}
+	return ""
+}

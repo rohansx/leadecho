@@ -30,9 +30,13 @@ type devtoArticle struct {
 }
 
 func (m *Monitor) crawlDevTo(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) []mentionAlert {
-	// Dev.to tag search works best with single lowercase words
-	tag := url.QueryEscape(kw.Term)
-	apiURL := fmt.Sprintf("https://dev.to/api/articles?tag=%s&per_page=25&state=fresh", tag)
+	// Dev.to tag search only supports single lowercase words.
+	// Extract the first meaningful word from the keyword term.
+	tag := extractFirstWord(kw.Term)
+	if tag == "" {
+		return nil
+	}
+	apiURL := fmt.Sprintf("https://dev.to/api/articles?tag=%s&per_page=25&state=fresh", url.QueryEscape(tag))
 
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {

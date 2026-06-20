@@ -56,8 +56,9 @@ type Config struct {
 	FrontendURL string `env:"FRONTEND_URL,default=http://localhost:3100"`
 
 	// System-level AI keys (fallback when no BYOK key is set)
-	GLMAPIKey    string `env:"GLM_API_KEY,default="`
-	OpenAIAPIKey string `env:"OPENAI_API_KEY,default="`
+	GLMAPIKey      string `env:"GLM_API_KEY,default="`
+	DeepSeekAPIKey string `env:"DEEPSEEK_API_KEY,default="`
+	OpenAIAPIKey   string `env:"OPENAI_API_KEY,default="`
 
 	// Voyage AI (embeddings)
 	VoyageAPIKey string `env:"VOYAGE_API_KEY,default="`

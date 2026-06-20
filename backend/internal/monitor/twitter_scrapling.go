@@ -34,7 +34,7 @@ func (m *Monitor) crawlTwitterScrapling(ctx context.Context, wsID string, kw dat
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, "x.com")
+	cookies := parseCookieString(cookieStr, ".x.com")
 	if err := m.scrapling.InjectCookies(ctx, cookies); err != nil {
 		m.logger.Warn().Err(err).Msg("twitter-scrapling: failed to inject cookies")
 		return nil

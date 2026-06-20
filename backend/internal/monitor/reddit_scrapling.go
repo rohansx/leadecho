@@ -38,7 +38,7 @@ func (m *Monitor) crawlRedditScrapling(ctx context.Context, wsID string, kw data
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, "reddit.com")
+	cookies := parseCookieString(cookieStr, ".reddit.com")
 
 	var alerts []mentionAlert
 	for _, sub := range kw.Subreddits {

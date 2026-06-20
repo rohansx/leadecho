@@ -41,39 +41,66 @@ func (m *Monitor) crawlRedditPinchtab(ctx context.Context, wsID string, kw datab
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, "reddit.com")
+	cookies := parseCookieString(cookieStr, ".reddit.com")
+
+	// Navigate to reddit.com and inject cookies ONCE for all subreddits.
+	// Doing this per-subreddit causes too many page loads and triggers Reddit's
+	// anti-bot rate limiting.
+	if err := m.pinchtab.Navigate(ctx, "https://www.reddit.com"); err != nil {
+		m.logger.Warn().Err(err).Msg("reddit-pinchtab: failed to navigate to domain")
+		return nil
+	}
+	if err := m.pinchtab.InjectCookies(ctx, "https://www.reddit.com", cookies); err != nil {
+		m.logger.Warn().Err(err).Msg("reddit-pinchtab: failed to inject cookies")
+		return nil
+	}
 
 	var alerts []mentionAlert
+	var failCount int
 
 	for _, sub := range kw.Subreddits {
-		results, err := m.fetchSubredditPinchtab(ctx, wsID, kw, sub, cookies)
+		results, err := m.fetchSubredditPinchtab(ctx, wsID, kw, sub)
 		if err != nil {
-			m.logger.Warn().Err(err).Str("subreddit", sub).Msg("reddit-pinchtab: fetch failed, will use fallback")
-			return nil // signal caller to fall back
+			m.logger.Warn().Err(err).Str("subreddit", sub).Msg("reddit-pinchtab: subreddit failed, skipping")
+			failCount++
+			// If 3+ subreddits fail in a row, Reddit is likely rate-limiting.
+			// Return what we have so far instead of falling back to unauthenticated.
+			if failCount >= 3 {
+				m.logger.Warn().Msg("reddit-pinchtab: too many failures, stopping subreddit loop")
+				break
+			}
+			continue
 		}
 		alerts = append(alerts, results...)
 
 		select {
 		case <-ctx.Done():
 			return alerts
-		case <-time.After(2 * time.Second):
+		case <-time.After(3 * time.Second):
 		}
 	}
 
+	// Return whatever we collected — only signal fallback if we got nothing.
 	if len(alerts) > 0 {
 		m.logger.Info().Int("count", len(alerts)).Str("keyword", kw.Term).Msg("reddit-pinchtab: new mentions found")
+		return alerts
 	}
-	return alerts
+	return nil // no data collected — signal caller to try fallback
 }
 
-func (m *Monitor) fetchSubredditPinchtab(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow, sub string, cookies []browser.Cookie) ([]mentionAlert, error) {
-	url := fmt.Sprintf("https://www.reddit.com/r/%s/new.json?limit=25", sub)
+func (m *Monitor) fetchSubredditPinchtab(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow, sub string) ([]mentionAlert, error) {
+	jsonURL := fmt.Sprintf("https://www.reddit.com/r/%s/new.json?limit=25", sub)
 
-	if err := m.pinchtab.InjectCookies(ctx, cookies); err != nil {
-		return nil, fmt.Errorf("inject cookies: %w", err)
-	}
-	if err := m.pinchtab.Navigate(ctx, url); err != nil {
+	// Cookies are already injected by the caller; just navigate to the JSON endpoint.
+	if err := m.pinchtab.Navigate(ctx, jsonURL); err != nil {
 		return nil, fmt.Errorf("navigate: %w", err)
+	}
+
+	// Wait for page to load before extracting text.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(2 * time.Second):
 	}
 
 	text, err := m.pinchtab.GetText(ctx)

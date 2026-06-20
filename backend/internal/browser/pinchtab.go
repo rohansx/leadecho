@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -33,13 +34,13 @@ func New(baseURL, token string) *PinchtabClient {
 	return &PinchtabClient{
 		baseURL: baseURL,
 		token:   token,
-		http:    &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
 // Heartbeat checks whether Pinchtab is reachable. Returns nil if online.
 func (p *PinchtabClient) Heartbeat(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/heartbeat", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/health", nil)
 	if err != nil {
 		return err
 	}
@@ -63,6 +64,7 @@ func (p *PinchtabClient) Navigate(ctx context.Context, url string) error {
 }
 
 // GetText returns the readable text content of the current page (~800 tokens/page).
+// Strips the IDPI content wrapper injected by Pinchtab's security middleware.
 func (p *PinchtabClient) GetText(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/text", nil)
 	if err != nil {
@@ -84,17 +86,43 @@ func (p *PinchtabClient) GetText(ctx context.Context) (string, error) {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		// Fall back to raw body if not JSON
 		body, _ := io.ReadAll(resp.Body)
 		return string(body), nil
 	}
-	return result.Text, nil
+
+	return stripIDPIWrapper(result.Text), nil
 }
 
-// InjectCookies sets browser cookies for the current session.
+// stripIDPIWrapper removes the IDPI warning prefix and <untrusted_web_content> tags
+// that Pinchtab wraps around page content when IDPI content guard is active.
+func stripIDPIWrapper(s string) string {
+	// The warning text mentions "<untrusted_web_content>" in prose, so we must
+	// search for the actual tag which has a url attribute: <untrusted_web_content url="
+	start := strings.Index(s, `<untrusted_web_content url=`)
+	if start < 0 {
+		return s
+	}
+	contentStart := strings.Index(s[start:], ">")
+	if contentStart < 0 {
+		return s
+	}
+	contentStart += start + 1
+
+	end := strings.Index(s[contentStart:], "</untrusted_web_content>")
+	if end < 0 {
+		return strings.TrimSpace(s[contentStart:])
+	}
+	return strings.TrimSpace(s[contentStart : contentStart+end])
+}
+
+// InjectCookies sets browser cookies for the specified URL.
 // Inject before navigating to authenticated pages.
-func (p *PinchtabClient) InjectCookies(ctx context.Context, cookies []Cookie) error {
-	return p.post(ctx, "/cookies", cookies, nil)
+func (p *PinchtabClient) InjectCookies(ctx context.Context, pageURL string, cookies []Cookie) error {
+	body := map[string]any{
+		"url":     pageURL,
+		"cookies": cookies,
+	}
+	return p.post(ctx, "/cookies", body, nil)
 }
 
 // EvaluateJS executes JavaScript in the current page context and returns the string result.

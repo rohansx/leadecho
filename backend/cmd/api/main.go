@@ -72,6 +72,13 @@ func main() {
 			BaseURL: "https://open.bigmodel.cn/api/paas/v4",
 			Model:   "glm-4.5-flash",
 		}
+	} else if cfg.DeepSeekAPIKey != "" {
+		aiProvider = &ai.Provider{
+			Name:    "deepseek",
+			APIKey:  cfg.DeepSeekAPIKey,
+			BaseURL: "https://api.deepseek.com/v1",
+			Model:   "deepseek-chat",
+		}
 	} else if cfg.OpenAIAPIKey != "" {
 		aiProvider = &ai.Provider{
 			Name:    "openai",

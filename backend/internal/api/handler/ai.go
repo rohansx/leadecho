@@ -15,20 +15,25 @@ import (
 )
 
 type AIHandler struct {
-	q            *database.Queries
-	glmAPIKey    string
-	openAIAPIKey string
-	scrapling    *browser.ScraplingClient
+	q              *database.Queries
+	glmAPIKey      string
+	deepSeekAPIKey string
+	openAIAPIKey   string
+	scrapling      *browser.ScraplingClient
 }
 
-func NewAIHandler(q *database.Queries, glmAPIKey, openAIAPIKey string, scrapling *browser.ScraplingClient) *AIHandler {
-	return &AIHandler{q: q, glmAPIKey: glmAPIKey, openAIAPIKey: openAIAPIKey, scrapling: scrapling}
+func NewAIHandler(q *database.Queries, glmAPIKey, deepSeekAPIKey, openAIAPIKey string, scrapling *browser.ScraplingClient) *AIHandler {
+	return &AIHandler{q: q, glmAPIKey: glmAPIKey, deepSeekAPIKey: deepSeekAPIKey, openAIAPIKey: openAIAPIKey, scrapling: scrapling}
 }
 
-// getProvider returns the system LLM provider. Tries GLM first, then OpenAI.
+// getProvider returns the system LLM provider. Tries GLM first, then DeepSeek, then OpenAI.
 func (h *AIHandler) getProvider() *ai.Provider {
 	if h.glmAPIKey != "" {
 		p := ai.DefaultProvider("glm", h.glmAPIKey)
+		return &p
+	}
+	if h.deepSeekAPIKey != "" {
+		p := ai.DefaultProvider("deepseek", h.deepSeekAPIKey)
 		return &p
 	}
 	if h.openAIAPIKey != "" {
@@ -58,7 +63,7 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 	// Get LLM provider
 	provider := h.getProvider()
 	if provider == nil {
-		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY or OPENAI_API_KEY in .env")
+		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY in .env")
 		return
 	}
 
@@ -115,7 +120,7 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	// Get LLM provider
 	provider := h.getProvider()
 	if provider == nil {
-		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY or OPENAI_API_KEY in .env")
+		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY in .env")
 		return
 	}
 

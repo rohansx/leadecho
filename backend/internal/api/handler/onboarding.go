@@ -17,20 +17,25 @@ import (
 
 // OnboardingHandler manages workspace onboarding state stored in settings JSONB.
 type OnboardingHandler struct {
-	q          *database.Queries
-	scrapling  *browser.ScraplingClient
-	glmAPIKey  string
-	openAIKey  string
-	embedder   *embedding.Client
+	q              *database.Queries
+	scrapling      *browser.ScraplingClient
+	glmAPIKey      string
+	deepSeekAPIKey string
+	openAIKey      string
+	embedder       *embedding.Client
 }
 
-func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, glmAPIKey, openAIKey string, embedder *embedding.Client) *OnboardingHandler {
-	return &OnboardingHandler{q: q, scrapling: scrapling, glmAPIKey: glmAPIKey, openAIKey: openAIKey, embedder: embedder}
+func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, glmAPIKey, deepSeekAPIKey, openAIKey string, embedder *embedding.Client) *OnboardingHandler {
+	return &OnboardingHandler{q: q, scrapling: scrapling, glmAPIKey: glmAPIKey, deepSeekAPIKey: deepSeekAPIKey, openAIKey: openAIKey, embedder: embedder}
 }
 
 func (h *OnboardingHandler) getProvider() *ai.Provider {
 	if h.glmAPIKey != "" {
 		p := ai.DefaultProvider("glm", h.glmAPIKey)
+		return &p
+	}
+	if h.deepSeekAPIKey != "" {
+		p := ai.DefaultProvider("deepseek", h.deepSeekAPIKey)
 		return &p
 	}
 	if h.openAIKey != "" {
@@ -146,7 +151,7 @@ func (h *OnboardingHandler) AnalyzeURL(w http.ResponseWriter, r *http.Request) {
 
 	provider := h.getProvider()
 	if provider == nil {
-		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY or OPENAI_API_KEY")
+		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY")
 		return
 	}
 

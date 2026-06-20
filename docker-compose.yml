@@ -33,8 +33,10 @@ services:
     container_name: leadecho-pinchtab
     ports:
       - "127.0.0.1:9867:9867"
+    command: ["pinchtab", "bridge", "--bind", "0.0.0.0"]
     environment:
       BRIDGE_TOKEN: ${PINCHTAB_TOKEN:-changeme}
+      PINCHTAB_TOKEN: ${PINCHTAB_TOKEN:-changeme}
       BRIDGE_HEADLESS: "true"
       BRIDGE_STEALTH: full
       BRIDGE_BLOCK_IMAGES: "true"

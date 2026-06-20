@@ -53,9 +53,14 @@ func (m *Monitor) crawlTwitterPinchtab(ctx context.Context, wsID string, kw data
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, "x.com")
+	cookies := parseCookieString(cookieStr, ".x.com")
 
-	if err := m.pinchtab.InjectCookies(ctx, cookies); err != nil {
+	// Navigate to x.com first so IDPI allows cookie injection on the right domain.
+	if err := m.pinchtab.Navigate(ctx, "https://x.com"); err != nil {
+		m.logger.Warn().Err(err).Msg("twitter-pinchtab: failed to navigate to domain")
+		return nil
+	}
+	if err := m.pinchtab.InjectCookies(ctx, "https://x.com", cookies); err != nil {
 		m.logger.Warn().Err(err).Msg("twitter-pinchtab: failed to inject cookies")
 		return nil
 	}

@@ -13,10 +13,10 @@ import (
 
 // Provider configures which LLM provider to use.
 type Provider struct {
-	Name    string // "glm" or "openai"
+	Name    string // "glm", "deepseek", or "openai"
 	APIKey  string
-	BaseURL string // e.g. "https://open.bigmodel.cn/api/paas/v4" or "https://api.openai.com/v1"
-	Model   string // e.g. "glm-4-flash" or "gpt-4o-mini"
+	BaseURL string // e.g. "https://open.bigmodel.cn/api/paas/v4", "https://api.deepseek.com/v1", or "https://api.openai.com/v1"
+	Model   string // e.g. "glm-4-flash", "deepseek-chat", or "gpt-4o-mini"
 }
 
 // ClassifyResult holds the output from intent classification.
@@ -104,6 +104,13 @@ func DefaultProvider(name, apiKey string) Provider {
 			APIKey:  apiKey,
 			BaseURL: "https://open.bigmodel.cn/api/paas/v4",
 			Model:   "glm-4.5-flash",
+		}
+	case "deepseek":
+		return Provider{
+			Name:    "deepseek",
+			APIKey:  apiKey,
+			BaseURL: "https://api.deepseek.com/v1",
+			Model:   "deepseek-chat",
 		}
 	default:
 		return Provider{

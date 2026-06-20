@@ -99,7 +99,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/profiles/{id}", profiles.Delete)
 
 			// AI (intent classification + reply drafting)
-			aiHandler := handler.NewAIHandler(queries, cfg.GLMAPIKey, cfg.OpenAIAPIKey, scrapling)
+			aiHandler := handler.NewAIHandler(queries, cfg.GLMAPIKey, cfg.DeepSeekAPIKey, cfg.OpenAIAPIKey, scrapling)
 			r.Post("/mentions/{id}/classify", aiHandler.Classify)
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
 
@@ -168,7 +168,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/settings/extension-token", ext.RevokeToken)
 
 			// Onboarding wizard
-			onboarding := handler.NewOnboardingHandler(queries, scrapling, cfg.GLMAPIKey, cfg.OpenAIAPIKey, embedder)
+			onboarding := handler.NewOnboardingHandler(queries, scrapling, cfg.GLMAPIKey, cfg.DeepSeekAPIKey, cfg.OpenAIAPIKey, embedder)
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
 			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)

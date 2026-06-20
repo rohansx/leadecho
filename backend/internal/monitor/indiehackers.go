@@ -48,6 +48,14 @@ func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw databas
 		return nil
 	}
 
+	// IndieHackers removed their RSS feed — the URL now returns HTML.
+	// Detect non-XML responses and skip gracefully instead of decoding errors.
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "xml") {
+		m.logger.Debug().Str("keyword", kw.Term).Str("content_type", ct).Msg("indiehackers: feed no longer XML, skipping")
+		return nil
+	}
+
 	var feed ihRSS
 	if err := xml.NewDecoder(resp.Body).Decode(&feed); err != nil {
 		m.logger.Error().Err(err).Str("keyword", kw.Term).Msg("indiehackers: failed to decode RSS")
