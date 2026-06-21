@@ -140,14 +140,18 @@ func (m *Monitor) tick(ctx context.Context) {
 					} else if m.scrapling != nil {
 						alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
 					}
-				case database.PlatformTypeLinkedin:
-					if m.camoufox != nil {
-						alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
-					} else if m.pinchtab != nil {
-						alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
-					} else if m.scrapling != nil {
-						alerts = append(alerts, m.crawlLinkedInScrapling(ctx, wsID, akw)...)
-					}
+			case database.PlatformTypeLinkedin:
+				if m.camoufox != nil {
+					alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
+				} else if m.pinchtab != nil {
+					alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
+				} else if m.scrapling != nil {
+					alerts = append(alerts, m.crawlLinkedInScrapling(ctx, wsID, akw)...)
+				}
+			case database.PlatformTypeQuora:
+				if m.pinchtab != nil {
+					alerts = append(alerts, m.crawlQuoraPinchtab(ctx, wsID, akw)...)
+				}
 				default:
 					// Phase 2 platforms
 					switch platform {

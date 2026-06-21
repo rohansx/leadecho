@@ -2,7 +2,7 @@
 
 **Find buyers before they find your competitors.**
 
-LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, and Indie Hackers for people actively describing the exact problem your product solves — then scores them by conversion probability, drafts AI replies from your knowledge base, and lets you post them with one click via the Chrome extension.
+LeadEcho monitors Reddit, Twitter/X, LinkedIn, Quora, Hacker News, Dev.to, Lobsters, and Indie Hackers for people actively describing the exact problem your product solves — then scores them by conversion probability, drafts AI replies from your knowledge base, and lets you post them with one click via the Chrome extension.
 
 → **[Live demo](https://app.leadecho.io)** · **[Product Hunt](https://www.producthunt.com/posts/leadecho)** · **[Docs](./docs/)**
 
@@ -18,8 +18,11 @@ LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, an
 - **UTM attribution** — unique short links per reply, track clicks → signups → revenue
 - **Knowledge base RAG** — AI replies grounded in your own docs, not hallucinated
 - **Webhook notifications** — Slack, Discord, email alerts for high-intent mentions
-- **BYOK** — bring your own OpenAI, Anthropic, or compatible API key
-- **Authenticated crawling** — Reddit, Twitter, LinkedIn via browser session cookies
+- **Multi-provider AI** — BYOK: NVIDIA Nemotron, DeepSeek, GLM (ZhipuAI), OpenAI, Anthropic, or any compatible API
+- **Authenticated crawling** — Reddit, Twitter, LinkedIn, Quora via browser session cookies
+- **Stealth browser fallback** — Scrapling anti-bot bypass as backup when Pinchtab/Camoufox unavailable
+- **Full E2E test suite** — 86 Playwright tests covering auth, inbox, pipeline, keywords, profiles, analytics, and more
+- **Astro landing page** — interactive 3D hero with React Three Fiber and Framer Motion
 
 ---
 
@@ -28,7 +31,7 @@ LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, an
 ### Prerequisites
 
 - Docker + Docker Compose
-- An OpenAI or Anthropic API key (for AI scoring)
+- An AI provider API key: NVIDIA, DeepSeek, GLM (ZhipuAI), OpenAI, or Anthropic
 
 ### 1. Clone and configure
 
@@ -42,8 +45,8 @@ Open `.env` and set at minimum:
 
 ```env
 JWT_SECRET=<random 32+ char string>
-OPENAI_API_KEY=sk-...          # or ANTHROPIC_API_KEY
-RESEND_API_KEY=re_...          # optional — for welcome emails
+DEEPSEEK_API_KEY=sk-...          # or NVIDIA_API_KEY / GLM_API_KEY / OPENAI_API_KEY
+RESEND_API_KEY=re_...            # optional — for welcome emails
 ```
 
 ### 2. Start services
@@ -71,7 +74,7 @@ make up
 1. Go to http://localhost:3100 and click **Get Started**
 2. Register with email/password
 3. Follow the 4-step onboarding wizard to set up pain-point profiles and keywords
-4. The monitor starts scanning Reddit + HN automatically every 5 minutes
+4. The monitor starts scanning Reddit, HN, Dev.to, Lobsters, and Indie Hackers automatically every 5 minutes
 
 ---
 
@@ -83,7 +86,7 @@ Work out of the box using public APIs. No account needed.
 ### Dev.to, Lobsters, Indie Hackers (no setup)
 Also public — no authentication required.
 
-### Twitter/X and LinkedIn (authenticated)
+### Quora, Twitter/X and LinkedIn (authenticated)
 
 These require the Pinchtab browser sidecar:
 
@@ -95,6 +98,7 @@ docker compose --profile browser up -d
 Then in the dashboard, go to **Settings → Browser Sessions** and paste your:
 - **Twitter/X**: session cookie (`auth_token` from browser devtools)
 - **LinkedIn**: `li_at` cookie
+- **Quora**: session cookies (the sidecar auto-validates login state)
 
 ### LinkedIn stealth mode (Pro)
 
@@ -102,6 +106,14 @@ For less aggressive LinkedIn detection, use the Camoufox sidecar:
 
 ```bash
 CAMOUFOX_URL=http://localhost:9868 docker compose --profile browser-pro up -d
+```
+
+### Anti-bot bypass fallback (Scrapling)
+
+When Pinchtab and Camoufox are both unavailable, Scrapling provides a lightweight fallback:
+
+```bash
+docker compose --profile browser-scrapling up -d
 ```
 
 ---
@@ -128,17 +140,17 @@ Then in the extension Settings tab:
 ```
 ┌─────────────────────────────────────────────────┐
 │  dashboard/ (React, Vite, TanStack Router)      │
-│  landing/   (static HTML marketing site)        │
-│  extension/ (WXT + MV3 Chrome extension)        │
+│  landing/   (Astro, React, Three.js)             │
+│  extension/ (WXT + MV3 Chrome extension)         │
 └────────────────┬────────────────────────────────┘
                  │ HTTP
 ┌────────────────▼────────────────────────────────┐
 │  backend/ (Go, Chi, pgx/v5)                     │
 │  ├─ api/          HTTP handlers + middleware     │
 │  ├─ auth/         JWT + Google OAuth             │
-│  ├─ monitor/      9 platform crawlers           │
-│  │   └─ scorer/   4-stage AI scoring pipeline   │
-│  ├─ browser/      Pinchtab + Camoufox clients   │
+│  ├─ monitor/      8 platform crawlers            │
+│  │   └─ scorer/   4-stage AI scoring pipeline    │
+│  ├─ browser/      Pinchtab + Camoufox clients    │
 │  ├─ embedding/    Voyage AI client               │
 │  └─ database/     sqlc-generated queries         │
 └────────────────┬────────────────────────────────┘
@@ -156,6 +168,7 @@ Then in the extension Settings tab:
 | Reddit | Pinchtab (authenticated) | Public JSON API |
 | Twitter/X | Pinchtab | — |
 | LinkedIn | Camoufox → Pinchtab | — |
+| Quora | Pinchtab (authenticated) | — |
 | HN, Dev.to, Lobsters, IH | Direct API | — |
 
 ### 4-stage scoring pipeline
@@ -174,14 +187,18 @@ Then in the extension Settings tab:
 | `DATABASE_URL` | ✓ | PostgreSQL connection string |
 | `REDIS_URL` | ✓ | Redis connection string |
 | `JWT_SECRET` | ✓ | JWT signing secret (32+ chars) |
-| `OPENAI_API_KEY` | one of | OpenAI key for AI scoring |
-| `ANTHROPIC_API_KEY` | one of | Anthropic key for AI scoring |
+| `DEEPSEEK_API_KEY` | one of | DeepSeek key for AI scoring |
+| `NVIDIA_API_KEY` | one of | NVIDIA Nemotron key for AI scoring |
+| `GLM_API_KEY` | one of | GLM (ZhipuAI) key for AI scoring |
+| `OPENAI_API_KEY` | one of | OpenAI key for AI scoring (also used for Anthropic-compatible) |
 | `VOYAGE_API_KEY` | | Voyage AI for embeddings (falls back to keyword matching) |
 | `RESEND_API_KEY` | | Resend for welcome + notification emails |
 | `PINCHTAB_TOKEN` | | Pinchtab browser sidecar token |
 | `PINCHTAB_URL` | | Pinchtab URL (default: http://localhost:9867) |
 | `CAMOUFOX_URL` | | Camoufox stealth browser URL (Pro LinkedIn) |
 | `CAMOUFOX_TOKEN` | | Camoufox auth token |
+| `SCRAPLING_URL` | | Scrapling anti-bot fallback URL |
+| `SCRAPLING_TOKEN` | | Scrapling auth token |
 | `GOOGLE_CLIENT_ID` | | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | | Google OAuth client secret |
 | `FRONTEND_URL` | | Frontend URL for OAuth redirects (default: http://localhost:3100) |
@@ -214,6 +231,9 @@ make web-check
 # Run Go tests
 make api-test
 
+# Run E2E tests (Playwright — 86 tests)
+make e2e
+
 # Format code
 make fmt
 ```
@@ -228,10 +248,12 @@ make fmt
 | Database | PostgreSQL 16 + pgvector |
 | Cache | Redis 7 |
 | Frontend | React 18, Vite, TanStack Router, TanStack Query, Tailwind |
+| Landing | Astro 4, React 18, Three.js, Framer Motion |
 | Extension | WXT 0.19, MV3, React |
-| AI | OpenAI / Anthropic (BYOK), Voyage AI (embeddings) |
+| AI | NVIDIA Nemotron, DeepSeek, GLM (ZhipuAI), OpenAI, Anthropic (BYOK); Voyage AI (embeddings) |
 | Email | Resend |
-| Browser automation | Pinchtab, Camoufox |
+| Browser automation | Pinchtab, Camoufox, Scrapling |
+| Testing | Playwright (86 E2E tests)
 
 ---
 

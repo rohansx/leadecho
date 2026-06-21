@@ -36,6 +36,13 @@ const platformMeta = {
     usernamePlaceholder: "Your LinkedIn name",
     hint: 'Open linkedin.com, DevTools → Application → Cookies → copy the value of "li_at"',
   },
+  quora: {
+    label: "Quora",
+    color: "bg-purple-600",
+    placeholder: 'Paste full cookie string (e.g. m-s=xxx; ...)',
+    usernamePlaceholder: "Your Quora name",
+    hint: 'Open quora.com, DevTools → Application → Cookies → copy all cookie name=value pairs separated by ";"',
+  },
 } as const;
 
 function SessionCard({ session }: { session: PlatformSession }) {
@@ -62,7 +69,17 @@ function SessionCard({ session }: { session: PlatformSession }) {
 
   const testMutation = useMutation({
     mutationFn: () => testSession(session.platform),
-    onSuccess: (data) => setTestResult(data.message),
+    onSuccess: (data) => {
+      const valid = data.cookie_valid;
+      const msg = data.message;
+      if (valid === true) {
+        setTestResult(`✓ ${msg}`);
+      } else if (valid === false) {
+        setTestResult(`✗ ${msg}`);
+      } else {
+        setTestResult(msg);
+      }
+    },
   });
 
   return (
@@ -158,7 +175,11 @@ function SessionCard({ session }: { session: PlatformSession }) {
             Test
           </Button>
           {testResult && (
-            <Text as="span" className="text-xs text-muted-foreground">{testResult}</Text>
+            <Text as="span" className={`text-xs ${
+              testResult.startsWith("✓") ? "text-green-600" :
+              testResult.startsWith("✗") ? "text-red-600" :
+              "text-muted-foreground"
+            }`}>{testResult}</Text>
           )}
         </div>
       </CardContent>

@@ -24,7 +24,7 @@ import (
 var (
 	validKeywordPlatforms = map[string]bool{
 		"reddit": true, "hackernews": true, "devto": true, "lobsters": true,
-		"indiehackers": true, "twitter": true, "linkedin": true,
+		"indiehackers": true, "twitter": true, "linkedin": true, "quora": true,
 	}
 	validMatchTypes = map[string]bool{"contains": true, "broad": true, "exact": true, "phrase": true}
 )

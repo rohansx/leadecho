@@ -25,7 +25,7 @@ func NewCamoufox(baseURL, token string) *CamoufoxClient {
 	return &CamoufoxClient{
 		baseURL: baseURL,
 		token:   token,
-		http:    &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: 60 * time.Second},
 	}
 }
 

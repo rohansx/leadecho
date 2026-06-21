@@ -38,6 +38,7 @@ const platformColors: Record<string, string> = {
   hackernews: "bg-amber-100 text-amber-800",
   twitter: "bg-sky-100 text-sky-800",
   linkedin: "bg-blue-100 text-blue-800",
+  quora: "bg-purple-100 text-purple-800",
 };
 
 const intentLabels: Record<string, string> = {

@@ -62,6 +62,7 @@ const platformColors: Record<string, string> = {
   hackernews: "bg-amber-100 text-amber-800",
   twitter: "bg-sky-100 text-sky-800",
   linkedin: "bg-blue-100 text-blue-800",
+  quora: "bg-purple-100 text-purple-800",
   devto: "bg-indigo-100 text-indigo-800",
   lobsters: "bg-red-100 text-red-800",
   indiehackers: "bg-teal-100 text-teal-800",
@@ -231,6 +232,7 @@ function InboxPage() {
           <option value="indiehackers">IndieHackers</option>
           <option value="twitter">Twitter</option>
           <option value="linkedin">LinkedIn</option>
+          <option value="quora">Quora</option>
         </select>
       </div>
 

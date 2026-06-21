@@ -16,6 +16,7 @@ const PLATFORMS = [
   { value: "hackernews", label: "Hacker News" },
   { value: "twitter", label: "Twitter / X" },
   { value: "linkedin", label: "LinkedIn" },
+  { value: "quora", label: "Quora" },
   { value: "devto", label: "Dev.to" },
   { value: "lobsters", label: "Lobsters" },
   { value: "indiehackers", label: "Indie Hackers" },
