@@ -86,7 +86,19 @@ export default defineContentScript({
 
     scanPage();
 
-    const observer = new MutationObserver(scanPage);
+    // Reddit is a high-churn SPA; coalesce bursts of mutations into one scan
+    // every ~500ms instead of re-scanning the whole page on every mutation.
+    let scanScheduled = false;
+    const scheduleScan = () => {
+      if (scanScheduled) return;
+      scanScheduled = true;
+      setTimeout(() => {
+        scanScheduled = false;
+        scanPage();
+      }, 500);
+    };
+
+    const observer = new MutationObserver(scheduleScan);
     observer.observe(document.body, { childList: true, subtree: true });
 
     await runPendingReply({

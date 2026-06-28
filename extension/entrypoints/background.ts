@@ -12,6 +12,9 @@ import { postSignals, markReplyPosted } from "../lib/api";
 export default defineBackground(() => {
   const buffer: RawSignal[] = [];
   const FLUSH_THRESHOLD = 20;
+  // Hard cap so the buffer can't grow without bound while offline/unconfigured
+  // (flush() early-returns without draining in that case). Drop oldest first.
+  const MAX_BUFFER = 500;
 
   // Cache the capture toggle so the hot SIGNAL path stays synchronous.
   let captureEnabled = true;
@@ -34,6 +37,9 @@ export default defineBackground(() => {
       if (message.type === "SIGNAL") {
         if (!captureEnabled) return;
         buffer.push(message.payload);
+        if (buffer.length > MAX_BUFFER) {
+          buffer.splice(0, buffer.length - MAX_BUFFER);
+        }
         if (buffer.length >= FLUSH_THRESHOLD) flush();
         return;
       }

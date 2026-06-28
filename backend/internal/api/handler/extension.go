@@ -212,6 +212,22 @@ func (h *ExtensionHandler) IngestSignals(w http.ResponseWriter, r *http.Request)
 
 // ── Extension data endpoints (X-Extension-Key protected) ─────────────────────
 
+// extensionMentionDTO is a clean, frontend-friendly shape. We map explicitly
+// because the sqlc row's Intent is a NullIntentType that JSON-marshals to a
+// nested object ({"intent_type":...,"valid":...}) rather than a plain string,
+// which would break the side panel's `intent.replace(...)` rendering.
+type extensionMentionDTO struct {
+	ID             string    `json:"id"`
+	Platform       string    `json:"platform"`
+	URL            string    `json:"url"`
+	Title          *string   `json:"title"`
+	Content        string    `json:"content"`
+	AuthorUsername *string   `json:"author_username"`
+	Intent         *string   `json:"intent"`
+	RelevanceScore *float64  `json:"relevance_score"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 // ListMentions returns recent high-signal mentions for the extension side panel.
 func (h *ExtensionHandler) ListMentions(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.ExtensionWorkspaceID(r.Context())
@@ -228,10 +244,35 @@ func (h *ExtensionHandler) ListMentions(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to list mentions")
 		return
 	}
-	if rows == nil {
-		rows = []database.ListRecentLeadsForWorkspaceRow{}
+
+	out := make([]extensionMentionDTO, 0, len(rows))
+	for _, row := range rows {
+		d := extensionMentionDTO{
+			ID:        row.ID,
+			Platform:  row.Platform,
+			URL:       row.Url,
+			Content:   row.Content,
+			CreatedAt: row.CreatedAt,
+		}
+		if row.Title.Valid {
+			t := row.Title.String
+			d.Title = &t
+		}
+		if row.AuthorUsername.Valid {
+			a := row.AuthorUsername.String
+			d.AuthorUsername = &a
+		}
+		if row.Intent.Valid {
+			s := string(row.Intent.IntentType)
+			d.Intent = &s
+		}
+		if row.RelevanceScore.Valid {
+			f := float64(row.RelevanceScore.Float32)
+			d.RelevanceScore = &f
+		}
+		out = append(out, d)
 	}
-	writeJSON(w, http.StatusOK, rows)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // GetReplyQueue returns approved replies waiting to be posted.
