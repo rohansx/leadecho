@@ -25,3 +25,13 @@ sql:
               import: "github.com/pgvector/pgvector-go"
               type: "Vector"
               pointer: true
+          - column: "mentions.content_embedding"
+            go_type:
+              import: "github.com/pgvector/pgvector-go"
+              type: "Vector"
+              pointer: true
+          - column: "pain_point_embeddings.embedding"
+            go_type:
+              import: "github.com/pgvector/pgvector-go"
+              type: "Vector"
+              pointer: true

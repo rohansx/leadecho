@@ -64,10 +64,10 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 					break
 				}
 
-				// Store the embedding
-				if err := m.q.UpdateMentionEmbedding(ctx, database.UpdateMentionEmbeddingParams{
-					ContentEmbedding: vectors[i],
-					ID:               a.ID,
+			// Store the embedding
+			if err := m.q.UpdateMentionEmbedding(ctx, database.UpdateMentionEmbeddingParams{
+				ContentEmbedding: &vectors[i],
+				ID:               a.ID,
 				}); err != nil {
 					m.logger.Error().Err(err).Str("mention_id", a.ID).Msg("scorer: failed to store embedding")
 				}
