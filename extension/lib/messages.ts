@@ -23,7 +23,7 @@ export type ExtensionMessage =
   | { type: "GET_TAB_ID"; payload?: undefined }
   | { type: "POST_REPLY"; payload: PostReplyPayload }
   | { type: "REPLY_INJECTED"; payload: { replyId: string; tabId: number } }
-  | { type: "REPLY_POSTED"; payload: { replyId: string; success: boolean } };
+  | { type: "REPLY_POSTED"; payload: { replyId: string; success: boolean; reason?: string } };
 
 export interface StatusPayload {
   configured: boolean;

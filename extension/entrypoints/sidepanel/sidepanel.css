@@ -120,7 +120,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; c
   margin-top: 4px;
 }
 
-.sp-card-actions { margin-top: 8px; }
+.sp-card-actions {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 .sp-post-btn {
   padding: 6px 14px;
@@ -131,12 +137,22 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; c
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
   transition: background 0.15s;
 }
 
 .sp-post-btn:hover:not(:disabled) { background: #22a86b; }
 .sp-post-btn:disabled { opacity: 0.7; cursor: default; }
 .sp-post-btn--done { background: #2a2d3a; color: #888; }
+.sp-post-btn--manual { background: #2a2d3a; color: #cbd0e0; }
+.sp-post-btn--manual:hover { background: #343847; }
+
+.sp-fail-reason {
+  font-size: 11px;
+  color: #ef4444;
+  line-height: 1.3;
+}
 
 /* Settings */
 .sp-settings { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }

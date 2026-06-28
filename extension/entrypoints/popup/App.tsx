@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { getSettings, saveSettings } from "../../lib/storage";
+import {
+  getSettings,
+  saveSettings,
+  getCaptureEnabled,
+  setCaptureEnabled,
+} from "../../lib/storage";
 import { testApiKey } from "../../lib/api";
 import { getStatus } from "../../lib/messages";
 import "./popup.css";
@@ -12,12 +17,15 @@ export function App() {
   const [status, setStatus] = useState<ConnectionStatus>("unknown");
   const [dailyCount, setDailyCount] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [capturing, setCapturing] = useState(true);
 
   useEffect(() => {
     getSettings().then((s) => {
       setApiKey(s.apiKey);
       setApiUrl(s.apiUrl);
     });
+
+    getCaptureEnabled().then(setCapturing);
 
     getStatus()
       .then((resp) => {
@@ -26,6 +34,12 @@ export function App() {
       })
       .catch(() => setStatus("unknown"));
   }, []);
+
+  async function handleToggleCapture() {
+    const next = !capturing;
+    setCapturing(next);
+    await setCaptureEnabled(next);
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +78,21 @@ export function App() {
         <span className="popup-count">{dailyCount}</span>
         <span className="popup-label">signals captured today</span>
       </section>
+
+      <button
+        type="button"
+        className={`popup-toggle ${capturing ? "popup-toggle--on" : ""}`}
+        onClick={handleToggleCapture}
+        role="switch"
+        aria-checked={capturing}
+      >
+        <span className="popup-toggle-label">
+          {capturing ? "Capturing while you browse" : "Capture paused"}
+        </span>
+        <span className="popup-toggle-track">
+          <span className="popup-toggle-thumb" />
+        </span>
+      </button>
 
       <form className="popup-form" onSubmit={handleSave}>
         <label className="popup-field-label">Backend URL</label>

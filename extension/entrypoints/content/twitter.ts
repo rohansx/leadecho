@@ -1,6 +1,6 @@
 import { defineContentScript } from "wxt/sandbox";
 import { sendSignal } from "../../lib/messages";
-import { simulateTyping } from "../../lib/human-mimicry";
+import { runPendingReply } from "../../lib/reply";
 
 export default defineContentScript({
   matches: ["https://x.com/*", "https://twitter.com/*"],
@@ -49,60 +49,17 @@ export default defineContentScript({
     observer.observe(document.body, { childList: true, subtree: true });
     document.querySelectorAll('article[data-testid="tweet"]').forEach(processTweet);
 
-    await checkPendingReply();
+    await runPendingReply({
+      settleMs: 2000,
+      openComposer: () => {
+        const replyBtn = document.querySelector('[data-testid="reply"]') as HTMLElement | null;
+        replyBtn?.click();
+      },
+      findReplyBox: () =>
+        document.querySelector('[data-testid="tweetTextarea_0"]') as HTMLElement | null,
+      findSubmit: () =>
+        (document.querySelector('[data-testid="tweetButtonInline"]') as HTMLElement | null) ??
+        (document.querySelector('[data-testid="tweetButton"]') as HTMLElement | null),
+    });
   },
 });
-
-async function checkPendingReply() {
-  const tabId = await getTabId();
-  if (tabId == null) return;
-
-  const key = `pending_reply_${tabId}`;
-  const result = await chrome.storage.session.get(key);
-  const pending = result[key] as { replyId: string; content: string } | undefined;
-  if (!pending) return;
-
-  await chrome.storage.session.remove(key);
-
-  // Wait for Twitter's React to settle
-  await new Promise((r) => setTimeout(r, 2000));
-
-  // Click the reply button on the tweet if we're on a status page
-  const replyBtn = document.querySelector('[data-testid="reply"]') as HTMLElement | null;
-  replyBtn?.click();
-
-  await new Promise((r) => setTimeout(r, 1000));
-
-  const replyBox = document.querySelector(
-    '[data-testid="tweetTextarea_0"]',
-  ) as HTMLElement | null;
-
-  if (!replyBox) {
-    chrome.runtime.sendMessage({
-      type: "REPLY_POSTED",
-      payload: { replyId: pending.replyId, success: false },
-    });
-    return;
-  }
-
-  await simulateTyping(replyBox, pending.content);
-
-  const submitBtn = document.querySelector(
-    '[data-testid="tweetButtonInline"]',
-  ) as HTMLButtonElement | null;
-  submitBtn?.click();
-
-  chrome.runtime.sendMessage({
-    type: "REPLY_POSTED",
-    payload: { replyId: pending.replyId, success: true },
-  });
-}
-
-async function getTabId(): Promise<number | null> {
-  try {
-    const resp = await chrome.runtime.sendMessage({ type: "GET_TAB_ID" });
-    return resp?.tabId ?? null;
-  } catch {
-    return null;
-  }
-}
