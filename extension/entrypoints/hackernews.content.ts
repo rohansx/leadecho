@@ -1,6 +1,6 @@
 import { defineContentScript } from "wxt/sandbox";
-import { sendSignal } from "../../lib/messages";
-import { runPendingReply } from "../../lib/reply";
+import { sendSignal } from "../lib/messages";
+import { runPendingReply } from "../lib/reply";
 
 export default defineContentScript({
   matches: ["https://news.ycombinator.com/*"],
