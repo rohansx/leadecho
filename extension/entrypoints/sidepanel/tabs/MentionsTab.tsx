@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getSettings } from "../../../lib/storage";
 import { getMentions, type ExtensionMention } from "../../../lib/api";
-
-const PLATFORM_LABELS: Record<string, string> = {
-  reddit: "Reddit",
-  twitter: "Twitter",
-  linkedin: "LinkedIn",
-  hackernews: "HN",
-  devto: "Dev.to",
-  lobsters: "Lobsters",
-  indiehackers: "IH",
-};
+import { platformLabel } from "../../../lib/platforms";
 
 export default function MentionsTab() {
   const [mentions, setMentions] = useState<ExtensionMention[]>([]);
@@ -55,7 +46,7 @@ export default function MentionsTab() {
       {mentions.map((m) => (
         <div key={m.id} className="sp-card">
           <div className="sp-card-header">
-            <span className="sp-badge">{PLATFORM_LABELS[m.platform] ?? m.platform}</span>
+            <span className="sp-badge">{platformLabel(m.platform)}</span>
             {m.intent && <span className="sp-intent">{m.intent.replace(/_/g, " ")}</span>}
             <a href={m.url} target="_blank" rel="noreferrer" className="sp-open-link">
               Open ↗

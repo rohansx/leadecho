@@ -181,14 +181,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/utm-links/{id}", utm.Delete)
 		})
 
-		// Extension signal ingestion — separate auth (X-Extension-Key) + permissive CORS
-		// so MV3 service workers (chrome-extension:// origin) are accepted.
+		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the
+		// chrome-extension:// origin is handled by the global CORS middleware.
 		r.Group(func(r chi.Router) {
-			r.Use(cors.Handler(cors.Options{
-				AllowedOrigins: []string{"*"},
-				AllowedMethods: []string{"GET", "POST", "PATCH", "OPTIONS"},
-				AllowedHeaders: []string{"Content-Type", "X-Extension-Key"},
-			}))
 			r.Use(middleware.ExtensionKeyAuth(queries))
 			r.Post("/extension/signals", ext.IngestSignals)
 			r.Get("/extension/mentions", ext.ListMentions)

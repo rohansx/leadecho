@@ -5,6 +5,7 @@ export interface ExtensionSettings {
 
 const SETTINGS_KEY = "leadecho_settings";
 const DAILY_COUNT_KEY = "leadecho_daily_count";
+export const CAPTURE_KEY = "leadecho_capture_enabled";
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const result = await chrome.storage.local.get(SETTINGS_KEY);
@@ -30,4 +31,14 @@ export async function getDailyCount(): Promise<number> {
   const result = await chrome.storage.local.get(DAILY_COUNT_KEY);
   const stored = result[DAILY_COUNT_KEY] as { date: string; count: number } | undefined;
   return stored?.date === today ? stored.count : 0;
+}
+
+/** Whether passive signal capture is active. Defaults to true. */
+export async function getCaptureEnabled(): Promise<boolean> {
+  const result = await chrome.storage.local.get(CAPTURE_KEY);
+  return result[CAPTURE_KEY] !== false;
+}
+
+export async function setCaptureEnabled(enabled: boolean): Promise<void> {
+  await chrome.storage.local.set({ [CAPTURE_KEY]: enabled });
 }

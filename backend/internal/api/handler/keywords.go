@@ -101,6 +101,7 @@ func (h *KeywordHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Term          string   `json:"term"`
+		ProfileID     string   `json:"profile_id"`
 		Platforms     []string `json:"platforms"`
 		MatchType     string   `json:"match_type"`
 		NegativeTerms []string `json:"negative_terms"`
@@ -142,8 +143,21 @@ func (h *KeywordHandler) Create(w http.ResponseWriter, r *http.Request) {
 		body.Subreddits = []string{}
 	}
 
+	// Resolve profile_id: use the explicit value if provided, otherwise fall back
+	// to the workspace's first active monitoring profile.
+	profileID := strings.TrimSpace(body.ProfileID)
+	if profileID == "" {
+		profiles, err := h.q.ListActiveMonitoringProfiles(r.Context(), wsID)
+		if err != nil || len(profiles) == 0 {
+			writeError(w, http.StatusBadRequest, "no active monitoring profile found — create one first")
+			return
+		}
+		profileID = profiles[0].ID
+	}
+
 	k, err := h.q.CreateKeyword(r.Context(), database.CreateKeywordParams{
 		WorkspaceID:   wsID,
+		ProfileID:     profileID,
 		Term:          body.Term,
 		Platforms:     body.Platforms,
 		IsActive:      true,

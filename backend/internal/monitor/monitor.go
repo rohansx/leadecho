@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"encoding/json"
+	"runtime/debug"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -63,6 +64,17 @@ func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
 }
 
 func (m *Monitor) tick(ctx context.Context) {
+	// Top-level safety net: a panic anywhere in a tick (crawl, scoring, notify)
+	// must never take down the API process — log it and wait for the next tick.
+	defer func() {
+		if r := recover(); r != nil {
+			m.logger.Error().
+				Interface("panic", r).
+				Str("stack", string(debug.Stack())).
+				Msg("monitor: recovered from panic in tick")
+		}
+	}()
+
 	// Fetch all active keywords across every workspace
 	allKeywords, err := m.q.ListAllActiveKeywords(ctx)
 	if err != nil {
@@ -110,60 +122,7 @@ func (m *Monitor) tick(ctx context.Context) {
 				UpdatedAt:     kw.UpdatedAt,
 			}
 
-			for _, platform := range kw.Platforms {
-				switch database.PlatformType(platform) {
-				case database.PlatformTypeReddit:
-					// Try Pinchtab → Scrapling → unauthenticated
-					if m.pinchtab != nil {
-						if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
-							alerts = append(alerts, pinchtabAlerts...)
-							break
-						}
-					}
-					if m.scrapling != nil {
-						if scraplingAlerts := m.crawlRedditScrapling(ctx, wsID, akw); scraplingAlerts != nil {
-							alerts = append(alerts, scraplingAlerts...)
-							break
-						}
-					}
-					// Fallback: existing unauthenticated crawler
-					if time.Now().Before(m.redditBackoff) {
-						continue
-					}
-					results := m.crawlReddit(ctx, wsID, akw)
-					alerts = append(alerts, results...)
-				case database.PlatformTypeHackernews:
-					alerts = append(alerts, m.crawlHackerNews(ctx, wsID, akw)...)
-				case database.PlatformTypeTwitter:
-					if m.pinchtab != nil {
-						alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)
-					} else if m.scrapling != nil {
-						alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
-					}
-			case database.PlatformTypeLinkedin:
-				if m.camoufox != nil {
-					alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
-				} else if m.pinchtab != nil {
-					alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
-				} else if m.scrapling != nil {
-					alerts = append(alerts, m.crawlLinkedInScrapling(ctx, wsID, akw)...)
-				}
-			case database.PlatformTypeQuora:
-				if m.pinchtab != nil {
-					alerts = append(alerts, m.crawlQuoraPinchtab(ctx, wsID, akw)...)
-				}
-				default:
-					// Phase 2 platforms
-					switch platform {
-					case "devto":
-						alerts = append(alerts, m.crawlDevTo(ctx, wsID, akw)...)
-					case "lobsters":
-						alerts = append(alerts, m.crawlLobsters(ctx, wsID, akw)...)
-					case "indiehackers":
-						alerts = append(alerts, m.crawlIndieHackers(ctx, wsID, akw)...)
-					}
-				}
-			}
+			alerts = append(alerts, m.crawlKeyword(ctx, wsID, akw)...)
 
 			// Pause between keywords to avoid hammering APIs
 			if i < len(g.keywords)-1 {
@@ -181,6 +140,79 @@ func (m *Monitor) tick(ctx context.Context) {
 		// Fire webhook notifications for this workspace
 		m.notifyNewMentions(ctx, wsID, alerts)
 	}
+}
+
+// crawlKeyword runs every configured platform crawler for a single keyword.
+// It recovers from panics so that one misbehaving platform/keyword cannot abort
+// the whole tick or crash the process; the offending keyword is simply skipped.
+func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.ListActiveKeywordsRow) (alerts []mentionAlert) {
+	defer func() {
+		if r := recover(); r != nil {
+			m.logger.Error().
+				Interface("panic", r).
+				Str("keyword", akw.Term).
+				Str("stack", string(debug.Stack())).
+				Msg("monitor: recovered from crawl panic — skipping keyword")
+			alerts = nil
+		}
+	}()
+
+	for _, platform := range akw.Platforms {
+		switch database.PlatformType(platform) {
+		case database.PlatformTypeReddit:
+			// Try Pinchtab → Scrapling → unauthenticated
+			if m.pinchtab != nil {
+				if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
+					alerts = append(alerts, pinchtabAlerts...)
+					break
+				}
+			}
+			if m.scrapling != nil {
+				if scraplingAlerts := m.crawlRedditScrapling(ctx, wsID, akw); scraplingAlerts != nil {
+					alerts = append(alerts, scraplingAlerts...)
+					break
+				}
+			}
+			// Fallback: existing unauthenticated crawler
+			if time.Now().Before(m.redditBackoff) {
+				continue
+			}
+			results := m.crawlReddit(ctx, wsID, akw)
+			alerts = append(alerts, results...)
+		case database.PlatformTypeHackernews:
+			alerts = append(alerts, m.crawlHackerNews(ctx, wsID, akw)...)
+		case database.PlatformTypeTwitter:
+			if m.pinchtab != nil {
+				alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)
+			} else if m.scrapling != nil {
+				alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
+			}
+		case database.PlatformTypeLinkedin:
+			if m.camoufox != nil {
+				alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
+			} else if m.pinchtab != nil {
+				alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
+			} else if m.scrapling != nil {
+				alerts = append(alerts, m.crawlLinkedInScrapling(ctx, wsID, akw)...)
+			}
+		case database.PlatformTypeQuora:
+			if m.pinchtab != nil {
+				alerts = append(alerts, m.crawlQuoraPinchtab(ctx, wsID, akw)...)
+			}
+		default:
+			// Phase 2 platforms
+			switch platform {
+			case "devto":
+				alerts = append(alerts, m.crawlDevTo(ctx, wsID, akw)...)
+			case "lobsters":
+				alerts = append(alerts, m.crawlLobsters(ctx, wsID, akw)...)
+			case "indiehackers":
+				alerts = append(alerts, m.crawlIndieHackers(ctx, wsID, akw)...)
+			}
+		}
+	}
+
+	return alerts
 }
 
 // insertMention creates a mention if it does not already exist.

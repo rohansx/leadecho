@@ -1,6 +1,6 @@
 import { defineContentScript } from "wxt/sandbox";
-import { sendSignal } from "../../lib/messages";
-import { simulateTyping } from "../../lib/human-mimicry";
+import { sendSignal } from "../lib/messages";
+import { runPendingReply } from "../lib/reply";
 
 export default defineContentScript({
   matches: ["https://www.linkedin.com/feed*", "https://www.linkedin.com/in/*"],
@@ -58,62 +58,28 @@ export default defineContentScript({
     const feed = document.querySelector(".scaffold-finite-scroll__content") ?? document.body;
     observer.observe(feed, { childList: true, subtree: true });
 
-    await checkPendingReply();
+    await runPendingReply({
+      settleMs: 3000,
+      openComposer: () => {
+        // Reveal the comment editor by clicking the post's "Comment" action.
+        const trigger =
+          (document.querySelector(
+            '.comments-comment-box__form-container [placeholder]',
+          ) as HTMLElement | null) ??
+          (document.querySelector(
+            'button[aria-label^="Comment"]',
+          ) as HTMLElement | null);
+        trigger?.click();
+      },
+      findReplyBox: () =>
+        (document.querySelector(
+          ".comments-comment-box__form-container [contenteditable]",
+        ) as HTMLElement | null) ??
+        (document.querySelector(".ql-editor[contenteditable]") as HTMLElement | null),
+      findSubmit: () =>
+        document.querySelector(
+          ".comments-comment-box__submit-button",
+        ) as HTMLElement | null,
+    });
   },
 });
-
-async function checkPendingReply() {
-  const tabId = await getTabId();
-  if (tabId == null) return;
-
-  const key = `pending_reply_${tabId}`;
-  const result = await chrome.storage.session.get(key);
-  const pending = result[key] as { replyId: string; content: string } | undefined;
-  if (!pending) return;
-
-  await chrome.storage.session.remove(key);
-
-  // Wait for LinkedIn's JS to render comment boxes
-  await new Promise((r) => setTimeout(r, 3000));
-
-  // Click the "Add a comment..." prompt to open the comment editor
-  const commentPrompt = document.querySelector(
-    ".comments-comment-box__form-container [placeholder]",
-  ) as HTMLElement | null;
-  commentPrompt?.click();
-
-  await new Promise((r) => setTimeout(r, 800));
-
-  const replyBox = document.querySelector(
-    ".comments-comment-box__form-container [contenteditable]",
-  ) as HTMLElement | null;
-
-  if (!replyBox) {
-    chrome.runtime.sendMessage({
-      type: "REPLY_POSTED",
-      payload: { replyId: pending.replyId, success: false },
-    });
-    return;
-  }
-
-  await simulateTyping(replyBox, pending.content);
-
-  const submitBtn = document.querySelector(
-    ".comments-comment-box__submit-button",
-  ) as HTMLButtonElement | null;
-  submitBtn?.click();
-
-  chrome.runtime.sendMessage({
-    type: "REPLY_POSTED",
-    payload: { replyId: pending.replyId, success: true },
-  });
-}
-
-async function getTabId(): Promise<number | null> {
-  try {
-    const resp = await chrome.runtime.sendMessage({ type: "GET_TAB_ID" });
-    return resp?.tabId ?? null;
-  } catch {
-    return null;
-  }
-}

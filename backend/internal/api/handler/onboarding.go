@@ -314,6 +314,7 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	// 3. Create keywords — tolerate duplicates, but surface real failures so we
 	//    never report "completed" while having silently created zero monitors.
 	keywordsCreated := 0
+	keywordErrors := 0
 	for _, keyword := range body.Keywords {
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
@@ -321,6 +322,7 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		}
 		if _, err := h.q.CreateKeyword(ctx, database.CreateKeywordParams{
 			WorkspaceID:   wsID,
+			ProfileID:     profile.ID,
 			Term:          keyword,
 			Platforms:     body.Platforms,
 			IsActive:      true,
@@ -328,11 +330,22 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 			NegativeTerms: []string{},
 			Subreddits:    body.Subreddits,
 		}); err != nil {
-			// Duplicate term (already monitored) is benign; other errors are
-			// reflected in the keywords_created count returned to the caller.
+			if isUniqueViolation(err) {
+				// Duplicate term (already monitored) is benign.
+				continue
+			}
+			// Real error — don't silently swallow; count and report.
+			keywordErrors++
 			continue
 		}
 		keywordsCreated++
+	}
+
+	// Guard: if we failed to create every keyword, don't mark onboarding complete
+	// — otherwise the idempotency check blocks the user from retrying.
+	if len(body.Keywords) > 0 && keywordsCreated == 0 && keywordErrors > 0 {
+		writeError(w, http.StatusInternalServerError, "failed to create keywords")
+		return
 	}
 
 	// 4. Mark onboarding complete

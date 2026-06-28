@@ -1,11 +1,29 @@
 import { defineBackground } from "wxt/sandbox";
 import type { RawSignal, ExtensionMessage } from "../lib/messages";
-import { getSettings, incrementDailyCount, getDailyCount } from "../lib/storage";
+import {
+  getSettings,
+  incrementDailyCount,
+  getDailyCount,
+  getCaptureEnabled,
+  CAPTURE_KEY,
+} from "../lib/storage";
 import { postSignals, markReplyPosted } from "../lib/api";
 
 export default defineBackground(() => {
   const buffer: RawSignal[] = [];
   const FLUSH_THRESHOLD = 20;
+  // Hard cap so the buffer can't grow without bound while offline/unconfigured
+  // (flush() early-returns without draining in that case). Drop oldest first.
+  const MAX_BUFFER = 500;
+
+  // Cache the capture toggle so the hot SIGNAL path stays synchronous.
+  let captureEnabled = true;
+  getCaptureEnabled().then((v) => (captureEnabled = v));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes[CAPTURE_KEY]) {
+      captureEnabled = changes[CAPTURE_KEY].newValue !== false;
+    }
+  });
 
   // Alarm-based flush every 30 seconds (chrome.alarms survives worker sleep).
   chrome.alarms.create("flush-signals", { periodInMinutes: 0.5 });
@@ -17,7 +35,11 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener(
     (message: ExtensionMessage, sender, sendResponse) => {
       if (message.type === "SIGNAL") {
+        if (!captureEnabled) return;
         buffer.push(message.payload);
+        if (buffer.length > MAX_BUFFER) {
+          buffer.splice(0, buffer.length - MAX_BUFFER);
+        }
         if (buffer.length >= FLUSH_THRESHOLD) flush();
         return;
       }
