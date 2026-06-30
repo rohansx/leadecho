@@ -66,6 +66,7 @@ const platformColors: Record<string, string> = {
   devto: "bg-indigo-100 text-indigo-800",
   lobsters: "bg-red-100 text-red-800",
   indiehackers: "bg-teal-100 text-teal-800",
+  exa: "bg-emerald-100 text-emerald-800",
 };
 
 const tierTabs = [
@@ -233,6 +234,7 @@ function InboxPage() {
           <option value="twitter">Twitter</option>
           <option value="linkedin">LinkedIn</option>
           <option value="quora">Quora</option>
+          <option value="exa">Web (Exa)</option>
         </select>
       </div>
 

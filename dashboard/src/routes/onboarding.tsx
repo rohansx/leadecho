@@ -20,6 +20,7 @@ const PLATFORMS = [
   { value: "devto", label: "Dev.to" },
   { value: "lobsters", label: "Lobsters" },
   { value: "indiehackers", label: "Indie Hackers" },
+  { value: "exa", label: "Web (Exa)" },
 ];
 
 const DEPLOY_STEPS = [

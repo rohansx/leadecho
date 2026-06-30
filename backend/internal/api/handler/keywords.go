@@ -15,16 +15,16 @@ import (
 	"leadecho/internal/database"
 )
 
-// validKeywordPlatforms must equal the platform_type enum exactly (7 values incl.
-// devto/lobsters/indiehackers): keywords.platforms is platform_type[], so an
-// unknown value fails the enum cast at insert time (a 500) — hence we validate
-// before the DB call. validMatchTypes mirrors the match strategies the UI offers;
-// the signal matcher (internal/monitor/filter.go) treats everything but "exact"
-// as a contains match.
+// validKeywordPlatforms must equal the platform_type enum exactly: keywords.platforms
+// is platform_type[], so an unknown value fails the enum cast at insert time (a 500)
+// — hence we validate before the DB call. validMatchTypes mirrors the match strategies
+// the UI offers; the signal matcher (internal/monitor/filter.go) treats everything but
+// "exact" as a contains match.
 var (
 	validKeywordPlatforms = map[string]bool{
 		"reddit": true, "hackernews": true, "devto": true, "lobsters": true,
 		"indiehackers": true, "twitter": true, "linkedin": true, "quora": true,
+		"exa": true,
 	}
 	validMatchTypes = map[string]bool{"contains": true, "broad": true, "exact": true, "phrase": true}
 )

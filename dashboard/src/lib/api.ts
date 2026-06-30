@@ -377,7 +377,7 @@ export function deleteSession(platform: string) {
 }
 
 export function testSession(platform: string) {
-  return request<{ pinchtab_online: boolean; message: string }>(
+  return request<{ pinchtab_online: boolean; cookie_valid: boolean; message: string }>(
     `/settings/sessions/${platform}/test`,
     { method: "POST" },
   );

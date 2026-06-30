@@ -66,6 +66,9 @@ type Config struct {
 	// Voyage AI (embeddings)
 	VoyageAPIKey string `env:"VOYAGE_API_KEY,default="`
 
+	// Exa (web-wide semantic discovery source for the monitor)
+	ExaAPIKey string `env:"EXA_API_KEY,default="`
+
 	// Resend (email notifications)
 	ResendAPIKey string `env:"RESEND_API_KEY,default="`
 

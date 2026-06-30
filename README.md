@@ -148,7 +148,7 @@ Then in the extension Settings tab:
 │  backend/ (Go, Chi, pgx/v5)                     │
 │  ├─ api/          HTTP handlers + middleware     │
 │  ├─ auth/         JWT + Google OAuth             │
-│  ├─ monitor/      8 platform crawlers            │
+│  ├─ monitor/      9 crawlers (8 platforms + web-wide Exa) │
 │  │   └─ scorer/   4-stage AI scoring pipeline    │
 │  ├─ browser/      Pinchtab + Camoufox clients    │
 │  ├─ embedding/    Voyage AI client               │
@@ -169,6 +169,7 @@ Then in the extension Settings tab:
 | Twitter/X | Pinchtab | — |
 | LinkedIn | Camoufox → Pinchtab | — |
 | Quora | Pinchtab (authenticated) | — |
+| Web (Exa) | Exa semantic search (needs `EXA_API_KEY`) | — |
 | HN, Dev.to, Lobsters, IH | Direct API | — |
 
 ### 4-stage scoring pipeline
@@ -192,6 +193,7 @@ Then in the extension Settings tab:
 | `GLM_API_KEY` | one of | GLM (ZhipuAI) key for AI scoring |
 | `OPENAI_API_KEY` | one of | OpenAI key for AI scoring (also used for Anthropic-compatible) |
 | `VOYAGE_API_KEY` | | Voyage AI for embeddings (falls back to keyword matching) |
+| `EXA_API_KEY` | | Exa web-wide discovery source (add `exa` to a keyword's platforms; skipped if unset) |
 | `RESEND_API_KEY` | | Resend for welcome + notification emails |
 | `PINCHTAB_TOKEN` | | Pinchtab browser sidecar token |
 | `PINCHTAB_URL` | | Pinchtab URL (default: http://localhost:9867) |
