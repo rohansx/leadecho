@@ -6,9 +6,8 @@
 #   MINIMAX_API_KEY   your MiniMax API key (from api.minimax.io, matching the endpoint below)
 #
 # Triggers:
-#   - PR opened / reopened  -> auto review
+#   - PR opened / reopened / synchronized (new push)  -> auto review
 #   - a PR comment starting with "/open-code-review" -> re-run on demand
-#   (add "synchronize" to the types list to also review every new push — costs more)
 #
 # Notes:
 #   - Uses pull_request_target so fork PRs can access the secret. Safe here because
@@ -24,7 +23,7 @@ concurrency:
 
 on:
   pull_request_target:
-    types: [opened, reopened]     # add: synchronize  -> to review on every push
+    types: [opened, reopened, synchronize]
   issue_comment:
     types: [created]
 
