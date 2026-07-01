@@ -27,9 +27,10 @@ type Monitor struct {
 	camoufox      *browser.CamoufoxClient   // Pro-tier stealth Firefox sidecar (nil if not configured)
 	scrapling     *browser.ScraplingClient   // Scrapling stealth fallback sidecar (nil if not configured)
 	encKey        []byte                    // AES key for decrypting session cookies
+	exaAPIKey     string                    // Exa web-search API key (empty disables the exa source)
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedder *embedding.Client, aiProvider *ai.Provider, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedder *embedding.Client, aiProvider *ai.Provider, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string) *Monitor {
 	return &Monitor{
 		q:            q,
 		logger:       logger,
@@ -40,6 +41,7 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedd
 		camoufox:     camoufox,
 		scrapling:    scrapling,
 		encKey:       encKey,
+		exaAPIKey:    exaAPIKey,
 	}
 }
 
@@ -181,6 +183,10 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 			alerts = append(alerts, results...)
 		case database.PlatformTypeHackernews:
 			alerts = append(alerts, m.crawlHackerNews(ctx, wsID, akw)...)
+		case database.PlatformTypeExa:
+			if m.exaAPIKey != "" {
+				alerts = append(alerts, m.crawlExa(ctx, wsID, akw)...)
+			}
 		case database.PlatformTypeTwitter:
 			if m.pinchtab != nil {
 				alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)

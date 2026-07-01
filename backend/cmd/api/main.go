@@ -107,7 +107,7 @@ func main() {
 		logger.Info().Str("url", cfg.ScraplingURL).Msg("Scrapling browser client initialized")
 	}
 
-	mon := monitor.New(queries, logger, cfg.ResendAPIKey, embedder, aiProvider, pinchtab, camoufox, scrapling, encKey)
+	mon := monitor.New(queries, logger, cfg.ResendAPIKey, embedder, aiProvider, pinchtab, camoufox, scrapling, encKey, cfg.ExaAPIKey)
 	go mon.Run(ctx, 5*time.Minute)
 
 	// Build router

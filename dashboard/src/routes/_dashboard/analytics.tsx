@@ -39,6 +39,7 @@ const platformColors: Record<string, string> = {
   twitter: "bg-sky-100 text-sky-800",
   linkedin: "bg-blue-100 text-blue-800",
   quora: "bg-purple-100 text-purple-800",
+  exa: "bg-emerald-100 text-emerald-800",
 };
 
 const intentLabels: Record<string, string> = {
