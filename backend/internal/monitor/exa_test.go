@@ -100,8 +100,8 @@ func TestFetchExaNon200(t *testing.T) {
 
 	m := &Monitor{exaAPIKey: "bad", logger: zerolog.Nop()}
 	results, err := m.fetchExa(context.Background(), "x")
-	if err != nil {
-		t.Fatalf("expected nil error on non-200, got %v", err)
+	if err == nil {
+		t.Fatal("expected error on non-200 response, got nil")
 	}
 	if results != nil {
 		t.Errorf("expected nil results on non-200, got %d", len(results))

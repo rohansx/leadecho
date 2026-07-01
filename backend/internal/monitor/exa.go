@@ -3,7 +3,10 @@ package monitor
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -81,11 +84,14 @@ func (m *Monitor) crawlExa(ctx context.Context, wsID string, kw database.ListAct
 			continue
 		}
 
+		h := sha256.Sum256([]byte(link))
+		platformID := "exa_" + hex.EncodeToString(h[:8])
+
 		alert := m.insertMention(ctx, database.CreateMentionParams{
 			WorkspaceID:       wsID,
 			KeywordID:         pgUUID(kw.ID),
 			Platform:          string(database.PlatformTypeExa),
-			PlatformID:        "exa_" + link,
+			PlatformID:        platformID,
 			Url:               link,
 			Title:             pgtextPtr(hit.Title),
 			Content:           content,
@@ -137,13 +143,15 @@ func (m *Monitor) fetchExa(ctx context.Context, term string) ([]exaResult, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		m.logger.Warn().Int("status", resp.StatusCode).Str("keyword", term).Msg("exa: non-200 response")
-		return nil, nil
+		return nil, fmt.Errorf("exa: non-200 response (status %d) for keyword %q", resp.StatusCode, term)
 	}
 
 	var result exaSearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
+	}
+	if len(result.Results) == 0 {
+		m.logger.Info().Str("keyword", term).Msg("exa: no results found")
 	}
 	return result.Results, nil
 }
