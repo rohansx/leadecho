@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -18,8 +19,9 @@ import (
 
 const (
 	exaNumResults   = 10
-	exaLookbackDays = 14   // only surface pages published in the last N days
-	exaMaxContent   = 4000 // cap stored content (runes) — Exa returns full page text
+	exaLookbackDays = 14       // only surface pages published in the last N days
+	exaMaxContent   = 4000     // cap stored content (runes) — Exa returns full page text
+	exaMaxRespBytes = 10 << 20 // 10MB cap on the raw Exa response body
 )
 
 // exaSearchURL is the Exa search endpoint. It is a var (not const) so tests can
@@ -143,11 +145,11 @@ func (m *Monitor) fetchExa(ctx context.Context, term string) ([]exaResult, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("exa: non-200 response (status %d) for keyword %q", resp.StatusCode, term)
+		return nil, fmt.Errorf("exa: non-200 response (status %d)", resp.StatusCode)
 	}
 
 	var result exaSearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, exaMaxRespBytes)).Decode(&result); err != nil {
 		return nil, err
 	}
 	if len(result.Results) == 0 {
