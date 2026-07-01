@@ -1,5 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { mentionTierCounts } from "@/lib/api";
+import { Logo } from "@/components/marketing/logo";
 import {
   Inbox,
   GitBranch,
@@ -30,22 +34,19 @@ export function Sidebar() {
   const router = useRouterState();
   const pathname = router.location.pathname;
 
+  const { data: tierCounts } = useQuery({
+    queryKey: ["mentionTierCounts"],
+    queryFn: mentionTierCounts,
+  });
+  const leadsReady = tierCounts?.find((c) => c.tier === "leads_ready")?.count ?? 0;
+
   return (
-    <aside className="w-[var(--sidebar-width)] h-screen border-r-2 border-border bg-card flex flex-col shrink-0">
-      {/* Logo */}
-      <div className="h-[var(--header-height)] flex items-center px-4 border-b-2 border-border">
-        <Link to="/inbox" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary border-2 border-border shadow-xs rounded flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-sm font-bold">
-            LE
-          </div>
-          <span className="font-[family-name:var(--font-head)] text-xl">
-            LeadEcho
-          </span>
-        </Link>
+    <aside className="w-[var(--sidebar-width)] h-screen border-r border-border bg-card flex flex-col shrink-0">
+      <div className="h-[var(--header-height)] flex items-center px-5 border-b border-border">
+        <Logo />
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.to);
           const Icon = item.icon;
@@ -54,15 +55,31 @@ export function Sidebar() {
               key={item.label}
               to={item.to}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded font-[family-name:var(--font-sans)] text-sm transition-all",
-                "border-2 border-transparent",
+                "relative flex items-center gap-3 px-3 py-2 rounded-lg font-[family-name:var(--font-sans)] text-sm transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground border-border shadow-sm font-medium"
-                  : "hover:bg-accent hover:border-border hover:shadow-xs text-foreground",
+                  ? "text-primary-foreground font-medium"
+                  : "text-foreground-soft hover:bg-accent hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              {item.label}
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-active"
+                  className="absolute inset-0 bg-primary rounded-lg"
+                  transition={{ type: "spring", stiffness: 400, damping: 34 }}
+                />
+              )}
+              <Icon className="relative z-10 h-4 w-4 shrink-0" />
+              <span className="relative z-10 flex-1">{item.label}</span>
+              {item.to === "/inbox" && leadsReady > 0 && (
+                <span
+                  className={cn(
+                    "relative z-10 text-[11px] font-medium rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                    isActive ? "bg-primary-foreground/20" : "bg-accent-soft text-primary-ink",
+                  )}
+                >
+                  {leadsReady}
+                </span>
+              )}
             </Link>
           );
         })}
