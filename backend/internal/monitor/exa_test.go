@@ -159,19 +159,35 @@ func TestExaResultLink(t *testing.T) {
 	}
 }
 
+func TestIsHTTPURL(t *testing.T) {
+	valid := []string{"https://example.com/page", "http://example.com"}
+	for _, s := range valid {
+		if !isHTTPURL(s) {
+			t.Errorf("isHTTPURL(%q) = false, want true", s)
+		}
+	}
+
+	invalid := []string{"javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "", "not-a-url", "ftp://example.com/file"}
+	for _, s := range invalid {
+		if isHTTPURL(s) {
+			t.Errorf("isHTTPURL(%q) = true, want false", s)
+		}
+	}
+}
+
 func TestExaResultPublished(t *testing.T) {
 	hit := exaResult{PublishedDate: "2026-06-10T12:00:00Z"}
 	got := exaResultPublished(hit)
 	want, _ := time.Parse(time.RFC3339, "2026-06-10T12:00:00Z")
-	if !got.Equal(want) {
-		t.Errorf("published = %v, want %v", got, want)
+	if !got.Valid || !got.Time.Equal(want) {
+		t.Errorf("published = %+v, want %v", got, want)
 	}
 
-	// Missing/malformed dates default to ~now.
+	// Missing/malformed dates yield NULL, not a fabricated "now".
 	for _, bad := range []string{"", "not-a-date"} {
 		got := exaResultPublished(exaResult{PublishedDate: bad})
-		if time.Since(got) > time.Minute {
-			t.Errorf("published for %q = %v, want ~now", bad, got)
+		if got.Valid {
+			t.Errorf("published for %q = %+v, want invalid/NULL", bad, got)
 		}
 	}
 }

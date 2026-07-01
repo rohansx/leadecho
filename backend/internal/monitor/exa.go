@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -74,7 +75,7 @@ func (m *Monitor) crawlExa(ctx context.Context, wsID string, kw database.ListAct
 	var alerts []mentionAlert
 	for _, hit := range results {
 		link := exaResultLink(hit)
-		if link == "" {
+		if link == "" || !isHTTPURL(link) {
 			continue
 		}
 
@@ -83,10 +84,18 @@ func (m *Monitor) crawlExa(ctx context.Context, wsID string, kw database.ListAct
 			continue
 		}
 		if !filterContent(content, kw) {
+			m.logger.Debug().Str("keyword", kw.Term).Str("url", link).Msg("exa: content filtered out")
 			continue
 		}
 
-		h := sha256.Sum256([]byte(link))
+		// Dedup on Exa's canonical id rather than the resolved URL, since the
+		// same page can resolve to multiple URL variants (www vs. bare domain,
+		// trailing slash, etc.) but shares one canonical id.
+		dedupKey := hit.ID
+		if dedupKey == "" {
+			dedupKey = link
+		}
+		h := sha256.Sum256([]byte(dedupKey))
 		platformID := "exa_" + hex.EncodeToString(h[:8])
 
 		alert := m.insertMention(ctx, database.CreateMentionParams{
@@ -102,7 +111,7 @@ func (m *Monitor) crawlExa(ctx context.Context, wsID string, kw database.ListAct
 			PlatformMetadata:  jsonBytes(map[string]any{"source": "exa", "exa_id": hit.ID}),
 			EngagementMetrics: jsonBytes(map[string]any{}),
 			KeywordMatches:    []string{kw.Term},
-			PlatformCreatedAt: pgtype.Timestamptz{Time: exaResultPublished(hit), Valid: true},
+			PlatformCreatedAt: exaResultPublished(hit),
 		}, kw.Term)
 
 		if alert != nil {
@@ -177,15 +186,25 @@ func exaResultContent(hit exaResult) string {
 	return truncateRunes(strings.TrimSpace(hit.Title+"\n\n"+body), exaMaxContent)
 }
 
-// exaResultPublished parses the result's publish date, defaulting to now when
-// absent or malformed (Exa omits it for some pages).
-func exaResultPublished(hit exaResult) time.Time {
+// exaResultPublished parses the result's publish date. Returns a NULL
+// timestamp (rather than fabricating "now") when the date is absent or
+// malformed — Exa omits it for some pages, and a fake "now" would misrepresent
+// how fresh the page actually is for chronological sorting.
+func exaResultPublished(hit exaResult) pgtype.Timestamptz {
 	if hit.PublishedDate != "" {
 		if t, err := time.Parse(time.RFC3339, hit.PublishedDate); err == nil {
-			return t
+			return pgtype.Timestamptz{Time: t, Valid: true}
 		}
 	}
-	return time.Now()
+	return pgtype.Timestamptz{}
+}
+
+// isHTTPURL reports whether s is an absolute http(s) URL. Exa results should
+// always be http(s), but this rejects schemes like javascript: or data: before
+// they're stored and later rendered as a clickable link in the dashboard.
+func isHTTPURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // truncateRunes caps s at max runes (not bytes) so multibyte content is never
