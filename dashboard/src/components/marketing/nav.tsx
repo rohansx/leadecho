@@ -63,7 +63,7 @@ export function MarketingNav() {
             Sign in
           </Link>
           <Link
-            to="/inbox"
+            to="/register"
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium shadow-sm hover:bg-primary-hover transition-colors"
           >
             Sign up

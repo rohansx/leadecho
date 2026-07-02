@@ -70,7 +70,7 @@ export function FinalCta() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
-              to="/inbox"
+              to="/register"
               className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-6 py-3 font-medium shadow-sm hover:bg-primary-hover transition-colors"
             >
               Get started <ArrowRight className="h-4 w-4" />

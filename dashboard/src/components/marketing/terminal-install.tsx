@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowRight, Star } from "lucide-react";
 import { Reveal } from "./reveal";
@@ -50,12 +49,14 @@ export function TerminalInstall() {
             >
               <Star className="h-4 w-4" /> Star on GitHub <ArrowRight className="h-4 w-4" />
             </a>
-            <Link
-              to="/inbox"
+            <a
+              href="https://github.com/your-org/leadecho#readme"
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 font-medium hover:bg-accent transition-colors"
             >
               Read the docs
-            </Link>
+            </a>
           </div>
         </Reveal>
 

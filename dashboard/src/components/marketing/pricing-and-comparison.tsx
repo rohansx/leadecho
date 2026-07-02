@@ -138,7 +138,7 @@ export function PricingSection() {
                 ))}
               </ul>
               <Link
-                to="/inbox"
+                to="/register"
                 className={`mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   p.featured
                     ? "bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm"
