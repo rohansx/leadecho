@@ -14,7 +14,8 @@ FROM keywords k
 WHERE NOT EXISTS (
     SELECT 1 FROM monitoring_profiles mp
     WHERE mp.workspace_id = k.workspace_id AND mp.is_active = true
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Backfill: assign existing keywords to their workspace's first active profile.
 UPDATE keywords k
