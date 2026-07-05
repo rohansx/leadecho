@@ -73,6 +73,8 @@ export function TerminalInstall() {
                 {(["docker", "manual"] as const).map((t) => (
                   <button
                     key={t}
+                    type="button"
+                    aria-pressed={tab === t}
                     onClick={() => setTab(t)}
                     className={`rounded px-2.5 py-1 text-xs font-[family-name:var(--font-mono)] cursor-pointer transition-colors ${
                       tab === t ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80"

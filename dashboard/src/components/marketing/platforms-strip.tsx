@@ -7,9 +7,9 @@ const platforms = [
   "Lobsters",
   "Indie Hackers",
 ];
+const loop = [...platforms, ...platforms];
 
 export function PlatformsStrip() {
-  const loop = [...platforms, ...platforms];
   return (
     <div
       aria-label="Monitored platforms"
