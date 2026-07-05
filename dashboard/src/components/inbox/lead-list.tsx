@@ -70,7 +70,8 @@ export function LeadList({
       <div className="p-4 border-b border-border space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-[family-name:var(--font-head)] font-medium">Inbox</h2>
-          <button
+<button
+            type="button"
             onClick={onRefresh}
             className="w-7 h-7 rounded-md border border-border hover:bg-accent flex items-center justify-center cursor-pointer"
             aria-label="Refresh"
