@@ -78,6 +78,12 @@ function OverviewTab({ mention }: { mention: Mention }) {
     setTimeout(() => setCopied(false), 1800);
   };
 
+  const handleCopyReply = () => {
+    if (draft?.reply) {
+      handleCopy(draft.reply.content);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <article className="rounded-xl border border-border bg-card p-5">
@@ -155,7 +161,7 @@ function OverviewTab({ mention }: { mention: Mention }) {
                       {draft.tone && <span className="rounded-full bg-muted px-2 py-0.5">{draft.tone}</span>}
                       {draft.template_style && (
                         <span className="rounded-full bg-muted px-2 py-0.5">
-                          {draft.template_style.replace("_", " ")}
+                          {draft.template_style.replace(/_/g, " ")}
                         </span>
                       )}
                       {draft.awareness_level && (
@@ -164,7 +170,7 @@ function OverviewTab({ mention }: { mention: Mention }) {
                         </span>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => handleCopy(draft.reply!.content)}>
+                    <Button size="sm" variant="ghost" onClick={handleCopyReply}>
                       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       {copied ? "Copied" : "Copy"}
                     </Button>
@@ -203,7 +209,7 @@ function ThreadTab({ mentionId }: { mentionId: string }) {
         <div key={r.id} className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
             <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{r.status}</span>
-            {r.template_style && <span>{r.template_style.replace("_", " ")}</span>}
+            {r.template_style && <span>{r.template_style.replace(/_/g, " ")}</span>}
             <span className="ml-auto">{timeAgo(r.created_at)}</span>
           </div>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{r.edited_content ?? r.content}</p>

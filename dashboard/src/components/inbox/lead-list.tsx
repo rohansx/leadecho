@@ -91,6 +91,7 @@ export function LeadList({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search this inbox…"
+            aria-label="Search mentions"
             className="w-full rounded-lg border border-border bg-card pl-8 pr-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30"
           />
         </div>
@@ -122,6 +123,7 @@ export function LeadList({
             <select
               value={platformFilter}
               onChange={(e) => onPlatformChange(e.target.value)}
+              aria-label="Filter by platform"
               className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
             >
               <option value="">All platforms</option>
@@ -135,6 +137,7 @@ export function LeadList({
           <select
             value={statusFilter}
             onChange={(e) => onStatusChange(e.target.value)}
+            aria-label="Filter by status"
             className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
           >
             <option value="">All statuses</option>

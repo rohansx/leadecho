@@ -86,6 +86,9 @@ export function PricingSection() {
             {(["monthly", "yearly"] as const).map((p) => (
               <button
                 key={p}
+                type="button"
+                role="switch"
+                aria-checked={period === p}
                 onClick={() => setPeriod(p)}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium cursor-pointer transition-colors ${
                   period === p ? "bg-primary text-primary-foreground" : "text-foreground-soft hover:text-foreground"
