@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowRight, Star } from "lucide-react";
 import { Reveal } from "./reveal";
+import { GITHUB_URL } from "@/lib/constants";
 
 const commands: Record<string, string[]> = {
   docker: [
@@ -42,7 +43,7 @@ export function TerminalInstall() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href="https://github.com/rohansx/leadecho"
+              href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-6 py-3 font-medium shadow-sm hover:bg-primary-hover transition-colors"
@@ -50,7 +51,7 @@ export function TerminalInstall() {
               <Star className="h-4 w-4" /> Star on GitHub <ArrowRight className="h-4 w-4" />
             </a>
             <a
-              href="https://github.com/rohansx/leadecho#readme"
+              href={`${GITHUB_URL}#readme`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 font-medium hover:bg-accent transition-colors"

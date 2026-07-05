@@ -35,10 +35,12 @@ function FaqItem({ q, a, defaultOpen }: { q: string; a: string; defaultOpen?: bo
   return (
     <div className="border-b border-border">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between gap-4 py-5 text-left cursor-pointer"
       >
-        <span className="font-medium">{q}</span>
+        <h3 className="font-medium">{q}</h3>
         <motion.span animate={{ rotate: open ? 45 : 0 }} transition={{ duration: 0.2 }} className="shrink-0">
           <Plus className="h-4 w-4 text-muted-foreground" />
         </motion.span>

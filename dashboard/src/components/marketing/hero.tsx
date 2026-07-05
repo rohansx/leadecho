@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { ArrowRight, Star } from "lucide-react";
+import { GITHUB_URL } from "@/lib/constants";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -209,7 +210,7 @@ export function Hero() {
               Get started <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href="https://github.com/rohansx/leadecho"
+              href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 font-medium hover:bg-accent transition-colors"

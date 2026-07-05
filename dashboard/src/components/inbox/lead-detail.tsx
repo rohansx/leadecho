@@ -236,7 +236,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
       />
       <SignalRow
         label="Intent"
-        value={mention.intent ? mention.intent.replace("_", " ") : null}
+        value={mention.intent ? mention.intent.replace(/_/g, " ") : null}
       />
       <SignalRow
         label="Awareness"

@@ -73,6 +73,7 @@ export function Sidebar() {
               <span className="relative z-10 flex-1">{item.label}</span>
               {item.to === "/inbox" && leadsReady > 0 && (
                 <span
+                  aria-label={`${leadsReady} leads ready`}
                   className={cn(
                     "relative z-10 text-[11px] font-medium rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
                     isActive ? "bg-primary-foreground/20" : "bg-accent-soft text-primary-ink",

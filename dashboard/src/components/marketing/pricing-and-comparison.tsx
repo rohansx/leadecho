@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Check, Github, Minus } from "lucide-react";
 import { Reveal, StaggerGroup, StaggerItem } from "./reveal";
+import { GITHUB_URL } from "@/lib/constants";
 
 type Period = "monthly" | "yearly";
 
@@ -165,7 +166,7 @@ export function PricingSection() {
               </p>
             </div>
             <a
-              href="https://github.com/rohansx/leadecho"
+              href={GITHUB_URL}
               target="_blank"
               rel="noreferrer"
               className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium hover:bg-accent transition-colors"

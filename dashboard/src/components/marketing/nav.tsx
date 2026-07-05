@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Moon, Sun, ArrowRight } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
 import { Logo } from "./logo";
+import { GITHUB_URL } from "@/lib/constants";
 
 const links = [
   { href: "#how", label: "How it works" },
@@ -35,7 +36,7 @@ export function MarketingNav() {
             </a>
           ))}
           <a
-            href="https://github.com/rohansx/leadecho"
+            href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
             className="text-sm text-foreground-soft hover:text-foreground transition-colors inline-flex items-center gap-1"

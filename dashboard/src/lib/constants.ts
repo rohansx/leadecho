@@ -43,3 +43,5 @@ export const QUERY_KEYS = {
   mentionsPerPlatform: "mentionsPerPlatform",
   replies: "replies",
 } as const;
+
+export const GITHUB_URL = "https://github.com/rohansx/leadecho";
