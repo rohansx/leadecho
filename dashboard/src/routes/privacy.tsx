@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Text } from "@/components/ui/text";
+import { GITHUB_URL } from "@/lib/constants";
 
 export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,
@@ -128,12 +129,12 @@ function PrivacyPage() {
           <p>
             For questions about this privacy policy, please open an issue at:{" "}
             <a
-              href="https://github.com/your-org/leadecho/issues"
+              href={`${GITHUB_URL}/issues`}
               target="_blank"
               rel="noreferrer"
               className="text-primary underline"
             >
-              github.com/your-org/leadecho/issues
+              github.com/rohansx/leadecho/issues
             </a>
           </p>
         </Section>

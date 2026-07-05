@@ -26,3 +26,22 @@ export const INTENT_TYPES = [
   "general",
 ] as const;
 export type IntentType = (typeof INTENT_TYPES)[number];
+
+export const MENTION_TIERS = {
+  LEADS_READY: "leads_ready",
+  WORTH_WATCHING: "worth_watching",
+  FILTERED: "filtered",
+} as const;
+
+export const MENTION_STATUSES = ["new", "reviewed", "replied", "archived"] as const;
+export type MentionStatus = (typeof MENTION_STATUSES)[number];
+
+export const QUERY_KEYS = {
+  mentions: "mentions",
+  mentionCounts: "mentionCounts",
+  mentionTierCounts: "mentionTierCounts",
+  mentionsPerPlatform: "mentionsPerPlatform",
+  replies: "replies",
+} as const;
+
+export const GITHUB_URL = "https://github.com/rohansx/leadecho";

@@ -1,0 +1,74 @@
+# Self-contained compose file for a single-host Dokploy deployment.
+# Bundles Postgres + Redis + migrations + API + dashboard (standalone, no
+# separate landing/ project). Only the dashboard port is published — the API
+# is reached internally by nginx via the "api" service name.
+#
+# Required env vars (set in Dokploy's environment editor):
+#   POSTGRES_PASSWORD, DATABASE_URL, REDIS_URL, JWT_SECRET, FRONTEND_URL,
+#   NVIDIA_API_KEY, NVIDIA_MODEL
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: leadecho
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: leadecho_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadecho"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  migrate:
+    image: golang:1.25-alpine
+    working_dir: /migrations
+    command: >
+      sh -c "GOPATH=/tmp/go go install github.com/pressly/goose/v3/cmd/goose@latest &&
+             /tmp/go/bin/goose -dir /migrations postgres '${DATABASE_URL}' up"
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.standalone
+    ports:
+      - "3100:3100"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
