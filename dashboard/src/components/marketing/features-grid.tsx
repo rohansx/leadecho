@@ -55,7 +55,7 @@ export function FeaturesGrid() {
               <StaggerItem key={f.title}>
                 <div className="h-full rounded-xl border border-border bg-card p-5 hover:shadow-sm transition-shadow">
                   <div className="h-9 w-9 rounded-lg bg-accent-soft text-primary-ink flex items-center justify-center">
-                    <Icon className="h-4.5 w-4.5" />
+                    <Icon className="h-5 w-5" />
                   </div>
                   <h4 className="mt-3.5 font-[family-name:var(--font-head)] font-medium">{f.title}</h4>
                   <p className="mt-1.5 text-sm text-foreground-soft leading-relaxed">{f.desc}</p>

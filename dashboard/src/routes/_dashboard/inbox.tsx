@@ -2,18 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail } from "@/components/inbox/lead-detail";
-import {
-  listMentions,
-  mentionCounts,
-  mentionTierCounts,
-  mentionsPerPlatform,
-  updateMentionStatus,
-} from "@/lib/api";
+import { listMentions, mentionTierCounts, mentionsPerPlatform, updateMentionStatus } from "@/lib/api";
+import { QUERY_KEYS } from "@/lib/constants";
 
 interface InboxSearch {
   q?: string;
   tier?: string;
   platform?: string;
+  status?: string;
   id?: string;
 }
 
@@ -22,13 +18,14 @@ export const Route = createFileRoute("/_dashboard/inbox")({
     q: typeof search.q === "string" ? search.q : undefined,
     tier: typeof search.tier === "string" ? search.tier : undefined,
     platform: typeof search.platform === "string" ? search.platform : undefined,
+    status: typeof search.status === "string" ? search.status : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
   }),
   component: InboxPage,
 });
 
 function InboxPage() {
-  const { q = "", tier = "", platform = "", id } = Route.useSearch();
+  const { q = "", tier = "", platform = "", status = "", id } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
 
@@ -36,37 +33,33 @@ function InboxPage() {
     navigate({ search: (prev) => ({ ...prev, ...patch }) });
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["mentions", tier, platform, q],
+    queryKey: [QUERY_KEYS.mentions, tier, platform, status, q],
     queryFn: () =>
       listMentions({
         tier: tier || undefined,
         platform: platform || undefined,
+        status: status || undefined,
         search: q || undefined,
         limit: 30,
       }),
   });
 
   const { data: tierCounts } = useQuery({
-    queryKey: ["mentionTierCounts"],
+    queryKey: [QUERY_KEYS.mentionTierCounts],
     queryFn: mentionTierCounts,
   });
 
-  useQuery({
-    queryKey: ["mentionCounts"],
-    queryFn: mentionCounts,
-  });
-
   const { data: platformCounts } = useQuery({
-    queryKey: ["mentionsPerPlatform"],
+    queryKey: [QUERY_KEYS.mentionsPerPlatform],
     queryFn: mentionsPerPlatform,
   });
 
   const archiveMutation = useMutation({
     mutationFn: (mentionId: string) => updateMentionStatus(mentionId, "archived"),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mentions"] });
-      queryClient.invalidateQueries({ queryKey: ["mentionCounts"] });
-      queryClient.invalidateQueries({ queryKey: ["mentionTierCounts"] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionTierCounts] });
     },
   });
 
@@ -99,6 +92,8 @@ function InboxPage() {
         platformFilter={platform}
         onPlatformChange={(p) => setSearch({ platform: p || undefined })}
         platformOptions={platformCounts ?? []}
+        statusFilter={status}
+        onStatusChange={(s) => setSearch({ status: s || undefined })}
         search={q}
         onSearchChange={(v) => setSearch({ q: v || undefined })}
         onRefresh={() => refetch()}

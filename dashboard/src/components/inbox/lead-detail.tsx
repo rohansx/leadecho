@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { classifyMention, draftReply, listReplies, updateMentionStatus } from "@/lib/api";
+import { QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 
 const awarenessLabels: Record<string, string> = {
@@ -48,9 +49,9 @@ function OverviewTab({ mention }: { mention: Mention }) {
   const [copied, setCopied] = useState(false);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["mentions"] });
-    queryClient.invalidateQueries({ queryKey: ["mentionCounts"] });
-    queryClient.invalidateQueries({ queryKey: ["mentionTierCounts"] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionTierCounts] });
   };
 
   const classifyMutation = useMutation({
@@ -181,7 +182,7 @@ function OverviewTab({ mention }: { mention: Mention }) {
 
 function ThreadTab({ mentionId }: { mentionId: string }) {
   const { data: replies, isLoading } = useQuery({
-    queryKey: ["replies", mentionId],
+    queryKey: [QUERY_KEYS.replies, mentionId],
     queryFn: () => listReplies(mentionId),
   });
 
@@ -294,6 +295,7 @@ export function LeadDetail({
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           <button
+            type="button"
             onClick={onPrev}
             disabled={!hasPrev}
             className="h-7 w-7 rounded-md border border-border hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
@@ -301,6 +303,7 @@ export function LeadDetail({
             <ArrowLeft className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             onClick={onNext}
             disabled={!hasNext}
             className="h-7 w-7 rounded-md border border-border hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
@@ -308,6 +311,7 @@ export function LeadDetail({
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             onClick={onArchive}
             disabled={archiving}
             className="h-7 w-7 rounded-md border border-border hover:bg-accent flex items-center justify-center cursor-pointer"
@@ -322,6 +326,7 @@ export function LeadDetail({
         {(["overview", "thread"] as const).map((t) => (
           <button
             key={t}
+            type="button"
             onClick={() => setTab(t)}
             className={`relative px-3 pb-3 text-sm font-medium capitalize cursor-pointer transition-colors ${
               tab === t ? "text-foreground" : "text-muted-foreground hover:text-foreground"

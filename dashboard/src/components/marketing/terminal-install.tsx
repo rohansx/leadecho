@@ -5,14 +5,14 @@ import { Reveal } from "./reveal";
 
 const commands: Record<string, string[]> = {
   docker: [
-    "$ git clone https://github.com/your-org/leadecho.git",
+    "$ git clone https://github.com/rohansx/leadecho.git",
     "$ cd leadecho",
     "$ cp .env.example .env   # add your AI keys",
     "$ docker compose up -d",
     "✓ scout · triage · researcher · conversation · attribution · discovery running",
   ],
   manual: [
-    "$ git clone https://github.com/your-org/leadecho.git",
+    "$ git clone https://github.com/rohansx/leadecho.git",
     "$ cd leadecho/backend && go run ./cmd/api",
     "$ cd ../dashboard && pnpm install && pnpm dev",
     "✓ open http://localhost:5173",
@@ -42,7 +42,7 @@ export function TerminalInstall() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href="https://github.com/your-org/leadecho"
+              href="https://github.com/rohansx/leadecho"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-6 py-3 font-medium shadow-sm hover:bg-primary-hover transition-colors"
@@ -50,7 +50,7 @@ export function TerminalInstall() {
               <Star className="h-4 w-4" /> Star on GitHub <ArrowRight className="h-4 w-4" />
             </a>
             <a
-              href="https://github.com/your-org/leadecho#readme"
+              href="https://github.com/rohansx/leadecho#readme"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 font-medium hover:bg-accent transition-colors"

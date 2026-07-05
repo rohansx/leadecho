@@ -1,12 +1,13 @@
 import { motion } from "motion/react";
 import { RefreshCw, Search } from "lucide-react";
 import type { Mention, TierCount } from "@/lib/types";
+import { MENTION_STATUSES, MENTION_TIERS } from "@/lib/constants";
 
 const tierTabs = [
   { key: "", label: "All" },
-  { key: "leads_ready", label: "Leads ready" },
-  { key: "worth_watching", label: "Worth watching" },
-  { key: "filtered", label: "Filtered" },
+  { key: MENTION_TIERS.LEADS_READY, label: "Leads ready" },
+  { key: MENTION_TIERS.WORTH_WATCHING, label: "Worth watching" },
+  { key: MENTION_TIERS.FILTERED, label: "Filtered" },
 ] as const;
 
 const intentColors: Record<string, string> = {
@@ -44,6 +45,8 @@ export function LeadList({
   platformFilter,
   onPlatformChange,
   platformOptions,
+  statusFilter,
+  onStatusChange,
   search,
   onSearchChange,
   onRefresh,
@@ -58,6 +61,8 @@ export function LeadList({
   platformFilter: string;
   onPlatformChange: (platform: string) => void;
   platformOptions: { platform: string; count: number }[];
+  statusFilter: string;
+  onStatusChange: (status: string) => void;
   search: string;
   onSearchChange: (v: string) => void;
   onRefresh: () => void;
@@ -71,6 +76,7 @@ export function LeadList({
         <div className="flex items-center justify-between">
           <h2 className="font-[family-name:var(--font-head)] font-medium">Inbox</h2>
           <button
+            type="button"
             onClick={onRefresh}
             className="w-7 h-7 rounded-md border border-border hover:bg-accent flex items-center justify-center cursor-pointer"
             aria-label="Refresh"
@@ -96,6 +102,7 @@ export function LeadList({
             return (
               <button
                 key={t.key}
+                type="button"
                 onClick={() => onTierChange(t.key)}
                 className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
                   active
@@ -110,20 +117,34 @@ export function LeadList({
           })}
         </div>
 
-        {platformOptions.length > 0 && (
+        <div className="flex gap-1.5">
+          {platformOptions.length > 0 && (
+            <select
+              value={platformFilter}
+              onChange={(e) => onPlatformChange(e.target.value)}
+              className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+            >
+              <option value="">All platforms</option>
+              {platformOptions.map((p) => (
+                <option key={p.platform} value={p.platform}>
+                  {p.platform} ({p.count})
+                </option>
+              ))}
+            </select>
+          )}
           <select
-            value={platformFilter}
-            onChange={(e) => onPlatformChange(e.target.value)}
-            className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+            value={statusFilter}
+            onChange={(e) => onStatusChange(e.target.value)}
+            className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
           >
-            <option value="">All platforms</option>
-            {platformOptions.map((p) => (
-              <option key={p.platform} value={p.platform}>
-                {p.platform} ({p.count})
+            <option value="">All statuses</option>
+            {MENTION_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
-        )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">

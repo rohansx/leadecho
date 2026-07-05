@@ -35,7 +35,7 @@ export function MarketingNav() {
             </a>
           ))}
           <a
-            href="https://github.com/your-org/leadecho"
+            href="https://github.com/rohansx/leadecho"
             target="_blank"
             rel="noreferrer"
             className="text-sm text-foreground-soft hover:text-foreground transition-colors inline-flex items-center gap-1"

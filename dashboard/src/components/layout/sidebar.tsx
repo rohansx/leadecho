@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { mentionTierCounts } from "@/lib/api";
+import { MENTION_TIERS, QUERY_KEYS } from "@/lib/constants";
 import { Logo } from "@/components/marketing/logo";
 import {
   Inbox,
@@ -35,10 +36,10 @@ export function Sidebar() {
   const pathname = router.location.pathname;
 
   const { data: tierCounts } = useQuery({
-    queryKey: ["mentionTierCounts"],
+    queryKey: [QUERY_KEYS.mentionTierCounts],
     queryFn: mentionTierCounts,
   });
-  const leadsReady = tierCounts?.find((c) => c.tier === "leads_ready")?.count ?? 0;
+  const leadsReady = tierCounts?.find((c) => c.tier === MENTION_TIERS.LEADS_READY)?.count ?? 0;
 
   return (
     <aside className="w-[var(--sidebar-width)] h-screen border-r border-border bg-card flex flex-col shrink-0">

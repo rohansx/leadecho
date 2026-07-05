@@ -56,7 +56,6 @@ const journey = [
     step: "01 · INGEST",
     name: "SCOUT",
     time: "0:00",
-    done: true,
     body: (
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -83,7 +82,6 @@ const journey = [
     step: "02 · SCORE",
     name: "TRIAGE",
     time: "0:02",
-    done: true,
     body: (
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm flex items-center gap-4">
         <div className="text-3xl font-[family-name:var(--font-head)] font-medium text-primary-ink">
@@ -102,7 +100,6 @@ const journey = [
     step: "03 · ENRICH",
     name: "RESEARCHER",
     time: "0:14",
-    done: true,
     body: (
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm flex items-center gap-3">
         <div className="h-10 w-10 shrink-0 rounded-full bg-primary/20 text-primary-ink flex items-center justify-center text-sm font-medium">
@@ -123,7 +120,6 @@ const journey = [
     step: "04 · ENGAGE",
     name: "CONVERSATION",
     time: "0:23",
-    done: false,
     body: (
       <div className="rounded-xl border border-primary/40 bg-card p-4 shadow-md ring-1 ring-primary/10">
         <div className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
@@ -148,7 +144,7 @@ const journey = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section id="how" className="relative overflow-hidden">
       <RadarBackdrop />
       <div className="max-w-6xl mx-auto px-6 pt-20 pb-24 grid lg:grid-cols-[1.1fr_1fr] gap-16 items-start">
         <div>
@@ -213,7 +209,7 @@ export function Hero() {
               Get started <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href="https://github.com/your-org/leadecho"
+              href="https://github.com/rohansx/leadecho"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 font-medium hover:bg-accent transition-colors"

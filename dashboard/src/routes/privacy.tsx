@@ -128,12 +128,12 @@ function PrivacyPage() {
           <p>
             For questions about this privacy policy, please open an issue at:{" "}
             <a
-              href="https://github.com/your-org/leadecho/issues"
+              href="https://github.com/rohansx/leadecho/issues"
               target="_blank"
               rel="noreferrer"
               className="text-primary underline"
             >
-              github.com/your-org/leadecho/issues
+              github.com/rohansx/leadecho/issues
             </a>
           </p>
         </Section>

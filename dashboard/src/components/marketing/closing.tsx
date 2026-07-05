@@ -23,7 +23,7 @@ export function CommunitySection() {
                 <h4 className="mt-3 font-[family-name:var(--font-head)] font-medium">{c.title}</h4>
                 <p className="mt-1.5 text-sm text-foreground-soft leading-relaxed">{c.desc}</p>
                 <a
-                  href="https://github.com/your-org/leadecho"
+                  href="https://github.com/rohansx/leadecho"
                   target="_blank"
                   rel="noreferrer"
                   className="mt-3 inline-flex items-center gap-1 text-sm text-primary-ink font-medium hover:underline"
@@ -76,7 +76,7 @@ export function FinalCta() {
               Get started <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href="https://github.com/your-org/leadecho"
+              href="https://github.com/rohansx/leadecho"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-6 py-3 font-medium hover:bg-accent transition-colors"
@@ -123,7 +123,7 @@ export function MarketingFooter() {
           <div>
             <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">Social</h5>
             <ul className="space-y-2 text-sm">
-              <li><a href="https://github.com/your-org/leadecho" target="_blank" rel="noreferrer" className="text-foreground-soft hover:text-foreground transition-colors">GitHub</a></li>
+              <li><a href="https://github.com/rohansx/leadecho" target="_blank" rel="noreferrer" className="text-foreground-soft hover:text-foreground transition-colors">GitHub</a></li>
             </ul>
           </div>
         </div>

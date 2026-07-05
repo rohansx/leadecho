@@ -5,6 +5,7 @@ import { Moon, Sun, Bell, LogOut, Search } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
 import { useAuth } from "@/lib/auth";
 import { mentionCounts } from "@/lib/api";
+import { QUERY_KEYS } from "@/lib/constants";
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
@@ -14,7 +15,7 @@ export function Header() {
   const [query, setQuery] = useState("");
 
   const { data: counts } = useQuery({
-    queryKey: ["mentionCounts"],
+    queryKey: [QUERY_KEYS.mentionCounts],
     queryFn: mentionCounts,
   });
   const newCount = counts?.find((c) => c.status === "new")?.count ?? 0;
@@ -51,6 +52,7 @@ export function Header() {
 
       <div className="flex items-center gap-2 ml-auto">
         <button
+          type="button"
           onClick={toggleTheme}
           aria-label="Toggle theme"
           className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center cursor-pointer"
@@ -58,6 +60,7 @@ export function Header() {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
         <button
+          type="button"
           onClick={() => pathname !== "/inbox" && navigate({ to: "/inbox" })}
           aria-label="New mentions"
           className="relative w-9 h-9 rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center cursor-pointer"
@@ -75,6 +78,7 @@ export function Header() {
               {initials}
             </div>
             <button
+              type="button"
               onClick={logout}
               className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center cursor-pointer"
               title="Log out"
