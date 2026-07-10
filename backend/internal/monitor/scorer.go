@@ -8,6 +8,7 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/database"
+	"leadecho/internal/llm"
 )
 
 // batchScoreMentions runs the 4-stage auto-scoring pipeline on newly inserted mentions.
@@ -35,7 +36,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	}
 	var candidates []scored
 
-	if m.embedder != nil {
+	if m.llmRouter != nil {
 		// Batch embed all scoreable content
 		texts := make([]string, len(scoreable))
 		for i, a := range scoreable {
@@ -50,7 +51,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			texts[i] = text
 		}
 
-		vectors, err := m.embedder.EmbedTexts(ctx, texts)
+		vectors, err := m.llmRouter.EmbedTexts(ctx, wsID, llm.TaskEmbedMentions, texts)
 		if err != nil {
 			m.logger.Error().Err(err).Msg("scorer: failed to batch embed mentions")
 			// Fall through without embeddings — still try to classify
@@ -60,14 +61,19 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		} else {
 			// Store embeddings and find similar pain points
 			for i, a := range scoreable {
+				// The embedder returned fewer vectors than inputs (shouldn't
+				// happen, but be defensive): don't silently drop the remaining
+				// mentions — pass them to classification with no similarity,
+				// matching the embed-failure fallback path above.
 				if i >= len(vectors) {
-					break
+					candidates = append(candidates, scored{alert: a, similarity: 0})
+					continue
 				}
 
-			// Store the embedding
-			if err := m.q.UpdateMentionEmbedding(ctx, database.UpdateMentionEmbeddingParams{
-				ContentEmbedding: &vectors[i],
-				ID:               a.ID,
+				// Store the embedding
+				if err := m.q.UpdateMentionEmbedding(ctx, database.UpdateMentionEmbeddingParams{
+					ContentEmbedding: &vectors[i],
+					ID:               a.ID,
 				}); err != nil {
 					m.logger.Error().Err(err).Str("mention_id", a.ID).Msg("scorer: failed to store embedding")
 				}
@@ -111,13 +117,13 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		}
 	}
 
-	if len(candidates) == 0 || m.aiProvider == nil {
+	if len(candidates) == 0 || m.llmRouter == nil {
 		return
 	}
 
 	// Stage 3: Intent classification
 	for _, c := range candidates {
-		result, err := ai.ClassifyIntent(ctx, *m.aiProvider, c.alert.Title, c.alert.Content, c.alert.Platform)
+		result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform)
 		if err != nil {
 			m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
 			continue

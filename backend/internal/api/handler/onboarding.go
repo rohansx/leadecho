@@ -8,59 +8,21 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"leadecho/internal/ai"
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
-	"leadecho/internal/embedding"
+	"leadecho/internal/llm"
 )
 
 // OnboardingHandler manages workspace onboarding state stored in settings JSONB.
 type OnboardingHandler struct {
-	q              *database.Queries
-	scrapling      *browser.ScraplingClient
-	nvidiaAPIKey   string
-	nvidiaModel    string
-	deepSeekAPIKey string
-	glmAPIKey      string
-	openAIKey      string
-	embedder       *embedding.Client
+	q         *database.Queries
+	scrapling *browser.ScraplingClient
+	llmRouter *llm.Router
 }
 
-func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, nvidiaAPIKey, nvidiaModel, deepSeekAPIKey, glmAPIKey, openAIKey string, embedder *embedding.Client) *OnboardingHandler {
-	return &OnboardingHandler{
-		q:              q,
-		scrapling:      scrapling,
-		nvidiaAPIKey:   nvidiaAPIKey,
-		nvidiaModel:    nvidiaModel,
-		deepSeekAPIKey: deepSeekAPIKey,
-		glmAPIKey:      glmAPIKey,
-		openAIKey:      openAIKey,
-		embedder:       embedder,
-	}
-}
-
-func (h *OnboardingHandler) getProvider() *ai.Provider {
-	if h.nvidiaAPIKey != "" {
-		p := ai.DefaultProvider("nvidia", h.nvidiaAPIKey)
-		if h.nvidiaModel != "" {
-			p.Model = h.nvidiaModel
-		}
-		return &p
-	}
-	if h.glmAPIKey != "" {
-		p := ai.DefaultProvider("glm", h.glmAPIKey)
-		return &p
-	}
-	if h.deepSeekAPIKey != "" {
-		p := ai.DefaultProvider("deepseek", h.deepSeekAPIKey)
-		return &p
-	}
-	if h.openAIKey != "" {
-		p := ai.DefaultProvider("openai", h.openAIKey)
-		return &p
-	}
-	return nil
+func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, llmRouter *llm.Router) *OnboardingHandler {
+	return &OnboardingHandler{q: q, scrapling: scrapling, llmRouter: llmRouter}
 }
 
 type onboardingState struct {
@@ -167,12 +129,6 @@ func (h *OnboardingHandler) AnalyzeURL(w http.ResponseWriter, r *http.Request) {
 		url = "https://" + url
 	}
 
-	provider := h.getProvider()
-	if provider == nil {
-		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY")
-		return
-	}
-
 	ctx := r.Context()
 
 	// Create analysis record
@@ -210,7 +166,7 @@ func (h *OnboardingHandler) AnalyzeURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Analyze with AI
-	result, err := ai.AnalyzeProductPage(ctx, *provider, pageText)
+	result, err := h.llmRouter.AnalyzeProductPage(ctx, wsID, pageText)
 	if err != nil {
 		h.q.UpdateOnboardingAnalysis(ctx, database.UpdateOnboardingAnalysisParams{
 			ID:           analysis.ID,
@@ -307,8 +263,8 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Embed and store pain points
-	if len(body.PainPoints) > 0 && h.embedder != nil {
-		embedAndStore(ctx, h.q, h.embedder, profile.ID, wsID, body.PainPoints)
+	if len(body.PainPoints) > 0 && h.llmRouter != nil {
+		embedAndStore(ctx, h.q, h.llmRouter, profile.ID, wsID, body.PainPoints)
 	}
 
 	// 3. Create keywords — tolerate duplicates, but surface real failures so we
@@ -373,8 +329,8 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 }
 
 // embedAndStore embeds and stores pain-point phrases for a profile.
-func embedAndStore(ctx context.Context, q *database.Queries, embedder *embedding.Client, profileID, wsID string, phrases []string) {
-	vectors, err := embedder.EmbedTexts(ctx, phrases)
+func embedAndStore(ctx context.Context, q *database.Queries, llmRouter *llm.Router, profileID, wsID string, phrases []string) {
+	vectors, err := llmRouter.EmbedTexts(ctx, wsID, llm.TaskEmbedProfiles, phrases)
 	if err != nil {
 		return
 	}

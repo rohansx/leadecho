@@ -9,10 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
-	"leadecho/internal/ai"
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
-	"leadecho/internal/embedding"
+	"leadecho/internal/llm"
 )
 
 // Monitor polls social platforms for keyword matches and inserts new mentions.
@@ -20,23 +19,21 @@ type Monitor struct {
 	q             *database.Queries
 	logger        zerolog.Logger
 	resendAPIKey  string
-	redditBackoff time.Time                 // skip Reddit crawls until this time (set on 429)
-	embedder      *embedding.Client         // Voyage AI embedder (nil if not configured)
-	aiProvider    *ai.Provider              // LLM provider for auto-classification (nil if not configured)
-	pinchtab      *browser.PinchtabClient   // browser sidecar (nil if not configured)
-	camoufox      *browser.CamoufoxClient   // Pro-tier stealth Firefox sidecar (nil if not configured)
-	scrapling     *browser.ScraplingClient   // Scrapling stealth fallback sidecar (nil if not configured)
-	encKey        []byte                    // AES key for decrypting session cookies
-	exaAPIKey     string                    // Exa web-search API key (empty disables the exa source)
+	redditBackoff time.Time                // skip Reddit crawls until this time (set on 429)
+	llmRouter     *llm.Router              // workspace-aware LLM/embedding router
+	pinchtab      *browser.PinchtabClient  // browser sidecar (nil if not configured)
+	camoufox      *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
+	scrapling     *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
+	encKey        []byte                   // AES key for decrypting session cookies
+	exaAPIKey     string                   // Exa web-search API key (empty disables the exa source)
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, embedder *embedding.Client, aiProvider *ai.Provider, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string) *Monitor {
 	return &Monitor{
 		q:            q,
 		logger:       logger,
 		resendAPIKey: resendAPIKey,
-		embedder:     embedder,
-		aiProvider:   aiProvider,
+		llmRouter:    llmRouter,
 		pinchtab:     pinchtab,
 		camoufox:     camoufox,
 		scrapling:    scrapling,

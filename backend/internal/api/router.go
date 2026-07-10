@@ -17,11 +17,11 @@ import (
 	"leadecho/internal/config"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
-	"leadecho/internal/embedding"
+	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, embedder *embedding.Client, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -91,7 +91,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)
 
 			// Profiles (Pain-Point Monitoring)
-			profiles := handler.NewProfileHandler(queries, embedder)
+			profiles := handler.NewProfileHandler(queries, llmRouter)
 			r.Get("/profiles", profiles.List)
 			r.Get("/profiles/{id}", profiles.Get)
 			r.Post("/profiles", profiles.Create)
@@ -99,7 +99,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/profiles/{id}", profiles.Delete)
 
 			// AI (intent classification + reply drafting)
-			aiHandler := handler.NewAIHandler(queries, cfg.NVIDIAAPIKey, cfg.NVIDIAModel, cfg.DeepSeekAPIKey, cfg.GLMAPIKey, cfg.OpenAIAPIKey, scrapling)
+			aiHandler := handler.NewAIHandler(queries, llmRouter, scrapling)
 			r.Post("/mentions/{id}/classify", aiHandler.Classify)
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
 
@@ -155,6 +155,15 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Put("/settings/api-keys", settings.SaveAPIKey)
 			r.Delete("/settings/api-keys", settings.DeleteAPIKey)
 
+			// LLM Router (BYOK provider keys, model routing, usage)
+			llmHandler := handler.NewLLMHandler(llmRouter)
+			r.Get("/llm/config", llmHandler.GetConfig)
+			r.Put("/llm/config", llmHandler.SaveConfig)
+			r.Put("/llm/providers/{provider}/key", llmHandler.SaveProviderKey)
+			r.Delete("/llm/providers/{provider}/key", llmHandler.DeleteProviderKey)
+			r.Post("/llm/providers/{provider}/verify", llmHandler.VerifyProvider)
+			r.Get("/llm/usage", llmHandler.Usage)
+
 			// Browser sessions (Pinchtab)
 			sessions := handler.NewSessionHandler(queries, encKey, pinchtab)
 			r.Get("/settings/sessions", sessions.List)
@@ -168,7 +177,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/settings/extension-token", ext.RevokeToken)
 
 			// Onboarding wizard
-			onboarding := handler.NewOnboardingHandler(queries, scrapling, cfg.NVIDIAAPIKey, cfg.NVIDIAModel, cfg.DeepSeekAPIKey, cfg.GLMAPIKey, cfg.OpenAIAPIKey, embedder)
+			onboarding := handler.NewOnboardingHandler(queries, scrapling, llmRouter)
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
 			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)

@@ -11,53 +11,18 @@ import (
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
+	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 )
 
 type AIHandler struct {
-	q              *database.Queries
-	nvidiaAPIKey   string
-	nvidiaModel    string
-	deepSeekAPIKey string
-	glmAPIKey      string
-	openAIAPIKey   string
-	scrapling      *browser.ScraplingClient
+	q         *database.Queries
+	llmRouter *llm.Router
+	scrapling *browser.ScraplingClient
 }
 
-func NewAIHandler(q *database.Queries, nvidiaAPIKey, nvidiaModel, deepSeekAPIKey, glmAPIKey, openAIAPIKey string, scrapling *browser.ScraplingClient) *AIHandler {
-	return &AIHandler{
-		q:              q,
-		nvidiaAPIKey:   nvidiaAPIKey,
-		nvidiaModel:    nvidiaModel,
-		deepSeekAPIKey: deepSeekAPIKey,
-		glmAPIKey:      glmAPIKey,
-		openAIAPIKey:   openAIAPIKey,
-		scrapling:      scrapling,
-	}
-}
-
-// getProvider returns the system LLM provider. Priority: NVIDIA → DeepSeek → GLM → OpenAI.
-func (h *AIHandler) getProvider() *ai.Provider {
-	if h.nvidiaAPIKey != "" {
-		p := ai.DefaultProvider("nvidia", h.nvidiaAPIKey)
-		if h.nvidiaModel != "" {
-			p.Model = h.nvidiaModel
-		}
-		return &p
-	}
-	if h.glmAPIKey != "" {
-		p := ai.DefaultProvider("glm", h.glmAPIKey)
-		return &p
-	}
-	if h.deepSeekAPIKey != "" {
-		p := ai.DefaultProvider("deepseek", h.deepSeekAPIKey)
-		return &p
-	}
-	if h.openAIAPIKey != "" {
-		p := ai.DefaultProvider("openai", h.openAIAPIKey)
-		return &p
-	}
-	return nil
+func NewAIHandler(q *database.Queries, llmRouter *llm.Router, scrapling *browser.ScraplingClient) *AIHandler {
+	return &AIHandler{q: q, llmRouter: llmRouter, scrapling: scrapling}
 }
 
 // Classify classifies a mention's intent using the configured LLM.
@@ -77,20 +42,13 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get LLM provider
-	provider := h.getProvider()
-	if provider == nil {
-		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY in .env")
-		return
-	}
-
 	title := ""
 	if mention.Title.Valid {
 		title = mention.Title.String
 	}
 
 	// Classify
-	result, err := ai.ClassifyIntent(ctx, *provider, title, mention.Content, string(mention.Platform))
+	result, err := h.llmRouter.ClassifyIntent(ctx, wsID, title, mention.Content, string(mention.Platform))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "classification failed: "+err.Error())
 		return
@@ -134,13 +92,6 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get LLM provider
-	provider := h.getProvider()
-	if provider == nil {
-		writeError(w, http.StatusBadRequest, "no AI provider configured — set GLM_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY in .env")
-		return
-	}
-
 	title := ""
 	if mention.Title.Valid {
 		title = mention.Title.String
@@ -151,7 +102,7 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Stage 1: Pre-filter — is this mention worth replying to?
-	preFilter, err := ai.PreFilterForReply(ctx, *provider, title, mention.Content, string(mention.Platform), intent)
+	preFilter, err := h.llmRouter.PreFilterForReply(ctx, wsID, title, mention.Content, string(mention.Platform), intent)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "pre-filter failed: "+err.Error())
 		return
@@ -200,7 +151,7 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	templateStyle := selectTemplateStyle(intent, preFilter.AwarenessLevel)
 
 	// Stage 3: Enhanced draft with full context
-	result, err := ai.DraftReplyEnhanced(ctx, *provider, ai.DraftReplyOptions{
+	result, err := h.llmRouter.DraftReplyEnhanced(ctx, wsID, ai.DraftReplyOptions{
 		Title:          title,
 		Content:        mention.Content,
 		Platform:       string(mention.Platform),
@@ -230,11 +181,11 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"reply":              replyToResponse(reply),
-		"tone":               result.Tone,
-		"template_style":     result.TemplateStyle,
-		"should_reply":       true,
-		"awareness_level":    preFilter.AwarenessLevel,
+		"reply":               replyToResponse(reply),
+		"tone":                result.Tone,
+		"template_style":      result.TemplateStyle,
+		"should_reply":        true,
+		"awareness_level":     preFilter.AwarenessLevel,
 		"thread_context_used": threadCtx != "",
 	})
 }
