@@ -83,6 +83,20 @@ type Config struct {
 	// Scrapling (stealth fallback sidecar — used when Pinchtab/Camoufox unavailable)
 	ScraplingURL   string `env:"SCRAPLING_URL,default="`
 	ScraplingToken string `env:"SCRAPLING_TOKEN,default="`
+
+	// Redis Streams backbone
+	StreamsEnabled                  bool   `env:"STREAMS_ENABLED,default=false"`
+	StreamsDualWriteEnabled         bool   `env:"STREAMS_DUAL_WRITE_ENABLED,default=false"`
+	StreamsScorerConsumerEnabled    bool   `env:"STREAMS_SCORER_CONSUMER_ENABLED,default=false"`
+	StreamsNotifierConsumerEnabled  bool   `env:"STREAMS_NOTIFIER_CONSUMER_ENABLED,default=false"`
+	StreamsQualifierConsumerEnabled bool   `env:"STREAMS_QUALIFIER_CONSUMER_ENABLED,default=false"`
+	StreamsRetryConsumerEnabled     bool   `env:"STREAMS_RETRY_CONSUMER_ENABLED,default=false"`
+	StreamsInlineFallbackEnabled    bool   `env:"STREAMS_INLINE_FALLBACK_ENABLED,default=true"`
+	StreamsConsumerName             string `env:"STREAMS_CONSUMER_NAME,default=api-main"`
+	StreamsBatchSize                int64  `env:"STREAMS_BATCH_SIZE,default=50"`
+	StreamsBlockMS                  int64  `env:"STREAMS_BLOCK_MS,default=5000"`
+	StreamsClaimIdleMS              int64  `env:"STREAMS_CLAIM_IDLE_MS,default=120000"`
+	StreamsMaxAttempts              int64  `env:"STREAMS_MAX_ATTEMPTS,default=8"`
 }
 
 // EncryptionKeyOrDefault returns the encryption key, falling back to JWT secret.

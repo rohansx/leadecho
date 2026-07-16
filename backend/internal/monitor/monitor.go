@@ -11,34 +11,43 @@ import (
 
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
+	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
 )
 
 // Monitor polls social platforms for keyword matches and inserts new mentions.
 type Monitor struct {
-	q             *database.Queries
-	logger        zerolog.Logger
-	resendAPIKey  string
-	redditBackoff time.Time                // skip Reddit crawls until this time (set on 429)
-	llmRouter     *llm.Router              // workspace-aware LLM/embedding router
-	pinchtab      *browser.PinchtabClient  // browser sidecar (nil if not configured)
-	camoufox      *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
-	scrapling     *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
-	encKey        []byte                   // AES key for decrypting session cookies
-	exaAPIKey     string                   // Exa web-search API key (empty disables the exa source)
+	q                *database.Queries
+	logger           zerolog.Logger
+	resendAPIKey     string
+	redditBackoff    time.Time                // skip Reddit crawls until this time (set on 429)
+	llmRouter        *llm.Router              // workspace-aware LLM/embedding router
+	pinchtab         *browser.PinchtabClient  // browser sidecar (nil if not configured)
+	camoufox         *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
+	scrapling        *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
+	encKey           []byte                   // AES key for decrypting session cookies
+	exaAPIKey        string                   // Exa web-search API key (empty disables the exa source)
+	eventPublisher   *publishers.Publisher
+	streamsEnabled   bool
+	streamsDualWrite bool
+	inlineFallback   bool
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback bool) *Monitor {
 	return &Monitor{
-		q:            q,
-		logger:       logger,
-		resendAPIKey: resendAPIKey,
-		llmRouter:    llmRouter,
-		pinchtab:     pinchtab,
-		camoufox:     camoufox,
-		scrapling:    scrapling,
-		encKey:       encKey,
-		exaAPIKey:    exaAPIKey,
+		q:                q,
+		logger:           logger,
+		resendAPIKey:     resendAPIKey,
+		llmRouter:        llmRouter,
+		pinchtab:         pinchtab,
+		camoufox:         camoufox,
+		scrapling:        scrapling,
+		encKey:           encKey,
+		exaAPIKey:        exaAPIKey,
+		eventPublisher:   eventPublisher,
+		streamsEnabled:   streamsEnabled,
+		streamsDualWrite: streamsDualWrite,
+		inlineFallback:   inlineFallback,
 	}
 }
 
@@ -133,11 +142,7 @@ func (m *Monitor) tick(ctx context.Context) {
 			}
 		}
 
-		// Auto-score new mentions (4-stage pipeline)
-		m.batchScoreMentions(ctx, wsID, alerts)
-
-		// Fire webhook notifications for this workspace
-		m.notifyNewMentions(ctx, wsID, alerts)
+		m.handleNewMentionBatch(ctx, wsID, alerts, "monitor")
 	}
 }
 

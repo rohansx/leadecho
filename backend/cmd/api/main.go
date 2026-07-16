@@ -16,6 +16,9 @@ import (
 	"leadecho/internal/config"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/events/consumers"
+	"leadecho/internal/events/publishers"
+	streamredis "leadecho/internal/events/redis"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 )
@@ -68,6 +71,9 @@ func main() {
 	}, logger)
 	logger.Info().Msg("LLM router initialized")
 
+	streamClient := streamredis.NewClient(redis, logger)
+	eventPublisher := publishers.New(queries, streamClient, logger)
+
 	// Pinchtab browser sidecar (optional)
 	var pinchtab *browser.PinchtabClient
 	if cfg.PinchtabToken != "" {
@@ -89,11 +95,60 @@ func main() {
 		logger.Info().Str("url", cfg.ScraplingURL).Msg("Scrapling browser client initialized")
 	}
 
-	mon := monitor.New(queries, logger, cfg.ResendAPIKey, llmRouter, pinchtab, camoufox, scrapling, encKey, cfg.ExaAPIKey)
+	mon := monitor.New(
+		queries,
+		logger,
+		cfg.ResendAPIKey,
+		llmRouter,
+		pinchtab,
+		camoufox,
+		scrapling,
+		encKey,
+		cfg.ExaAPIKey,
+		eventPublisher,
+		cfg.StreamsEnabled,
+		cfg.StreamsDualWriteEnabled,
+		cfg.StreamsInlineFallbackEnabled,
+	)
 	go mon.Run(ctx, 5*time.Minute)
 
+	if cfg.StreamsEnabled {
+		workers := consumers.NewMentionWorkers(
+			queries,
+			streamClient,
+			mon,
+			logger,
+			cfg.StreamsConsumerName,
+			cfg.StreamsBatchSize,
+			cfg.StreamsBlockMS,
+			cfg.StreamsClaimIdleMS,
+			cfg.StreamsMaxAttempts,
+		)
+		if cfg.StreamsScorerConsumerEnabled {
+			go func() {
+				if err := workers.StartScorer(ctx); err != nil && err != context.Canceled {
+					logger.Error().Err(err).Msg("mention scorer worker stopped")
+				}
+			}()
+		}
+		if cfg.StreamsNotifierConsumerEnabled {
+			go func() {
+				if err := workers.StartNotifier(ctx); err != nil && err != context.Canceled {
+					logger.Error().Err(err).Msg("mention notifier worker stopped")
+				}
+			}()
+		}
+		if cfg.StreamsRetryConsumerEnabled {
+			go func() {
+				if err := workers.StartRetryManager(ctx); err != nil && err != context.Canceled {
+					logger.Error().Err(err).Msg("streams retry manager stopped")
+				}
+			}()
+		}
+	}
+
 	// Build router
-	router := api.NewRouter(logger, db, redis, cfg, llmRouter, pinchtab, scrapling, mon)
+	router := api.NewRouter(logger, db, redis, cfg, llmRouter, eventPublisher, pinchtab, scrapling, mon)
 
 	// Start server
 	srv := &http.Server{

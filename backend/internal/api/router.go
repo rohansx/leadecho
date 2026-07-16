@@ -17,11 +17,12 @@ import (
 	"leadecho/internal/config"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -175,6 +176,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/settings/extension-token", ext.GetToken)
 			r.Post("/settings/extension-token", ext.RotateToken)
 			r.Delete("/settings/extension-token", ext.RevokeToken)
+
+			streams := handler.NewStreamsHandler(queries, eventPublisher)
+			r.Get("/streams/status", streams.Status)
+			r.Get("/streams/dead-letters", streams.DeadLetters)
+			r.Get("/streams/replays", streams.Replays)
+			r.Post("/streams/replays", streams.TriggerReplay)
 
 			// Onboarding wizard
 			onboarding := handler.NewOnboardingHandler(queries, scrapling, llmRouter)
