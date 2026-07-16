@@ -90,6 +90,8 @@ type Config struct {
 	StreamsScorerConsumerEnabled    bool   `env:"STREAMS_SCORER_CONSUMER_ENABLED,default=false"`
 	StreamsNotifierConsumerEnabled  bool   `env:"STREAMS_NOTIFIER_CONSUMER_ENABLED,default=false"`
 	StreamsQualifierConsumerEnabled bool   `env:"STREAMS_QUALIFIER_CONSUMER_ENABLED,default=false"`
+	StreamsReplyDrafterConsumerEnabled bool `env:"STREAMS_REPLY_DRAFTER_CONSUMER_ENABLED,default=false"`
+	StreamsWorkflowConsumerEnabled  bool   `env:"STREAMS_WORKFLOW_CONSUMER_ENABLED,default=false"`
 	StreamsRetryConsumerEnabled     bool   `env:"STREAMS_RETRY_CONSUMER_ENABLED,default=false"`
 	StreamsInlineFallbackEnabled    bool   `env:"STREAMS_INLINE_FALLBACK_ENABLED,default=true"`
 	StreamsConsumerName             string `env:"STREAMS_CONSUMER_NAME,default=api-main"`

@@ -48,6 +48,7 @@ type Querier interface {
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
@@ -79,9 +80,12 @@ type Querier interface {
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
 	GetWorkspaceSettings(ctx context.Context, id string) ([]byte, error)
 	HasConsumerProcessedEvent(ctx context.Context, arg HasConsumerProcessedEventParams) (bool, error)
+	HasWorkflowExecutionForMention(ctx context.Context, arg HasWorkflowExecutionForMentionParams) (bool, error)
 	IncrementUTMClicks(ctx context.Context, code string) error
+	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
 	ListActiveKeywords(ctx context.Context, workspaceID string) ([]ListActiveKeywordsRow, error)
 	ListActiveMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
+	ListActiveWorkflowsByWorkspace(ctx context.Context, workspaceID string) ([]Workflow, error)
 	ListAllActiveKeywords(ctx context.Context) ([]ListAllActiveKeywordsRow, error)
 	ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfile, error)
 	ListApprovedRepliesByWorkspace(ctx context.Context, workspaceID string) ([]ListApprovedRepliesByWorkspaceRow, error)
@@ -147,6 +151,7 @@ type Querier interface {
 	UpdateReplyContent(ctx context.Context, arg UpdateReplyContentParams) (Reply, error)
 	UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusParams) (Reply, error)
 	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
+	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)

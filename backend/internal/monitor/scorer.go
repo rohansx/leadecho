@@ -152,8 +152,8 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 		m.publishMentionScored(ctx, c.alert, result)
 
-		// Stage 4: Lead qualification
-		if result.RelevanceScore >= 7.0 {
+		// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
+		if !m.qualifierAsync && result.RelevanceScore >= 7.0 {
 			intent := database.IntentType(result.Intent)
 			if intent == database.IntentTypeBuySignal ||
 				intent == database.IntentTypeRecommendationAsk ||
@@ -229,6 +229,43 @@ func (m *Monitor) publishMentionScored(ctx context.Context, alert mentionAlert, 
 	}
 	if _, err := m.eventPublisher.Publish(ctx, notifyEnv); err != nil {
 		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish notification request")
+	}
+
+	m.publishWorkflowTrigger(ctx, alert, result)
+}
+
+func (m *Monitor) publishWorkflowTrigger(ctx context.Context, alert mentionAlert, result *ai.ClassifyResult) {
+	if !m.streamsEnabled || m.eventPublisher == nil {
+		return
+	}
+
+	env, err := events.NewEnvelope(
+		events.EventTypeWorkflowTriggerRequested,
+		events.AggregateTypeWorkflow,
+		alert.ID,
+		"scorer",
+		alert.WorkspaceID,
+		fmt.Sprintf("%s:%s", events.EventTypeWorkflowTriggerRequested, alert.ID),
+		events.WorkflowTriggerRequestedPayload{
+			MentionID:             alert.ID,
+			WorkspaceID:           alert.WorkspaceID,
+			Platform:              alert.Platform,
+			Title:                 alert.Title,
+			URL:                   alert.URL,
+			Author:                alert.Author,
+			Content:               alert.Content,
+			Intent:                result.Intent,
+			AwarenessLevel:        result.AwarenessLevel,
+			RelevanceScore:        float32(result.RelevanceScore),
+			ConversionProbability: float32(result.ConversionProbability),
+		},
+	)
+	if err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: build workflow trigger")
+		return
+	}
+	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish workflow trigger")
 	}
 }
 

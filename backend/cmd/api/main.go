@@ -16,11 +16,14 @@ import (
 	"leadecho/internal/config"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/events"
 	"leadecho/internal/events/consumers"
 	"leadecho/internal/events/publishers"
 	streamredis "leadecho/internal/events/redis"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
+	"leadecho/internal/reply"
+	"leadecho/internal/workflow"
 )
 
 func main() {
@@ -109,11 +112,15 @@ func main() {
 		cfg.StreamsEnabled,
 		cfg.StreamsDualWriteEnabled,
 		cfg.StreamsInlineFallbackEnabled,
+		cfg.StreamsEnabled && cfg.StreamsQualifierConsumerEnabled,
 	)
 	go mon.Run(ctx, 5*time.Minute)
 
+	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling)
+	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
+
 	if cfg.StreamsEnabled {
-		workers := consumers.NewMentionWorkers(
+		mentionWorkers := consumers.NewMentionWorkers(
 			queries,
 			streamClient,
 			mon,
@@ -124,23 +131,82 @@ func main() {
 			cfg.StreamsClaimIdleMS,
 			cfg.StreamsMaxAttempts,
 		)
+		replyWorkers := consumers.NewReplyWorkers(
+			queries,
+			streamClient,
+			replyDrafter,
+			logger,
+			cfg.StreamsConsumerName,
+			cfg.StreamsBatchSize,
+			cfg.StreamsBlockMS,
+			cfg.StreamsClaimIdleMS,
+			cfg.StreamsMaxAttempts,
+		)
+		workflowWorkers := consumers.NewWorkflowWorkers(
+			queries,
+			streamClient,
+			workflowEngine,
+			logger,
+			cfg.StreamsConsumerName,
+			cfg.StreamsBatchSize,
+			cfg.StreamsBlockMS,
+			cfg.StreamsClaimIdleMS,
+			cfg.StreamsMaxAttempts,
+		)
+
 		if cfg.StreamsScorerConsumerEnabled {
 			go func() {
-				if err := workers.StartScorer(ctx); err != nil && err != context.Canceled {
+				if err := mentionWorkers.StartScorer(ctx); err != nil && err != context.Canceled {
 					logger.Error().Err(err).Msg("mention scorer worker stopped")
 				}
 			}()
 		}
 		if cfg.StreamsNotifierConsumerEnabled {
 			go func() {
-				if err := workers.StartNotifier(ctx); err != nil && err != context.Canceled {
+				if err := mentionWorkers.StartNotifier(ctx); err != nil && err != context.Canceled {
 					logger.Error().Err(err).Msg("mention notifier worker stopped")
 				}
 			}()
 		}
-		if cfg.StreamsRetryConsumerEnabled {
+		if cfg.StreamsQualifierConsumerEnabled {
 			go func() {
-				if err := workers.StartRetryManager(ctx); err != nil && err != context.Canceled {
+				if err := mentionWorkers.StartQualifier(ctx); err != nil && err != context.Canceled {
+					logger.Error().Err(err).Msg("mention qualifier worker stopped")
+				}
+			}()
+		}
+		if cfg.StreamsReplyDrafterConsumerEnabled {
+			go func() {
+				if err := replyWorkers.StartDrafter(ctx); err != nil && err != context.Canceled {
+					logger.Error().Err(err).Msg("reply drafter worker stopped")
+				}
+			}()
+		}
+		if cfg.StreamsWorkflowConsumerEnabled {
+			go func() {
+				if err := workflowWorkers.StartExecutor(ctx); err != nil && err != context.Canceled {
+					logger.Error().Err(err).Msg("workflow executor worker stopped")
+				}
+			}()
+		}
+		if cfg.StreamsRetryConsumerEnabled {
+			retryMgr := consumers.NewRetryManager(
+				queries,
+				streamClient,
+				logger,
+				cfg.StreamsConsumerName,
+				cfg.StreamsBatchSize,
+				cfg.StreamsBlockMS,
+				cfg.StreamsClaimIdleMS,
+				cfg.StreamsMaxAttempts,
+			)
+			retryMgr.Register(events.StreamMentionEvents, events.GroupMentionScorers, mentionWorkers.Handler(events.GroupMentionScorers))
+			retryMgr.Register(events.StreamMentionEvents, events.GroupMentionNotifiers, mentionWorkers.Handler(events.GroupMentionNotifiers))
+			retryMgr.Register(events.StreamMentionEvents, events.GroupMentionQualifiers, mentionWorkers.Handler(events.GroupMentionQualifiers))
+			retryMgr.Register(events.StreamReplyEvents, events.GroupReplyDrafters, replyWorkers.Handler())
+			retryMgr.Register(events.StreamWorkflowEvents, events.GroupWorkflowExecutors, workflowWorkers.Handler())
+			go func() {
+				if err := retryMgr.Start(ctx); err != nil && err != context.Canceled {
 					logger.Error().Err(err).Msg("streams retry manager stopped")
 				}
 			}()
@@ -148,7 +214,7 @@ func main() {
 	}
 
 	// Build router
-	router := api.NewRouter(logger, db, redis, cfg, llmRouter, eventPublisher, pinchtab, scrapling, mon)
+	router := api.NewRouter(logger, db, redis, cfg, llmRouter, eventPublisher, pinchtab, scrapling, mon, replyDrafter)
 
 	// Start server
 	srv := &http.Server{

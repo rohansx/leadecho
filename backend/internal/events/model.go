@@ -159,3 +159,30 @@ type MentionQualifiedPayload struct {
 	Intent      string  `json:"intent"`
 	Score       float32 `json:"score"`
 }
+
+type ReplyDraftRequestedPayload struct {
+	MentionID           string `json:"mention_id"`
+	WorkspaceID         string `json:"workspace_id"`
+	WorkflowExecutionID string `json:"workflow_execution_id,omitempty"`
+	Source              string `json:"source,omitempty"`
+}
+
+type ReplyApprovedPayload struct {
+	ReplyID     string `json:"reply_id"`
+	MentionID   string `json:"mention_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type WorkflowTriggerRequestedPayload struct {
+	MentionID             string  `json:"mention_id"`
+	WorkspaceID           string  `json:"workspace_id"`
+	Platform              string  `json:"platform"`
+	Title                 string  `json:"title,omitempty"`
+	URL                   string  `json:"url"`
+	Author                string  `json:"author,omitempty"`
+	Content               string  `json:"content"`
+	Intent                string  `json:"intent,omitempty"`
+	AwarenessLevel        string  `json:"awareness_level,omitempty"`
+	RelevanceScore        float32 `json:"relevance_score,omitempty"`
+	ConversionProbability float32 `json:"conversion_probability,omitempty"`
+}

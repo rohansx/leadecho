@@ -31,9 +31,10 @@ type Monitor struct {
 	streamsEnabled   bool
 	streamsDualWrite bool
 	inlineFallback   bool
+	qualifierAsync   bool
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback bool) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool) *Monitor {
 	return &Monitor{
 		q:                q,
 		logger:           logger,
@@ -48,6 +49,7 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRou
 		streamsEnabled:   streamsEnabled,
 		streamsDualWrite: streamsDualWrite,
 		inlineFallback:   inlineFallback,
+		qualifierAsync:   qualifierAsync,
 	}
 }
 

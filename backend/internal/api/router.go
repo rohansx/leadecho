@@ -20,9 +20,10 @@ import (
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
+	"leadecho/internal/reply"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -100,7 +101,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/profiles/{id}", profiles.Delete)
 
 			// AI (intent classification + reply drafting)
-			aiHandler := handler.NewAIHandler(queries, llmRouter, scrapling)
+			aiHandler := handler.NewAIHandler(queries, llmRouter, scrapling, replyDrafter, eventPublisher, cfg.StreamsEnabled && cfg.StreamsReplyDrafterConsumerEnabled)
 			r.Post("/mentions/{id}/classify", aiHandler.Classify)
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
 
@@ -121,7 +122,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/keywords/{id}", keywords.Delete)
 
 			// Replies
-			replies := handler.NewReplyHandler(queries)
+			replies := handler.NewReplyHandler(queries, eventPublisher, cfg.StreamsEnabled)
 			r.Get("/mentions/{mentionId}/replies", replies.ListByMention)
 			r.Post("/replies", replies.Create)
 			r.Patch("/replies/{id}/content", replies.UpdateContent)
