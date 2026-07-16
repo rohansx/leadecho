@@ -11,13 +11,12 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"leadecho/internal/ai"
 	"leadecho/internal/api"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
-	"leadecho/internal/embedding"
+	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 )
 
@@ -56,35 +55,18 @@ func main() {
 	// Start social monitoring worker (polls Reddit, HN every 5 minutes)
 	queries := database.New(db)
 
-	// Embedding client (optional — nil if no Voyage API key)
-	var embedder *embedding.Client
-	if cfg.VoyageAPIKey != "" {
-		embedder = embedding.New(cfg.VoyageAPIKey)
-		logger.Info().Msg("Voyage AI embedding client initialized")
-	}
-
-	// AI provider (optional — nil if no LLM key). Priority: NVIDIA → DeepSeek → GLM → OpenAI.
-	var aiProvider *ai.Provider
-	if cfg.NVIDIAAPIKey != "" {
-		p := ai.DefaultProvider("nvidia", cfg.NVIDIAAPIKey)
-		if cfg.NVIDIAModel != "" {
-			p.Model = cfg.NVIDIAModel
-		}
-		aiProvider = &p
-		logger.Info().Str("model", p.Model).Msg("NVIDIA AI provider initialized")
-	} else if cfg.DeepSeekAPIKey != "" {
-		p := ai.DefaultProvider("deepseek", cfg.DeepSeekAPIKey)
-		aiProvider = &p
-	} else if cfg.GLMAPIKey != "" {
-		p := ai.DefaultProvider("glm", cfg.GLMAPIKey)
-		aiProvider = &p
-	} else if cfg.OpenAIAPIKey != "" {
-		p := ai.DefaultProvider("openai", cfg.OpenAIAPIKey)
-		aiProvider = &p
-	}
-
-	// Encryption key for session cookies
+	// Encryption key for stored BYOK keys and browser session cookies.
 	encKey := crypto.DeriveKey(cfg.EncryptionKeyOrDefault())
+
+	llmRouter := llm.NewRouter(queries, encKey, llm.SystemKeys{
+		NVIDIAAPIKey:   cfg.NVIDIAAPIKey,
+		NVIDIAModel:    cfg.NVIDIAModel,
+		DeepSeekAPIKey: cfg.DeepSeekAPIKey,
+		GLMAPIKey:      cfg.GLMAPIKey,
+		OpenAIAPIKey:   cfg.OpenAIAPIKey,
+		VoyageAPIKey:   cfg.VoyageAPIKey,
+	}, logger)
+	logger.Info().Msg("LLM router initialized")
 
 	// Pinchtab browser sidecar (optional)
 	var pinchtab *browser.PinchtabClient
@@ -107,11 +89,11 @@ func main() {
 		logger.Info().Str("url", cfg.ScraplingURL).Msg("Scrapling browser client initialized")
 	}
 
-	mon := monitor.New(queries, logger, cfg.ResendAPIKey, embedder, aiProvider, pinchtab, camoufox, scrapling, encKey, cfg.ExaAPIKey)
+	mon := monitor.New(queries, logger, cfg.ResendAPIKey, llmRouter, pinchtab, camoufox, scrapling, encKey, cfg.ExaAPIKey)
 	go mon.Run(ctx, 5*time.Minute)
 
 	// Build router
-	router := api.NewRouter(logger, db, redis, cfg, embedder, pinchtab, scrapling, mon)
+	router := api.NewRouter(logger, db, redis, cfg, llmRouter, pinchtab, scrapling, mon)
 
 	// Start server
 	srv := &http.Server{

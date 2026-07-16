@@ -11,10 +11,12 @@ import (
 
 // Supported AI providers for BYOK.
 var supportedProviders = map[string]bool{
-	"glm":      true,
-	"deepseek": true,
-	"openai":   true,
-	"voyage":   true,
+	"nvidia":     true,
+	"glm":        true,
+	"deepseek":   true,
+	"openai":     true,
+	"openrouter": true,
+	"voyage":     true,
 }
 
 // apiKeysSettings is the structure stored in workspaces.settings["api_keys"].

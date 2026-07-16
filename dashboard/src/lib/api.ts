@@ -409,6 +409,94 @@ export function deleteAPIKey(provider: string) {
   });
 }
 
+
+// ─── LLM Router (BYOK) ─────────────────────────────────
+
+export interface LLMModelTarget {
+  provider: string;
+  model: string;
+  base_url?: string;
+}
+
+export interface LLMProviderStatus {
+  provider: string;
+  display_name: string;
+  capabilities: string[];
+  default_model?: string;
+  recommended_models?: string[];
+  is_set: boolean;
+  masked_key?: string;
+  key_source?: string;
+  base_url?: string;
+  enabled: boolean;
+}
+
+export interface LLMHealthStatus {
+  ready: boolean;
+  chat_ok: boolean;
+  strong_ok: boolean;
+  embed_ok: boolean;
+  warnings: string[];
+}
+
+export interface LLMConfigResponse {
+  providers: LLMProviderStatus[];
+  models: Record<string, LLMModelTarget>;
+  routing: Record<string, string>;
+  fallbacks: Record<string, LLMModelTarget[]>;
+  health: LLMHealthStatus;
+}
+
+export interface LLMUsageRow {
+  task: string;
+  provider: string;
+  model: string;
+  calls: number;
+  errors: number;
+  fallbacks: number;
+  total_tokens: number;
+  estimated_cost_usd: string;
+  last_used_at: string;
+}
+
+export function getLLMConfig() {
+  return request<LLMConfigResponse>("/llm/config");
+}
+
+export function saveLLMConfig(data: {
+  models?: Record<string, LLMModelTarget>;
+  routing?: Record<string, string>;
+  fallbacks?: Record<string, LLMModelTarget[]>;
+}) {
+  return request<LLMConfigResponse>("/llm/config", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function saveLLMProviderKey(provider: string, apiKey: string, baseUrl?: string) {
+  return request<LLMProviderStatus>(`/llm/providers/${provider}/key`, {
+    method: "PUT",
+    body: JSON.stringify({ api_key: apiKey, base_url: baseUrl ?? "" }),
+  });
+}
+
+export function deleteLLMProviderKey(provider: string) {
+  return request<LLMProviderStatus>(`/llm/providers/${provider}/key`, {
+    method: "DELETE",
+  });
+}
+
+export function verifyLLMProvider(provider: string) {
+  return request<{ status: string }>(`/llm/providers/${provider}/verify`, {
+    method: "POST",
+  });
+}
+
+export function getLLMUsage() {
+  return request<LLMUsageRow[]>("/llm/usage");
+}
+
 // ─── Chrome Extension Token ───────────────────────────
 
 export function getExtensionToken() {

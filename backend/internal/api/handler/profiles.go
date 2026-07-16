@@ -13,7 +13,7 @@ import (
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/database"
-	"leadecho/internal/embedding"
+	"leadecho/internal/llm"
 )
 
 // storedPhrases returns the pain-point phrases actually persisted for a profile,
@@ -29,12 +29,12 @@ func (h *ProfileHandler) storedPhrases(ctx context.Context, profileID string) []
 }
 
 type ProfileHandler struct {
-	q        *database.Queries
-	embedder *embedding.Client
+	q         *database.Queries
+	llmRouter *llm.Router
 }
 
-func NewProfileHandler(q *database.Queries, embedder *embedding.Client) *ProfileHandler {
-	return &ProfileHandler{q: q, embedder: embedder}
+func NewProfileHandler(q *database.Queries, llmRouter *llm.Router) *ProfileHandler {
+	return &ProfileHandler{q: q, llmRouter: llmRouter}
 }
 
 type ProfileResponse struct {
@@ -135,7 +135,7 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Embed and store pain-point phrases (best effort — requires an embedder).
-	if len(body.PainPoints) > 0 && h.embedder != nil {
+	if len(body.PainPoints) > 0 && h.llmRouter != nil {
 		_ = h.embedAndStorePhrases(r.Context(), profile.ID, wsID, body.PainPoints)
 	}
 
@@ -193,9 +193,9 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Re-embed phrases if provided. Embed FIRST and only replace the existing
 	// embeddings once the (failable) embed succeeds, so a transient embedding
 	// failure never wipes the profile's pain points (data-loss guard).
-	if body.PainPoints != nil && h.embedder != nil {
+	if body.PainPoints != nil && h.llmRouter != nil {
 		if len(body.PainPoints) > 0 {
-			vectors, err := h.embedder.EmbedTexts(r.Context(), body.PainPoints)
+			vectors, err := h.llmRouter.EmbedTexts(r.Context(), wsID, llm.TaskEmbedProfiles, body.PainPoints)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, "failed to embed pain points; existing phrases preserved")
 				return
@@ -246,7 +246,7 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProfileHandler) embedAndStorePhrases(ctx context.Context, profileID, wsID string, phrases []string) error {
-	vectors, err := h.embedder.EmbedTexts(ctx, phrases)
+	vectors, err := h.llmRouter.EmbedTexts(ctx, wsID, llm.TaskEmbedProfiles, phrases)
 	if err != nil {
 		return err
 	}
