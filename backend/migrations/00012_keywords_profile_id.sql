@@ -21,7 +21,7 @@ ON CONFLICT DO NOTHING;
 UPDATE keywords k
 SET profile_id = sub.profile_id
 FROM (
-    SELECT k2.workspace_id, MIN(mp.id) AS profile_id
+    SELECT k2.workspace_id, (array_agg(mp.id ORDER BY mp.created_at))[1] AS profile_id
     FROM keywords k2
     JOIN monitoring_profiles mp ON mp.workspace_id = k2.workspace_id AND mp.is_active = true
     GROUP BY k2.workspace_id

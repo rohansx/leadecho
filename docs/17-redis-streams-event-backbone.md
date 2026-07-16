@@ -482,8 +482,25 @@ Recommended next increments:
 
 - Wire `reply.approved.v1` to an approval-gate resume handler
 - Implement `notify_slack` and `approval_gate` workflow actions as stream consumers
-- Add integration tests that exercise the full mention → workflow → draft chain against Redis testcontainers
 - Extract high-volume consumer groups into dedicated Railway services
+
+---
+
+## Integration Tests
+
+End-to-end stream pipeline coverage lives in `internal/integration/` and requires Docker.
+
+```bash
+# Full pipeline: mention.ingested → scorer → qualifier → workflow → reply.draft_requested → draft row
+go test -tags=integration -timeout=5m ./internal/integration/...
+
+# Skip when Docker is unavailable
+SKIP_INTEGRATION=1 go test -tags=integration ./internal/integration/...
+```
+
+The test spins up Postgres (pgvector) and Redis via testcontainers, runs goose migrations, starts all stream workers with `llm.Stub`, publishes `mention.ingested.v1`, and asserts events plus side effects (lead, workflow execution, reply draft).
+
+Unit tests (`go test ./...`) exclude integration tests via the `integration` build tag.
 
 ---
 

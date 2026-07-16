@@ -15,11 +15,11 @@ import (
 
 type Drafter struct {
 	q         *database.Queries
-	llmRouter *llm.Router
+	llmRouter llm.ReplyGenerator
 	scrapling *browser.ScraplingClient
 }
 
-func NewDrafter(q *database.Queries, llmRouter *llm.Router, scrapling *browser.ScraplingClient) *Drafter {
+func NewDrafter(q *database.Queries, llmRouter llm.ReplyGenerator, scrapling *browser.ScraplingClient) *Drafter {
 	return &Drafter{q: q, llmRouter: llmRouter, scrapling: scrapling}
 }
 

@@ -21,7 +21,7 @@ type Monitor struct {
 	logger           zerolog.Logger
 	resendAPIKey     string
 	redditBackoff    time.Time                // skip Reddit crawls until this time (set on 429)
-	llmRouter        *llm.Router              // workspace-aware LLM/embedding router
+	llmRouter        llm.MentionScorer        // workspace-aware LLM/embedding router
 	pinchtab         *browser.PinchtabClient  // browser sidecar (nil if not configured)
 	camoufox         *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
 	scrapling        *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
@@ -34,7 +34,7 @@ type Monitor struct {
 	qualifierAsync   bool
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter *llm.Router, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool) *Monitor {
 	return &Monitor{
 		q:                q,
 		logger:           logger,
