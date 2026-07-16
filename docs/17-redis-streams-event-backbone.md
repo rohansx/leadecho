@@ -311,8 +311,67 @@ All flags default to `false` except `STREAMS_INLINE_FALLBACK_ENABLED` (default `
 | `STREAMS_BLOCK_MS` | `5000` | Blocking read timeout |
 | `STREAMS_CLAIM_IDLE_MS` | `120000` | Idle threshold for `XAUTOCLAIM` |
 | `STREAMS_MAX_ATTEMPTS` | `8` | Max retry attempts before permanent DLQ (reserved) |
+| `STREAMS_WORKERS_IN_API` | `true` | Run stream consumers inside the API process |
+| `PROCESS_ROLE` | `api` | `api` for HTTP server, `worker` for dedicated stream worker |
+| `MONITOR_ENABLED` | `true` | Disable on API when monitor runs in worker process |
+| `METRICS_ENABLED` | `false` | Expose Prometheus `/metrics` |
+| `METRICS_PORT` | `9090` | Reserved for sidecar scrape configs |
+| `METRICS_COLLECT_INTERVAL_SEC` | `30` | Poll interval for pending/DLQ gauges |
+| `WORKER_HEALTH_PORT` | `8091` | Worker `/healthz`, `/readyz`, `/metrics` port |
 
-### Recommended rollout sequence
+### Split deployment (API + Worker)
+
+For production, run two processes from the same Docker image:
+
+| Process | Binary | Responsibilities |
+|---------|--------|------------------|
+| API | `/leadecho-api` | HTTP routes, event publishing, no monitor/workers when split |
+| Worker | `/leadecho-worker` | Monitor crawl loop, all stream consumers, health/metrics |
+
+**API environment (split mode):**
+
+```bash
+PROCESS_ROLE=api
+MONITOR_ENABLED=false
+STREAMS_WORKERS_IN_API=false
+STREAMS_ENABLED=true          # publishers still active
+METRICS_ENABLED=true          # optional: /metrics on :8090
+```
+
+**Worker environment:**
+
+```bash
+PROCESS_ROLE=worker
+STREAMS_ENABLED=true
+STREAMS_CONSUMER_NAME=worker-1   # unique per replica
+METRICS_ENABLED=true
+WORKER_HEALTH_PORT=8091
+# enable individual consumer flags as needed
+```
+
+`docker-compose.prod.yml` includes a `worker` service with this layout. Scale workers horizontally with distinct `STREAMS_CONSUMER_NAME` values.
+
+### Prometheus metrics
+
+When `METRICS_ENABLED=true`, the following metrics are exposed:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `leadecho_stream_consumer_pending` | Gauge | `stream`, `group` | Redis `XPENDING` count |
+| `leadecho_stream_messages_processed_total` | Counter | `stream`, `group`, `result` | Handled messages (`success` / `error`) |
+| `leadecho_stream_message_duration_seconds` | Histogram | `stream`, `group` | Handler latency |
+| `leadecho_stream_dlq_open_total` | Gauge | — | Open dead-letter rows |
+
+- API serves `/metrics` on the main port (`8090`) when enabled.
+- Worker serves `/metrics` on `WORKER_HEALTH_PORT` (`8091`) alongside `/healthz` and `/readyz`.
+
+Suggested alerts:
+
+- `leadecho_stream_consumer_pending > 100` for 5m → consumer lag
+- `leadecho_stream_dlq_open_total` increasing → handler failures
+- `rate(leadecho_stream_messages_processed_total{result="error"}[5m]) > 0` → sustained errors
+
+---
 
 **Phase 1 — Observe (no behavior change)**
 
@@ -367,8 +426,14 @@ Replay re-publishes historical events from PostgreSQL into Redis. This supports 
 
 ```text
 backend/
+├── cmd/
+│   ├── api/main.go               # HTTP API server
+│   └── worker/main.go            # Monitor + stream consumers
 ├── migrations/00014_redis_streams_backbone.sql
 ├── internal/
+│   ├── platform/bootstrap.go     # Shared wiring for api + worker
+│   ├── streamworkers/runtime.go  # Consumer startup orchestration
+│   ├── metrics/                  # Prometheus metrics + collector
 │   ├── events/
 │   │   ├── model.go              # Envelope + payload types
 │   │   ├── streams.go            # Stream/group constants
@@ -409,9 +474,9 @@ The backbone is production-ready for the paths described above. The following it
 
 1. **Workflow action completeness** — Only `ai_draft` executes. Other actions are deferred and recorded in `workflow_executions.steps`.
 2. **`reply.approved.v1` consumer** — Event is published; no downstream handler for auto-post or workflow resume yet.
-3. **Separate worker deployment** — All consumers run inside `cmd/api`. Extract when load warrants it.
-4. **Cross-process consumer naming** — Multiple API replicas must use distinct `STREAMS_CONSUMER_NAME` values to avoid claim conflicts within the same group.
-5. **Metrics export** — Checkpoints and DLQ are queryable via API; Prometheus/Grafana integration is not wired.
+3. **Separate worker deployment** — Implemented via `cmd/worker` and `PROCESS_ROLE=worker`. API can disable workers with `STREAMS_WORKERS_IN_API=false`.
+4. **Cross-process consumer naming** — Multiple worker replicas must use distinct `STREAMS_CONSUMER_NAME` values to avoid claim conflicts within the same group.
+5. **Metrics export** — Prometheus metrics implemented; Grafana dashboard definitions are not yet checked in.
 
 Recommended next increments:
 

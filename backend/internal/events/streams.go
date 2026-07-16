@@ -29,3 +29,18 @@ func StreamForEventType(eventType string) string {
 		return StreamOpsAudit
 	}
 }
+
+type StreamGroup struct {
+	Stream string
+	Group  string
+}
+
+func ProductionStreamGroups() []StreamGroup {
+	return []StreamGroup{
+		{StreamMentionEvents, GroupMentionScorers},
+		{StreamMentionEvents, GroupMentionQualifiers},
+		{StreamMentionEvents, GroupMentionNotifiers},
+		{StreamReplyEvents, GroupReplyDrafters},
+		{StreamWorkflowEvents, GroupWorkflowExecutors},
+	}
+}

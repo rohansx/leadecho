@@ -99,6 +99,11 @@ INSERT INTO dead_letter_events (
     @stack_excerpt, @retry_count, @first_seen_at, @last_seen_at, @resolution_status
 ) RETURNING *;
 
+-- name: CountOpenDeadLetterEvents :one
+SELECT COUNT(*)::bigint AS count
+FROM dead_letter_events
+WHERE resolution_status = 'open';
+
 -- name: ListOpenDeadLetterEvents :many
 SELECT * FROM dead_letter_events
 WHERE resolution_status = 'open'

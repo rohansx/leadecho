@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"leadecho/internal/database"
+	"leadecho/internal/metrics"
 	streamredis "leadecho/internal/events/redis"
 )
 
@@ -74,11 +75,14 @@ func (c streamConfig) loop(ctx context.Context, stream, group string, handler me
 		lastID := ""
 		for _, msg := range msgs {
 			lastID = msg.ID
+			started := time.Now()
 			err := handler(ctx, stream, group, msg)
 			if err == nil {
+				metrics.ObserveProcessed(stream, group, "success", time.Since(started).Seconds())
 				_ = c.streams.Ack(ctx, stream, group, msg.ID)
 				continue
 			}
+			metrics.ObserveProcessed(stream, group, "error", time.Since(started).Seconds())
 			c.handleConsumeError(ctx, stream, group, msg, err)
 		}
 		_, _ = c.q.UpsertConsumerCheckpoint(ctx, database.UpsertConsumerCheckpointParams{

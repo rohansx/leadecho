@@ -8,6 +8,7 @@ import (
 
 	"leadecho/internal/database"
 	"leadecho/internal/events"
+	"leadecho/internal/metrics"
 	streamredis "leadecho/internal/events/redis"
 )
 
@@ -49,10 +50,13 @@ func (r *RetryManager) Start(ctx context.Context) error {
 					}
 					start = next
 					for _, msg := range msgs {
+						started := time.Now()
 						handleErr := handler(ctx, stream, group, msg)
 						if handleErr == nil {
+							metrics.ObserveProcessed(stream, group, "success", time.Since(started).Seconds())
 							_ = r.cfg.streams.Ack(ctx, stream, group, msg.ID)
 						} else {
+							metrics.ObserveProcessed(stream, group, "error", time.Since(started).Seconds())
 							r.cfg.handleConsumeError(ctx, stream, group, msg, handleErr)
 						}
 						_, _ = r.cfg.q.UpsertConsumerCheckpoint(ctx, database.UpsertConsumerCheckpointParams{
@@ -79,20 +83,9 @@ func errorString(err error) string {
 	return err.Error()
 }
 
-// AllStreamGroups returns every production consumer group for health/admin views.
-func AllStreamGroups() []struct{ Stream, Group string } {
-	return []struct{ Stream, Group string }{
-		{events.StreamMentionEvents, events.GroupMentionScorers},
-		{events.StreamMentionEvents, events.GroupMentionQualifiers},
-		{events.StreamMentionEvents, events.GroupMentionNotifiers},
-		{events.StreamReplyEvents, events.GroupReplyDrafters},
-		{events.StreamWorkflowEvents, events.GroupWorkflowExecutors},
-	}
-}
-
 // EnsureAllGroups creates consumer groups that may not exist yet.
 func EnsureAllGroups(ctx context.Context, streams *streamredis.Client) error {
-	for _, sg := range AllStreamGroups() {
+	for _, sg := range events.ProductionStreamGroups() {
 		if err := streams.EnsureGroup(ctx, sg.Stream, sg.Group); err != nil {
 			return err
 		}

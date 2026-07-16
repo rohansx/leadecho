@@ -25,6 +25,7 @@ type Querier interface {
 	CountMonitoringProfiles(ctx context.Context, workspaceID string) (int32, error)
 	CountNewMentions(ctx context.Context, workspaceID string) (int32, error)
 	CountNotifications(ctx context.Context, workspaceID string) (int32, error)
+	CountOpenDeadLetterEvents(ctx context.Context) (int64, error)
 	CountRepliesByStatus(ctx context.Context, workspaceID string) ([]CountRepliesByStatusRow, error)
 	CountRepliesPosted30d(ctx context.Context, workspaceID string) (int32, error)
 	CountTotalLeads(ctx context.Context, workspaceID string) (int32, error)

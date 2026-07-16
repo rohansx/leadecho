@@ -12,6 +12,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOpenDeadLetterEvents = `-- name: CountOpenDeadLetterEvents :one
+SELECT COUNT(*)::bigint AS count
+FROM dead_letter_events
+WHERE resolution_status = 'open'
+`
+
+func (q *Queries) CountOpenDeadLetterEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenDeadLetterEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createConsumerProcessedEvent = `-- name: CreateConsumerProcessedEvent :one
 INSERT INTO consumer_processed_events (
     consumer_group, consumer_name, event_id, stream_name, redis_message_id,

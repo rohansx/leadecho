@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/sethvargo/go-envconfig"
 )
@@ -99,6 +100,47 @@ type Config struct {
 	StreamsBlockMS                  int64  `env:"STREAMS_BLOCK_MS,default=5000"`
 	StreamsClaimIdleMS              int64  `env:"STREAMS_CLAIM_IDLE_MS,default=120000"`
 	StreamsMaxAttempts              int64  `env:"STREAMS_MAX_ATTEMPTS,default=8"`
+	StreamsWorkersInAPI             bool   `env:"STREAMS_WORKERS_IN_API,default=true"`
+
+	// Process role: api (HTTP + optional workers) or worker (monitor + stream consumers).
+	ProcessRole string `env:"PROCESS_ROLE,default=api"`
+
+	// Monitor runs in API by default; disabled automatically when PROCESS_ROLE=worker
+	// unless explicitly set via MONITOR_ENABLED.
+	MonitorEnabled bool `env:"MONITOR_ENABLED,default=true"`
+
+	MetricsEnabled            bool `env:"METRICS_ENABLED,default=false"`
+	MetricsPort               int  `env:"METRICS_PORT,default=9090"`
+	MetricsCollectIntervalSec int  `env:"METRICS_COLLECT_INTERVAL_SEC,default=30"`
+	WorkerHealthPort          int  `env:"WORKER_HEALTH_PORT,default=8091"`
+}
+
+func (c *Config) IsWorker() bool {
+	return c.ProcessRole == "worker"
+}
+
+func (c *Config) ShouldRunMonitor() bool {
+	if c.IsWorker() {
+		return true
+	}
+	return c.MonitorEnabled
+}
+
+func (c *Config) ShouldRunStreamWorkers() bool {
+	if !c.StreamsEnabled {
+		return false
+	}
+	if c.IsWorker() {
+		return true
+	}
+	return c.StreamsWorkersInAPI
+}
+
+func (c *Config) MetricsCollectInterval() time.Duration {
+	if c.MetricsCollectIntervalSec <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(c.MetricsCollectIntervalSec) * time.Second
 }
 
 // EncryptionKeyOrDefault returns the encryption key, falling back to JWT secret.
