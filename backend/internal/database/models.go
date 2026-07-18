@@ -415,6 +415,51 @@ func (ns NullWorkflowStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowStatus), nil
 }
 
+type ConsumerCheckpoint struct {
+	ID                 string      `json:"id"`
+	StreamName         string      `json:"stream_name"`
+	ConsumerGroup      string      `json:"consumer_group"`
+	ConsumerName       string      `json:"consumer_name"`
+	LastRedisMessageID pgtype.Text `json:"last_redis_message_id"`
+	PendingCount       int64       `json:"pending_count"`
+	LastError          pgtype.Text `json:"last_error"`
+	HeartbeatAt        time.Time   `json:"heartbeat_at"`
+	UpdatedAt          time.Time   `json:"updated_at"`
+}
+
+type ConsumerProcessedEvent struct {
+	ID             string      `json:"id"`
+	ConsumerGroup  string      `json:"consumer_group"`
+	ConsumerName   string      `json:"consumer_name"`
+	EventID        string      `json:"event_id"`
+	StreamName     string      `json:"stream_name"`
+	RedisMessageID string      `json:"redis_message_id"`
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	ProcessedAt    time.Time   `json:"processed_at"`
+	ResultStatus   string      `json:"result_status"`
+}
+
+type DeadLetterEvent struct {
+	ID               string             `json:"id"`
+	EventID          string             `json:"event_id"`
+	StreamName       string             `json:"stream_name"`
+	ConsumerGroup    string             `json:"consumer_group"`
+	ConsumerName     string             `json:"consumer_name"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	RedisMessageID   pgtype.Text        `json:"redis_message_id"`
+	Payload          []byte             `json:"payload"`
+	ErrorCode        pgtype.Text        `json:"error_code"`
+	ErrorClass       string             `json:"error_class"`
+	ErrorMessage     string             `json:"error_message"`
+	StackExcerpt     pgtype.Text        `json:"stack_excerpt"`
+	RetryCount       int32              `json:"retry_count"`
+	FirstSeenAt      time.Time          `json:"first_seen_at"`
+	LastSeenAt       time.Time          `json:"last_seen_at"`
+	ResolvedAt       pgtype.Timestamptz `json:"resolved_at"`
+	ResolutionStatus string             `json:"resolution_status"`
+	CreatedAt        time.Time          `json:"created_at"`
+}
+
 type Document struct {
 	ID            string      `json:"id"`
 	WorkspaceID   string      `json:"workspace_id"`
@@ -441,6 +486,50 @@ type DocumentChunk struct {
 	Metadata     []byte              `json:"metadata"`
 	TokenCount   pgtype.Int4         `json:"token_count"`
 	CreatedAt    time.Time           `json:"created_at"`
+}
+
+type EventLog struct {
+	ID              string      `json:"id"`
+	EventID         string      `json:"event_id"`
+	StreamName      string      `json:"stream_name"`
+	EventType       string      `json:"event_type"`
+	SchemaVersion   int32       `json:"schema_version"`
+	WorkspaceID     pgtype.UUID `json:"workspace_id"`
+	AggregateType   string      `json:"aggregate_type"`
+	AggregateID     string      `json:"aggregate_id"`
+	Producer        string      `json:"producer"`
+	Payload         []byte      `json:"payload"`
+	IdempotencyKey  string      `json:"idempotency_key"`
+	CorrelationID   pgtype.Text `json:"correlation_id"`
+	CausationID     pgtype.Text `json:"causation_id"`
+	TraceID         pgtype.Text `json:"trace_id"`
+	OccurredAt      time.Time   `json:"occurred_at"`
+	RedisMessageID  pgtype.Text `json:"redis_message_id"`
+	PublishStatus   string      `json:"publish_status"`
+	PublishAttempts int32       `json:"publish_attempts"`
+	LastError       pgtype.Text `json:"last_error"`
+	ReplayOfEventID pgtype.UUID `json:"replay_of_event_id"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
+type EventReplay struct {
+	ID             string             `json:"id"`
+	RequestedBy    pgtype.UUID        `json:"requested_by"`
+	StreamName     string             `json:"stream_name"`
+	ConsumerGroup  pgtype.Text        `json:"consumer_group"`
+	EventType      pgtype.Text        `json:"event_type"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	AggregateType  pgtype.Text        `json:"aggregate_type"`
+	AggregateID    pgtype.Text        `json:"aggregate_id"`
+	FromOccurredAt pgtype.Timestamptz `json:"from_occurred_at"`
+	ToOccurredAt   pgtype.Timestamptz `json:"to_occurred_at"`
+	ReplayMode     string             `json:"replay_mode"`
+	Status         string             `json:"status"`
+	ReplayedCount  int32              `json:"replayed_count"`
+	LastError      pgtype.Text        `json:"last_error"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
 type ExtensionToken struct {
@@ -493,6 +582,24 @@ type LeadEvent struct {
 	ChangedBy     pgtype.UUID   `json:"changed_by"`
 	Notes         pgtype.Text   `json:"notes"`
 	CreatedAt     time.Time     `json:"created_at"`
+}
+
+type LlmUsageEvent struct {
+	ID               string         `json:"id"`
+	WorkspaceID      string         `json:"workspace_id"`
+	Task             string         `json:"task"`
+	Provider         string         `json:"provider"`
+	Model            string         `json:"model"`
+	Status           string         `json:"status"`
+	PromptTokens     int32          `json:"prompt_tokens"`
+	CompletionTokens int32          `json:"completion_tokens"`
+	TotalTokens      int32          `json:"total_tokens"`
+	EstimatedCostUsd pgtype.Numeric `json:"estimated_cost_usd"`
+	LatencyMs        int32          `json:"latency_ms"`
+	ErrorMessage     pgtype.Text    `json:"error_message"`
+	FallbackFrom     pgtype.Text    `json:"fallback_from"`
+	KeySource        string         `json:"key_source"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 type Mention struct {

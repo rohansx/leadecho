@@ -2,12 +2,14 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/ai"
 	"leadecho/internal/database"
+	"leadecho/internal/events"
 	"leadecho/internal/llm"
 )
 
@@ -148,8 +150,10 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
 		})
 
-		// Stage 4: Lead qualification
-		if result.RelevanceScore >= 7.0 {
+		m.publishMentionScored(ctx, c.alert, result)
+
+		// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
+		if !m.qualifierAsync && result.RelevanceScore >= 7.0 {
 			intent := database.IntentType(result.Intent)
 			if intent == database.IntentTypeBuySignal ||
 				intent == database.IntentTypeRecommendationAsk ||
@@ -166,6 +170,105 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		Msg("scorer: batch scoring complete")
 }
 
+func (m *Monitor) publishMentionScored(ctx context.Context, alert mentionAlert, result *ai.ClassifyResult) {
+	if !m.streamsEnabled || m.eventPublisher == nil {
+		return
+	}
+
+	env, err := events.NewEnvelope(
+		events.EventTypeMentionScored,
+		events.AggregateTypeMention,
+		alert.ID,
+		"scorer",
+		alert.WorkspaceID,
+		fmt.Sprintf("%s:%s", events.EventTypeMentionScored, alert.ID),
+		events.MentionScoredPayload{
+			MentionID:             alert.ID,
+			WorkspaceID:           alert.WorkspaceID,
+			Platform:              alert.Platform,
+			Title:                 alert.Title,
+			URL:                   alert.URL,
+			Author:                alert.Author,
+			Content:               alert.Content,
+			Intent:                result.Intent,
+			AwarenessLevel:        result.AwarenessLevel,
+			RelevanceScore:        float32(result.RelevanceScore),
+			ConversionProbability: float32(result.ConversionProbability),
+			ScoringStage:          "stage3_classified",
+		},
+	)
+	if err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: build mention.scored")
+		return
+	}
+	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.scored")
+	}
+
+	notifyEnv, err := events.NewEnvelope(
+		events.EventTypeMentionNotificationRequest,
+		events.AggregateTypeMention,
+		alert.ID,
+		"scorer",
+		alert.WorkspaceID,
+		fmt.Sprintf("%s:%s", events.EventTypeMentionNotificationRequest, alert.ID),
+		events.MentionNotificationRequestedPayload{
+			MentionID:   alert.ID,
+			WorkspaceID: alert.WorkspaceID,
+			Platform:    alert.Platform,
+			Keyword:     alert.Keyword,
+			Title:       alert.Title,
+			URL:         alert.URL,
+			Author:      alert.Author,
+			Score:       float32(result.RelevanceScore),
+		},
+	)
+	if err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: build notification request")
+		return
+	}
+	if _, err := m.eventPublisher.Publish(ctx, notifyEnv); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish notification request")
+	}
+
+	m.publishWorkflowTrigger(ctx, alert, result)
+}
+
+func (m *Monitor) publishWorkflowTrigger(ctx context.Context, alert mentionAlert, result *ai.ClassifyResult) {
+	if !m.streamsEnabled || m.eventPublisher == nil {
+		return
+	}
+
+	env, err := events.NewEnvelope(
+		events.EventTypeWorkflowTriggerRequested,
+		events.AggregateTypeWorkflow,
+		alert.ID,
+		"scorer",
+		alert.WorkspaceID,
+		fmt.Sprintf("%s:%s", events.EventTypeWorkflowTriggerRequested, alert.ID),
+		events.WorkflowTriggerRequestedPayload{
+			MentionID:             alert.ID,
+			WorkspaceID:           alert.WorkspaceID,
+			Platform:              alert.Platform,
+			Title:                 alert.Title,
+			URL:                   alert.URL,
+			Author:                alert.Author,
+			Content:               alert.Content,
+			Intent:                result.Intent,
+			AwarenessLevel:        result.AwarenessLevel,
+			RelevanceScore:        float32(result.RelevanceScore),
+			ConversionProbability: float32(result.ConversionProbability),
+		},
+	)
+	if err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: build workflow trigger")
+		return
+	}
+	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish workflow trigger")
+	}
+}
+
 // SignalAlert is the public-facing type for extension-sourced mentions entering the pipeline.
 type SignalAlert struct {
 	ID       string
@@ -176,23 +279,10 @@ type SignalAlert struct {
 	Content  string
 }
 
-// IngestSignals runs the 4-stage scoring + notification pipeline on pre-inserted mentions
-// from the Chrome extension. Alerts must already be persisted to the DB with valid IDs.
+// IngestSignals runs the extension mention pipeline on pre-inserted mentions.
+// When streams are enabled it dual-writes/publishes mention.ingested events.
 func (m *Monitor) IngestSignals(ctx context.Context, wsID string, alerts []SignalAlert) {
-	ma := make([]mentionAlert, len(alerts))
-	for i, a := range alerts {
-		ma[i] = mentionAlert{
-			ID:          a.ID,
-			WorkspaceID: wsID,
-			Platform:    a.Platform,
-			Title:       a.Title,
-			URL:         a.URL,
-			Author:      a.Author,
-			Content:     a.Content,
-		}
-	}
-	m.batchScoreMentions(ctx, wsID, ma)
-	m.notifyNewMentions(ctx, wsID, ma)
+	m.ProcessIngestedSignals(ctx, wsID, alerts)
 }
 
 // scoreStage1Rules is a cheap rules-based filter. Returns true if the mention should proceed.
@@ -240,4 +330,29 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 		return
 	}
 	m.logger.Info().Str("mention_id", alert.ID).Float64("relevance", result.RelevanceScore).Str("intent", result.Intent).Msg("scorer: auto-qualified lead")
+
+	if !m.streamsEnabled || m.eventPublisher == nil {
+		return
+	}
+	env, err := events.NewEnvelope(
+		events.EventTypeMentionQualified,
+		events.AggregateTypeMention,
+		alert.ID,
+		"lead_qualifier",
+		alert.WorkspaceID,
+		fmt.Sprintf("%s:%s", events.EventTypeMentionQualified, alert.ID),
+		events.MentionQualifiedPayload{
+			MentionID:   alert.ID,
+			WorkspaceID: alert.WorkspaceID,
+			Intent:      result.Intent,
+			Score:       float32(result.RelevanceScore),
+		},
+	)
+	if err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: build mention.qualified")
+		return
+	}
+	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.qualified")
+	}
 }

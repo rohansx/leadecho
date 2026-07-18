@@ -33,6 +33,9 @@ services:
     ports:
       - "127.0.0.1:8090:8090"
     env_file: .env
+    environment:
+      MONITOR_ENABLED: "false"
+      STREAMS_WORKERS_IN_API: "false"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -40,6 +43,32 @@ services:
     networks:
       - default
       - dokploy-network
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    entrypoint: ["/leadecho-worker"]
+    ports:
+      - "127.0.0.1:8091:8091"
+    env_file: .env
+    environment:
+      PROCESS_ROLE: worker
+      METRICS_ENABLED: "true"
+      STREAMS_ENABLED: "true"
+      STREAMS_SCORER_CONSUMER_ENABLED: "true"
+      STREAMS_NOTIFIER_CONSUMER_ENABLED: "true"
+      STREAMS_QUALIFIER_CONSUMER_ENABLED: "true"
+      STREAMS_REPLY_DRAFTER_CONSUMER_ENABLED: "true"
+      STREAMS_WORKFLOW_CONSUMER_ENABLED: "true"
+      STREAMS_RETRY_CONSUMER_ENABLED: "true"
+      STREAMS_CONSUMER_NAME: worker-main
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - default
 
   dashboard:
     build:

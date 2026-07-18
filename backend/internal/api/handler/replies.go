@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -10,14 +12,18 @@ import (
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/database"
+	"leadecho/internal/events"
+	"leadecho/internal/events/publishers"
 )
 
 type ReplyHandler struct {
-	q *database.Queries
+	q         *database.Queries
+	publisher *publishers.Publisher
+	streamsOn bool
 }
 
-func NewReplyHandler(q *database.Queries) *ReplyHandler {
-	return &ReplyHandler{q: q}
+func NewReplyHandler(q *database.Queries, publisher *publishers.Publisher, streamsOn bool) *ReplyHandler {
+	return &ReplyHandler{q: q, publisher: publisher, streamsOn: streamsOn}
 }
 
 type ReplyResponse struct {
@@ -140,5 +146,25 @@ func (h *ReplyHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update reply status")
 		return
 	}
+
+	if h.streamsOn && h.publisher != nil && rp.Status == database.ReplyStatusApproved {
+		env, err := events.NewEnvelope(
+			events.EventTypeReplyApproved,
+			events.AggregateTypeReply,
+			rp.ID,
+			"api",
+			wsID,
+			fmt.Sprintf("%s:%s", events.EventTypeReplyApproved, rp.ID),
+			events.ReplyApprovedPayload{
+				ReplyID:     rp.ID,
+				MentionID:   rp.MentionID,
+				WorkspaceID: wsID,
+			},
+		)
+		if err == nil {
+			_, _ = h.publisher.Publish(context.Background(), env)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, replyToResponse(rp))
 }
