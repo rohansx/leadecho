@@ -15,7 +15,10 @@ import {
   listUTMLinks,
   createUTMLink,
   deleteUTMLink,
+  scoringPrecision,
+  replyAttribution,
 } from "@/lib/api";
+import { QUERY_KEYS } from "@/lib/constants";
 import {
   TrendingUp,
   MessageSquare,
@@ -27,6 +30,8 @@ import {
   Copy,
   Trash2,
   Plus,
+  ShieldCheck,
+  MousePointerClick,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_dashboard/analytics")({
@@ -79,6 +84,14 @@ function AnalyticsPage() {
   const { data: keywords } = useQuery({
     queryKey: ["analytics-keywords"],
     queryFn: topKeywords,
+  });
+  const { data: precision } = useQuery({
+    queryKey: [QUERY_KEYS.scoringPrecision],
+    queryFn: scoringPrecision,
+  });
+  const { data: attribution } = useQuery({
+    queryKey: [QUERY_KEYS.replyAttribution],
+    queryFn: replyAttribution,
   });
   const { data: utmLinks = [] } = useQuery({
     queryKey: ["utm-links"],
@@ -136,6 +149,69 @@ function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Scoring Precision */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" /> Scoring precision (30d)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!(precision ?? []).length && (
+              <Text as="p" className="text-sm text-muted-foreground">
+                Mark spam / not-a-lead in Inbox to calibrate this chart.
+              </Text>
+            )}
+            {(precision ?? []).map((band) => (
+              <div key={band.score_band} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="capitalize">{band.score_band.replace(/_/g, " ")}</span>
+                  <span className="text-muted-foreground">
+                    {band.spam_count + band.archived_count}/{band.total} rejected ·{" "}
+                    {Math.round(band.reject_rate * 100)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden border border-border">
+                  <div
+                    className="h-full bg-amber-500 rounded-full"
+                    style={{ width: `${Math.min(band.reject_rate * 100, 100)}%` }}
+                  />
+                </div>
+                <Text as="p" className="text-[11px] text-muted-foreground">
+                  replied {band.replied_count} · spam {band.spam_count} · archived {band.archived_count}
+                </Text>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Reply Attribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MousePointerClick className="h-4 w-4" /> Reply → conversion (30d)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Approved", value: attribution?.replies_approved ?? 0 },
+                { label: "Posted", value: attribution?.replies_posted ?? 0 },
+                { label: "UTM clicks", value: attribution?.utm_clicks ?? 0 },
+                { label: "Signups", value: attribution?.utm_signups ?? 0 },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-border p-3 text-center">
+                  <Text as="p" className="text-xl font-[family-name:var(--font-head)]">{item.value}</Text>
+                  <Text as="p" className="text-xs text-muted-foreground">{item.label}</Text>
+                </div>
+              ))}
+            </div>
+            <Text as="p" className="text-[11px] text-muted-foreground mt-3">
+              Approve replies with a destination URL to bind tracked short links.
+            </Text>
+          </CardContent>
+        </Card>
+
         {/* Platform Breakdown */}
         <Card>
           <CardHeader><CardTitle>Mentions by Platform</CardTitle></CardHeader>

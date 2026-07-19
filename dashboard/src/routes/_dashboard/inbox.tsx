@@ -60,6 +60,25 @@ function InboxPage() {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionTierCounts] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
+    },
+  });
+
+  const feedbackMutation = useMutation({
+    mutationFn: ({
+      mentionId,
+      status,
+      reason,
+    }: {
+      mentionId: string;
+      status: "spam" | "archived";
+      reason?: string;
+    }) => updateMentionStatus(mentionId, status, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionTierCounts] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
     },
   });
 
@@ -72,11 +91,22 @@ function InboxPage() {
   const goNext = () =>
     selectedIndex >= 0 && selectedIndex < mentions.length - 1 && selectMention(mentions[selectedIndex + 1].id);
 
-  const handleArchive = () => {
+  const advanceSelection = () => {
     if (!selected) return;
     const nextId = mentions[selectedIndex + 1]?.id ?? mentions[selectedIndex - 1]?.id;
-    archiveMutation.mutate(selected.id);
     setSearch({ id: nextId });
+  };
+
+  const handleArchive = () => {
+    if (!selected) return;
+    advanceSelection();
+    archiveMutation.mutate(selected.id);
+  };
+
+  const handleFeedback = (status: "spam" | "archived", reason?: string) => {
+    if (!selected) return;
+    advanceSelection();
+    feedbackMutation.mutate({ mentionId: selected.id, status, reason });
   };
 
   return (
@@ -106,6 +136,8 @@ function InboxPage() {
         hasNext={selectedIndex >= 0 && selectedIndex < mentions.length - 1}
         onArchive={handleArchive}
         archiving={archiveMutation.isPending}
+        onFeedback={handleFeedback}
+        feedbackPending={feedbackMutation.isPending}
       />
     </div>
   );

@@ -48,3 +48,12 @@ func WorkspaceID(ctx context.Context) string {
 	}
 	return "00000000-0000-0000-0000-000000000001"
 }
+
+// UserID extracts the authenticated user ID from context, or empty if absent.
+func UserID(ctx context.Context) string {
+	claims := ClaimsFromContext(ctx)
+	if claims != nil {
+		return claims.UserID
+	}
+	return ""
+}

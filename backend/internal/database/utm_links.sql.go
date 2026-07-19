@@ -11,6 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createUTMEvent = `-- name: CreateUTMEvent :one
+INSERT INTO utm_events (
+    utm_link_id, event_type, referrer, user_agent, ip_hash, revenue_cents, metadata
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING id, utm_link_id, event_type, referrer, user_agent, ip_hash, revenue_cents, metadata, created_at
+`
+
+type CreateUTMEventParams struct {
+	UtmLinkID    string      `json:"utm_link_id"`
+	EventType    string      `json:"event_type"`
+	Referrer     pgtype.Text `json:"referrer"`
+	UserAgent    pgtype.Text `json:"user_agent"`
+	IpHash       pgtype.Text `json:"ip_hash"`
+	RevenueCents pgtype.Int4 `json:"revenue_cents"`
+	Metadata     []byte      `json:"metadata"`
+}
+
+func (q *Queries) CreateUTMEvent(ctx context.Context, arg CreateUTMEventParams) (UtmEvent, error) {
+	row := q.db.QueryRow(ctx, createUTMEvent,
+		arg.UtmLinkID,
+		arg.EventType,
+		arg.Referrer,
+		arg.UserAgent,
+		arg.IpHash,
+		arg.RevenueCents,
+		arg.Metadata,
+	)
+	var i UtmEvent
+	err := row.Scan(
+		&i.ID,
+		&i.UtmLinkID,
+		&i.EventType,
+		&i.Referrer,
+		&i.UserAgent,
+		&i.IpHash,
+		&i.RevenueCents,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUTMLink = `-- name: CreateUTMLink :one
 INSERT INTO utm_links (workspace_id, code, destination_url, utm_source, utm_medium, utm_campaign, utm_content)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -93,6 +136,35 @@ func (q *Queries) GetUTMLinkByCode(ctx context.Context, code string) (UtmLink, e
 	return i, err
 }
 
+const getUTMLinkByID = `-- name: GetUTMLinkByID :one
+SELECT id, workspace_id, code, destination_url, utm_source, utm_medium, utm_campaign, utm_content, click_count, signup_count, revenue_cents, created_at FROM utm_links WHERE id = $1 AND workspace_id = $2
+`
+
+type GetUTMLinkByIDParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error) {
+	row := q.db.QueryRow(ctx, getUTMLinkByID, arg.ID, arg.WorkspaceID)
+	var i UtmLink
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Code,
+		&i.DestinationUrl,
+		&i.UtmSource,
+		&i.UtmMedium,
+		&i.UtmCampaign,
+		&i.UtmContent,
+		&i.ClickCount,
+		&i.SignupCount,
+		&i.RevenueCents,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const incrementUTMClicks = `-- name: IncrementUTMClicks :exec
 UPDATE utm_links SET click_count = click_count + 1 WHERE code = $1
 `
@@ -137,4 +209,37 @@ func (q *Queries) ListUTMLinksByWorkspace(ctx context.Context, workspaceID strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordUTMConversion = `-- name: RecordUTMConversion :one
+UPDATE utm_links
+SET signup_count = signup_count + 1,
+    revenue_cents = revenue_cents + $1
+WHERE code = $2
+RETURNING id, workspace_id, code, destination_url, utm_source, utm_medium, utm_campaign, utm_content, click_count, signup_count, revenue_cents, created_at
+`
+
+type RecordUTMConversionParams struct {
+	RevenueCents int32  `json:"revenue_cents"`
+	Code         string `json:"code"`
+}
+
+func (q *Queries) RecordUTMConversion(ctx context.Context, arg RecordUTMConversionParams) (UtmLink, error) {
+	row := q.db.QueryRow(ctx, recordUTMConversion, arg.RevenueCents, arg.Code)
+	var i UtmLink
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Code,
+		&i.DestinationUrl,
+		&i.UtmSource,
+		&i.UtmMedium,
+		&i.UtmCampaign,
+		&i.UtmContent,
+		&i.ClickCount,
+		&i.SignupCount,
+		&i.RevenueCents,
+		&i.CreatedAt,
+	)
+	return i, err
 }

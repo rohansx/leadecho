@@ -122,7 +122,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/keywords/{id}", keywords.Delete)
 
 			// Replies
-			replies := handler.NewReplyHandler(queries, eventPublisher, cfg.StreamsEnabled)
+			replies := handler.NewReplyHandler(queries, eventPublisher, cfg.StreamsEnabled, cfg.FrontendURL)
 			r.Get("/mentions/{mentionId}/replies", replies.ListByMention)
 			r.Post("/replies", replies.Create)
 			r.Patch("/replies/{id}/content", replies.UpdateContent)
@@ -144,6 +144,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/analytics/mentions-per-intent", analytics.MentionsPerIntent)
 			r.Get("/analytics/conversion-funnel", analytics.ConversionFunnel)
 			r.Get("/analytics/top-keywords", analytics.TopKeywords)
+			r.Get("/analytics/scoring-precision", analytics.ScoringPrecision)
+			r.Get("/analytics/reply-attribution", analytics.ReplyAttribution)
 
 			// Notifications (Slack/Discord webhooks)
 			notifs := handler.NewNotificationHandler(queries, cfg.ResendAPIKey)
@@ -196,6 +198,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/utm-links", utm.List)
 			r.Post("/utm-links", utm.Create)
 			r.Delete("/utm-links/{id}", utm.Delete)
+			r.Post("/utm-links/{code}/conversion", utm.RecordConversion)
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

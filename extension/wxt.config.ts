@@ -2,6 +2,15 @@ import { defineConfig } from "wxt";
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
+  hooks: {
+    "build:manifestGenerated": (_wxt, manifest) => {
+      // Entrypoint popup/ still builds, but must not claim the toolbar click —
+      // otherwise Chrome never opens the side panel on icon click.
+      if (manifest.action) {
+        delete manifest.action.default_popup;
+      }
+    },
+  },
   manifest: {
     name: "LeadEcho",
     description: "Passively capture intent signals while you browse.",
@@ -17,12 +26,12 @@ export default defineConfig({
     host_permissions: [
       "https://www.linkedin.com/*",
       "https://www.reddit.com/*",
+      "https://reddit.com/*",
       "https://x.com/*",
       "https://twitter.com/*",
       "https://news.ycombinator.com/*",
     ],
     action: {
-      default_popup: "popup/index.html",
       default_title: "LeadEcho",
     },
     side_panel: {

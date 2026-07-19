@@ -127,10 +127,95 @@ func (h *UTMHandler) RedirectUTM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = h.q.IncrementUTMClicks(r.Context(), code)
+	_, _ = h.q.CreateUTMEvent(r.Context(), database.CreateUTMEventParams{
+		UtmLinkID:    link.ID,
+		EventType:    "click",
+		Referrer:     pgtype.Text{String: r.Referer(), Valid: r.Referer() != ""},
+		UserAgent:    pgtype.Text{String: r.UserAgent(), Valid: r.UserAgent() != ""},
+		IpHash:       pgtype.Text{},
+		RevenueCents: pgtype.Int4{Int32: 0, Valid: true},
+		Metadata:     []byte(`{}`),
+	})
 
 	// Build destination with UTM params appended
 	dest := buildUTMDestination(link)
 	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+// RecordConversion records a signup/purchase against a short link and advances
+// any linked lead to converted when possible.
+// POST /api/v1/utm-links/{code}/conversion
+func (h *UTMHandler) RecordConversion(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+	wsID := middleware.WorkspaceID(r.Context())
+
+	var body struct {
+		EventType    string `json:"event_type"` // signup | purchase
+		RevenueCents int32  `json:"revenue_cents"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.EventType == "" {
+		body.EventType = "signup"
+	}
+	if body.EventType != "signup" && body.EventType != "purchase" {
+		writeError(w, http.StatusBadRequest, "event_type must be signup or purchase")
+		return
+	}
+
+	link, err := h.q.GetUTMLinkByCode(r.Context(), code)
+	if err != nil || link.WorkspaceID != wsID {
+		writeError(w, http.StatusNotFound, "utm link not found")
+		return
+	}
+
+	updated, err := h.q.RecordUTMConversion(r.Context(), database.RecordUTMConversionParams{
+		Code:         code,
+		RevenueCents: body.RevenueCents,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to record conversion")
+		return
+	}
+	_, _ = h.q.CreateUTMEvent(r.Context(), database.CreateUTMEventParams{
+		UtmLinkID:    link.ID,
+		EventType:    body.EventType,
+		Referrer:     pgtype.Text{},
+		UserAgent:    pgtype.Text{},
+		IpHash:       pgtype.Text{},
+		RevenueCents: pgtype.Int4{Int32: body.RevenueCents, Valid: true},
+		Metadata:     []byte(`{}`),
+	})
+
+	// Best-effort: if utm_content is a reply id, advance its mention's lead.
+	if link.UtmContent.Valid {
+		if reply, err := h.q.GetReply(r.Context(), database.GetReplyParams{
+			ID:          link.UtmContent.String,
+			WorkspaceID: wsID,
+		}); err == nil {
+			if lead, err := h.q.GetLeadByMention(r.Context(), database.GetLeadByMentionParams{
+				MentionID:   parseUUID(reply.MentionID),
+				WorkspaceID: wsID,
+			}); err == nil && lead.Stage != database.LeadStageConverted && lead.Stage != database.LeadStageLost {
+				prev := lead.Stage
+				updatedLead, err := h.q.UpdateLeadStage(r.Context(), database.UpdateLeadStageParams{
+					Stage:       database.LeadStageConverted,
+					ID:          lead.ID,
+					WorkspaceID: wsID,
+				})
+				if err == nil {
+					_, _ = h.q.CreateLeadEvent(r.Context(), database.CreateLeadEventParams{
+						LeadID:        updatedLead.ID,
+						PreviousStage: database.NullLeadStage{LeadStage: prev, Valid: true},
+						NewStage:      database.LeadStageConverted,
+						ChangedBy:     parseUUID(middleware.UserID(r.Context())),
+						Notes:         pgtype.Text{String: "utm_" + body.EventType, Valid: true},
+					})
+				}
+			}
+		}
+	}
+
+	writeJSON(w, http.StatusOK, updated)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

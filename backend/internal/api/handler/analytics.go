@@ -155,3 +155,58 @@ func (h *AnalyticsHandler) TopKeywords(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+// ScoringPrecision returns rejection/spam rates by score band for the last 30 days.
+func (h *AnalyticsHandler) ScoringPrecision(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	wsID := middleware.WorkspaceID(ctx)
+
+	rows, err := h.q.ScoringPrecisionByBand(ctx, wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load scoring precision")
+		return
+	}
+	type item struct {
+		ScoreBand     string  `json:"score_band"`
+		Total         int32   `json:"total"`
+		SpamCount     int32   `json:"spam_count"`
+		ArchivedCount int32   `json:"archived_count"`
+		RepliedCount  int32   `json:"replied_count"`
+		RejectRate    float64 `json:"reject_rate"`
+	}
+	resp := make([]item, 0, len(rows))
+	for _, row := range rows {
+		reject := row.SpamCount + row.ArchivedCount
+		rate := 0.0
+		if row.Total > 0 {
+			rate = float64(reject) / float64(row.Total)
+		}
+		resp = append(resp, item{
+			ScoreBand:     row.ScoreBand,
+			Total:         row.Total,
+			SpamCount:     row.SpamCount,
+			ArchivedCount: row.ArchivedCount,
+			RepliedCount:  row.RepliedCount,
+			RejectRate:    rate,
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ReplyAttribution returns reply → click → signup funnel for the last 30 days.
+func (h *AnalyticsHandler) ReplyAttribution(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	wsID := middleware.WorkspaceID(ctx)
+
+	row, err := h.q.ReplyAttributionFunnel(ctx, wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load reply attribution")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int32{
+		"replies_approved": row.RepliesApproved,
+		"replies_posted":   row.RepliesPosted,
+		"utm_clicks":       row.UtmClicks,
+		"utm_signups":      row.UtmSignups,
+	})
+}

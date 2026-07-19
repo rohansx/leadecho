@@ -11,6 +11,57 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const approveReply = `-- name: ApproveReply :one
+UPDATE replies
+SET status = 'approved',
+    approved_at = NOW(),
+    approved_by = $1,
+    utm_link_id = $2,
+    edited_content = $3
+WHERE id = $4 AND workspace_id = $5
+RETURNING id, mention_id, workspace_id, content, edited_content, status, platform_post_id, posted_by, approved_by, utm_link_id, safe_link_score, safe_link_flags, posted_at, approved_at, created_at, updated_at, template_style, thread_context_used
+`
+
+type ApproveReplyParams struct {
+	ApprovedBy    pgtype.UUID `json:"approved_by"`
+	UtmLinkID     pgtype.UUID `json:"utm_link_id"`
+	EditedContent pgtype.Text `json:"edited_content"`
+	ID            string      `json:"id"`
+	WorkspaceID   string      `json:"workspace_id"`
+}
+
+func (q *Queries) ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error) {
+	row := q.db.QueryRow(ctx, approveReply,
+		arg.ApprovedBy,
+		arg.UtmLinkID,
+		arg.EditedContent,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i Reply
+	err := row.Scan(
+		&i.ID,
+		&i.MentionID,
+		&i.WorkspaceID,
+		&i.Content,
+		&i.EditedContent,
+		&i.Status,
+		&i.PlatformPostID,
+		&i.PostedBy,
+		&i.ApprovedBy,
+		&i.UtmLinkID,
+		&i.SafeLinkScore,
+		&i.SafeLinkFlags,
+		&i.PostedAt,
+		&i.ApprovedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TemplateStyle,
+		&i.ThreadContextUsed,
+	)
+	return i, err
+}
+
 const countRepliesByStatus = `-- name: CountRepliesByStatus :many
 SELECT status, COUNT(*)::int as count
 FROM replies

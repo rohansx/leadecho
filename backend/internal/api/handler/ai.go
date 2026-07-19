@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -57,13 +59,31 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update mention with classification
-	updated, err := h.q.UpdateMentionIntent(ctx, database.UpdateMentionIntentParams{
+	meta := map[string]any{
+		"source":     "manual_classify",
+		"reasoning":  result.Reasoning,
+		"classified_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if len(mention.ScoringMetadata) > 0 {
+		existing := map[string]any{}
+		if json.Unmarshal(mention.ScoringMetadata, &existing) == nil {
+			for k, v := range existing {
+				if _, ok := meta[k]; !ok {
+					meta[k] = v
+				}
+			}
+		}
+	}
+	metaBytes, _ := json.Marshal(meta)
+
+	updated, err := h.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 		ID:                    id,
 		WorkspaceID:           wsID,
 		Intent:                database.NullIntentType{IntentType: database.IntentType(result.Intent), Valid: true},
 		ConversionProbability: pgtype.Float4{Float32: float32(result.ConversionProbability), Valid: true},
 		RelevanceScore:        pgtype.Float4{Float32: float32(result.RelevanceScore), Valid: true},
+		ScoringMetadata:       metaBytes,
+		AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save classification")
@@ -129,7 +149,7 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"reply":               replyToResponse(result.Reply),
+		"reply":               basicReplyResponse(result.Reply),
 		"tone":                result.Tone,
 		"template_style":      result.TemplateStyle,
 		"should_reply":        true,

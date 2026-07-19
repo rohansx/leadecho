@@ -182,6 +182,42 @@ func (q *Queries) GetLead(ctx context.Context, arg GetLeadParams) (Lead, error) 
 	return i, err
 }
 
+const getLeadByMention = `-- name: GetLeadByMention :one
+SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at FROM leads
+WHERE mention_id = $1 AND workspace_id = $2
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLeadByMentionParams struct {
+	MentionID   pgtype.UUID `json:"mention_id"`
+	WorkspaceID string      `json:"workspace_id"`
+}
+
+func (q *Queries) GetLeadByMention(ctx context.Context, arg GetLeadByMentionParams) (Lead, error) {
+	row := q.db.QueryRow(ctx, getLeadByMention, arg.MentionID, arg.WorkspaceID)
+	var i Lead
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.MentionID,
+		&i.Stage,
+		&i.ContactName,
+		&i.ContactEmail,
+		&i.Company,
+		&i.Username,
+		&i.Platform,
+		&i.ProfileUrl,
+		&i.EstimatedValue,
+		&i.Notes,
+		&i.Tags,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listLeadEvents = `-- name: ListLeadEvents :many
 SELECT id, lead_id, previous_stage, new_stage, changed_by, notes, created_at FROM lead_events
 WHERE lead_id = $1

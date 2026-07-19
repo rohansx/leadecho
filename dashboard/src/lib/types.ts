@@ -74,7 +74,10 @@ export interface Reply {
   edited_content: string | null;
   status: ReplyStatus;
   template_style: TemplateStyle | null;
-  thread_context_used: boolean;
+  thread_context_used?: boolean;
+  utm_link_id?: string | null;
+  utm_code?: string | null;
+  short_url?: string | null;
   created_at: string;
   updated_at: string;
 }

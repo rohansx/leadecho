@@ -238,6 +238,7 @@ func (h *MentionHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Status string `json:"status"`
+		Reason string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -246,6 +247,55 @@ func (h *MentionHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	if !validMentionStatuses[body.Status] {
 		writeError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+	if len(body.Reason) > 500 {
+		writeError(w, http.StatusBadRequest, "reason must be <= 500 characters")
+		return
+	}
+
+	// Feedback labels (spam / archived / reviewed) persist structured metadata for
+	// precision analytics. Other status flips stay lightweight.
+	needsFeedback := body.Status == "spam" || body.Status == "archived" || body.Reason != ""
+	if needsFeedback {
+		existing, err := h.q.GetMention(ctx, database.GetMentionParams{ID: id, WorkspaceID: workspaceID})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "mention not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to load mention")
+			return
+		}
+		var prevScore *float32
+		if existing.RelevanceScore.Valid {
+			v := existing.RelevanceScore.Float32
+			prevScore = &v
+		}
+		prevIntent := ""
+		if existing.Intent.Valid {
+			prevIntent = string(existing.Intent.IntentType)
+		}
+		meta, err := mergeScoringFeedback(existing.ScoringMetadata, body.Status, body.Reason, middleware.UserID(ctx), prevScore, prevIntent)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to record feedback")
+			return
+		}
+		m, err := h.q.UpdateMentionStatusWithMetadata(ctx, database.UpdateMentionStatusWithMetadataParams{
+			Status:          database.MentionStatus(body.Status),
+			ScoringMetadata: meta,
+			ID:              id,
+			WorkspaceID:     workspaceID,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "mention not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to update mention")
+			return
+		}
+		writeJSON(w, http.StatusOK, mentionToResponse(m))
 		return
 	}
 

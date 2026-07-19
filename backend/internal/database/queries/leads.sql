@@ -14,6 +14,12 @@ LIMIT @lim OFFSET @off;
 SELECT * FROM leads
 WHERE id = @id AND workspace_id = @workspace_id;
 
+-- name: GetLeadByMention :one
+SELECT * FROM leads
+WHERE mention_id = @mention_id AND workspace_id = @workspace_id
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: CreateLead :one
 INSERT INTO leads (
     workspace_id, mention_id, stage,

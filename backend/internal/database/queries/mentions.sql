@@ -110,6 +110,13 @@ UPDATE mentions
 SET awareness_level = @awareness_level
 WHERE id = @id AND workspace_id = @workspace_id;
 
+-- name: UpdateMentionStatusWithMetadata :one
+UPDATE mentions
+SET status = @status,
+    scoring_metadata = @scoring_metadata
+WHERE id = @id AND workspace_id = @workspace_id
+RETURNING *;
+
 -- ─── Smart Inbox Tiers ────────────────────────────────
 
 -- name: ListMentionsLeadsReady :many

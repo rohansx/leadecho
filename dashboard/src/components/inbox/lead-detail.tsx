@@ -5,17 +5,28 @@ import {
   ArchiveIcon,
   ArrowLeft,
   ArrowRight,
+  Ban,
   Brain,
   Check,
+  CheckCircle2,
   Copy,
   ExternalLink,
+  Link2,
   Loader2,
   MessageSquareText,
+  ShieldAlert,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { classifyMention, draftReply, listReplies, updateMentionStatus } from "@/lib/api";
-import { QUERY_KEYS } from "@/lib/constants";
+import { Input } from "@/components/ui/input";
+import {
+  approveReply,
+  classifyMention,
+  draftReply,
+  listReplies,
+  updateMentionStatus,
+} from "@/lib/api";
+import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 
 const awarenessLabels: Record<string, string> = {
@@ -43,15 +54,25 @@ function SignalRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-function OverviewTab({ mention }: { mention: Mention }) {
+function OverviewTab({
+  mention,
+  onFeedback,
+}: {
+  mention: Mention;
+  onFeedback: (status: "spam" | "archived", reason?: string) => void;
+}) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Awaited<ReturnType<typeof draftReply>> | null>(null);
   const [copied, setCopied] = useState(false);
+  const [destinationURL, setDestinationURL] = useState("");
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionTierCounts] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.replies, mention.id] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
   };
 
   const classifyMutation = useMutation({
@@ -72,17 +93,29 @@ function OverviewTab({ mention }: { mention: Mention }) {
     onSuccess: invalidate,
   });
 
+  const approveMutation = useMutation({
+    mutationFn: (replyId: string) =>
+      approveReply(replyId, {
+        destination_url: destinationURL.trim() || undefined,
+        append_short_url: true,
+      }),
+    onSuccess: (reply) => {
+      setApproveError(null);
+      setDraft((prev) => (prev ? { ...prev, reply, should_reply: true } : prev));
+      invalidate();
+    },
+    onError: (err: Error) => setApproveError(err.message),
+  });
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
 
-  const handleCopyReply = () => {
-    if (draft?.reply) {
-      handleCopy(draft.reply.content);
-    }
-  };
+  const replyBody = draft?.reply
+    ? draft.reply.edited_content ?? draft.reply.content
+    : "";
 
   return (
     <div className="space-y-5">
@@ -136,6 +169,27 @@ function OverviewTab({ mention }: { mention: Mention }) {
             Mark as replied
           </Button>
         )}
+        {mention.status !== "spam" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onFeedback("spam", "Marked spam from inbox")}
+            className="text-destructive hover:text-destructive"
+          >
+            <ShieldAlert className="h-3.5 w-3.5" />
+            Spam
+          </Button>
+        )}
+        {mention.status !== "archived" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onFeedback("archived", "Not a lead")}
+          >
+            <Ban className="h-3.5 w-3.5" />
+            Not a lead
+          </Button>
+        )}
       </div>
 
       <AnimatePresence>
@@ -147,7 +201,7 @@ function OverviewTab({ mention }: { mention: Mention }) {
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border border-primary/30 bg-accent-soft/40 p-4">
+            <div className="rounded-xl border border-primary/30 bg-accent-soft/40 p-4 space-y-3">
               {!draft.should_reply ? (
                 <>
                   <div className="text-sm font-medium mb-1">Not worth replying</div>
@@ -155,9 +209,10 @@ function OverviewTab({ mention }: { mention: Mention }) {
                 </>
               ) : draft.reply ? (
                 <>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
                       <span className="font-medium text-sm mr-1">AI draft</span>
+                      <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{draft.reply.status}</span>
                       {draft.tone && <span className="rounded-full bg-muted px-2 py-0.5">{draft.tone}</span>}
                       {draft.template_style && (
                         <span className="rounded-full bg-muted px-2 py-0.5">
@@ -170,12 +225,66 @@ function OverviewTab({ mention }: { mention: Mention }) {
                         </span>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={handleCopyReply}>
+                    <Button size="sm" variant="ghost" onClick={() => handleCopy(replyBody)}>
                       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       {copied ? "Copied" : "Copy"}
                     </Button>
                   </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{draft.reply.content}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{replyBody}</p>
+
+                  {draft.reply.status === "draft" && (
+                    <div className="rounded-lg border border-border bg-card/80 p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-foreground-soft">
+                        <Link2 className="h-3.5 w-3.5" />
+                        Track conversion (optional)
+                      </div>
+                      <Input
+                        value={destinationURL}
+                        onChange={(e) => setDestinationURL(e.target.value)}
+                        placeholder="https://yoursite.com/signup"
+                        className="h-9 text-sm"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Approving creates a short link, appends it to the reply, and queues it for the Chrome extension.
+                      </p>
+                      {approveError && (
+                        <p className="text-xs text-destructive">{approveError}</p>
+                      )}
+                      <Button
+                        size="sm"
+                        onClick={() => approveMutation.mutate(draft.reply!.id)}
+                        disabled={approveMutation.isPending}
+                      >
+                        {approveMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        Approve for posting
+                      </Button>
+                    </div>
+                  )}
+
+                  {draft.reply.status === "approved" && (
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-foreground-soft">
+                      Approved — waiting in the extension reply queue.
+                      {draft.reply.short_url && (
+                        <button
+                          type="button"
+                          className="ml-2 text-primary-ink hover:underline cursor-pointer"
+                          onClick={() =>
+                            handleCopy(
+                              draft.reply!.short_url!.startsWith("http")
+                                ? draft.reply!.short_url!
+                                : `${API_BASE_URL}${draft.reply!.short_url}`,
+                            )
+                          }
+                        >
+                          Copy tracked link
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : null}
             </div>
@@ -210,6 +319,7 @@ function ThreadTab({ mentionId }: { mentionId: string }) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
             <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{r.status}</span>
             {r.template_style && <span>{r.template_style.replace(/_/g, " ")}</span>}
+            {r.short_url && <span className="truncate max-w-[140px]">{r.short_url}</span>}
             <span className="ml-auto">{timeAgo(r.created_at)}</span>
           </div>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{r.edited_content ?? r.content}</p>
@@ -222,6 +332,9 @@ function ThreadTab({ mentionId }: { mentionId: string }) {
 function SignalsPanel({ mention }: { mention: Mention }) {
   const meta = mention.platform_metadata as Record<string, unknown>;
   const subreddit = typeof meta?.subreddit === "string" ? meta.subreddit : null;
+  const feedback = mention.scoring_metadata?.last_feedback as
+    | { label?: string; reason?: string }
+    | undefined;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -234,10 +347,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
         label="Account age"
         value={mention.author_account_age_days != null ? `${mention.author_account_age_days}d` : null}
       />
-      <SignalRow
-        label="Intent"
-        value={mention.intent ? mention.intent.replace(/_/g, " ") : null}
-      />
+      <SignalRow label="Intent" value={mention.intent ? mention.intent.replace(/_/g, " ") : null} />
       <SignalRow
         label="Awareness"
         value={mention.awareness_level ? awarenessLabels[mention.awareness_level] : null}
@@ -248,8 +358,18 @@ function SignalsPanel({ mention }: { mention: Mention }) {
       />
       <SignalRow
         label="Conversion prob."
-        value={mention.conversion_probability != null ? `${Math.round(mention.conversion_probability * 100)}%` : null}
+        value={
+          mention.conversion_probability != null
+            ? `${Math.round(mention.conversion_probability * 100)}%`
+            : null
+        }
       />
+      {feedback?.label && (
+        <SignalRow
+          label="Feedback"
+          value={`${feedback.label}${feedback.reason ? ` — ${feedback.reason}` : ""}`}
+        />
+      )}
       {mention.keyword_matches?.length > 0 && (
         <div className="pt-2">
           <div className="text-xs text-muted-foreground mb-1.5">Keyword matches</div>
@@ -274,6 +394,8 @@ export function LeadDetail({
   hasNext,
   onArchive,
   archiving,
+  onFeedback,
+  feedbackPending,
 }: {
   mention: Mention | null;
   onPrev: () => void;
@@ -282,6 +404,8 @@ export function LeadDetail({
   hasNext: boolean;
   onArchive: () => void;
   archiving: boolean;
+  onFeedback: (status: "spam" | "archived", reason?: string) => void;
+  feedbackPending: boolean;
 }) {
   const [tab, setTab] = useState<"overview" | "thread">("overview");
 
@@ -298,6 +422,11 @@ export function LeadDetail({
       <div className="flex items-center gap-3 px-6 h-14 border-b border-border shrink-0">
         <div className="text-sm text-muted-foreground truncate">
           Inbox / <b className="text-foreground">{mention.platform}</b> · {timeAgo(mention.created_at)}
+          {mention.status === "spam" && (
+            <span className="ml-2 rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[10px] uppercase tracking-wide">
+              spam
+            </span>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           <button
@@ -319,7 +448,7 @@ export function LeadDetail({
           <button
             type="button"
             onClick={onArchive}
-            disabled={archiving}
+            disabled={archiving || feedbackPending}
             className="h-7 w-7 rounded-md border border-border hover:bg-accent flex items-center justify-center cursor-pointer"
             aria-label="Archive"
           >
@@ -355,7 +484,11 @@ export function LeadDetail({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
           >
-            {tab === "overview" ? <OverviewTab mention={mention} /> : <ThreadTab mentionId={mention.id} />}
+            {tab === "overview" ? (
+              <OverviewTab mention={mention} onFeedback={onFeedback} />
+            ) : (
+              <ThreadTab mentionId={mention.id} />
+            )}
           </motion.div>
         </AnimatePresence>
         <SignalsPanel mention={mention} />

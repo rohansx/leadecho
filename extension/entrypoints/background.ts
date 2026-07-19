@@ -16,6 +16,11 @@ export default defineBackground(() => {
   // (flush() early-returns without draining in that case). Drop oldest first.
   const MAX_BUFFER = 500;
 
+  // Toolbar icon → side panel (Leads / Queue / Settings), not the tiny popup.
+  chrome.sidePanel
+    .setPanelBehavior({ openPanelOnActionClick: true })
+    .catch(() => {});
+
   // Cache the capture toggle so the hot SIGNAL path stays synchronous.
   let captureEnabled = true;
   getCaptureEnabled().then((v) => (captureEnabled = v));
@@ -64,12 +69,17 @@ export default defineBackground(() => {
       if (message.type === "POST_REPLY") {
         (async () => {
           const { replyId, targetUrl, content } = message.payload;
-          const tab = await chrome.tabs.create({ url: targetUrl });
-          if (tab.id != null) {
-            await chrome.storage.session.set({
-              [`pending_reply_${tab.id}`]: { replyId, content },
-            });
-          }
+          // Normalize bare reddit.com → www so the content script match pattern fires.
+          const url = normalizeTargetUrl(targetUrl);
+          // Create the tab blank first, stash pending, THEN navigate. Otherwise the
+          // content script can race ahead of chrome.storage.session.set and exit
+          // silently — which surfaces in the side panel as "timed out".
+          const tab = await chrome.tabs.create({ url: "about:blank" });
+          if (tab.id == null) return;
+          await chrome.storage.session.set({
+            [`pending_reply_${tab.id}`]: { replyId, content },
+          });
+          await chrome.tabs.update(tab.id, { url });
         })();
         return;
       }
@@ -104,3 +114,17 @@ export default defineBackground(() => {
     }
   }
 });
+
+/** Ensure platform URLs hit hosts our content scripts actually match. */
+function normalizeTargetUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.hostname === "reddit.com" || u.hostname === "old.reddit.com" || u.hostname === "new.reddit.com") {
+      u.hostname = "www.reddit.com";
+      return u.toString();
+    }
+  } catch {
+    /* keep original */
+  }
+  return raw;
+}
