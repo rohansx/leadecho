@@ -16,8 +16,10 @@ import type {
   UTMLink,
   ProductAnalysis,
   Person360Response,
-  QueueCount,
   HumanProposal,
+  InboxQueueCountsResponse,
+  PlatformCount,
+  QueueCount,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -52,6 +54,7 @@ export function listMentions(params?: {
   search?: string;
   tier?: string;
   queue?: string;
+  escalation_kind?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -62,6 +65,7 @@ export function listMentions(params?: {
   if (params?.search) q.set("search", params.search);
   if (params?.tier) q.set("tier", params.tier);
   if (params?.queue) q.set("queue", params.queue);
+  if (params?.escalation_kind) q.set("escalation_kind", params.escalation_kind);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.toString();
@@ -87,8 +91,92 @@ export function mentionTierCounts() {
   return request<TierCount[]>("/mentions/tier-counts");
 }
 
-export function mentionQueueCounts() {
-  return request<QueueCount[]>("/mentions/queue-counts");
+/** Accepts both legacy `[{queue,count}]` and `{queues, escalations}` shapes. */
+export function normalizeQueueCounts(
+  raw: InboxQueueCountsResponse | QueueCount[] | null | undefined,
+): InboxQueueCountsResponse {
+  if (Array.isArray(raw)) {
+    return {
+      queues: raw,
+      escalations: { needs_draft: 0, flagged: 0 },
+    };
+  }
+  return {
+    queues: raw?.queues ?? [],
+    escalations: raw?.escalations ?? { needs_draft: 0, flagged: 0 },
+  };
+}
+
+/** Backfill counts missing from older API builds (no `all` queue, no escalation split). */
+async function enrichQueueCounts(base: InboxQueueCountsResponse): Promise<InboxQueueCountsResponse> {
+  const queues = [...base.queues];
+  const escalations = { ...base.escalations };
+
+  const hasAll = queues.some((q) => q.queue === "all");
+  const escRow = queues.find((q) => q.queue === "escalations");
+
+  if (!hasAll || (escRow && escalations.needs_draft === 0 && escalations.flagged === 0)) {
+    try {
+      if (!hasAll) {
+        const page = await request<PaginatedResponse<Mention>>("/mentions?queue=all&limit=1");
+        queues.push({ queue: "all", count: page.total });
+      }
+      if (escRow && escalations.needs_draft === 0 && escalations.flagged === 0) {
+        const [draftPage, flaggedPage] = await Promise.all([
+          request<PaginatedResponse<Mention>>(
+            "/mentions?queue=escalations&escalation_kind=needs_draft&limit=1",
+          ),
+          request<PaginatedResponse<Mention>>(
+            "/mentions?queue=escalations&escalation_kind=flagged&limit=1",
+          ),
+        ]);
+        escalations.needs_draft = draftPage.total;
+        escalations.flagged = flaggedPage.total;
+      }
+    } catch {
+      // Legacy API: fall back to unscoped list total for All mentions.
+      if (!hasAll) {
+        try {
+          const page = await request<PaginatedResponse<Mention>>("/mentions?limit=1");
+          queues.push({ queue: "all", count: page.total });
+        } catch {
+          /* keep 0 */
+        }
+      }
+      if (escRow && escalations.needs_draft === 0 && escalations.flagged === 0) {
+        escalations.needs_draft = escRow.count;
+      }
+    }
+  }
+
+  return { queues, escalations };
+}
+
+export async function mentionQueueCounts() {
+  const raw = await request<InboxQueueCountsResponse | QueueCount[]>("/mentions/queue-counts");
+  return enrichQueueCounts(normalizeQueueCounts(raw));
+}
+
+export async function mentionPlatformCounts(params?: {
+  queue?: string;
+  escalation_kind?: string;
+  status?: string;
+  intent?: string;
+  search?: string;
+}) {
+  const q = new URLSearchParams();
+  if (params?.queue) q.set("queue", params.queue);
+  if (params?.escalation_kind) q.set("escalation_kind", params.escalation_kind);
+  if (params?.status) q.set("status", params.status);
+  if (params?.intent) q.set("intent", params.intent);
+  if (params?.search) q.set("search", params.search);
+  const qs = q.toString();
+  try {
+    return await request<PlatformCount[]>(`/mentions/platform-counts${qs ? `?${qs}` : ""}`);
+  } catch {
+    // Older API builds lack this route — inbox still works without platform pills.
+    return [];
+  }
 }
 
 export function listProposals(params?: { status?: string; limit?: number }) {

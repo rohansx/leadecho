@@ -33,3 +33,32 @@ func TestListMentionsComposedParams_buildWhere_queueEscalations(t *testing.T) {
 		}
 	}
 }
+
+func TestListMentionsComposedParams_buildWhere_escalationNeedsDraft(t *testing.T) {
+	where, _ := (ListMentionsComposedParams{
+		WorkspaceID:    "ws-1",
+		Queue:          "escalations",
+		EscalationKind: "needs_draft",
+	}).buildWhere()
+
+	if strings.Contains(where, "needs_escalation") {
+		t.Fatalf("needs_draft slice should not require escalation flag: %s", where)
+	}
+	if !strings.Contains(where, "NOT EXISTS") {
+		t.Fatalf("needs_draft should require no reply: %s", where)
+	}
+}
+
+func TestListMentionsComposedParams_buildWhere_queueAll(t *testing.T) {
+	where, _ := (ListMentionsComposedParams{
+		WorkspaceID: "ws-1",
+		Queue:       "all",
+	}).buildWhere()
+
+	if !strings.Contains(where, "status NOT IN ('spam', 'archived')") {
+		t.Fatalf("all queue should exclude spam/archived: %s", where)
+	}
+	if strings.Contains(where, "replies r") {
+		t.Fatalf("all queue should not require replies: %s", where)
+	}
+}

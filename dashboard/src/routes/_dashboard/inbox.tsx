@@ -1,33 +1,56 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail } from "@/components/inbox/lead-detail";
 import {
   listMentions,
   listProposals,
+  mentionPlatformCounts,
   mentionQueueCounts,
-  mentionsPerPlatform,
   proposalCounts,
   updateMentionStatus,
   updateProposalStatus,
 } from "@/lib/api";
-import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
+import { ESCALATION_KINDS, INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
+import type { InboxQueueCountsResponse } from "@/lib/types";
+
+const PAGE_SIZE = 30;
 
 interface InboxSearch {
   q?: string;
   queue?: string;
+  escalation_kind?: string;
   platform?: string;
   status?: string;
   id?: string;
 }
 
+function pickDefaultQueue(counts: InboxQueueCountsResponse | undefined): string {
+  const queues = counts?.queues ?? [];
+  if (queues.length === 0) return INBOX_QUEUES.ESCALATIONS;
+  const byQueue = Object.fromEntries(queues.map((q) => [q.queue, q.count]));
+  if ((byQueue.auto_flowing ?? 0) > 0) return INBOX_QUEUES.AUTO_FLOWING;
+  if ((byQueue.escalations ?? 0) > 0) return INBOX_QUEUES.ESCALATIONS;
+  return INBOX_QUEUES.ALL;
+}
+
+function pickDefaultEscalationKind(
+  counts: InboxQueueCountsResponse | undefined,
+): string | undefined {
+  const sub = counts?.escalations;
+  if (!sub) return ESCALATION_KINDS.NEEDS_DRAFT;
+  if (sub.needs_draft > 0) return ESCALATION_KINDS.NEEDS_DRAFT;
+  if (sub.flagged > 0) return ESCALATION_KINDS.FLAGGED;
+  return undefined;
+}
+
 export const Route = createFileRoute("/_dashboard/inbox")({
   validateSearch: (search: Record<string, unknown>): InboxSearch => ({
     q: typeof search.q === "string" ? search.q : undefined,
-    queue:
-      typeof search.queue === "string"
-        ? search.queue
-        : INBOX_QUEUES.AUTO_FLOWING,
+    queue: typeof search.queue === "string" ? search.queue : undefined,
+    escalation_kind:
+      typeof search.escalation_kind === "string" ? search.escalation_kind : undefined,
     platform: typeof search.platform === "string" ? search.platform : undefined,
     status: typeof search.status === "string" ? search.status : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
@@ -36,31 +59,67 @@ export const Route = createFileRoute("/_dashboard/inbox")({
 });
 
 function InboxPage() {
-  const {
-    q = "",
-    queue = INBOX_QUEUES.AUTO_FLOWING,
-    platform = "",
-    status = "",
-    id,
-  } = Route.useSearch();
+  const search = Route.useSearch();
+  const { q = "", platform = "", status = "", id } = search;
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
 
+  const { data: queueCountsData } = useQuery({
+    queryKey: [QUERY_KEYS.mentionQueueCounts],
+    queryFn: mentionQueueCounts,
+  });
+
+  const queue = search.queue ?? pickDefaultQueue(queueCountsData);
   const isProposalsView = queue === INBOX_QUEUES.PROPOSALS;
+  const isEscalationsView = queue === INBOX_QUEUES.ESCALATIONS;
+  const escalationKind =
+    isEscalationsView
+      ? (search.escalation_kind ?? pickDefaultEscalationKind(queueCountsData))
+      : undefined;
+
+  // Persist smart defaults in the URL without cluttering history.
+  useEffect(() => {
+    if (!queueCountsData || search.queue) return;
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        queue: pickDefaultQueue(queueCountsData),
+        escalation_kind:
+          pickDefaultQueue(queueCountsData) === INBOX_QUEUES.ESCALATIONS
+            ? pickDefaultEscalationKind(queueCountsData)
+            : undefined,
+      }),
+      replace: true,
+    });
+  }, [search.queue, queueCountsData, navigate]);
 
   const setSearch = (patch: Partial<InboxSearch>) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }) });
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: [QUERY_KEYS.mentions, queue, platform, status, q],
-    queryFn: () =>
+  const {
+    data,
+    isLoading,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: [QUERY_KEYS.mentions, queue, escalationKind, platform, status, q],
+    queryFn: ({ pageParam }) =>
       listMentions({
         queue: queue || undefined,
+        escalation_kind: escalationKind,
         platform: platform || undefined,
         status: status || undefined,
         search: q || undefined,
-        limit: 30,
+        limit: PAGE_SIZE,
+        offset: pageParam,
       }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => {
+      const next = lastPage.offset + lastPage.limit;
+      return next < lastPage.total ? next : undefined;
+    },
     enabled: !isProposalsView,
   });
 
@@ -70,62 +129,63 @@ function InboxPage() {
     enabled: isProposalsView,
   });
 
-  const { data: queueCounts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionQueueCounts],
-    queryFn: mentionQueueCounts,
-  });
-
   const { data: proposalCountRows } = useQuery({
     queryKey: [QUERY_KEYS.proposalCounts],
     queryFn: proposalCounts,
   });
 
   const { data: platformCounts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionsPerPlatform],
-    queryFn: mentionsPerPlatform,
+    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, escalationKind, status, q],
+    queryFn: () =>
+      mentionPlatformCounts({
+        queue,
+        escalation_kind: escalationKind,
+        status: status || undefined,
+        search: q || undefined,
+      }),
+    enabled: !isProposalsView,
   });
 
   const proposalPendingCount =
     proposalCountRows?.find((c) => c.status === "pending")?.count ?? 0;
 
+  const invalidateInbox = () => {
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionQueueCounts] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionPlatformCounts] });
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
+  };
+
   const archiveMutation = useMutation({
     mutationFn: (mentionId: string) => updateMentionStatus(mentionId, "archived"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionQueueCounts] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
-    },
+    onSuccess: invalidateInbox,
   });
 
   const feedbackMutation = useMutation({
     mutationFn: ({
       mentionId,
-      status,
+      status: nextStatus,
       reason,
     }: {
       mentionId: string;
       status: "spam" | "archived";
       reason?: string;
-    }) => updateMentionStatus(mentionId, status, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionCounts] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionQueueCounts] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
-    },
+    }) => updateMentionStatus(mentionId, nextStatus, reason),
+    onSuccess: invalidateInbox,
   });
 
   const proposalMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "accepted" | "dismissed" }) =>
-      updateProposalStatus(id, status),
+    mutationFn: ({ id: proposalId, status: nextStatus }: { id: string; status: "accepted" | "dismissed" }) =>
+      updateProposalStatus(proposalId, nextStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.proposals] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.proposalCounts] });
     },
   });
 
-  const mentions = data?.data ?? [];
+  const mentions = data?.pages.flatMap((p) => p.data) ?? [];
+  const listTotal = data?.pages[0]?.total ?? 0;
   const selected = isProposalsView
     ? null
     : (mentions.find((m) => m.id === id) ?? null);
@@ -133,10 +193,16 @@ function InboxPage() {
 
   const selectMention = (mentionId: string) => setSearch({ id: mentionId });
   const goPrev = () => selectedIndex > 0 && selectMention(mentions[selectedIndex - 1].id);
-  const goNext = () =>
-    selectedIndex >= 0 &&
-    selectedIndex < mentions.length - 1 &&
-    selectMention(mentions[selectedIndex + 1].id);
+  const goNext = () => {
+    if (selectedIndex < 0) return;
+    if (selectedIndex < mentions.length - 1) {
+      selectMention(mentions[selectedIndex + 1].id);
+      return;
+    }
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  };
 
   const advanceSelection = () => {
     if (!selected) return;
@@ -150,10 +216,10 @@ function InboxPage() {
     archiveMutation.mutate(selected.id);
   };
 
-  const handleFeedback = (status: "spam" | "archived", reason?: string) => {
+  const handleFeedback = (nextStatus: "spam" | "archived", reason?: string) => {
     if (!selected) return;
     advanceSelection();
-    feedbackMutation.mutate({ mentionId: selected.id, status, reason });
+    feedbackMutation.mutate({ mentionId: selected.id, status: nextStatus, reason });
   };
 
   const handleRefresh = () => {
@@ -161,20 +227,44 @@ function InboxPage() {
       void refetchProposals();
     } else {
       void refetch();
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionQueueCounts] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentionPlatformCounts] });
     }
   };
 
+  const handleQueueChange = (nextQueue: string) => {
+    setSearch({
+      queue: nextQueue,
+      id: undefined,
+      platform: undefined,
+      escalation_kind:
+        nextQueue === INBOX_QUEUES.ESCALATIONS
+          ? pickDefaultEscalationKind(queueCountsData)
+          : undefined,
+    });
+  };
+
   return (
-    <div className="flex h-[calc(100vh-var(--header-height))] -m-6">
+    <div className="flex -m-6 min-h-0 overflow-hidden h-[calc(100vh-var(--header-height))]">
       <LeadList
         mentions={mentions}
+        listTotal={listTotal}
         proposals={proposals}
         isLoading={isProposalsView ? proposalsLoading : isLoading}
+        isLoadingMore={isFetchingNextPage}
+        hasMore={Boolean(hasNextPage)}
+        onLoadMore={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
         selectedId={id ?? null}
         onSelect={selectMention}
         queueFilter={queue}
-        onQueueChange={(q) => setSearch({ queue: q, id: undefined })}
-        queueCounts={queueCounts}
+        onQueueChange={handleQueueChange}
+        queueCounts={queueCountsData}
+        escalationKind={escalationKind}
+        onEscalationKindChange={(kind) =>
+          setSearch({ escalation_kind: kind || undefined, id: undefined, platform: undefined })
+        }
         proposalPendingCount={proposalPendingCount}
         platformFilter={platform}
         onPlatformChange={(p) => setSearch({ platform: p || undefined })}
@@ -184,8 +274,8 @@ function InboxPage() {
         search={q}
         onSearchChange={(v) => setSearch({ q: v || undefined })}
         onRefresh={handleRefresh}
-        onProposalAction={(proposalId, status) =>
-          proposalMutation.mutate({ id: proposalId, status })
+        onProposalAction={(proposalId, nextStatus) =>
+          proposalMutation.mutate({ id: proposalId, status: nextStatus })
         }
         proposalActionPending={proposalMutation.isPending}
       />
@@ -199,7 +289,10 @@ function InboxPage() {
           onPrev={goPrev}
           onNext={goNext}
           hasPrev={selectedIndex > 0}
-          hasNext={selectedIndex >= 0 && selectedIndex < mentions.length - 1}
+          hasNext={
+            selectedIndex >= 0 &&
+            (selectedIndex < mentions.length - 1 || Boolean(hasNextPage))
+          }
           onArchive={handleArchive}
           archiving={archiveMutation.isPending}
           onFeedback={handleFeedback}

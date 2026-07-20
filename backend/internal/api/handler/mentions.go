@@ -29,7 +29,10 @@ var (
 		"comparison": true, "general": true,
 	}
 	validMentionQueues = map[string]bool{
-		"auto_flowing": true, "escalations": true,
+		"auto_flowing": true, "escalations": true, "all": true,
+	}
+	validEscalationKinds = map[string]bool{
+		"needs_draft": true, "flagged": true,
 	}
 )
 
@@ -169,15 +172,16 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	// All filters compose (ANDed) in a single query rather than being mutually
 	// exclusive, and total reflects the full match count, not the page size.
 	params := database.ListMentionsComposedParams{
-		WorkspaceID: workspaceID,
-		Tier:        r.URL.Query().Get("tier"),
-		Queue:       r.URL.Query().Get("queue"),
-		Status:      r.URL.Query().Get("status"),
-		Platform:    r.URL.Query().Get("platform"),
-		Intent:      r.URL.Query().Get("intent"),
-		Search:      r.URL.Query().Get("search"),
-		Lim:         limit,
-		Off:         offset,
+		WorkspaceID:    workspaceID,
+		Tier:           r.URL.Query().Get("tier"),
+		Queue:          r.URL.Query().Get("queue"),
+		EscalationKind: r.URL.Query().Get("escalation_kind"),
+		Status:         r.URL.Query().Get("status"),
+		Platform:       r.URL.Query().Get("platform"),
+		Intent:         r.URL.Query().Get("intent"),
+		Search:         r.URL.Query().Get("search"),
+		Lim:            limit,
+		Off:            offset,
 	}
 
 	// Reject unknown enum filter values up front (400) rather than letting them
@@ -198,6 +202,16 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	if params.Queue != "" && !validMentionQueues[params.Queue] {
 		writeError(w, http.StatusBadRequest, "invalid queue")
 		return
+	}
+	if params.EscalationKind != "" {
+		if params.Queue != "escalations" {
+			writeError(w, http.StatusBadRequest, "escalation_kind requires queue=escalations")
+			return
+		}
+		if !validEscalationKinds[params.EscalationKind] {
+			writeError(w, http.StatusBadRequest, "invalid escalation_kind")
+			return
+		}
 	}
 
 	mentions, err := h.q.ListMentionsComposed(ctx, params)
@@ -380,16 +394,74 @@ func (h *MentionHandler) QueueCounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	subcounts, err := h.q.CountEscalationSubcounts(ctx, workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count escalation subqueues")
+		return
+	}
+
 	type queueItem struct {
 		Queue string `json:"queue"`
 		Count int32  `json:"count"`
 	}
-	resp := make([]queueItem, len(counts))
+	queues := make([]queueItem, len(counts))
 	for i, c := range counts {
-		resp[i] = queueItem{Queue: c.Queue, Count: c.Count}
+		queues[i] = queueItem{Queue: c.Queue, Count: c.Count}
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"queues":      queues,
+		"escalations": subcounts,
+	})
+}
+
+// PlatformCounts returns per-platform totals scoped to the same inbox queue
+// filters as GET /mentions (so dropdown counts match the visible list).
+func (h *MentionHandler) PlatformCounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := middleware.WorkspaceID(ctx)
+
+	params := database.ListMentionsComposedParams{
+		WorkspaceID:    workspaceID,
+		Queue:          r.URL.Query().Get("queue"),
+		EscalationKind: r.URL.Query().Get("escalation_kind"),
+		Status:         r.URL.Query().Get("status"),
+		Platform:       "",
+		Intent:         r.URL.Query().Get("intent"),
+		Search:         r.URL.Query().Get("search"),
+	}
+	if params.Queue != "" && !validMentionQueues[params.Queue] {
+		writeError(w, http.StatusBadRequest, "invalid queue")
+		return
+	}
+	if params.EscalationKind != "" {
+		if params.Queue != "escalations" {
+			writeError(w, http.StatusBadRequest, "escalation_kind requires queue=escalations")
+			return
+		}
+		if !validEscalationKinds[params.EscalationKind] {
+			writeError(w, http.StatusBadRequest, "invalid escalation_kind")
+			return
+		}
+	}
+	if params.Status != "" && !validMentionStatuses[params.Status] {
+		writeError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+	if params.Intent != "" && !validMentionIntents[params.Intent] {
+		writeError(w, http.StatusBadRequest, "invalid intent")
+		return
+	}
+
+	rows, err := h.q.CountMentionsByPlatformForQueue(ctx, params)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count mentions by platform")
+		return
+	}
+	if rows == nil {
+		rows = []database.CountMentionsByPlatformRow{}
+	}
+	writeJSON(w, http.StatusOK, rows)
 }
 
 // Person360 returns identity enrichment for a mention's associated lead.

@@ -98,6 +98,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/mentions/counts", mentions.Counts)
 			r.Get("/mentions/tier-counts", mentions.TierCounts)
 			r.Get("/mentions/queue-counts", mentions.QueueCounts)
+			r.Get("/mentions/platform-counts", mentions.PlatformCounts)
 			r.Get("/mentions/{id}", mentions.Get)
 			r.Get("/mentions/{id}/person360", mentions.Person360)
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)

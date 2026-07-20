@@ -1,13 +1,8 @@
 import { motion } from "motion/react";
 import { RefreshCw, Search } from "lucide-react";
-import type { HumanProposal, Mention, QueueCount } from "@/lib/types";
-import { INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
-
-const queueTabs = [
-  { key: INBOX_QUEUES.AUTO_FLOWING, label: "Auto-flowing" },
-  { key: INBOX_QUEUES.ESCALATIONS, label: "Escalations" },
-  { key: INBOX_QUEUES.PROPOSALS, label: "Proposals" },
-] as const;
+import { useEffect, useRef } from "react";
+import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
+import { ESCALATION_KINDS, INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
 
 const intentColors: Record<string, string> = {
   buy_signal: "text-primary-ink",
@@ -33,8 +28,28 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+function emptyMessage(queue: string, escalationKind?: string): string {
+  if (queue === INBOX_QUEUES.AUTO_FLOWING) {
+    return "No replies ready to review. Draft replies from Escalations to move items here.";
+  }
+  if (queue === INBOX_QUEUES.ESCALATIONS) {
+    if (escalationKind === ESCALATION_KINDS.FLAGGED) {
+      return "No mentions flagged for human review.";
+    }
+    if (escalationKind === ESCALATION_KINDS.NEEDS_DRAFT) {
+      return "All high-intent mentions have drafts. Nice work.";
+    }
+    return "Escalation queue is clear.";
+  }
+  if (queue === INBOX_QUEUES.ALL) {
+    return "No mentions match your filters.";
+  }
+  return "No mentions in this view.";
+}
+
 export function LeadList({
   mentions,
+  listTotal,
   proposals,
   isLoading,
   selectedId,
@@ -42,6 +57,8 @@ export function LeadList({
   queueFilter,
   onQueueChange,
   queueCounts,
+  escalationKind,
+  onEscalationKindChange,
   proposalPendingCount,
   platformFilter,
   onPlatformChange,
@@ -53,15 +70,21 @@ export function LeadList({
   onRefresh,
   onProposalAction,
   proposalActionPending,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
 }: {
   mentions: Mention[];
+  listTotal?: number;
   proposals?: HumanProposal[];
   isLoading: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
   queueFilter: string;
   onQueueChange: (queue: string) => void;
-  queueCounts?: QueueCount[];
+  queueCounts?: InboxQueueCountsResponse;
+  escalationKind?: string;
+  onEscalationKindChange?: (kind: string) => void;
   proposalPendingCount?: number;
   platformFilter: string;
   onPlatformChange: (platform: string) => void;
@@ -73,25 +96,65 @@ export function LeadList({
   onRefresh: () => void;
   onProposalAction?: (id: string, status: "accepted" | "dismissed") => void;
   proposalActionPending?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }) {
   const isProposalsView = queueFilter === INBOX_QUEUES.PROPOSALS;
+  const isEscalationsView = queueFilter === INBOX_QUEUES.ESCALATIONS;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || isProposalsView) return;
+    const root = scrollRef.current;
+    const target = loadMoreRef.current;
+    if (!root || !target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !isLoadingMore) onLoadMore();
+      },
+      { root, rootMargin: "120px" },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore, isLoadingMore, isProposalsView, mentions.length]);
+
+  const queueTabs = [
+    { key: INBOX_QUEUES.AUTO_FLOWING, label: "Auto-flowing" },
+    { key: INBOX_QUEUES.ESCALATIONS, label: "Escalations" },
+    { key: INBOX_QUEUES.ALL, label: "All mentions" },
+    ...(proposalPendingCount && proposalPendingCount > 0
+      ? [{ key: INBOX_QUEUES.PROPOSALS, label: "Proposals" as const }]
+      : []),
+  ];
 
   const getQueueCount = (queue: string) => {
     if (queue === INBOX_QUEUES.PROPOSALS) {
       return proposalPendingCount ?? 0;
     }
-    return queueCounts?.find((c) => c.queue === queue)?.count ?? 0;
+    return queueCounts?.queues.find((c) => c.queue === queue)?.count ?? 0;
   };
 
+  const platformTotal = platformOptions.reduce((sum, p) => sum + p.count, 0);
+
   return (
-    <section className="w-[380px] shrink-0 border-r border-border flex flex-col h-full bg-background">
+    <section className="w-[380px] shrink-0 border-r border-border flex flex-col min-h-0 h-full bg-background">
       <div className="p-4 border-b border-border space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-[family-name:var(--font-head)] font-medium">Inbox</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="font-[family-name:var(--font-head)] font-medium">Inbox</h2>
+            {!isProposalsView && listTotal != null && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {listTotal.toLocaleString()} in this view
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onRefresh}
-            className="w-7 h-7 rounded-md border border-border hover:bg-accent flex items-center justify-center cursor-pointer"
+            className="w-7 h-7 rounded-md border border-border hover:bg-accent flex items-center justify-center cursor-pointer shrink-0"
             aria-label="Refresh"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -104,7 +167,7 @@ export function LeadList({
             <input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search this inbox…"
+              placeholder="Search this view…"
               aria-label="Search mentions"
               className="w-full rounded-lg border border-border bg-card pl-8 pr-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30"
             />
@@ -133,6 +196,40 @@ export function LeadList({
           })}
         </div>
 
+        {isEscalationsView && onEscalationKindChange && queueCounts?.escalations && (
+          <div className="flex gap-1.5 flex-wrap">
+            {[
+              {
+                key: ESCALATION_KINDS.NEEDS_DRAFT,
+                label: "Needs draft",
+                count: queueCounts.escalations.needs_draft ?? 0,
+              },
+              {
+                key: ESCALATION_KINDS.FLAGGED,
+                label: "Needs review",
+                count: queueCounts.escalations.flagged ?? 0,
+              },
+            ].map((t) => {
+              const active = escalationKind === t.key;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => onEscalationKindChange(t.key)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium cursor-pointer transition-colors border ${
+                    active
+                      ? "border-primary/40 bg-primary/10 text-primary-ink"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {t.label}
+                  <span className="ml-1 opacity-70">{t.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {!isProposalsView && (
           <div className="flex gap-1.5">
             {platformOptions.length > 0 && (
@@ -142,10 +239,12 @@ export function LeadList({
                 aria-label="Filter by platform"
                 className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
               >
-                <option value="">All platforms</option>
+                <option value="">
+                  All platforms ({platformTotal.toLocaleString()})
+                </option>
                 {platformOptions.map((p) => (
                   <option key={p.platform} value={p.platform}>
-                    {p.platform} ({p.count})
+                    {p.platform} ({p.count.toLocaleString()})
                   </option>
                 ))}
               </select>
@@ -167,7 +266,7 @@ export function LeadList({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {isLoading && (
           <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
         )}
@@ -180,51 +279,76 @@ export function LeadList({
 
         {!isLoading && !isProposalsView && mentions.length === 0 && (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            No mentions in this queue. Adjust your filters.
+            {emptyMessage(queueFilter, escalationKind)}
           </div>
         )}
 
         {!isProposalsView &&
-          mentions.map((m, i) => (
-            <motion.button
-              key={m.id}
-              onClick={() => onSelect(m.id)}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
-              className={`w-full text-left px-4 py-3.5 border-b border-border flex gap-3 transition-colors cursor-pointer ${
-                selectedId === m.id ? "bg-accent-soft/60" : "hover:bg-accent/50"
-              }`}
-            >
-              <div
-                className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium ${scoreClass(m.relevance_score)}`}
+          mentions.map((m, i) => {
+            const flagged = Boolean(m.scoring_metadata?.needs_escalation);
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() => onSelect(m.id)}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
+                className={`w-full text-left px-4 py-3.5 border-b border-border flex gap-3 transition-colors cursor-pointer ${
+                  selectedId === m.id ? "bg-accent-soft/60" : "hover:bg-accent/50"
+                }`}
               >
-                {m.relevance_score != null ? m.relevance_score.toFixed(1) : "–"}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <span className="font-medium text-foreground-soft">{m.platform}</span>
-                  {m.intent && (
-                    <>
-                      <span>·</span>
-                      <span className={intentColors[m.intent] ?? ""}>{m.intent.replace("_", " ")}</span>
-                    </>
-                  )}
-                  {Boolean(m.scoring_metadata?.needs_escalation) && (
-                    <>
-                      <span>·</span>
-                      <span className="text-orange-600 dark:text-orange-400">escalation</span>
-                    </>
-                  )}
-                  <span className="ml-auto shrink-0">{timeAgo(m.platform_created_at ?? m.created_at)}</span>
+                <div
+                  className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium ${scoreClass(m.relevance_score)}`}
+                >
+                  {m.relevance_score != null ? m.relevance_score.toFixed(1) : "–"}
                 </div>
-                <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
-                <div className="mt-1 text-xs text-muted-foreground truncate">
-                  @{m.author_username ?? "unknown"}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1 flex-wrap">
+                    <span className="font-medium text-foreground-soft">{m.platform}</span>
+                    {m.intent && (
+                      <>
+                        <span>·</span>
+                        <span className={intentColors[m.intent] ?? ""}>
+                          {m.intent.replace("_", " ")}
+                        </span>
+                      </>
+                    )}
+                    {flagged && (
+                      <>
+                        <span>·</span>
+                        <span className="text-orange-600 dark:text-orange-400">needs review</span>
+                      </>
+                    )}
+                    {isEscalationsView && !flagged && m.status === "new" && (
+                      <>
+                        <span>·</span>
+                        <span className="text-blue-600 dark:text-blue-400">needs draft</span>
+                      </>
+                    )}
+                    <span className="ml-auto shrink-0">
+                      {timeAgo(m.platform_created_at ?? m.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
+                  <div className="mt-1 text-xs text-muted-foreground truncate">
+                    @{m.author_username ?? "unknown"}
+                  </div>
                 </div>
-              </div>
-            </motion.button>
-          ))}
+              </motion.button>
+            );
+          })}
+
+        {!isProposalsView && hasMore && (
+          <div ref={loadMoreRef} className="py-4 text-center text-xs text-muted-foreground">
+            {isLoadingMore ? "Loading more…" : "Scroll for more"}
+          </div>
+        )}
+
+        {!isProposalsView && !hasMore && mentions.length > 0 && listTotal != null && (
+          <div className="py-4 text-center text-xs text-muted-foreground">
+            End of list · {mentions.length.toLocaleString()} loaded
+          </div>
+        )}
 
         {isProposalsView &&
           proposals?.map((p, i) => (

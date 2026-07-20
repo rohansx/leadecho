@@ -229,6 +229,21 @@ export interface QueueCount {
   count: number;
 }
 
+export interface EscalationSubcounts {
+  needs_draft: number;
+  flagged: number;
+}
+
+export interface InboxQueueCountsResponse {
+  queues: QueueCount[];
+  escalations: EscalationSubcounts;
+}
+
+export interface PlatformCount {
+  platform: string;
+  count: number;
+}
+
 export interface HumanProposal {
   id: string;
   workspace_id: string;
