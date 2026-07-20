@@ -29,7 +29,13 @@ var (
 		"comparison": true, "general": true,
 	}
 	validMentionQueues = map[string]bool{
-		"auto_flowing": true, "escalations": true, "all": true,
+		"action_required": true,
+		"auto_flowing":    true,
+		"escalations":     true,
+		"all":             true,
+	}
+	validActionKinds = map[string]bool{
+		"ready_to_send": true, "needs_draft": true, "needs_review": true,
 	}
 	validEscalationKinds = map[string]bool{
 		"needs_draft": true, "flagged": true,
@@ -72,6 +78,7 @@ type MentionResponse struct {
 	CreatedAt             time.Time       `json:"created_at"`
 	UpdatedAt             time.Time       `json:"updated_at"`
 	AwarenessLevel        *string         `json:"awareness_level"`
+	NextAction            *string         `json:"next_action,omitempty"`
 }
 
 func mentionToResponse(m database.Mention) MentionResponse {
@@ -175,6 +182,7 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID:    workspaceID,
 		Tier:           r.URL.Query().Get("tier"),
 		Queue:          r.URL.Query().Get("queue"),
+		ActionKind:     resolveActionKind(r.URL.Query().Get("queue"), r.URL.Query().Get("action_kind"), r.URL.Query().Get("escalation_kind")),
 		EscalationKind: r.URL.Query().Get("escalation_kind"),
 		Status:         r.URL.Query().Get("status"),
 		Platform:       r.URL.Query().Get("platform"),
@@ -213,6 +221,16 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if params.ActionKind != "" {
+		if params.Queue != "action_required" {
+			writeError(w, http.StatusBadRequest, "action_kind requires queue=action_required")
+			return
+		}
+		if !validActionKinds[params.ActionKind] {
+			writeError(w, http.StatusBadRequest, "invalid action_kind")
+			return
+		}
+	}
 
 	mentions, err := h.q.ListMentionsComposed(ctx, params)
 	if err != nil {
@@ -226,8 +244,22 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := make([]MentionResponse, len(mentions))
+	draftIDs := map[string]bool{}
+	if params.Queue == "action_required" && len(mentions) > 0 {
+		ids := make([]string, len(mentions))
+		for i, m := range mentions {
+			ids[i] = m.ID
+		}
+		draftIDs, _ = h.q.MentionIDsWithDraftOrApprovedReply(ctx, workspaceID, ids)
+	}
 	for i, m := range mentions {
 		resp[i] = mentionToResponse(m)
+		if params.Queue == "action_required" {
+			action := nextActionFor(m, draftIDs[m.ID])
+			if action != "" {
+				resp[i].NextAction = &action
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, listResponse{
@@ -394,9 +426,9 @@ func (h *MentionHandler) QueueCounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subcounts, err := h.q.CountEscalationSubcounts(ctx, workspaceID)
+	subcounts, err := h.q.CountActionSubcounts(ctx, workspaceID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to count escalation subqueues")
+		writeError(w, http.StatusInternalServerError, "failed to count action subqueues")
 		return
 	}
 
@@ -410,9 +442,30 @@ func (h *MentionHandler) QueueCounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"queues":      queues,
-		"escalations": subcounts,
+		"queues": queues,
+		"actions": subcounts,
+		// Legacy field — older dashboard builds read escalations.{needs_draft,flagged}
+		"escalations": database.EscalationSubcounts{
+			NeedsDraft: subcounts.NeedsDraft,
+			Flagged:    subcounts.NeedsReview,
+		},
 	})
+}
+
+func resolveActionKind(queue, actionKind, escalationKind string) string {
+	if actionKind != "" {
+		return actionKind
+	}
+	if queue != "action_required" {
+		return ""
+	}
+	if escalationKind == "flagged" {
+		return "needs_review"
+	}
+	if escalationKind == "needs_draft" {
+		return "needs_draft"
+	}
+	return ""
 }
 
 // PlatformCounts returns per-platform totals scoped to the same inbox queue
@@ -422,25 +475,29 @@ func (h *MentionHandler) PlatformCounts(w http.ResponseWriter, r *http.Request) 
 	workspaceID := middleware.WorkspaceID(ctx)
 
 	params := database.ListMentionsComposedParams{
-		WorkspaceID:    workspaceID,
-		Queue:          r.URL.Query().Get("queue"),
-		EscalationKind: r.URL.Query().Get("escalation_kind"),
-		Status:         r.URL.Query().Get("status"),
-		Platform:       "",
-		Intent:         r.URL.Query().Get("intent"),
-		Search:         r.URL.Query().Get("search"),
+		WorkspaceID: workspaceID,
+		Queue:       r.URL.Query().Get("queue"),
+		ActionKind: resolveActionKind(
+			r.URL.Query().Get("queue"),
+			r.URL.Query().Get("action_kind"),
+			r.URL.Query().Get("escalation_kind"),
+		),
+		Status:   r.URL.Query().Get("status"),
+		Platform: "",
+		Intent:   r.URL.Query().Get("intent"),
+		Search:   r.URL.Query().Get("search"),
 	}
 	if params.Queue != "" && !validMentionQueues[params.Queue] {
 		writeError(w, http.StatusBadRequest, "invalid queue")
 		return
 	}
-	if params.EscalationKind != "" {
-		if params.Queue != "escalations" {
-			writeError(w, http.StatusBadRequest, "escalation_kind requires queue=escalations")
+	if params.ActionKind != "" {
+		if params.Queue != "action_required" {
+			writeError(w, http.StatusBadRequest, "action_kind requires queue=action_required")
 			return
 		}
-		if !validEscalationKinds[params.EscalationKind] {
-			writeError(w, http.StatusBadRequest, "invalid escalation_kind")
+		if !validActionKinds[params.ActionKind] {
+			writeError(w, http.StatusBadRequest, "invalid action_kind")
 			return
 		}
 	}
@@ -479,4 +536,48 @@ func (h *MentionHandler) Person360(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
+}
+
+func nextActionFor(m database.Mention, hasDraftReply bool) string {
+	flagged := bytesContainsTrue(m.ScoringMetadata, "needs_escalation")
+	if flagged {
+		return "needs_review"
+	}
+	if !isLeadIntentMention(m) {
+		return ""
+	}
+	if hasDraftReply {
+		return "ready_to_send"
+	}
+	if string(m.Status) == "new" {
+		return "needs_draft"
+	}
+	return ""
+}
+
+func isLeadIntentMention(m database.Mention) bool {
+	if !m.RelevanceScore.Valid || m.RelevanceScore.Float32 < 7.0 {
+		return false
+	}
+	if !m.Intent.Valid {
+		return false
+	}
+	switch m.Intent.IntentType {
+	case database.IntentTypeBuySignal, database.IntentTypeRecommendationAsk, database.IntentTypeComplaint:
+		return true
+	default:
+		return false
+	}
+}
+
+func bytesContainsTrue(meta []byte, key string) bool {
+	if len(meta) == 0 {
+		return false
+	}
+	var s map[string]any
+	if json.Unmarshal(meta, &s) != nil {
+		return false
+	}
+	v, ok := s[key].(bool)
+	return ok && v
 }

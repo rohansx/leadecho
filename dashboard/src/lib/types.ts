@@ -22,6 +22,7 @@ export interface Mention {
   relevance_score: number | null;
   intent: IntentType | null;
   awareness_level: AwarenessLevel | null;
+  next_action?: "ready_to_send" | "needs_draft" | "needs_review" | null;
   conversion_probability: number | null;
   status: MentionStatus;
   assigned_to: string | null;
@@ -234,9 +235,17 @@ export interface EscalationSubcounts {
   flagged: number;
 }
 
+export interface ActionSubcounts {
+  ready_to_send: number;
+  needs_draft: number;
+  needs_review: number;
+}
+
 export interface InboxQueueCountsResponse {
   queues: QueueCount[];
-  escalations: EscalationSubcounts;
+  actions: ActionSubcounts;
+  /** @deprecated use actions */
+  escalations?: EscalationSubcounts;
 }
 
 export interface PlatformCount {

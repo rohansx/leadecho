@@ -12,7 +12,7 @@ import {
   updateMentionStatus,
   updateProposalStatus,
 } from "@/lib/api";
-import { ESCALATION_KINDS, INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
+import { ACTION_KINDS, INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 import type { InboxQueueCountsResponse } from "@/lib/types";
 
 const PAGE_SIZE = 30;
@@ -20,37 +20,24 @@ const PAGE_SIZE = 30;
 interface InboxSearch {
   q?: string;
   queue?: string;
-  escalation_kind?: string;
+  action_kind?: string;
   platform?: string;
   status?: string;
   id?: string;
 }
 
 function pickDefaultQueue(counts: InboxQueueCountsResponse | undefined): string {
-  const queues = counts?.queues ?? [];
-  if (queues.length === 0) return INBOX_QUEUES.ESCALATIONS;
-  const byQueue = Object.fromEntries(queues.map((q) => [q.queue, q.count]));
-  if ((byQueue.auto_flowing ?? 0) > 0) return INBOX_QUEUES.AUTO_FLOWING;
-  if ((byQueue.escalations ?? 0) > 0) return INBOX_QUEUES.ESCALATIONS;
+  const actionCount =
+    counts?.queues.find((q) => q.queue === INBOX_QUEUES.ACTION_REQUIRED)?.count ?? 0;
+  if (actionCount > 0) return INBOX_QUEUES.ACTION_REQUIRED;
   return INBOX_QUEUES.ALL;
-}
-
-function pickDefaultEscalationKind(
-  counts: InboxQueueCountsResponse | undefined,
-): string | undefined {
-  const sub = counts?.escalations;
-  if (!sub) return ESCALATION_KINDS.NEEDS_DRAFT;
-  if (sub.needs_draft > 0) return ESCALATION_KINDS.NEEDS_DRAFT;
-  if (sub.flagged > 0) return ESCALATION_KINDS.FLAGGED;
-  return undefined;
 }
 
 export const Route = createFileRoute("/_dashboard/inbox")({
   validateSearch: (search: Record<string, unknown>): InboxSearch => ({
     q: typeof search.q === "string" ? search.q : undefined,
     queue: typeof search.queue === "string" ? search.queue : undefined,
-    escalation_kind:
-      typeof search.escalation_kind === "string" ? search.escalation_kind : undefined,
+    action_kind: typeof search.action_kind === "string" ? search.action_kind : undefined,
     platform: typeof search.platform === "string" ? search.platform : undefined,
     status: typeof search.status === "string" ? search.status : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
@@ -71,24 +58,14 @@ function InboxPage() {
 
   const queue = search.queue ?? pickDefaultQueue(queueCountsData);
   const isProposalsView = queue === INBOX_QUEUES.PROPOSALS;
-  const isEscalationsView = queue === INBOX_QUEUES.ESCALATIONS;
-  const escalationKind =
-    isEscalationsView
-      ? (search.escalation_kind ?? pickDefaultEscalationKind(queueCountsData))
-      : undefined;
+  const isActionView = queue === INBOX_QUEUES.ACTION_REQUIRED;
+  const isBrowseView = queue === INBOX_QUEUES.ALL;
+  const actionKind = search.action_kind;
 
-  // Persist smart defaults in the URL without cluttering history.
   useEffect(() => {
     if (!queueCountsData || search.queue) return;
     navigate({
-      search: (prev) => ({
-        ...prev,
-        queue: pickDefaultQueue(queueCountsData),
-        escalation_kind:
-          pickDefaultQueue(queueCountsData) === INBOX_QUEUES.ESCALATIONS
-            ? pickDefaultEscalationKind(queueCountsData)
-            : undefined,
-      }),
+      search: (prev) => ({ ...prev, queue: pickDefaultQueue(queueCountsData) }),
       replace: true,
     });
   }, [search.queue, queueCountsData, navigate]);
@@ -104,14 +81,21 @@ function InboxPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: [QUERY_KEYS.mentions, queue, escalationKind, platform, status, q],
+    queryKey: [
+      QUERY_KEYS.mentions,
+      queue,
+      actionKind,
+      isBrowseView ? platform : "",
+      isBrowseView ? status : "",
+      isBrowseView ? q : "",
+    ],
     queryFn: ({ pageParam }) =>
       listMentions({
         queue: queue || undefined,
-        escalation_kind: escalationKind,
-        platform: platform || undefined,
-        status: status || undefined,
-        search: q || undefined,
+        action_kind: isActionView && actionKind ? actionKind : undefined,
+        platform: isBrowseView && platform ? platform : undefined,
+        status: isBrowseView && status ? status : undefined,
+        search: isBrowseView && q ? q : undefined,
         limit: PAGE_SIZE,
         offset: pageParam,
       }),
@@ -135,15 +119,14 @@ function InboxPage() {
   });
 
   const { data: platformCounts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, escalationKind, status, q],
+    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, status, q],
     queryFn: () =>
       mentionPlatformCounts({
         queue,
-        escalation_kind: escalationKind,
         status: status || undefined,
         search: q || undefined,
       }),
-    enabled: !isProposalsView,
+    enabled: isBrowseView,
   });
 
   const proposalPendingCount =
@@ -199,9 +182,7 @@ function InboxPage() {
       selectMention(mentions[selectedIndex + 1].id);
       return;
     }
-    if (hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage();
-    }
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
   };
 
   const advanceSelection = () => {
@@ -233,14 +214,14 @@ function InboxPage() {
   };
 
   const handleQueueChange = (nextQueue: string) => {
+    const browse = nextQueue === INBOX_QUEUES.ALL;
     setSearch({
       queue: nextQueue,
       id: undefined,
+      action_kind: undefined,
       platform: undefined,
-      escalation_kind:
-        nextQueue === INBOX_QUEUES.ESCALATIONS
-          ? pickDefaultEscalationKind(queueCountsData)
-          : undefined,
+      status: undefined,
+      q: browse ? q : undefined,
     });
   };
 
@@ -252,7 +233,7 @@ function InboxPage() {
         proposals={proposals}
         isLoading={isProposalsView ? proposalsLoading : isLoading}
         isLoadingMore={isFetchingNextPage}
-        hasMore={Boolean(hasNextPage)}
+        hasMore={Boolean(hasNextPage) && isBrowseView}
         onLoadMore={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
         }}
@@ -261,9 +242,9 @@ function InboxPage() {
         queueFilter={queue}
         onQueueChange={handleQueueChange}
         queueCounts={queueCountsData}
-        escalationKind={escalationKind}
-        onEscalationKindChange={(kind) =>
-          setSearch({ escalation_kind: kind || undefined, id: undefined, platform: undefined })
+        actionKind={actionKind}
+        onActionKindChange={(kind) =>
+          setSearch({ action_kind: kind || undefined, id: undefined })
         }
         proposalPendingCount={proposalPendingCount}
         platformFilter={platform}

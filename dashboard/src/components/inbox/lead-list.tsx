@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
-import { ESCALATION_KINDS, INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
+import { ACTION_KINDS, INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
 
 const intentColors: Record<string, string> = {
   buy_signal: "text-primary-ink",
@@ -10,6 +10,21 @@ const intentColors: Record<string, string> = {
   comparison: "text-purple-600 dark:text-purple-400",
   complaint: "text-orange-600 dark:text-orange-400",
   general: "text-muted-foreground",
+};
+
+const actionBadge: Record<string, { label: string; className: string }> = {
+  ready_to_send: {
+    label: "Review & send",
+    className: "bg-primary/15 text-primary-ink border-primary/25",
+  },
+  needs_draft: {
+    label: "Draft reply",
+    className: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  },
+  needs_review: {
+    label: "Needs review",
+    className: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
+  },
 };
 
 function scoreClass(score: number | null) {
@@ -28,18 +43,36 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-function emptyMessage(queue: string, escalationKind?: string): string {
-  if (queue === INBOX_QUEUES.AUTO_FLOWING) {
-    return "No replies ready to review. Draft replies from Escalations to move items here.";
+function queueSubtitle(
+  queue: string,
+  listTotal: number,
+  actions?: InboxQueueCountsResponse["actions"],
+): string | null {
+  if (queue === INBOX_QUEUES.ACTION_REQUIRED && actions) {
+    const parts: string[] = [];
+    if (actions.ready_to_send > 0) parts.push(`${actions.ready_to_send} ready to send`);
+    if (actions.needs_draft > 0) parts.push(`${actions.needs_draft} need draft`);
+    if (actions.needs_review > 0) parts.push(`${actions.needs_review} need review`);
+    return parts.length > 0 ? parts.join(" · ") : `${listTotal} need attention`;
   }
-  if (queue === INBOX_QUEUES.ESCALATIONS) {
-    if (escalationKind === ESCALATION_KINDS.FLAGGED) {
+  if (queue === INBOX_QUEUES.ALL) {
+    return `${listTotal.toLocaleString()} mentions`;
+  }
+  return null;
+}
+
+function emptyMessage(queue: string, actionKind?: string): string {
+  if (queue === INBOX_QUEUES.ACTION_REQUIRED) {
+    if (actionKind === ACTION_KINDS.READY_TO_SEND) {
+      return "Nothing ready to send. Draft replies from high-intent mentions first.";
+    }
+    if (actionKind === ACTION_KINDS.NEEDS_DRAFT) {
+      return "All caught up — no mentions waiting for a draft.";
+    }
+    if (actionKind === ACTION_KINDS.NEEDS_REVIEW) {
       return "No mentions flagged for human review.";
     }
-    if (escalationKind === ESCALATION_KINDS.NEEDS_DRAFT) {
-      return "All high-intent mentions have drafts. Nice work.";
-    }
-    return "Escalation queue is clear.";
+    return "Inbox zero. New high-intent mentions will appear here.";
   }
   if (queue === INBOX_QUEUES.ALL) {
     return "No mentions match your filters.";
@@ -57,8 +90,8 @@ export function LeadList({
   queueFilter,
   onQueueChange,
   queueCounts,
-  escalationKind,
-  onEscalationKindChange,
+  actionKind,
+  onActionKindChange,
   proposalPendingCount,
   platformFilter,
   onPlatformChange,
@@ -83,8 +116,8 @@ export function LeadList({
   queueFilter: string;
   onQueueChange: (queue: string) => void;
   queueCounts?: InboxQueueCountsResponse;
-  escalationKind?: string;
-  onEscalationKindChange?: (kind: string) => void;
+  actionKind?: string;
+  onActionKindChange?: (kind: string) => void;
   proposalPendingCount?: number;
   platformFilter: string;
   onPlatformChange: (platform: string) => void;
@@ -101,12 +134,13 @@ export function LeadList({
   isLoadingMore?: boolean;
 }) {
   const isProposalsView = queueFilter === INBOX_QUEUES.PROPOSALS;
-  const isEscalationsView = queueFilter === INBOX_QUEUES.ESCALATIONS;
+  const isActionView = queueFilter === INBOX_QUEUES.ACTION_REQUIRED;
+  const isBrowseView = queueFilter === INBOX_QUEUES.ALL;
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!onLoadMore || !hasMore || isProposalsView) return;
+    if (!onLoadMore || !hasMore || !isBrowseView) return;
     const root = scrollRef.current;
     const target = loadMoreRef.current;
     if (!root || !target) return;
@@ -119,25 +153,44 @@ export function LeadList({
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [onLoadMore, hasMore, isLoadingMore, isProposalsView, mentions.length]);
+  }, [onLoadMore, hasMore, isLoadingMore, isBrowseView, mentions.length]);
 
   const queueTabs = [
-    { key: INBOX_QUEUES.AUTO_FLOWING, label: "Auto-flowing" },
-    { key: INBOX_QUEUES.ESCALATIONS, label: "Escalations" },
+    { key: INBOX_QUEUES.ACTION_REQUIRED, label: "Action required" },
     { key: INBOX_QUEUES.ALL, label: "All mentions" },
     ...(proposalPendingCount && proposalPendingCount > 0
       ? [{ key: INBOX_QUEUES.PROPOSALS, label: "Proposals" as const }]
       : []),
   ];
 
-  const getQueueCount = (queue: string) => {
-    if (queue === INBOX_QUEUES.PROPOSALS) {
-      return proposalPendingCount ?? 0;
-    }
-    return queueCounts?.queues.find((c) => c.queue === queue)?.count ?? 0;
-  };
+  const getQueueCount = (q: string) =>
+    queueCounts?.queues.find((c) => c.queue === q)?.count ??
+    (q === INBOX_QUEUES.PROPOSALS ? (proposalPendingCount ?? 0) : 0);
 
   const platformTotal = platformOptions.reduce((sum, p) => sum + p.count, 0);
+  const subtitle =
+    !isProposalsView && listTotal != null
+      ? queueSubtitle(queueFilter, listTotal, queueCounts?.actions)
+      : null;
+
+  const actionFilters = [
+    { key: "", label: "All", count: getQueueCount(INBOX_QUEUES.ACTION_REQUIRED) },
+    {
+      key: ACTION_KINDS.READY_TO_SEND,
+      label: "Ready to send",
+      count: queueCounts?.actions.ready_to_send ?? 0,
+    },
+    {
+      key: ACTION_KINDS.NEEDS_DRAFT,
+      label: "Needs draft",
+      count: queueCounts?.actions.needs_draft ?? 0,
+    },
+    {
+      key: ACTION_KINDS.NEEDS_REVIEW,
+      label: "Needs review",
+      count: queueCounts?.actions.needs_review ?? 0,
+    },
+  ];
 
   return (
     <section className="w-[380px] shrink-0 border-r border-border flex flex-col min-h-0 h-full bg-background">
@@ -145,10 +198,8 @@ export function LeadList({
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="font-[family-name:var(--font-head)] font-medium">Inbox</h2>
-            {!isProposalsView && listTotal != null && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {listTotal.toLocaleString()} in this view
-              </p>
+            {subtitle && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
           <button
@@ -160,19 +211,6 @@ export function LeadList({
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         </div>
-
-        {!isProposalsView && (
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search this view…"
-              aria-label="Search mentions"
-              className="w-full rounded-lg border border-border bg-card pl-8 pr-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30"
-            />
-          </div>
-        )}
 
         <div className="flex gap-1.5 flex-wrap">
           {queueTabs.map((t) => {
@@ -196,26 +234,15 @@ export function LeadList({
           })}
         </div>
 
-        {isEscalationsView && onEscalationKindChange && queueCounts?.escalations && (
+        {isActionView && onActionKindChange && queueCounts?.actions && (
           <div className="flex gap-1.5 flex-wrap">
-            {[
-              {
-                key: ESCALATION_KINDS.NEEDS_DRAFT,
-                label: "Needs draft",
-                count: queueCounts.escalations.needs_draft ?? 0,
-              },
-              {
-                key: ESCALATION_KINDS.FLAGGED,
-                label: "Needs review",
-                count: queueCounts.escalations.flagged ?? 0,
-              },
-            ].map((t) => {
-              const active = escalationKind === t.key;
+            {actionFilters.map((t) => {
+              const active = (actionKind ?? "") === t.key;
               return (
                 <button
-                  key={t.key}
+                  key={t.key || "all"}
                   type="button"
-                  onClick={() => onEscalationKindChange(t.key)}
+                  onClick={() => onActionKindChange(t.key)}
                   className={`px-2 py-0.5 rounded-md text-[11px] font-medium cursor-pointer transition-colors border ${
                     active
                       ? "border-primary/40 bg-primary/10 text-primary-ink"
@@ -230,39 +257,51 @@ export function LeadList({
           </div>
         )}
 
-        {!isProposalsView && (
-          <div className="flex gap-1.5">
-            {platformOptions.length > 0 && (
+        {isBrowseView && (
+          <>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search mentions…"
+                aria-label="Search mentions"
+                className="w-full rounded-lg border border-border bg-card pl-8 pr-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30"
+              />
+            </div>
+            <div className="flex gap-1.5">
+              {platformOptions.length > 0 && (
+                <select
+                  value={platformFilter}
+                  onChange={(e) => onPlatformChange(e.target.value)}
+                  aria-label="Filter by platform"
+                  className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+                >
+                  <option value="">
+                    All platforms ({platformTotal.toLocaleString()})
+                  </option>
+                  {platformOptions.map((p) => (
+                    <option key={p.platform} value={p.platform}>
+                      {p.platform} ({p.count.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              )}
               <select
-                value={platformFilter}
-                onChange={(e) => onPlatformChange(e.target.value)}
-                aria-label="Filter by platform"
+                value={statusFilter}
+                onChange={(e) => onStatusChange(e.target.value)}
+                aria-label="Filter by status"
                 className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
               >
-                <option value="">
-                  All platforms ({platformTotal.toLocaleString()})
-                </option>
-                {platformOptions.map((p) => (
-                  <option key={p.platform} value={p.platform}>
-                    {p.platform} ({p.count.toLocaleString()})
+                <option value="">All statuses</option>
+                {MENTION_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
-            )}
-            <select
-              value={statusFilter}
-              onChange={(e) => onStatusChange(e.target.value)}
-              aria-label="Filter by status"
-              className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
-            >
-              <option value="">All statuses</option>
-              {MENTION_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -279,13 +318,14 @@ export function LeadList({
 
         {!isLoading && !isProposalsView && mentions.length === 0 && (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            {emptyMessage(queueFilter, escalationKind)}
+            {emptyMessage(queueFilter, actionKind)}
           </div>
         )}
 
         {!isProposalsView &&
           mentions.map((m, i) => {
-            const flagged = Boolean(m.scoring_metadata?.needs_escalation);
+            const action = m.next_action;
+            const badge = action ? actionBadge[action] : null;
             return (
               <motion.button
                 key={m.id}
@@ -304,6 +344,13 @@ export function LeadList({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1 flex-wrap">
+                    {badge && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    )}
                     <span className="font-medium text-foreground-soft">{m.platform}</span>
                     {m.intent && (
                       <>
@@ -311,18 +358,6 @@ export function LeadList({
                         <span className={intentColors[m.intent] ?? ""}>
                           {m.intent.replace("_", " ")}
                         </span>
-                      </>
-                    )}
-                    {flagged && (
-                      <>
-                        <span>·</span>
-                        <span className="text-orange-600 dark:text-orange-400">needs review</span>
-                      </>
-                    )}
-                    {isEscalationsView && !flagged && m.status === "new" && (
-                      <>
-                        <span>·</span>
-                        <span className="text-blue-600 dark:text-blue-400">needs draft</span>
                       </>
                     )}
                     <span className="ml-auto shrink-0">
@@ -338,13 +373,13 @@ export function LeadList({
             );
           })}
 
-        {!isProposalsView && hasMore && (
+        {isBrowseView && hasMore && (
           <div ref={loadMoreRef} className="py-4 text-center text-xs text-muted-foreground">
             {isLoadingMore ? "Loading more…" : "Scroll for more"}
           </div>
         )}
 
-        {!isProposalsView && !hasMore && mentions.length > 0 && listTotal != null && (
+        {isBrowseView && !hasMore && mentions.length > 0 && (
           <div className="py-4 text-center text-xs text-muted-foreground">
             End of list · {mentions.length.toLocaleString()} loaded
           </div>

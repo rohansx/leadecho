@@ -54,6 +54,7 @@ export function listMentions(params?: {
   search?: string;
   tier?: string;
   queue?: string;
+  action_kind?: string;
   escalation_kind?: string;
   limit?: number;
   offset?: number;
@@ -65,6 +66,7 @@ export function listMentions(params?: {
   if (params?.search) q.set("search", params.search);
   if (params?.tier) q.set("tier", params.tier);
   if (params?.queue) q.set("queue", params.queue);
+  if (params?.action_kind) q.set("action_kind", params.action_kind);
   if (params?.escalation_kind) q.set("escalation_kind", params.escalation_kind);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
@@ -91,65 +93,100 @@ export function mentionTierCounts() {
   return request<TierCount[]>("/mentions/tier-counts");
 }
 
-/** Accepts both legacy `[{queue,count}]` and `{queues, escalations}` shapes. */
+/** Accepts legacy and current queue-counts API shapes. */
 export function normalizeQueueCounts(
   raw: InboxQueueCountsResponse | QueueCount[] | null | undefined,
 ): InboxQueueCountsResponse {
   if (Array.isArray(raw)) {
+    const byQueue = Object.fromEntries(raw.map((q) => [q.queue, q.count]));
+    const actionCount = (byQueue.auto_flowing ?? 0) + (byQueue.escalations ?? 0);
+    const queues: QueueCount[] = [];
+    if (actionCount > 0) queues.push({ queue: "action_required", count: actionCount });
+    if (byQueue.all != null) queues.push({ queue: "all", count: byQueue.all });
     return {
-      queues: raw,
-      escalations: { needs_draft: 0, flagged: 0 },
+      queues,
+      actions: {
+        ready_to_send: byQueue.auto_flowing ?? 0,
+        needs_draft: 0,
+        needs_review: 0,
+      },
     };
   }
+
+  let queues = [...(raw?.queues ?? [])];
+  if (!queues.some((q) => q.queue === "action_required")) {
+    const auto = queues.find((q) => q.queue === "auto_flowing")?.count ?? 0;
+    const esc = queues.find((q) => q.queue === "escalations")?.count ?? 0;
+    if (auto > 0 || esc > 0) {
+      queues = [
+        { queue: "action_required", count: auto + esc },
+        ...queues.filter((q) => q.queue !== "auto_flowing" && q.queue !== "escalations"),
+      ];
+    }
+  }
+
+  if (raw?.actions) {
+    return { queues, actions: raw.actions };
+  }
+
   return {
-    queues: raw?.queues ?? [],
-    escalations: raw?.escalations ?? { needs_draft: 0, flagged: 0 },
+    queues,
+    actions: {
+      ready_to_send: 0,
+      needs_draft: raw?.escalations?.needs_draft ?? 0,
+      needs_review: raw?.escalations?.flagged ?? 0,
+    },
   };
 }
 
-/** Backfill counts missing from older API builds (no `all` queue, no escalation split). */
+/** Backfill counts missing from older API builds. */
 async function enrichQueueCounts(base: InboxQueueCountsResponse): Promise<InboxQueueCountsResponse> {
   const queues = [...base.queues];
-  const escalations = { ...base.escalations };
+  let actions = { ...base.actions };
 
   const hasAll = queues.some((q) => q.queue === "all");
-  const escRow = queues.find((q) => q.queue === "escalations");
+  const actionRow = queues.find((q) => q.queue === "action_required");
 
-  if (!hasAll || (escRow && escalations.needs_draft === 0 && escalations.flagged === 0)) {
-    try {
-      if (!hasAll) {
-        const page = await request<PaginatedResponse<Mention>>("/mentions?queue=all&limit=1");
+  try {
+    if (!hasAll) {
+      const page = await request<PaginatedResponse<Mention>>("/mentions?queue=all&limit=1");
+      queues.push({ queue: "all", count: page.total });
+    }
+    if (
+      actionRow &&
+      actions.ready_to_send === 0 &&
+      actions.needs_draft === 0 &&
+      actions.needs_review === 0
+    ) {
+      const [ready, draft, review] = await Promise.all([
+        request<PaginatedResponse<Mention>>(
+          "/mentions?queue=action_required&action_kind=ready_to_send&limit=1",
+        ),
+        request<PaginatedResponse<Mention>>(
+          "/mentions?queue=action_required&action_kind=needs_draft&limit=1",
+        ),
+        request<PaginatedResponse<Mention>>(
+          "/mentions?queue=action_required&action_kind=needs_review&limit=1",
+        ),
+      ]);
+      actions = {
+        ready_to_send: ready.total,
+        needs_draft: draft.total,
+        needs_review: review.total,
+      };
+    }
+  } catch {
+    if (!hasAll) {
+      try {
+        const page = await request<PaginatedResponse<Mention>>("/mentions?limit=1");
         queues.push({ queue: "all", count: page.total });
-      }
-      if (escRow && escalations.needs_draft === 0 && escalations.flagged === 0) {
-        const [draftPage, flaggedPage] = await Promise.all([
-          request<PaginatedResponse<Mention>>(
-            "/mentions?queue=escalations&escalation_kind=needs_draft&limit=1",
-          ),
-          request<PaginatedResponse<Mention>>(
-            "/mentions?queue=escalations&escalation_kind=flagged&limit=1",
-          ),
-        ]);
-        escalations.needs_draft = draftPage.total;
-        escalations.flagged = flaggedPage.total;
-      }
-    } catch {
-      // Legacy API: fall back to unscoped list total for All mentions.
-      if (!hasAll) {
-        try {
-          const page = await request<PaginatedResponse<Mention>>("/mentions?limit=1");
-          queues.push({ queue: "all", count: page.total });
-        } catch {
-          /* keep 0 */
-        }
-      }
-      if (escRow && escalations.needs_draft === 0 && escalations.flagged === 0) {
-        escalations.needs_draft = escRow.count;
+      } catch {
+        /* keep */
       }
     }
   }
 
-  return { queues, escalations };
+  return { queues, actions };
 }
 
 export async function mentionQueueCounts() {
@@ -159,14 +196,14 @@ export async function mentionQueueCounts() {
 
 export async function mentionPlatformCounts(params?: {
   queue?: string;
-  escalation_kind?: string;
+  action_kind?: string;
   status?: string;
   intent?: string;
   search?: string;
 }) {
   const q = new URLSearchParams();
   if (params?.queue) q.set("queue", params.queue);
-  if (params?.escalation_kind) q.set("escalation_kind", params.escalation_kind);
+  if (params?.action_kind) q.set("action_kind", params.action_kind);
   if (params?.status) q.set("status", params.status);
   if (params?.intent) q.set("intent", params.intent);
   if (params?.search) q.set("search", params.search);

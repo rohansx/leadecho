@@ -62,3 +62,14 @@ func TestListMentionsComposedParams_buildWhere_queueAll(t *testing.T) {
 		t.Fatalf("all queue should not require replies: %s", where)
 	}
 }
+
+func TestListMentionsComposedParams_buildWhere_actionRequired(t *testing.T) {
+	where, _ := (ListMentionsComposedParams{
+		WorkspaceID: "ws-1",
+		Queue:       "action_required",
+	}).buildWhere()
+
+	if !strings.Contains(where, "replies r") {
+		t.Fatalf("action_required should include reply predicates: %s", where)
+	}
+}

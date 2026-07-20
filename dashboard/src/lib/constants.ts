@@ -34,15 +34,18 @@ export const MENTION_TIERS = {
 } as const;
 
 export const INBOX_QUEUES = {
-  AUTO_FLOWING: "auto_flowing",
-  ESCALATIONS: "escalations",
+  ACTION_REQUIRED: "action_required",
   ALL: "all",
   PROPOSALS: "proposals",
+  /** @deprecated legacy API queue names */
+  AUTO_FLOWING: "auto_flowing",
+  ESCALATIONS: "escalations",
 } as const;
 
-export const ESCALATION_KINDS = {
+export const ACTION_KINDS = {
+  READY_TO_SEND: "ready_to_send",
   NEEDS_DRAFT: "needs_draft",
-  FLAGGED: "flagged",
+  NEEDS_REVIEW: "needs_review",
 } as const;
 
 export const MENTION_STATUSES = ["new", "reviewed", "replied", "archived", "spam"] as const;
