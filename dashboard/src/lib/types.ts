@@ -223,3 +223,20 @@ export interface UTMLink {
   revenue_cents: number;
   created_at: string;
 }
+
+export interface QueueCount {
+  queue: string;
+  count: number;
+}
+
+export interface HumanProposal {
+  id: string;
+  workspace_id: string;
+  proposal_type: string;
+  title: string;
+  body: string;
+  status: "pending" | "accepted" | "dismissed";
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}

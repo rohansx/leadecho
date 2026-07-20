@@ -1,13 +1,12 @@
 import { motion } from "motion/react";
 import { RefreshCw, Search } from "lucide-react";
-import type { Mention, TierCount } from "@/lib/types";
-import { MENTION_STATUSES, MENTION_TIERS } from "@/lib/constants";
+import type { HumanProposal, Mention, QueueCount } from "@/lib/types";
+import { INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
 
-const tierTabs = [
-  { key: "", label: "All" },
-  { key: MENTION_TIERS.LEADS_READY, label: "Leads ready" },
-  { key: MENTION_TIERS.WORTH_WATCHING, label: "Worth watching" },
-  { key: MENTION_TIERS.FILTERED, label: "Filtered" },
+const queueTabs = [
+  { key: INBOX_QUEUES.AUTO_FLOWING, label: "Auto-flowing" },
+  { key: INBOX_QUEUES.ESCALATIONS, label: "Escalations" },
+  { key: INBOX_QUEUES.PROPOSALS, label: "Proposals" },
 ] as const;
 
 const intentColors: Record<string, string> = {
@@ -36,12 +35,14 @@ function timeAgo(dateStr: string): string {
 
 export function LeadList({
   mentions,
+  proposals,
   isLoading,
   selectedId,
   onSelect,
-  tierFilter,
-  onTierChange,
-  tierCounts,
+  queueFilter,
+  onQueueChange,
+  queueCounts,
+  proposalPendingCount,
   platformFilter,
   onPlatformChange,
   platformOptions,
@@ -50,14 +51,18 @@ export function LeadList({
   search,
   onSearchChange,
   onRefresh,
+  onProposalAction,
+  proposalActionPending,
 }: {
   mentions: Mention[];
+  proposals?: HumanProposal[];
   isLoading: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  tierFilter: string;
-  onTierChange: (tier: string) => void;
-  tierCounts?: TierCount[];
+  queueFilter: string;
+  onQueueChange: (queue: string) => void;
+  queueCounts?: QueueCount[];
+  proposalPendingCount?: number;
   platformFilter: string;
   onPlatformChange: (platform: string) => void;
   platformOptions: { platform: string; count: number }[];
@@ -66,9 +71,17 @@ export function LeadList({
   search: string;
   onSearchChange: (v: string) => void;
   onRefresh: () => void;
+  onProposalAction?: (id: string, status: "accepted" | "dismissed") => void;
+  proposalActionPending?: boolean;
 }) {
-  const getTierCount = (tier: string) =>
-    tier ? (tierCounts?.find((c) => c.tier === tier)?.count ?? 0) : null;
+  const isProposalsView = queueFilter === INBOX_QUEUES.PROPOSALS;
+
+  const getQueueCount = (queue: string) => {
+    if (queue === INBOX_QUEUES.PROPOSALS) {
+      return proposalPendingCount ?? 0;
+    }
+    return queueCounts?.find((c) => c.queue === queue)?.count ?? 0;
+  };
 
   return (
     <section className="w-[380px] shrink-0 border-r border-border flex flex-col h-full bg-background">
@@ -85,26 +98,28 @@ export function LeadList({
           </button>
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search this inbox…"
-            aria-label="Search mentions"
-            className="w-full rounded-lg border border-border bg-card pl-8 pr-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30"
-          />
-        </div>
+        {!isProposalsView && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search this inbox…"
+              aria-label="Search mentions"
+              className="w-full rounded-lg border border-border bg-card pl-8 pr-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30"
+            />
+          </div>
+        )}
 
         <div className="flex gap-1.5 flex-wrap">
-          {tierTabs.map((t) => {
-            const count = getTierCount(t.key);
-            const active = tierFilter === t.key;
+          {queueTabs.map((t) => {
+            const count = getQueueCount(t.key);
+            const active = queueFilter === t.key;
             return (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => onTierChange(t.key)}
+                onClick={() => onQueueChange(t.key)}
                 className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground"
@@ -112,87 +127,146 @@ export function LeadList({
                 }`}
               >
                 {t.label}
-                {count != null && <span className="ml-1 opacity-70">{count}</span>}
+                <span className="ml-1 opacity-70">{count}</span>
               </button>
             );
           })}
         </div>
 
-        <div className="flex gap-1.5">
-          {platformOptions.length > 0 && (
+        {!isProposalsView && (
+          <div className="flex gap-1.5">
+            {platformOptions.length > 0 && (
+              <select
+                value={platformFilter}
+                onChange={(e) => onPlatformChange(e.target.value)}
+                aria-label="Filter by platform"
+                className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+              >
+                <option value="">All platforms</option>
+                {platformOptions.map((p) => (
+                  <option key={p.platform} value={p.platform}>
+                    {p.platform} ({p.count})
+                  </option>
+                ))}
+              </select>
+            )}
             <select
-              value={platformFilter}
-              onChange={(e) => onPlatformChange(e.target.value)}
-              aria-label="Filter by platform"
+              value={statusFilter}
+              onChange={(e) => onStatusChange(e.target.value)}
+              aria-label="Filter by status"
               className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
             >
-              <option value="">All platforms</option>
-              {platformOptions.map((p) => (
-                <option key={p.platform} value={p.platform}>
-                  {p.platform} ({p.count})
+              <option value="">All statuses</option>
+              {MENTION_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
                 </option>
               ))}
             </select>
-          )}
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusChange(e.target.value)}
-            aria-label="Filter by status"
-            className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
-          >
-            <option value="">All statuses</option>
-            {MENTION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {isLoading && (
           <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
         )}
-        {!isLoading && mentions.length === 0 && (
+
+        {!isLoading && isProposalsView && (proposals?.length ?? 0) === 0 && (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            No mentions found. Adjust your filters.
+            No pending proposals. Discovery agent suggestions will appear here.
           </div>
         )}
-        {mentions.map((m, i) => (
-          <motion.button
-            key={m.id}
-            onClick={() => onSelect(m.id)}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
-            className={`w-full text-left px-4 py-3.5 border-b border-border flex gap-3 transition-colors cursor-pointer ${
-              selectedId === m.id ? "bg-accent-soft/60" : "hover:bg-accent/50"
-            }`}
-          >
-            <div
-              className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium ${scoreClass(m.relevance_score)}`}
+
+        {!isLoading && !isProposalsView && mentions.length === 0 && (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            No mentions in this queue. Adjust your filters.
+          </div>
+        )}
+
+        {!isProposalsView &&
+          mentions.map((m, i) => (
+            <motion.button
+              key={m.id}
+              onClick={() => onSelect(m.id)}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
+              className={`w-full text-left px-4 py-3.5 border-b border-border flex gap-3 transition-colors cursor-pointer ${
+                selectedId === m.id ? "bg-accent-soft/60" : "hover:bg-accent/50"
+              }`}
             >
-              {m.relevance_score != null ? m.relevance_score.toFixed(1) : "–"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                <span className="font-medium text-foreground-soft">{m.platform}</span>
-                {m.intent && (
-                  <>
-                    <span>·</span>
-                    <span className={intentColors[m.intent] ?? ""}>{m.intent.replace("_", " ")}</span>
-                  </>
-                )}
-                <span className="ml-auto shrink-0">{timeAgo(m.platform_created_at ?? m.created_at)}</span>
+              <div
+                className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium ${scoreClass(m.relevance_score)}`}
+              >
+                {m.relevance_score != null ? m.relevance_score.toFixed(1) : "–"}
               </div>
-              <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
-              <div className="mt-1 text-xs text-muted-foreground truncate">
-                @{m.author_username ?? "unknown"}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <span className="font-medium text-foreground-soft">{m.platform}</span>
+                  {m.intent && (
+                    <>
+                      <span>·</span>
+                      <span className={intentColors[m.intent] ?? ""}>{m.intent.replace("_", " ")}</span>
+                    </>
+                  )}
+                  {Boolean(m.scoring_metadata?.needs_escalation) && (
+                    <>
+                      <span>·</span>
+                      <span className="text-orange-600 dark:text-orange-400">escalation</span>
+                    </>
+                  )}
+                  <span className="ml-auto shrink-0">{timeAgo(m.platform_created_at ?? m.created_at)}</span>
+                </div>
+                <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
+                <div className="mt-1 text-xs text-muted-foreground truncate">
+                  @{m.author_username ?? "unknown"}
+                </div>
               </div>
-            </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          ))}
+
+        {isProposalsView &&
+          proposals?.map((p, i) => (
+            <motion.div
+              key={p.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
+              className={`w-full text-left px-4 py-3.5 border-b border-border ${
+                selectedId === p.id ? "bg-accent-soft/60" : ""
+              }`}
+            >
+              <button type="button" onClick={() => onSelect(p.id)} className="w-full text-left cursor-pointer">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <span className="font-medium text-foreground-soft">{p.proposal_type}</span>
+                  <span className="ml-auto shrink-0">{timeAgo(p.created_at)}</span>
+                </div>
+                <p className="text-sm font-medium text-foreground line-clamp-1">{p.title}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2 leading-snug mt-1">{p.body}</p>
+              </button>
+              {p.status === "pending" && onProposalAction && (
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={proposalActionPending}
+                    onClick={() => onProposalAction(p.id, "accepted")}
+                    className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground cursor-pointer disabled:opacity-50"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    disabled={proposalActionPending}
+                    onClick={() => onProposalAction(p.id, "dismissed")}
+                    className="px-2 py-1 text-xs rounded-md border border-border hover:bg-accent cursor-pointer disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          ))}
       </div>
     </section>
   );

@@ -16,6 +16,8 @@ import type {
   UTMLink,
   ProductAnalysis,
   Person360Response,
+  QueueCount,
+  HumanProposal,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -49,6 +51,7 @@ export function listMentions(params?: {
   intent?: string;
   search?: string;
   tier?: string;
+  queue?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -58,6 +61,7 @@ export function listMentions(params?: {
   if (params?.intent) q.set("intent", params.intent);
   if (params?.search) q.set("search", params.search);
   if (params?.tier) q.set("tier", params.tier);
+  if (params?.queue) q.set("queue", params.queue);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.toString();
@@ -81,6 +85,29 @@ export function mentionCounts() {
 
 export function mentionTierCounts() {
   return request<TierCount[]>("/mentions/tier-counts");
+}
+
+export function mentionQueueCounts() {
+  return request<QueueCount[]>("/mentions/queue-counts");
+}
+
+export function listProposals(params?: { status?: string; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return request<HumanProposal[]>(`/proposals${qs ? `?${qs}` : ""}`);
+}
+
+export function proposalCounts() {
+  return request<StatusCount[]>("/proposals/counts");
+}
+
+export function updateProposalStatus(id: string, status: "accepted" | "dismissed" | "pending") {
+  return request<HumanProposal>(`/proposals/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
 }
 
 // ─── Profiles (Pain-Point Monitoring) ─────────────────

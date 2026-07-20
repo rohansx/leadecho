@@ -2,6 +2,7 @@ package reply
 
 import (
 	"context"
+	"encoding/json"
 	"math/rand/v2"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +13,21 @@ import (
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 )
+
+func (d *Drafter) markEscalation(ctx context.Context, wsID, mentionID string, existingMeta []byte, reason string) {
+	meta := map[string]any{}
+	if len(existingMeta) > 0 {
+		_ = json.Unmarshal(existingMeta, &meta)
+	}
+	meta["needs_escalation"] = true
+	meta["escalation_reason"] = reason
+	b, _ := json.Marshal(meta)
+	_, _ = d.q.PatchMentionScoringMetadata(ctx, database.PatchMentionScoringMetadataParams{
+		ID:              mentionID,
+		WorkspaceID:     wsID,
+		ScoringMetadata: b,
+	})
+}
 
 // KBRetriever supplies semantic knowledge-base context for reply drafting.
 type KBRetriever interface {
@@ -71,6 +87,7 @@ func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (
 	}
 
 	if !preFilter.ShouldReply {
+		d.markEscalation(ctx, wsID, mentionID, mention.ScoringMetadata, preFilter.Reason)
 		return &DraftResult{
 			ShouldReply:    false,
 			Reason:         preFilter.Reason,

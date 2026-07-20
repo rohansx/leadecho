@@ -66,6 +66,9 @@ func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	engagementTicker := time.NewTicker(30 * time.Minute)
+	defer engagementTicker.Stop()
+
 	// Run immediately on start
 	m.tick(ctx)
 
@@ -76,6 +79,8 @@ func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
 			return
 		case <-ticker.C:
 			m.tick(ctx)
+		case <-engagementTicker.C:
+			m.CheckReplyEngagements(ctx)
 		}
 	}
 }

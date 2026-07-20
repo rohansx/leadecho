@@ -28,6 +28,9 @@ var (
 		"buy_signal": true, "complaint": true, "recommendation_ask": true,
 		"comparison": true, "general": true,
 	}
+	validMentionQueues = map[string]bool{
+		"auto_flowing": true, "escalations": true,
+	}
 )
 
 type MentionHandler struct {
@@ -168,6 +171,7 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	params := database.ListMentionsComposedParams{
 		WorkspaceID: workspaceID,
 		Tier:        r.URL.Query().Get("tier"),
+		Queue:       r.URL.Query().Get("queue"),
 		Status:      r.URL.Query().Get("status"),
 		Platform:    r.URL.Query().Get("platform"),
 		Intent:      r.URL.Query().Get("intent"),
@@ -189,6 +193,10 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if params.Intent != "" && !validMentionIntents[params.Intent] {
 		writeError(w, http.StatusBadRequest, "invalid intent")
+		return
+	}
+	if params.Queue != "" && !validMentionQueues[params.Queue] {
+		writeError(w, http.StatusBadRequest, "invalid queue")
 		return
 	}
 
@@ -357,6 +365,28 @@ func (h *MentionHandler) TierCounts(w http.ResponseWriter, r *http.Request) {
 	resp := make([]tierItem, len(counts))
 	for i, c := range counts {
 		resp[i] = tierItem{Tier: c.Tier, Count: c.Count}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *MentionHandler) QueueCounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := middleware.WorkspaceID(ctx)
+
+	counts, err := h.q.CountMentionsByQueue(ctx, workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count mentions by queue")
+		return
+	}
+
+	type queueItem struct {
+		Queue string `json:"queue"`
+		Count int32  `json:"count"`
+	}
+	resp := make([]queueItem, len(counts))
+	for i, c := range counts {
+		resp[i] = queueItem{Queue: c.Queue, Count: c.Count}
 	}
 
 	writeJSON(w, http.StatusOK, resp)

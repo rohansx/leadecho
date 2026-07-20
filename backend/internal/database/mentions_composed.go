@@ -12,6 +12,7 @@ import (
 type ListMentionsComposedParams struct {
 	WorkspaceID string
 	Tier        string // "", leads_ready, worth_watching, filtered
+	Queue       string // "", auto_flowing, escalations
 	Status      string
 	Platform    string
 	Intent      string
@@ -42,6 +43,32 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 			"NOT (COALESCE(relevance_score, 0) >= 7.0 AND COALESCE(intent IN ('buy_signal', 'recommendation_ask', 'complaint'), false))"+
 				" AND NOT (COALESCE(relevance_score, 0) >= 4.0 AND COALESCE(relevance_score, 0) < 7.0)")
 	}
+
+	switch p.Queue {
+	case "auto_flowing":
+		clauses = append(clauses, leadIntentPredicate())
+		clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+		clauses = append(clauses, `EXISTS (
+			SELECT 1 FROM replies r
+			WHERE r.mention_id = mentions.id AND r.workspace_id = mentions.workspace_id
+			AND r.status IN ('draft', 'approved')
+		)`)
+		clauses = append(clauses, "NOT COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)")
+	case "escalations":
+		clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+		clauses = append(clauses, `(
+			COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)
+			OR (
+				`+leadIntentPredicate()+`
+				AND status = 'new'
+				AND NOT EXISTS (
+					SELECT 1 FROM replies r
+					WHERE r.mention_id = mentions.id AND r.workspace_id = mentions.workspace_id
+					AND r.status IN ('draft', 'approved', 'posted')
+				)
+			)
+		)`)
+	}
 	if p.Status != "" {
 		add("status = $%d", p.Status)
 	}
@@ -55,6 +82,62 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 		add("content_tsv @@ plainto_tsquery('english', $%d)", p.Search)
 	}
 	return strings.Join(clauses, " AND "), args
+}
+
+func leadIntentPredicate() string {
+	return "relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint')"
+}
+
+// CountMentionsByQueue returns counts for the action-oriented inbox queues.
+func (q *Queries) CountMentionsByQueue(ctx context.Context, workspaceID string) ([]CountMentionsByQueueRow, error) {
+	sql := `
+SELECT 'auto_flowing' AS queue, COUNT(*)::int AS count
+FROM mentions
+WHERE workspace_id = $1
+  AND ` + leadIntentPredicate() + `
+  AND status NOT IN ('spam', 'archived')
+  AND NOT COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)
+  AND EXISTS (
+    SELECT 1 FROM replies r
+    WHERE r.mention_id = mentions.id AND r.workspace_id = mentions.workspace_id
+    AND r.status IN ('draft', 'approved')
+  )
+UNION ALL
+SELECT 'escalations' AS queue, COUNT(*)::int AS count
+FROM mentions
+WHERE workspace_id = $1
+  AND status NOT IN ('spam', 'archived')
+  AND (
+    COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)
+    OR (
+      ` + leadIntentPredicate() + `
+      AND status = 'new'
+      AND NOT EXISTS (
+        SELECT 1 FROM replies r
+        WHERE r.mention_id = mentions.id AND r.workspace_id = mentions.workspace_id
+        AND r.status IN ('draft', 'approved', 'posted')
+      )
+    )
+  )`
+	rows, err := q.db.Query(ctx, sql, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountMentionsByQueueRow
+	for rows.Next() {
+		var i CountMentionsByQueueRow
+		if err := rows.Scan(&i.Queue, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+type CountMentionsByQueueRow struct {
+	Queue string `json:"queue"`
+	Count int32  `json:"count"`
 }
 
 const mentionColumns = `id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level`
