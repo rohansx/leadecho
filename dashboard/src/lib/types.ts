@@ -66,6 +66,39 @@ export interface Keyword {
   updated_at: string;
 }
 
+export interface PersonIdentity {
+  id: string;
+  person_id: string;
+  workspace_id: string;
+  platform: string;
+  handle: string;
+  profile_url: string | null;
+  confidence: number;
+  source: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface Person360Person {
+  id: string;
+  workspace_id: string;
+  display_name: string | null;
+  bio: string | null;
+  company: string | null;
+  location: string | null;
+  icp_fit_score: number | null;
+  confidence: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Person360Response {
+  person?: Person360Person;
+  identities: PersonIdentity[];
+  enriched: boolean;
+}
+
 export interface Reply {
   id: string;
   mention_id: string;

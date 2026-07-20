@@ -59,9 +59,10 @@ func TestStreamPipeline_MentionIngestedToReplyDraft(t *testing.T) {
 		false,
 		false,
 		true,
+		nil,
 	)
 
-	replyDrafter := reply.NewDrafter(queries, stub, nil)
+	replyDrafter := reply.NewDrafter(queries, stub, nil, nil)
 	workflowEngine := workflow.NewEngine(queries, publisher, logger)
 
 	workerCtx, workerCancel := context.WithCancel(ctx)

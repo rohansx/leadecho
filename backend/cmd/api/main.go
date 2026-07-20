@@ -42,6 +42,8 @@ func main() {
 		shared.Scrapling,
 		shared.Monitor,
 		shared.ReplyDrafter,
+		shared.Knowledge,
+		shared.Researcher,
 	)
 	if shared.Config.MetricsEnabled {
 		router.Handle("/metrics", metrics.Handler())

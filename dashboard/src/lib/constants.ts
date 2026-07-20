@@ -42,6 +42,7 @@ export const QUERY_KEYS = {
   mentionTierCounts: "mentionTierCounts",
   mentionsPerPlatform: "mentionsPerPlatform",
   replies: "replies",
+  person360: "person360",
   scoringPrecision: "scoringPrecision",
   replyAttribution: "replyAttribution",
 } as const;

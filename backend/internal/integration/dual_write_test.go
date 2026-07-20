@@ -49,6 +49,7 @@ func TestDualWrite_Phase1(t *testing.T) {
 		true, // dualWrite
 		true, // inlineFallback
 		false,
+		nil,
 	)
 
 	beforeEvents := countRows(t, ctx, e.pgPool, `SELECT COUNT(*) FROM event_log`)

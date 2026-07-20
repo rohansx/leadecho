@@ -20,12 +20,36 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		return
 	}
 
-	// Collect scoreable mentions (pass Stage 1 rules filter)
+	// Collect scoreable mentions (pass Stage 0 rules filter)
 	var scoreable []mentionAlert
 	for _, a := range alerts {
 		if scoreStage1Rules(a.Content) {
 			scoreable = append(scoreable, a)
+		} else {
+			m.markStageFiltered(ctx, a, "stage0_rules", "failed rules pre-filter")
 		}
+	}
+	if len(scoreable) == 0 {
+		return
+	}
+
+	// Stage 1: LLM spam/noise filter (cheap model via TaskFilter)
+	if m.llmRouter != nil {
+		var passed []mentionAlert
+		for _, a := range scoreable {
+			fr, err := m.llmRouter.FilterMention(ctx, wsID, a.Title, a.Content, a.Platform)
+			if err != nil {
+				m.logger.Warn().Err(err).Str("mention_id", a.ID).Msg("scorer: stage1 filter failed, fail-open")
+				passed = append(passed, a)
+				continue
+			}
+			if !fr.Pass {
+				m.markStageFiltered(ctx, a, "stage1_spam_filter", fr.Reason)
+				continue
+			}
+			passed = append(passed, a)
+		}
+		scoreable = passed
 	}
 	if len(scoreable) == 0 {
 		return
@@ -285,7 +309,7 @@ func (m *Monitor) IngestSignals(ctx context.Context, wsID string, alerts []Signa
 	m.ProcessIngestedSignals(ctx, wsID, alerts)
 }
 
-// scoreStage1Rules is a cheap rules-based filter. Returns true if the mention should proceed.
+// scoreStage1Rules is a zero-cost rules pre-filter (Stage 0). Returns true if the mention should proceed.
 func scoreStage1Rules(content string) bool {
 	if len(content) < 50 {
 		return false
@@ -311,9 +335,23 @@ func scoreStage1Rules(content string) bool {
 	return true
 }
 
+func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, stage, reason string) {
+	_, _ = m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
+		ID:          alert.ID,
+		WorkspaceID: alert.WorkspaceID,
+		ScoringMetadata: jsonBytes(map[string]any{
+			"stage":       stage,
+			"auto_scored": true,
+			"reason":      reason,
+			"filtered":    true,
+		}),
+		AwarenessLevel: pgtype.Text{},
+	})
+}
+
 // qualifyAsLead auto-creates a lead for high-intent mentions.
 func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result *ai.ClassifyResult) {
-	_, err := m.q.CreateLead(ctx, database.CreateLeadParams{
+	lead, err := m.q.CreateLead(ctx, database.CreateLeadParams{
 		WorkspaceID: alert.WorkspaceID,
 		MentionID:   pgUUID(alert.ID),
 		Stage:       database.LeadStageProspect,
@@ -330,6 +368,10 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 		return
 	}
 	m.logger.Info().Str("mention_id", alert.ID).Float64("relevance", result.RelevanceScore).Str("intent", result.Intent).Msg("scorer: auto-qualified lead")
+
+	if m.enricher != nil {
+		m.enricher.EnrichLeadAsync(lead.ID, alert.WorkspaceID)
+	}
 
 	if !m.streamsEnabled || m.eventPublisher == nil {
 		return

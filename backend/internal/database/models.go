@@ -572,6 +572,7 @@ type Lead struct {
 	Metadata       []byte           `json:"metadata"`
 	CreatedAt      time.Time        `json:"created_at"`
 	UpdatedAt      time.Time        `json:"updated_at"`
+	PersonID       pgtype.UUID      `json:"person_id"`
 }
 
 type LeadEvent struct {
@@ -673,6 +674,33 @@ type PainPointEmbedding struct {
 	Phrase      string              `json:"phrase"`
 	Embedding   *pgvector_go.Vector `json:"embedding"`
 	CreatedAt   time.Time           `json:"created_at"`
+}
+
+type Person struct {
+	ID          string        `json:"id"`
+	WorkspaceID string        `json:"workspace_id"`
+	DisplayName pgtype.Text   `json:"display_name"`
+	Bio         pgtype.Text   `json:"bio"`
+	Company     pgtype.Text   `json:"company"`
+	Location    pgtype.Text   `json:"location"`
+	IcpFitScore pgtype.Float4 `json:"icp_fit_score"`
+	Confidence  float32       `json:"confidence"`
+	Metadata    []byte        `json:"metadata"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+}
+
+type PersonIdentity struct {
+	ID          string      `json:"id"`
+	PersonID    string      `json:"person_id"`
+	WorkspaceID string      `json:"workspace_id"`
+	Platform    string      `json:"platform"`
+	Handle      string      `json:"handle"`
+	ProfileUrl  pgtype.Text `json:"profile_url"`
+	Confidence  float32     `json:"confidence"`
+	Source      string      `json:"source"`
+	Metadata    []byte      `json:"metadata"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type PlatformAccount struct {

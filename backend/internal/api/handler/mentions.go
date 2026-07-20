@@ -13,6 +13,7 @@ import (
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/database"
+	"leadecho/internal/researcher"
 )
 
 // validMentionStatuses mirrors the mention_status enum; validMentionIntents
@@ -30,11 +31,12 @@ var (
 )
 
 type MentionHandler struct {
-	q *database.Queries
+	q          *database.Queries
+	researcher *researcher.Service
 }
 
-func NewMentionHandler(q *database.Queries) *MentionHandler {
-	return &MentionHandler{q: q}
+func NewMentionHandler(q *database.Queries, rs *researcher.Service) *MentionHandler {
+	return &MentionHandler{q: q, researcher: rs}
 }
 
 // MentionResponse is the JSON-friendly representation of a mention.
@@ -358,4 +360,21 @@ func (h *MentionHandler) TierCounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// Person360 returns identity enrichment for a mention's associated lead.
+func (h *MentionHandler) Person360(w http.ResponseWriter, r *http.Request) {
+	if h.researcher == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enriched": false, "identities": []any{}})
+		return
+	}
+	wsID := middleware.WorkspaceID(r.Context())
+	mentionID := chi.URLParam(r, "id")
+
+	view, err := h.researcher.GetPerson360ByMention(r.Context(), wsID, mentionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load person360")
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }

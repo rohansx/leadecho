@@ -15,6 +15,7 @@ import type {
   OnboardingStatus,
   UTMLink,
   ProductAnalysis,
+  Person360Response,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -403,6 +404,10 @@ export function draftReply(id: string) {
   return request<DraftReplyResponse>(`/mentions/${id}/draft-reply`, {
     method: "POST",
   });
+}
+
+export function getMentionPerson360(id: string) {
+  return request<Person360Response>(`/mentions/${id}/person360`);
 }
 
 // ─── Browser Sessions ──────────────────────────────────

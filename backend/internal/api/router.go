@@ -18,12 +18,14 @@ import (
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
+	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 	"leadecho/internal/reply"
+	"leadecho/internal/researcher"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter, kb *knowledge.Service, rs *researcher.Service) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -85,11 +87,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Use(middleware.Auth(cfg.JWTSecret))
 
 			// Mentions
-			mentions := handler.NewMentionHandler(queries)
+			mentions := handler.NewMentionHandler(queries, rs)
 			r.Get("/mentions", mentions.List)
 			r.Get("/mentions/counts", mentions.Counts)
 			r.Get("/mentions/tier-counts", mentions.TierCounts)
 			r.Get("/mentions/{id}", mentions.Get)
+			r.Get("/mentions/{id}/person360", mentions.Person360)
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)
 
 			// Profiles (Pain-Point Monitoring)
@@ -129,7 +132,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Patch("/replies/{id}/status", replies.UpdateStatus)
 
 			// Documents (Knowledge Base)
-			docs := handler.NewDocumentHandler(queries)
+			docs := handler.NewDocumentHandler(queries, kb, logger)
 			r.Get("/documents", docs.List)
 			r.Get("/documents/{id}", docs.Get)
 			r.Post("/documents", docs.Create)

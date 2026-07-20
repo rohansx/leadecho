@@ -16,6 +16,7 @@ import {
   MessageSquareText,
   ShieldAlert,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import {
   approveReply,
   classifyMention,
   draftReply,
+  getMentionPerson360,
   listReplies,
   updateMentionStatus,
 } from "@/lib/api";
@@ -295,6 +297,74 @@ function OverviewTab({
   );
 }
 
+function Person360Tab({ mentionId }: { mentionId: string }) {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: [QUERY_KEYS.person360, mentionId],
+    queryFn: () => getMentionPerson360(mentionId),
+    refetchInterval: (query) => (query.state.data?.enriched ? false : 3000),
+  });
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">Loading Person360…</div>;
+  }
+
+  if (!data?.enriched || !data.person) {
+    return (
+      <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground space-y-3">
+        <Users className="h-5 w-5 mx-auto opacity-50" />
+        <p>Enrichment runs when this mention qualifies as a lead.</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Refresh
+        </Button>
+      </div>
+    );
+  }
+
+  const person = data.person;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="font-medium">{person.display_name ?? "Unknown"}</h4>
+            {person.company && <p className="text-sm text-muted-foreground">{person.company}</p>}
+            {person.location && <p className="text-xs text-muted-foreground mt-0.5">{person.location}</p>}
+          </div>
+          <span className="text-xs rounded-full bg-primary/10 text-primary px-2 py-0.5">
+            {Math.round(person.confidence * 100)}% confidence
+          </span>
+        </div>
+        {person.bio && <p className="text-sm mt-3 leading-relaxed text-foreground-soft">{person.bio}</p>}
+      </div>
+
+      <div>
+        <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+          Linked identities
+        </h5>
+        <div className="space-y-2">
+          {data.identities.map((id) => (
+            <div key={id.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+              <div>
+                <span className="capitalize font-medium">{id.platform}</span>
+                <span className="text-muted-foreground ml-2">@{id.handle}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{Math.round(id.confidence * 100)}%</span>
+                {id.profile_url && (
+                  <a href={id.profile_url} target="_blank" rel="noreferrer" className="hover:text-primary">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ThreadTab({ mentionId }: { mentionId: string }) {
   const { data: replies, isLoading } = useQuery({
     queryKey: [QUERY_KEYS.replies, mentionId],
@@ -407,7 +477,7 @@ export function LeadDetail({
   onFeedback: (status: "spam" | "archived", reason?: string) => void;
   feedbackPending: boolean;
 }) {
-  const [tab, setTab] = useState<"overview" | "thread">("overview");
+  const [tab, setTab] = useState<"overview" | "person360" | "thread">("overview");
 
   if (!mention) {
     return (
@@ -458,7 +528,7 @@ export function LeadDetail({
       </div>
 
       <div className="flex gap-1 px-6 pt-3 border-b border-border shrink-0">
-        {(["overview", "thread"] as const).map((t) => (
+        {(["overview", "person360", "thread"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -467,7 +537,7 @@ export function LeadDetail({
               tab === t ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t}
+            {t === "person360" ? "Person360" : t}
             {tab === t && (
               <motion.div layoutId="detail-tab" className="absolute left-0 right-0 -bottom-px h-0.5 bg-primary" />
             )}
@@ -486,6 +556,8 @@ export function LeadDetail({
           >
             {tab === "overview" ? (
               <OverviewTab mention={mention} onFeedback={onFeedback} />
+            ) : tab === "person360" ? (
+              <Person360Tab mentionId={mention.id} />
             ) : (
               <ThreadTab mentionId={mention.id} />
             )}

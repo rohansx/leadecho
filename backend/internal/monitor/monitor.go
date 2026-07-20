@@ -15,6 +15,11 @@ import (
 	"leadecho/internal/llm"
 )
 
+// LeadEnricher runs Person360 enrichment after lead qualification.
+type LeadEnricher interface {
+	EnrichLeadAsync(leadID, workspaceID string)
+}
+
 // Monitor polls social platforms for keyword matches and inserts new mentions.
 type Monitor struct {
 	q                *database.Queries
@@ -28,13 +33,14 @@ type Monitor struct {
 	encKey           []byte                   // AES key for decrypting session cookies
 	exaAPIKey        string                   // Exa web-search API key (empty disables the exa source)
 	eventPublisher   *publishers.Publisher
+	enricher         LeadEnricher
 	streamsEnabled   bool
 	streamsDualWrite bool
 	inlineFallback   bool
 	qualifierAsync   bool
 }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool, enricher LeadEnricher) *Monitor {
 	return &Monitor{
 		q:                q,
 		logger:           logger,
@@ -46,6 +52,7 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRou
 		encKey:           encKey,
 		exaAPIKey:        exaAPIKey,
 		eventPublisher:   eventPublisher,
+		enricher:         enricher,
 		streamsEnabled:   streamsEnabled,
 		streamsDualWrite: streamsDualWrite,
 		inlineFallback:   inlineFallback,

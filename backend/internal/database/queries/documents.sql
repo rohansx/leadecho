@@ -35,3 +35,26 @@ WHERE workspace_id = @workspace_id AND is_active = true;
 UPDATE documents
 SET chunk_count = @chunk_count
 WHERE id = @id;
+
+-- name: DeleteDocumentChunks :exec
+DELETE FROM document_chunks
+WHERE document_id = @document_id AND workspace_id = @workspace_id;
+
+-- name: InsertDocumentChunk :one
+INSERT INTO document_chunks (
+    document_id, workspace_id, content, embedding, chunk_index, section_title
+) VALUES (
+    @document_id, @workspace_id, @content, @embedding, @chunk_index, @section_title
+) RETURNING *;
+
+-- name: FindSimilarDocumentChunks :many
+SELECT
+    dc.id,
+    dc.document_id,
+    dc.content,
+    dc.section_title,
+    (1 - (dc.embedding <=> @query_embedding::vector))::float8 AS similarity
+FROM document_chunks dc
+WHERE dc.workspace_id = @workspace_id
+ORDER BY dc.embedding <=> @query_embedding::vector
+LIMIT @lim;
