@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
 const countDocuments = `-- name: CountDocuments :one
@@ -82,6 +83,74 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 	return err
 }
 
+const deleteDocumentChunks = `-- name: DeleteDocumentChunks :exec
+DELETE FROM document_chunks
+WHERE document_id = $1 AND workspace_id = $2
+`
+
+type DeleteDocumentChunksParams struct {
+	DocumentID  string `json:"document_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentChunks, arg.DocumentID, arg.WorkspaceID)
+	return err
+}
+
+const findSimilarDocumentChunks = `-- name: FindSimilarDocumentChunks :many
+SELECT
+    dc.id,
+    dc.document_id,
+    dc.content,
+    dc.section_title,
+    (1 - (dc.embedding <=> $1::vector))::float8 AS similarity
+FROM document_chunks dc
+WHERE dc.workspace_id = $2
+ORDER BY dc.embedding <=> $1::vector
+LIMIT $3
+`
+
+type FindSimilarDocumentChunksParams struct {
+	QueryEmbedding *pgvector_go.Vector `json:"query_embedding"`
+	WorkspaceID    string              `json:"workspace_id"`
+	Lim            int32               `json:"lim"`
+}
+
+type FindSimilarDocumentChunksRow struct {
+	ID           string      `json:"id"`
+	DocumentID   string      `json:"document_id"`
+	Content      string      `json:"content"`
+	SectionTitle pgtype.Text `json:"section_title"`
+	Similarity   float64     `json:"similarity"`
+}
+
+func (q *Queries) FindSimilarDocumentChunks(ctx context.Context, arg FindSimilarDocumentChunksParams) ([]FindSimilarDocumentChunksRow, error) {
+	rows, err := q.db.Query(ctx, findSimilarDocumentChunks, arg.QueryEmbedding, arg.WorkspaceID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FindSimilarDocumentChunksRow{}
+	for rows.Next() {
+		var i FindSimilarDocumentChunksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.Content,
+			&i.SectionTitle,
+			&i.Similarity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDocument = `-- name: GetDocument :one
 SELECT id, workspace_id, title, content, content_type, source_url, file_size_bytes, chunk_count, is_active, created_at, updated_at FROM documents
 WHERE id = $1 AND workspace_id = $2 AND is_active = true
@@ -107,6 +176,49 @@ func (q *Queries) GetDocument(ctx context.Context, arg GetDocumentParams) (Docum
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertDocumentChunk = `-- name: InsertDocumentChunk :one
+INSERT INTO document_chunks (
+    document_id, workspace_id, content, embedding, chunk_index, section_title
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, document_id, workspace_id, content, content_tsv, embedding, chunk_index, section_title, metadata, token_count, created_at
+`
+
+type InsertDocumentChunkParams struct {
+	DocumentID   string              `json:"document_id"`
+	WorkspaceID  string              `json:"workspace_id"`
+	Content      string              `json:"content"`
+	Embedding    *pgvector_go.Vector `json:"embedding"`
+	ChunkIndex   int32               `json:"chunk_index"`
+	SectionTitle pgtype.Text         `json:"section_title"`
+}
+
+func (q *Queries) InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error) {
+	row := q.db.QueryRow(ctx, insertDocumentChunk,
+		arg.DocumentID,
+		arg.WorkspaceID,
+		arg.Content,
+		arg.Embedding,
+		arg.ChunkIndex,
+		arg.SectionTitle,
+	)
+	var i DocumentChunk
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentID,
+		&i.WorkspaceID,
+		&i.Content,
+		&i.ContentTsv,
+		&i.Embedding,
+		&i.ChunkIndex,
+		&i.SectionTitle,
+		&i.Metadata,
+		&i.TokenCount,
+		&i.CreatedAt,
 	)
 	return i, err
 }

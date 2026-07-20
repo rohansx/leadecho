@@ -70,6 +70,12 @@ type PreFilterResult struct {
 	AwarenessLevel string `json:"awareness_level"`
 }
 
+// FilterResult holds the output from the ingestion spam/relevance gate (Stage 1).
+type FilterResult struct {
+	Pass   bool   `json:"pass"`
+	Reason string `json:"reason"`
+}
+
 // DraftReplyOptions configures the enhanced reply drafting.
 type DraftReplyOptions struct {
 	Title          string
@@ -304,6 +310,43 @@ Be thorough with pain_points — think about what problems potential customers w
 		return nil, fmt.Errorf("parse product analysis: %w (raw: %s)", err, result)
 	}
 	return &pa, nil
+}
+
+// FilterMention is Stage 1 of the scoring pipeline: cheap spam and noise rejection.
+func FilterMention(ctx context.Context, p Provider, title, content, platform string) (*FilterResult, error) {
+	systemPrompt := `You are a spam and noise filter for B2B social listening. Decide if a post should enter intent scoring.
+
+Return ONLY valid JSON (no markdown, no code fences):
+- "pass": boolean — true if the post might be a genuine discussion worth scoring for sales intent
+- "reason": brief one-sentence explanation
+
+Return pass: false for:
+- Obvious spam, scams, crypto pumps, follower buying, affiliate spam
+- Pure self-promotion with no question or pain point
+- Bot-generated or nonsensical content
+- Off-topic content with no business relevance
+- Duplicate/template promo posts
+
+Return pass: true for:
+- Questions, complaints, comparisons, buying signals, or genuine discussions
+- When uncertain, prefer pass: true (downstream stages will filter further)`
+
+	userPrompt := fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)
+
+	result, err := callChat(ctx, p, []chatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
+	}, 0.0)
+	if err != nil {
+		return nil, err
+	}
+	result = stripCodeFences(result)
+
+	var fr FilterResult
+	if err := json.Unmarshal([]byte(result), &fr); err != nil {
+		return nil, fmt.Errorf("parse filter result: %w (raw: %s)", err, result)
+	}
+	return &fr, nil
 }
 
 // PreFilterForReply determines if a mention is worth replying to.

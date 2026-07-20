@@ -15,6 +15,7 @@ import type {
   OnboardingStatus,
   UTMLink,
   ProductAnalysis,
+  Person360Response,
 } from "./types";
 
 const BASE = "/api/v1";
@@ -67,10 +68,10 @@ export function getMention(id: string) {
   return request<Mention>(`/mentions/${id}`);
 }
 
-export function updateMentionStatus(id: string, status: string) {
+export function updateMentionStatus(id: string, status: string, reason?: string) {
   return request<Mention>(`/mentions/${id}/status`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason: reason || undefined }),
   });
 }
 
@@ -214,6 +215,20 @@ export function updateReplyStatus(id: string, status: string) {
   });
 }
 
+export function approveReply(
+  id: string,
+  opts?: { destination_url?: string; append_short_url?: boolean },
+) {
+  return request<Reply>(`/replies/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status: "approved",
+      destination_url: opts?.destination_url || undefined,
+      append_short_url: opts?.append_short_url ?? true,
+    }),
+  });
+}
+
 // ─── Documents (Knowledge Base) ────────────────────────
 
 export function listDocuments() {
@@ -284,6 +299,38 @@ export function topKeywords() {
   return request<{ term: string; mention_count: number }[]>(
     "/analytics/top-keywords",
   );
+}
+
+export function scoringPrecision() {
+  return request<
+    {
+      score_band: string;
+      total: number;
+      spam_count: number;
+      archived_count: number;
+      replied_count: number;
+      reject_rate: number;
+    }[]
+  >("/analytics/scoring-precision");
+}
+
+export function replyAttribution() {
+  return request<{
+    replies_approved: number;
+    replies_posted: number;
+    utm_clicks: number;
+    utm_signups: number;
+  }>("/analytics/reply-attribution");
+}
+
+export function recordUTMConversion(
+  code: string,
+  data?: { event_type?: string; revenue_cents?: number },
+) {
+  return request<UTMLink>(`/utm-links/${code}/conversion`, {
+    method: "POST",
+    body: JSON.stringify(data ?? { event_type: "signup" }),
+  });
 }
 
 // ─── Notifications (Webhooks) ──────────────────────────
@@ -357,6 +404,10 @@ export function draftReply(id: string) {
   return request<DraftReplyResponse>(`/mentions/${id}/draft-reply`, {
     method: "POST",
   });
+}
+
+export function getMentionPerson360(id: string) {
+  return request<Person360Response>(`/mentions/${id}/person360`);
 }
 
 // ─── Browser Sessions ──────────────────────────────────

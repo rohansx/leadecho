@@ -18,12 +18,14 @@ import (
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
+	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
 	"leadecho/internal/reply"
+	"leadecho/internal/researcher"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter, kb *knowledge.Service, rs *researcher.Service) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -85,11 +87,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Use(middleware.Auth(cfg.JWTSecret))
 
 			// Mentions
-			mentions := handler.NewMentionHandler(queries)
+			mentions := handler.NewMentionHandler(queries, rs)
 			r.Get("/mentions", mentions.List)
 			r.Get("/mentions/counts", mentions.Counts)
 			r.Get("/mentions/tier-counts", mentions.TierCounts)
 			r.Get("/mentions/{id}", mentions.Get)
+			r.Get("/mentions/{id}/person360", mentions.Person360)
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)
 
 			// Profiles (Pain-Point Monitoring)
@@ -122,14 +125,14 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/keywords/{id}", keywords.Delete)
 
 			// Replies
-			replies := handler.NewReplyHandler(queries, eventPublisher, cfg.StreamsEnabled)
+			replies := handler.NewReplyHandler(queries, eventPublisher, cfg.StreamsEnabled, cfg.FrontendURL)
 			r.Get("/mentions/{mentionId}/replies", replies.ListByMention)
 			r.Post("/replies", replies.Create)
 			r.Patch("/replies/{id}/content", replies.UpdateContent)
 			r.Patch("/replies/{id}/status", replies.UpdateStatus)
 
 			// Documents (Knowledge Base)
-			docs := handler.NewDocumentHandler(queries)
+			docs := handler.NewDocumentHandler(queries, kb, logger)
 			r.Get("/documents", docs.List)
 			r.Get("/documents/{id}", docs.Get)
 			r.Post("/documents", docs.Create)
@@ -144,6 +147,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/analytics/mentions-per-intent", analytics.MentionsPerIntent)
 			r.Get("/analytics/conversion-funnel", analytics.ConversionFunnel)
 			r.Get("/analytics/top-keywords", analytics.TopKeywords)
+			r.Get("/analytics/scoring-precision", analytics.ScoringPrecision)
+			r.Get("/analytics/reply-attribution", analytics.ReplyAttribution)
 
 			// Notifications (Slack/Discord webhooks)
 			notifs := handler.NewNotificationHandler(queries, cfg.ResendAPIKey)
@@ -196,6 +201,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/utm-links", utm.List)
 			r.Post("/utm-links", utm.Create)
 			r.Delete("/utm-links/{id}", utm.Delete)
+			r.Post("/utm-links/{code}/conversion", utm.RecordConversion)
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

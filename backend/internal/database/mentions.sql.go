@@ -1153,3 +1153,58 @@ func (q *Queries) UpdateMentionStatus(ctx context.Context, arg UpdateMentionStat
 	)
 	return i, err
 }
+
+const updateMentionStatusWithMetadata = `-- name: UpdateMentionStatusWithMetadata :one
+UPDATE mentions
+SET status = $1,
+    scoring_metadata = $2
+WHERE id = $3 AND workspace_id = $4
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+`
+
+type UpdateMentionStatusWithMetadataParams struct {
+	Status          MentionStatus `json:"status"`
+	ScoringMetadata []byte        `json:"scoring_metadata"`
+	ID              string        `json:"id"`
+	WorkspaceID     string        `json:"workspace_id"`
+}
+
+func (q *Queries) UpdateMentionStatusWithMetadata(ctx context.Context, arg UpdateMentionStatusWithMetadataParams) (Mention, error) {
+	row := q.db.QueryRow(ctx, updateMentionStatusWithMetadata,
+		arg.Status,
+		arg.ScoringMetadata,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i Mention
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.KeywordID,
+		&i.Platform,
+		&i.PlatformID,
+		&i.Url,
+		&i.Title,
+		&i.Content,
+		&i.ContentTsv,
+		&i.AuthorUsername,
+		&i.AuthorProfileUrl,
+		&i.AuthorKarma,
+		&i.AuthorAccountAgeDays,
+		&i.RelevanceScore,
+		&i.Intent,
+		&i.ConversionProbability,
+		&i.Status,
+		&i.AssignedTo,
+		&i.PlatformMetadata,
+		&i.EngagementMetrics,
+		&i.KeywordMatches,
+		&i.PlatformCreatedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContentEmbedding,
+		&i.ScoringMetadata,
+		&i.AwarenessLevel,
+	)
+	return i, err
+}

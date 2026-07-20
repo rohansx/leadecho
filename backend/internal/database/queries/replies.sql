@@ -26,6 +26,16 @@ SET status = @status
 WHERE id = @id AND workspace_id = @workspace_id
 RETURNING *;
 
+-- name: ApproveReply :one
+UPDATE replies
+SET status = 'approved',
+    approved_at = NOW(),
+    approved_by = @approved_by,
+    utm_link_id = @utm_link_id,
+    edited_content = @edited_content
+WHERE id = @id AND workspace_id = @workspace_id
+RETURNING *;
+
 -- name: CountRepliesByStatus :many
 SELECT status, COUNT(*)::int as count
 FROM replies

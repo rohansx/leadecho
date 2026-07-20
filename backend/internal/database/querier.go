@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error)
 	AssignMention(ctx context.Context, arg AssignMentionParams) (Mention, error)
 	ConversionFunnel(ctx context.Context, workspaceID string) ([]ConversionFunnelRow, error)
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)
@@ -44,20 +45,24 @@ type Querier interface {
 	CreateOnboardingAnalysis(ctx context.Context, arg CreateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	// ─── Pain-Point Embeddings ─────────────────────────────
 	CreatePainPointEmbedding(ctx context.Context, arg CreatePainPointEmbeddingParams) (PainPointEmbedding, error)
+	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	CreateReply(ctx context.Context, arg CreateReplyParams) (Reply, error)
 	CreateReplyEngagement(ctx context.Context, arg CreateReplyEngagementParams) (ReplyEngagement, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
+	CreateUTMEvent(ctx context.Context, arg CreateUTMEventParams) (UtmEvent, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
+	DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
 	DeleteKeyword(ctx context.Context, arg DeleteKeywordParams) error
 	DeleteMonitoringProfile(ctx context.Context, arg DeleteMonitoringProfileParams) error
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
+	FindSimilarDocumentChunks(ctx context.Context, arg FindSimilarDocumentChunksParams) ([]FindSimilarDocumentChunksRow, error)
 	// Only match pain points from ACTIVE monitoring profiles so deactivating a
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
@@ -70,12 +75,17 @@ type Querier interface {
 	GetLatestOnboardingAnalysis(ctx context.Context, workspaceID string) (OnboardingAnalysis, error)
 	GetLatestReplyEngagement(ctx context.Context, replyID string) (ReplyEngagement, error)
 	GetLead(ctx context.Context, arg GetLeadParams) (Lead, error)
+	GetLeadByMention(ctx context.Context, arg GetLeadByMentionParams) (Lead, error)
 	GetMention(ctx context.Context, arg GetMentionParams) (Mention, error)
 	GetMonitoringProfile(ctx context.Context, arg GetMonitoringProfileParams) (MonitoringProfile, error)
+	GetPerson(ctx context.Context, arg GetPersonParams) (Person, error)
+	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
+	GetPersonIdentity(ctx context.Context, arg GetPersonIdentityParams) (PersonIdentity, error)
 	GetPlatformSession(ctx context.Context, arg GetPlatformSessionParams) (PlatformAccount, error)
 	GetReply(ctx context.Context, arg GetReplyParams) (Reply, error)
 	GetThreadByMention(ctx context.Context, mentionID string) (Thread, error)
 	GetUTMLinkByCode(ctx context.Context, code string) (UtmLink, error)
+	GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
@@ -84,6 +94,8 @@ type Querier interface {
 	HasWorkflowExecutionForMention(ctx context.Context, arg HasWorkflowExecutionForMentionParams) (bool, error)
 	IncrementUTMClicks(ctx context.Context, code string) error
 	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
+	InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error)
+	LinkLeadToPerson(ctx context.Context, arg LinkLeadToPersonParams) error
 	ListActiveKeywords(ctx context.Context, workspaceID string) ([]ListActiveKeywordsRow, error)
 	ListActiveMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
 	ListActiveWorkflowsByWorkspace(ctx context.Context, workspaceID string) ([]Workflow, error)
@@ -115,6 +127,7 @@ type Querier interface {
 	ListOpenDeadLetterEvents(ctx context.Context, arg ListOpenDeadLetterEventsParams) ([]DeadLetterEvent, error)
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
 	ListPainPointEmbeddingsByWorkspace(ctx context.Context, workspaceID string) ([]PainPointEmbedding, error)
+	ListPersonIdentities(ctx context.Context, arg ListPersonIdentitiesParams) ([]PersonIdentity, error)
 	ListPlatformSessions(ctx context.Context, workspaceID string) ([]PlatformAccount, error)
 	ListPostedRepliesSince(ctx context.Context, since pgtype.Timestamptz) ([]ListPostedRepliesSinceRow, error)
 	ListRecentLeadsForWorkspace(ctx context.Context, arg ListRecentLeadsForWorkspaceParams) ([]ListRecentLeadsForWorkspaceRow, error)
@@ -130,8 +143,11 @@ type Querier interface {
 	MentionsPerDay(ctx context.Context, workspaceID string) ([]MentionsPerDayRow, error)
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
+	RecordUTMConversion(ctx context.Context, arg RecordUTMConversionParams) (UtmLink, error)
+	ReplyAttributionFunnel(ctx context.Context, workspaceID string) (ReplyAttributionFunnelRow, error)
 	ReplyStats(ctx context.Context, workspaceID string) ([]ReplyStatsRow, error)
 	ResolveDeadLetterEvent(ctx context.Context, arg ResolveDeadLetterEventParams) (DeadLetterEvent, error)
+	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchExtensionToken(ctx context.Context, token string) error
@@ -147,14 +163,17 @@ type Querier interface {
 	UpdateMentionIntent(ctx context.Context, arg UpdateMentionIntentParams) (Mention, error)
 	UpdateMentionScoring(ctx context.Context, arg UpdateMentionScoringParams) (Mention, error)
 	UpdateMentionStatus(ctx context.Context, arg UpdateMentionStatusParams) (Mention, error)
+	UpdateMentionStatusWithMetadata(ctx context.Context, arg UpdateMentionStatusWithMetadataParams) (Mention, error)
 	UpdateMonitoringProfile(ctx context.Context, arg UpdateMonitoringProfileParams) (MonitoringProfile, error)
 	UpdateOnboardingAnalysis(ctx context.Context, arg UpdateOnboardingAnalysisParams) (OnboardingAnalysis, error)
+	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 	UpdateReplyContent(ctx context.Context, arg UpdateReplyContentParams) (Reply, error)
 	UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusParams) (Reply, error)
 	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
+	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
 }
 

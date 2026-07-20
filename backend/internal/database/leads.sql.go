@@ -54,7 +54,7 @@ INSERT INTO leads (
     $4, $5, $6,
     $7, $8, $9,
     $10, $11, $12, $13
-) RETURNING id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at
+) RETURNING id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id
 `
 
 type CreateLeadParams struct {
@@ -107,6 +107,7 @@ func (q *Queries) CreateLead(ctx context.Context, arg CreateLeadParams) (Lead, e
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonID,
 	)
 	return i, err
 }
@@ -149,7 +150,7 @@ func (q *Queries) CreateLeadEvent(ctx context.Context, arg CreateLeadEventParams
 }
 
 const getLead = `-- name: GetLead :one
-SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at FROM leads
+SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id FROM leads
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -178,6 +179,44 @@ func (q *Queries) GetLead(ctx context.Context, arg GetLeadParams) (Lead, error) 
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonID,
+	)
+	return i, err
+}
+
+const getLeadByMention = `-- name: GetLeadByMention :one
+SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id FROM leads
+WHERE mention_id = $1 AND workspace_id = $2
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLeadByMentionParams struct {
+	MentionID   pgtype.UUID `json:"mention_id"`
+	WorkspaceID string      `json:"workspace_id"`
+}
+
+func (q *Queries) GetLeadByMention(ctx context.Context, arg GetLeadByMentionParams) (Lead, error) {
+	row := q.db.QueryRow(ctx, getLeadByMention, arg.MentionID, arg.WorkspaceID)
+	var i Lead
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.MentionID,
+		&i.Stage,
+		&i.ContactName,
+		&i.ContactEmail,
+		&i.Company,
+		&i.Username,
+		&i.Platform,
+		&i.ProfileUrl,
+		&i.EstimatedValue,
+		&i.Notes,
+		&i.Tags,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PersonID,
 	)
 	return i, err
 }
@@ -217,7 +256,7 @@ func (q *Queries) ListLeadEvents(ctx context.Context, leadID string) ([]LeadEven
 }
 
 const listLeads = `-- name: ListLeads :many
-SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at FROM leads
+SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id FROM leads
 WHERE workspace_id = $1
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $2
@@ -255,6 +294,7 @@ func (q *Queries) ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, e
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PersonID,
 		); err != nil {
 			return nil, err
 		}
@@ -267,7 +307,7 @@ func (q *Queries) ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, e
 }
 
 const listLeadsByStage = `-- name: ListLeadsByStage :many
-SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at FROM leads
+SELECT id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id FROM leads
 WHERE workspace_id = $1 AND stage = $2
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $3
@@ -311,6 +351,7 @@ func (q *Queries) ListLeadsByStage(ctx context.Context, arg ListLeadsByStagePara
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PersonID,
 		); err != nil {
 			return nil, err
 		}
@@ -332,7 +373,7 @@ SET
     notes = COALESCE($5, notes),
     estimated_value = COALESCE($6, estimated_value)
 WHERE id = $7 AND workspace_id = $8
-RETURNING id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at
+RETURNING id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id
 `
 
 type UpdateLeadParams struct {
@@ -375,6 +416,7 @@ func (q *Queries) UpdateLead(ctx context.Context, arg UpdateLeadParams) (Lead, e
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonID,
 	)
 	return i, err
 }
@@ -383,7 +425,7 @@ const updateLeadStage = `-- name: UpdateLeadStage :one
 UPDATE leads
 SET stage = $1
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at
+RETURNING id, workspace_id, mention_id, stage, contact_name, contact_email, company, username, platform, profile_url, estimated_value, notes, tags, metadata, created_at, updated_at, person_id
 `
 
 type UpdateLeadStageParams struct {
@@ -412,6 +454,7 @@ func (q *Queries) UpdateLeadStage(ctx context.Context, arg UpdateLeadStageParams
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PersonID,
 	)
 	return i, err
 }

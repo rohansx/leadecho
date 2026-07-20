@@ -20,10 +20,12 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
 	streamredis "leadecho/internal/events/redis"
+	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/metrics"
 	"leadecho/internal/monitor"
 	"leadecho/internal/reply"
+	"leadecho/internal/researcher"
 	"leadecho/internal/streamworkers"
 	"leadecho/internal/workflow"
 )
@@ -40,6 +42,8 @@ type Shared struct {
 	Pinchtab       *browser.PinchtabClient
 	Camoufox       *browser.CamoufoxClient
 	Scrapling      *browser.ScraplingClient
+	Knowledge      *knowledge.Service
+	Researcher     *researcher.Service
 	Monitor        *monitor.Monitor
 	ReplyDrafter   *reply.Drafter
 	WorkflowEngine *workflow.Engine
@@ -92,6 +96,9 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		scrapling = browser.NewScrapling(cfg.ScraplingURL, cfg.ScraplingToken)
 	}
 
+	knowledgeSvc := knowledge.NewService(queries, llmRouter, logger)
+	researcherSvc := researcher.NewService(queries, logger)
+
 	mon := monitor.New(
 		queries,
 		logger,
@@ -107,9 +114,10 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		cfg.StreamsDualWriteEnabled,
 		cfg.StreamsInlineFallbackEnabled,
 		cfg.StreamsEnabled && cfg.StreamsQualifierConsumerEnabled,
+		researcherSvc,
 	)
 
-	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling)
+	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
 	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
 
 	return &Shared{
@@ -124,6 +132,8 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		Pinchtab:       pinchtab,
 		Camoufox:       camoufox,
 		Scrapling:      scrapling,
+		Knowledge:      knowledgeSvc,
+		Researcher:     researcherSvc,
 		Monitor:        mon,
 		ReplyDrafter:   replyDrafter,
 		WorkflowEngine: workflowEngine,

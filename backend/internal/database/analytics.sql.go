@@ -217,6 +217,37 @@ func (q *Queries) MentionsPerPlatform(ctx context.Context, workspaceID string) (
 	return items, nil
 }
 
+const replyAttributionFunnel = `-- name: ReplyAttributionFunnel :one
+SELECT
+    COUNT(*) FILTER (WHERE r.status IN ('approved', 'posted'))::int AS replies_approved,
+    COUNT(*) FILTER (WHERE r.status = 'posted')::int AS replies_posted,
+    COALESCE(SUM(u.click_count), 0)::int AS utm_clicks,
+    COALESCE(SUM(u.signup_count), 0)::int AS utm_signups
+FROM replies r
+LEFT JOIN utm_links u ON r.utm_link_id = u.id
+WHERE r.workspace_id = $1
+  AND r.created_at >= NOW() - INTERVAL '30 days'
+`
+
+type ReplyAttributionFunnelRow struct {
+	RepliesApproved int32 `json:"replies_approved"`
+	RepliesPosted   int32 `json:"replies_posted"`
+	UtmClicks       int32 `json:"utm_clicks"`
+	UtmSignups      int32 `json:"utm_signups"`
+}
+
+func (q *Queries) ReplyAttributionFunnel(ctx context.Context, workspaceID string) (ReplyAttributionFunnelRow, error) {
+	row := q.db.QueryRow(ctx, replyAttributionFunnel, workspaceID)
+	var i ReplyAttributionFunnelRow
+	err := row.Scan(
+		&i.RepliesApproved,
+		&i.RepliesPosted,
+		&i.UtmClicks,
+		&i.UtmSignups,
+	)
+	return i, err
+}
+
 const replyStats = `-- name: ReplyStats :many
 SELECT status, COUNT(*)::int as count
 FROM replies
@@ -240,6 +271,59 @@ func (q *Queries) ReplyStats(ctx context.Context, workspaceID string) ([]ReplySt
 	for rows.Next() {
 		var i ReplyStatsRow
 		if err := rows.Scan(&i.Status, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const scoringPrecisionByBand = `-- name: ScoringPrecisionByBand :many
+SELECT
+    CASE
+        WHEN relevance_score >= 7.0 THEN 'leads_ready'
+        WHEN relevance_score >= 4.0 THEN 'worth_watching'
+        ELSE 'filtered'
+    END::text AS score_band,
+    COUNT(*)::int AS total,
+    COUNT(*) FILTER (WHERE status = 'spam')::int AS spam_count,
+    COUNT(*) FILTER (WHERE status = 'archived')::int AS archived_count,
+    COUNT(*) FILTER (WHERE status = 'replied')::int AS replied_count
+FROM mentions
+WHERE workspace_id = $1
+  AND relevance_score IS NOT NULL
+  AND created_at >= NOW() - INTERVAL '30 days'
+GROUP BY 1
+ORDER BY 1
+`
+
+type ScoringPrecisionByBandRow struct {
+	ScoreBand     string `json:"score_band"`
+	Total         int32  `json:"total"`
+	SpamCount     int32  `json:"spam_count"`
+	ArchivedCount int32  `json:"archived_count"`
+	RepliedCount  int32  `json:"replied_count"`
+}
+
+func (q *Queries) ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error) {
+	rows, err := q.db.Query(ctx, scoringPrecisionByBand, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScoringPrecisionByBandRow{}
+	for rows.Next() {
+		var i ScoringPrecisionByBandRow
+		if err := rows.Scan(
+			&i.ScoreBand,
+			&i.Total,
+			&i.SpamCount,
+			&i.ArchivedCount,
+			&i.RepliedCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

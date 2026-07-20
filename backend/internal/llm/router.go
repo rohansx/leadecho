@@ -272,6 +272,16 @@ func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content
 	return out, err
 }
 
+func (r *Router) FilterMention(ctx context.Context, workspaceID, title, content, platform string) (*ai.FilterResult, error) {
+	var out *ai.FilterResult
+	err := r.withChatProvider(ctx, workspaceID, TaskFilter, func(p ai.Provider) error {
+		res, err := ai.FilterMention(ctx, p, title, content, platform)
+		out = res
+		return err
+	})
+	return out, err
+}
+
 func (r *Router) PreFilterForReply(ctx context.Context, workspaceID, title, content, platform, intent string) (*ai.PreFilterResult, error) {
 	var out *ai.PreFilterResult
 	err := r.withChatProvider(ctx, workspaceID, TaskPreFilterReply, func(p ai.Provider) error {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -8,28 +9,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/database"
+	"leadecho/internal/knowledge"
 )
 
-// isHTTPURL reports whether s is an absolute http(s) URL with a host. Used to
-// reject dangerous schemes (javascript:, data:) that would otherwise be stored
-// and rendered into <a href> / Location headers.
-func isHTTPURL(s string) bool {
-	u, err := url.Parse(s)
-	if err != nil {
-		return false
-	}
-	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
-}
-
 type DocumentHandler struct {
-	q *database.Queries
+	q      *database.Queries
+	kb     *knowledge.Service
+	logger zerolog.Logger
 }
 
-func NewDocumentHandler(q *database.Queries) *DocumentHandler {
-	return &DocumentHandler{q: q}
+func NewDocumentHandler(q *database.Queries, kb *knowledge.Service, logger zerolog.Logger) *DocumentHandler {
+	return &DocumentHandler{q: q, kb: kb, logger: logger}
 }
 
 type DocumentResponse struct {
@@ -67,6 +61,15 @@ func docToResponse(d database.Document) DocumentResponse {
 	return r
 }
 
+func (h *DocumentHandler) indexDocument(ctx context.Context, wsID string, doc database.Document) {
+	if h.kb == nil {
+		return
+	}
+	if err := h.kb.IndexDocument(ctx, wsID, doc.ID, doc.Title, doc.Content); err != nil {
+		h.logger.Warn().Err(err).Str("document_id", doc.ID).Msg("knowledge index failed")
+	}
+}
+
 func (h *DocumentHandler) List(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.WorkspaceID(r.Context())
 	docs, err := h.q.ListDocuments(r.Context(), wsID)
@@ -94,6 +97,7 @@ func (h *DocumentHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *DocumentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.WorkspaceID(r.Context())
+	ctx := r.Context()
 
 	var body struct {
 		Title       string `json:"title"`
@@ -128,16 +132,24 @@ func (h *DocumentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	params.FileSizeBytes = pgtype.Int4{Int32: int32(len(body.Content)), Valid: true}
 
-	d, err := h.q.CreateDocument(r.Context(), params)
+	d, err := h.q.CreateDocument(ctx, params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create document")
 		return
+	}
+
+	h.indexDocument(ctx, wsID, d)
+
+	updated, err := h.q.GetDocument(ctx, database.GetDocumentParams{ID: d.ID, WorkspaceID: wsID})
+	if err == nil {
+		d = updated
 	}
 	writeJSON(w, http.StatusCreated, docToResponse(d))
 }
 
 func (h *DocumentHandler) Update(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.WorkspaceID(r.Context())
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 
 	var body struct {
@@ -149,7 +161,7 @@ func (h *DocumentHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := h.q.GetDocument(r.Context(), database.GetDocumentParams{ID: id, WorkspaceID: wsID})
+	existing, err := h.q.GetDocument(ctx, database.GetDocumentParams{ID: id, WorkspaceID: wsID})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "document not found")
 		return
@@ -164,29 +176,46 @@ func (h *DocumentHandler) Update(w http.ResponseWriter, r *http.Request) {
 		content = body.Content
 	}
 
-	d, err := h.q.UpdateDocument(r.Context(), database.UpdateDocumentParams{
+	d, err := h.q.UpdateDocument(ctx, database.UpdateDocumentParams{
 		ID:          id,
 		WorkspaceID: wsID,
 		Title:       title,
 		Content:     content,
-		// Preserve the current active state — GetDocument above already filters
-		// to is_active=true, so a soft-deleted doc 404s rather than being silently
-		// resurrected by a hardcoded true.
-		IsActive: existing.IsActive,
+		IsActive:    existing.IsActive,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update document")
 		return
+	}
+
+	h.indexDocument(ctx, wsID, d)
+
+	updated, err := h.q.GetDocument(ctx, database.GetDocumentParams{ID: d.ID, WorkspaceID: wsID})
+	if err == nil {
+		d = updated
 	}
 	writeJSON(w, http.StatusOK, docToResponse(d))
 }
 
 func (h *DocumentHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.WorkspaceID(r.Context())
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
-	if err := h.q.DeleteDocument(r.Context(), database.DeleteDocumentParams{ID: id, WorkspaceID: wsID}); err != nil {
+	if err := h.q.DeleteDocument(ctx, database.DeleteDocumentParams{ID: id, WorkspaceID: wsID}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete document")
 		return
 	}
+	if h.kb != nil {
+		_ = h.kb.DeleteDocument(ctx, wsID, id)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// isHTTPURL reports whether s is an absolute http(s) URL with a host.
+func isHTTPURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }

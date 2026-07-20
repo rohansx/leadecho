@@ -103,7 +103,8 @@ export async function runPendingReply(cfg: ReplyConfig): Promise<void> {
       await sleep(900);
     }
 
-    const box = await waitForElement(cfg.findReplyBox, 8000);
+    // Reddit/LinkedIn composers are lazy; give them more than a blink.
+    const box = await waitForElement(cfg.findReplyBox, 15000);
     if (!box) {
       report(false, "reply box not found");
       return;

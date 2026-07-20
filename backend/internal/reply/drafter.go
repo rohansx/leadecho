@@ -13,14 +13,20 @@ import (
 	"leadecho/internal/monitor"
 )
 
+// KBRetriever supplies semantic knowledge-base context for reply drafting.
+type KBRetriever interface {
+	Retrieve(ctx context.Context, workspaceID, query string, topK int32) (string, error)
+}
+
 type Drafter struct {
 	q         *database.Queries
 	llmRouter llm.ReplyGenerator
 	scrapling *browser.ScraplingClient
+	kb        KBRetriever
 }
 
-func NewDrafter(q *database.Queries, llmRouter llm.ReplyGenerator, scrapling *browser.ScraplingClient) *Drafter {
-	return &Drafter{q: q, llmRouter: llmRouter, scrapling: scrapling}
+func NewDrafter(q *database.Queries, llmRouter llm.ReplyGenerator, scrapling *browser.ScraplingClient, kb KBRetriever) *Drafter {
+	return &Drafter{q: q, llmRouter: llmRouter, scrapling: scrapling, kb: kb}
 }
 
 type DraftResult struct {
@@ -75,20 +81,14 @@ func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (
 	threadCtx, _ := monitor.FetchThreadContext(ctx, d.q, d.scrapling, mention)
 
 	kbContext := ""
-	docs, err := d.q.ListDocuments(ctx, wsID)
-	if err == nil && len(docs) > 0 {
-		var parts []string
-		for _, doc := range docs {
-			if len(parts) >= 3 {
-				break
-			}
-			snippet := doc.Content
-			if len(snippet) > 500 {
-				snippet = snippet[:500] + "..."
-			}
-			parts = append(parts, doc.Title+": "+snippet)
+	if d.kb != nil {
+		query := mention.Content
+		if title != "" {
+			query = title + "\n\n" + query
 		}
-		kbContext = joinStrings(parts, "\n---\n")
+		if ctxText, err := d.kb.Retrieve(ctx, wsID, query, 5); err == nil {
+			kbContext = ctxText
+		}
 	}
 
 	templateStyle := selectTemplateStyle(intent, preFilter.AwarenessLevel)
@@ -150,15 +150,4 @@ func selectTemplateStyle(intent, awareness string) string {
 	}
 
 	return styles[rand.IntN(len(styles))]
-}
-
-func joinStrings(parts []string, sep string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	result := parts[0]
-	for _, p := range parts[1:] {
-		result += sep + p
-	}
-	return result
 }

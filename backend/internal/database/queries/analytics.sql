@@ -69,3 +69,32 @@ AND created_at >= NOW() - INTERVAL '30 days';
 -- name: CountActiveKeywords :one
 SELECT COUNT(*)::int as count FROM keywords
 WHERE workspace_id = @workspace_id AND is_active = true;
+
+-- name: ScoringPrecisionByBand :many
+SELECT
+    CASE
+        WHEN relevance_score >= 7.0 THEN 'leads_ready'
+        WHEN relevance_score >= 4.0 THEN 'worth_watching'
+        ELSE 'filtered'
+    END::text AS score_band,
+    COUNT(*)::int AS total,
+    COUNT(*) FILTER (WHERE status = 'spam')::int AS spam_count,
+    COUNT(*) FILTER (WHERE status = 'archived')::int AS archived_count,
+    COUNT(*) FILTER (WHERE status = 'replied')::int AS replied_count
+FROM mentions
+WHERE workspace_id = @workspace_id
+  AND relevance_score IS NOT NULL
+  AND created_at >= NOW() - INTERVAL '30 days'
+GROUP BY 1
+ORDER BY 1;
+
+-- name: ReplyAttributionFunnel :one
+SELECT
+    COUNT(*) FILTER (WHERE r.status IN ('approved', 'posted'))::int AS replies_approved,
+    COUNT(*) FILTER (WHERE r.status = 'posted')::int AS replies_posted,
+    COALESCE(SUM(u.click_count), 0)::int AS utm_clicks,
+    COALESCE(SUM(u.signup_count), 0)::int AS utm_signups
+FROM replies r
+LEFT JOIN utm_links u ON r.utm_link_id = u.id
+WHERE r.workspace_id = @workspace_id
+  AND r.created_at >= NOW() - INTERVAL '30 days';

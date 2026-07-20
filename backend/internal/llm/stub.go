@@ -10,10 +10,18 @@ import (
 
 // Stub provides deterministic LLM responses for integration and unit tests.
 type Stub struct {
+	FilterResult    *ai.FilterResult
 	ClassifyResult  *ai.ClassifyResult
 	PreFilterResult *ai.PreFilterResult
 	DraftResult     *ai.EnhancedDraftResult
 	EmbedDimensions int
+}
+
+func (s *Stub) FilterMention(ctx context.Context, workspaceID, title, content, platform string) (*ai.FilterResult, error) {
+	if s.FilterResult != nil {
+		return s.FilterResult, nil
+	}
+	return &ai.FilterResult{Pass: true, Reason: "stub: passed filter"}, nil
 }
 
 func (s *Stub) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string) (*ai.ClassifyResult, error) {

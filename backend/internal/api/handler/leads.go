@@ -259,6 +259,16 @@ func (h *LeadHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := h.q.GetLead(ctx, database.GetLeadParams{ID: id, WorkspaceID: workspaceID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "lead not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load lead")
+		return
+	}
+
 	l, err := h.q.UpdateLeadStage(ctx, database.UpdateLeadStageParams{
 		Stage:       database.LeadStage(body.Stage),
 		ID:          id,
@@ -271,6 +281,16 @@ func (h *LeadHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "failed to update lead")
 		return
+	}
+
+	if existing.Stage != l.Stage {
+		_, _ = h.q.CreateLeadEvent(ctx, database.CreateLeadEventParams{
+			LeadID:        l.ID,
+			PreviousStage: database.NullLeadStage{LeadStage: existing.Stage, Valid: true},
+			NewStage:      l.Stage,
+			ChangedBy:     parseUUID(middleware.UserID(ctx)),
+			Notes:         pgtype.Text{String: "stage_updated", Valid: true},
+		})
 	}
 
 	writeJSON(w, http.StatusOK, leadToResponse(l))

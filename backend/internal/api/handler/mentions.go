@@ -13,6 +13,7 @@ import (
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/database"
+	"leadecho/internal/researcher"
 )
 
 // validMentionStatuses mirrors the mention_status enum; validMentionIntents
@@ -30,11 +31,12 @@ var (
 )
 
 type MentionHandler struct {
-	q *database.Queries
+	q          *database.Queries
+	researcher *researcher.Service
 }
 
-func NewMentionHandler(q *database.Queries) *MentionHandler {
-	return &MentionHandler{q: q}
+func NewMentionHandler(q *database.Queries, rs *researcher.Service) *MentionHandler {
+	return &MentionHandler{q: q, researcher: rs}
 }
 
 // MentionResponse is the JSON-friendly representation of a mention.
@@ -238,6 +240,7 @@ func (h *MentionHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Status string `json:"status"`
+		Reason string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -246,6 +249,55 @@ func (h *MentionHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	if !validMentionStatuses[body.Status] {
 		writeError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+	if len(body.Reason) > 500 {
+		writeError(w, http.StatusBadRequest, "reason must be <= 500 characters")
+		return
+	}
+
+	// Feedback labels (spam / archived / reviewed) persist structured metadata for
+	// precision analytics. Other status flips stay lightweight.
+	needsFeedback := body.Status == "spam" || body.Status == "archived" || body.Reason != ""
+	if needsFeedback {
+		existing, err := h.q.GetMention(ctx, database.GetMentionParams{ID: id, WorkspaceID: workspaceID})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "mention not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to load mention")
+			return
+		}
+		var prevScore *float32
+		if existing.RelevanceScore.Valid {
+			v := existing.RelevanceScore.Float32
+			prevScore = &v
+		}
+		prevIntent := ""
+		if existing.Intent.Valid {
+			prevIntent = string(existing.Intent.IntentType)
+		}
+		meta, err := mergeScoringFeedback(existing.ScoringMetadata, body.Status, body.Reason, middleware.UserID(ctx), prevScore, prevIntent)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to record feedback")
+			return
+		}
+		m, err := h.q.UpdateMentionStatusWithMetadata(ctx, database.UpdateMentionStatusWithMetadataParams{
+			Status:          database.MentionStatus(body.Status),
+			ScoringMetadata: meta,
+			ID:              id,
+			WorkspaceID:     workspaceID,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "mention not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to update mention")
+			return
+		}
+		writeJSON(w, http.StatusOK, mentionToResponse(m))
 		return
 	}
 
@@ -308,4 +360,21 @@ func (h *MentionHandler) TierCounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// Person360 returns identity enrichment for a mention's associated lead.
+func (h *MentionHandler) Person360(w http.ResponseWriter, r *http.Request) {
+	if h.researcher == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enriched": false, "identities": []any{}})
+		return
+	}
+	wsID := middleware.WorkspaceID(r.Context())
+	mentionID := chi.URLParam(r, "id")
+
+	view, err := h.researcher.GetPerson360ByMention(r.Context(), wsID, mentionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load person360")
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }

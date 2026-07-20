@@ -316,6 +316,37 @@ func (h *ExtensionHandler) MarkReplyPosted(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "reply not found or not owned by workspace")
 		return
 	}
+
+	// Advance linked lead to engaged (posted reply = first meaningful touch).
+	if lead, err := h.q.GetLeadByMention(r.Context(), database.GetLeadByMentionParams{
+		MentionID:   parseUUID(reply.MentionID),
+		WorkspaceID: wsID,
+	}); err == nil {
+		if lead.Stage == database.LeadStageProspect || lead.Stage == database.LeadStageQualified {
+			prev := lead.Stage
+			if updated, err := h.q.UpdateLeadStage(r.Context(), database.UpdateLeadStageParams{
+				Stage:       database.LeadStageEngaged,
+				ID:          lead.ID,
+				WorkspaceID: wsID,
+			}); err == nil {
+				_, _ = h.q.CreateLeadEvent(r.Context(), database.CreateLeadEventParams{
+					LeadID:        updated.ID,
+					PreviousStage: database.NullLeadStage{LeadStage: prev, Valid: true},
+					NewStage:      database.LeadStageEngaged,
+					ChangedBy:     pgtype.UUID{},
+					Notes:         pgtype.Text{String: "reply_posted", Valid: true},
+				})
+			}
+		}
+	}
+
+	// Mirror mention status for inbox consistency.
+	_, _ = h.q.UpdateMentionStatus(r.Context(), database.UpdateMentionStatusParams{
+		Status:      database.MentionStatusReplied,
+		ID:          reply.MentionID,
+		WorkspaceID: wsID,
+	})
+
 	writeJSON(w, http.StatusOK, reply)
 }
 

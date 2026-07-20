@@ -33,7 +33,7 @@ export const MENTION_TIERS = {
   FILTERED: "filtered",
 } as const;
 
-export const MENTION_STATUSES = ["new", "reviewed", "replied", "archived"] as const;
+export const MENTION_STATUSES = ["new", "reviewed", "replied", "archived", "spam"] as const;
 export type MentionStatus = (typeof MENTION_STATUSES)[number];
 
 export const QUERY_KEYS = {
@@ -42,6 +42,9 @@ export const QUERY_KEYS = {
   mentionTierCounts: "mentionTierCounts",
   mentionsPerPlatform: "mentionsPerPlatform",
   replies: "replies",
+  person360: "person360",
+  scoringPrecision: "scoringPrecision",
+  replyAttribution: "replyAttribution",
 } as const;
 
 export const GITHUB_URL = "https://github.com/rohansx/leadecho";
