@@ -10,14 +10,17 @@ import (
 // in a single query (the old per-filter sqlc queries were mutually exclusive —
 // only the first one applied, silently dropping the rest).
 type ListMentionsComposedParams struct {
-	WorkspaceID string
-	Tier        string // "", leads_ready, worth_watching, filtered
-	Status      string
-	Platform    string
-	Intent      string
-	Search      string
-	Lim         int32
-	Off         int32
+	WorkspaceID    string
+	Tier           string // "", leads_ready, worth_watching, filtered
+	Queue          string // "", action_required, auto_flowing, escalations, all
+	ActionKind     string // "", ready_to_send, needs_draft, needs_review (action_required)
+	EscalationKind string // legacy alias for action_kind on escalations queue
+	Status         string
+	Platform       string
+	Intent         string
+	Search         string
+	Lim            int32
+	Off            int32
 }
 
 // buildWhere returns the composed WHERE clause and its positional args. The tier
@@ -42,6 +45,47 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 			"NOT (COALESCE(relevance_score, 0) >= 7.0 AND COALESCE(intent IN ('buy_signal', 'recommendation_ask', 'complaint'), false))"+
 				" AND NOT (COALESCE(relevance_score, 0) >= 4.0 AND COALESCE(relevance_score, 0) < 7.0)")
 	}
+
+	switch p.Queue {
+	case "action_required":
+		clauses = append(clauses, actionRequiredPredicate())
+		switch p.ActionKind {
+		case "ready_to_send":
+			clauses = append(clauses, readyToSendPredicate())
+		case "needs_draft":
+			clauses = append(clauses, leadIntentPredicate())
+			clauses = append(clauses, "status = 'new'")
+			clauses = append(clauses, replyNoneExists())
+		case "needs_review":
+			clauses = append(clauses, escalationFlaggedPredicate())
+		}
+	case "auto_flowing":
+		clauses = append(clauses, leadIntentPredicate())
+		clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+		clauses = append(clauses, replyDraftOrApprovedExists())
+		clauses = append(clauses, "NOT COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)")
+	case "escalations":
+		clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+		switch p.EscalationKind {
+		case "needs_draft":
+			clauses = append(clauses, leadIntentPredicate())
+			clauses = append(clauses, "status = 'new'")
+			clauses = append(clauses, replyNoneExists())
+		case "flagged":
+			clauses = append(clauses, escalationFlaggedPredicate())
+		default:
+			clauses = append(clauses, `(
+				`+escalationFlaggedPredicate()+`
+				OR (
+					`+leadIntentPredicate()+`
+					AND status = 'new'
+					AND `+replyNoneExists()+`
+				)
+			)`)
+		}
+	case "all":
+		clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+	}
 	if p.Status != "" {
 		add("status = $%d", p.Status)
 	}
@@ -57,16 +101,204 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 	return strings.Join(clauses, " AND "), args
 }
 
+func leadIntentPredicate() string {
+	return "relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint')"
+}
+
+func escalationFlaggedPredicate() string {
+	return "COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)"
+}
+
+func replyDraftOrApprovedExists() string {
+	return `EXISTS (
+			SELECT 1 FROM replies r
+			WHERE r.mention_id = mentions.id AND r.workspace_id = mentions.workspace_id
+			AND r.status IN ('draft', 'approved')
+		)`
+}
+
+func replyNoneExists() string {
+	return `NOT EXISTS (
+					SELECT 1 FROM replies r
+					WHERE r.mention_id = mentions.id AND r.workspace_id = mentions.workspace_id
+					AND r.status IN ('draft', 'approved', 'posted')
+				)`
+}
+
+func readyToSendPredicate() string {
+	return `(
+		` + leadIntentPredicate() + `
+		AND NOT COALESCE((scoring_metadata->>'needs_escalation')::boolean, false)
+		AND ` + replyDraftOrApprovedExists() + `
+	)`
+}
+
+func actionRequiredPredicate() string {
+	return `(
+		` + readyToSendPredicate() + `
+		OR ` + escalationFlaggedPredicate() + `
+		OR (
+			` + leadIntentPredicate() + `
+			AND status = 'new'
+			AND ` + replyNoneExists() + `
+		)
+	)`
+}
+
+func actionPriorityOrder() string {
+	return `CASE
+		WHEN ` + readyToSendPredicate() + ` THEN 0
+		WHEN ` + escalationFlaggedPredicate() + ` THEN 1
+		ELSE 2
+	END`
+}
+
+// CountMentionsByQueue returns counts for inbox queue tabs.
+func (q *Queries) CountMentionsByQueue(ctx context.Context, workspaceID string) ([]CountMentionsByQueueRow, error) {
+	sql := `
+SELECT 'action_required' AS queue, COUNT(*)::int AS count
+FROM mentions
+WHERE workspace_id = $1
+  AND status NOT IN ('spam', 'archived')
+  AND ` + actionRequiredPredicate() + `
+UNION ALL
+SELECT 'all' AS queue, COUNT(*)::int AS count
+FROM mentions
+WHERE workspace_id = $1
+  AND status NOT IN ('spam', 'archived')`
+	rows, err := q.db.Query(ctx, sql, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountMentionsByQueueRow
+	for rows.Next() {
+		var i CountMentionsByQueueRow
+		if err := rows.Scan(&i.Queue, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+// CountActionSubcounts splits the action-required inbox into next-step slices.
+func (q *Queries) CountActionSubcounts(ctx context.Context, workspaceID string) (ActionSubcounts, error) {
+	sql := `
+SELECT
+  (SELECT COUNT(*)::int FROM mentions
+   WHERE workspace_id = $1 AND status NOT IN ('spam', 'archived')
+     AND ` + readyToSendPredicate() + `
+  ) AS ready_to_send,
+  (SELECT COUNT(*)::int FROM mentions
+   WHERE workspace_id = $1 AND status NOT IN ('spam', 'archived')
+     AND ` + leadIntentPredicate() + `
+     AND status = 'new'
+     AND ` + replyNoneExists() + `
+  ) AS needs_draft,
+  (SELECT COUNT(*)::int FROM mentions
+   WHERE workspace_id = $1 AND status NOT IN ('spam', 'archived')
+     AND ` + escalationFlaggedPredicate() + `
+  ) AS needs_review`
+	var s ActionSubcounts
+	err := q.db.QueryRow(ctx, sql, workspaceID).Scan(&s.ReadyToSend, &s.NeedsDraft, &s.NeedsReview)
+	return s, err
+}
+
+type ActionSubcounts struct {
+	ReadyToSend int32 `json:"ready_to_send"`
+	NeedsDraft  int32 `json:"needs_draft"`
+	NeedsReview int32 `json:"needs_review"`
+}
+
+// CountEscalationSubcounts is kept for backward-compatible API responses.
+func (q *Queries) CountEscalationSubcounts(ctx context.Context, workspaceID string) (EscalationSubcounts, error) {
+	s, err := q.CountActionSubcounts(ctx, workspaceID)
+	if err != nil {
+		return EscalationSubcounts{}, err
+	}
+	return EscalationSubcounts{NeedsDraft: s.NeedsDraft, Flagged: s.NeedsReview}, nil
+}
+
+type EscalationSubcounts struct {
+	NeedsDraft int32 `json:"needs_draft"`
+	Flagged    int32 `json:"flagged"`
+}
+
+type CountMentionsByQueueRow struct {
+	Queue string `json:"queue"`
+	Count int32  `json:"count"`
+}
+
+// CountMentionsByPlatformForQueue returns per-platform totals for the same
+// filter set as ListMentionsComposed (so inbox platform pills match the list).
+func (q *Queries) CountMentionsByPlatformForQueue(ctx context.Context, p ListMentionsComposedParams) ([]CountMentionsByPlatformRow, error) {
+	where, args := p.buildWhere()
+	sql := fmt.Sprintf(
+		"SELECT platform, COUNT(*)::int AS count FROM mentions WHERE %s GROUP BY platform ORDER BY count DESC",
+		where,
+	)
+	rows, err := q.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountMentionsByPlatformRow
+	for rows.Next() {
+		var i CountMentionsByPlatformRow
+		if err := rows.Scan(&i.Platform, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+// MentionIDsWithDraftOrApprovedReply returns mention IDs that have a draft/approved reply.
+func (q *Queries) MentionIDsWithDraftOrApprovedReply(ctx context.Context, workspaceID string, mentionIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(mentionIDs))
+	if len(mentionIDs) == 0 {
+		return out, nil
+	}
+	rows, err := q.db.Query(ctx, `
+SELECT DISTINCT mention_id::text
+FROM replies
+WHERE workspace_id = $1
+  AND mention_id = ANY($2::uuid[])
+  AND status IN ('draft', 'approved')`, workspaceID, mentionIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 const mentionColumns = `id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level`
 
 // ListMentionsComposed applies all provided filters together (ANDed), with
-// pagination, ordered by recency.
+// pagination, ordered by recency (action queues) or score (browse-all).
 func (q *Queries) ListMentionsComposed(ctx context.Context, p ListMentionsComposedParams) ([]Mention, error) {
 	where, args := p.buildWhere()
+	orderBy := "created_at DESC"
+	switch p.Queue {
+	case "action_required":
+		orderBy = actionPriorityOrder() + ", COALESCE(relevance_score, 0) DESC, created_at DESC"
+	case "all":
+		if p.Search == "" {
+			orderBy = "COALESCE(relevance_score, 0) DESC, created_at DESC"
+		}
+	}
 	args = append(args, p.Lim, p.Off)
 	sql := fmt.Sprintf(
-		"SELECT %s FROM mentions WHERE %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d",
-		mentionColumns, where, len(args)-1, len(args),
+		"SELECT %s FROM mentions WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d",
+		mentionColumns, where, orderBy, len(args)-1, len(args),
 	)
 	rows, err := q.db.Query(ctx, sql, args...)
 	if err != nil {

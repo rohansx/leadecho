@@ -22,6 +22,7 @@ export interface Mention {
   relevance_score: number | null;
   intent: IntentType | null;
   awareness_level: AwarenessLevel | null;
+  next_action?: "ready_to_send" | "needs_draft" | "needs_review" | null;
   conversion_probability: number | null;
   status: MentionStatus;
   assigned_to: string | null;
@@ -222,4 +223,44 @@ export interface UTMLink {
   signup_count: number;
   revenue_cents: number;
   created_at: string;
+}
+
+export interface QueueCount {
+  queue: string;
+  count: number;
+}
+
+export interface EscalationSubcounts {
+  needs_draft: number;
+  flagged: number;
+}
+
+export interface ActionSubcounts {
+  ready_to_send: number;
+  needs_draft: number;
+  needs_review: number;
+}
+
+export interface InboxQueueCountsResponse {
+  queues: QueueCount[];
+  actions: ActionSubcounts;
+  /** @deprecated use actions */
+  escalations?: EscalationSubcounts;
+}
+
+export interface PlatformCount {
+  platform: string;
+  count: number;
+}
+
+export interface HumanProposal {
+  id: string;
+  workspace_id: string;
+  proposal_type: string;
+  title: string;
+  body: string;
+  status: "pending" | "accepted" | "dismissed";
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }

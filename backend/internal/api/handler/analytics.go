@@ -210,3 +210,33 @@ func (h *AnalyticsHandler) ReplyAttribution(w http.ResponseWriter, r *http.Reque
 		"utm_signups":      row.UtmSignups,
 	})
 }
+
+// ReplyStyleAttribution breaks down UTM outcomes by reply template style (30d).
+func (h *AnalyticsHandler) ReplyStyleAttribution(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	wsID := middleware.WorkspaceID(ctx)
+
+	rows, err := h.q.ReplyStyleAttribution(ctx, wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load reply style attribution")
+		return
+	}
+	type item struct {
+		TemplateStyle string `json:"template_style"`
+		ReplyCount    int32  `json:"reply_count"`
+		PostedCount   int32  `json:"posted_count"`
+		ClickCount    int32  `json:"click_count"`
+		SignupCount   int32  `json:"signup_count"`
+	}
+	resp := make([]item, len(rows))
+	for i, row := range rows {
+		resp[i] = item{
+			TemplateStyle: row.TemplateStyle,
+			ReplyCount:    row.ReplyCount,
+			PostedCount:   row.PostedCount,
+			ClickCount:    row.ClickCount,
+			SignupCount:   row.SignupCount,
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}

@@ -541,6 +541,18 @@ type ExtensionToken struct {
 	CreatedAt   time.Time          `json:"created_at"`
 }
 
+type HumanProposal struct {
+	ID           string    `json:"id"`
+	WorkspaceID  string    `json:"workspace_id"`
+	ProposalType string    `json:"proposal_type"`
+	Title        string    `json:"title"`
+	Body         string    `json:"body"`
+	Status       string    `json:"status"`
+	Metadata     []byte    `json:"metadata"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type Keyword struct {
 	ID            string    `json:"id"`
 	WorkspaceID   string    `json:"workspace_id"`
@@ -741,6 +753,7 @@ type Reply struct {
 	UpdatedAt         time.Time          `json:"updated_at"`
 	TemplateStyle     pgtype.Text        `json:"template_style"`
 	ThreadContextUsed bool               `json:"thread_context_used"`
+	Metadata          []byte             `json:"metadata"`
 }
 
 type ReplyEngagement struct {

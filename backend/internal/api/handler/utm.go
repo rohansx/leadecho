@@ -11,16 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/attribution"
 	"leadecho/internal/database"
 )
 
 // UTMHandler manages UTM tracking links.
 type UTMHandler struct {
-	q *database.Queries
+	q      *database.Queries
+	attrib *attribution.Service
 }
 
-func NewUTMHandler(q *database.Queries) *UTMHandler {
-	return &UTMHandler{q: q}
+func NewUTMHandler(q *database.Queries, attrib *attribution.Service) *UTMHandler {
+	return &UTMHandler{q: q, attrib: attrib}
 }
 
 // List returns all UTM links for the workspace.
@@ -168,51 +170,14 @@ func (h *UTMHandler) RecordConversion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.q.RecordUTMConversion(r.Context(), database.RecordUTMConversionParams{
-		Code:         code,
+	updated, err := h.attrib.RecordConversion(r.Context(), wsID, attribution.ConversionRequest{
+		UTMCode:      code,
+		EventType:    body.EventType,
 		RevenueCents: body.RevenueCents,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to record conversion")
 		return
-	}
-	_, _ = h.q.CreateUTMEvent(r.Context(), database.CreateUTMEventParams{
-		UtmLinkID:    link.ID,
-		EventType:    body.EventType,
-		Referrer:     pgtype.Text{},
-		UserAgent:    pgtype.Text{},
-		IpHash:       pgtype.Text{},
-		RevenueCents: pgtype.Int4{Int32: body.RevenueCents, Valid: true},
-		Metadata:     []byte(`{}`),
-	})
-
-	// Best-effort: if utm_content is a reply id, advance its mention's lead.
-	if link.UtmContent.Valid {
-		if reply, err := h.q.GetReply(r.Context(), database.GetReplyParams{
-			ID:          link.UtmContent.String,
-			WorkspaceID: wsID,
-		}); err == nil {
-			if lead, err := h.q.GetLeadByMention(r.Context(), database.GetLeadByMentionParams{
-				MentionID:   parseUUID(reply.MentionID),
-				WorkspaceID: wsID,
-			}); err == nil && lead.Stage != database.LeadStageConverted && lead.Stage != database.LeadStageLost {
-				prev := lead.Stage
-				updatedLead, err := h.q.UpdateLeadStage(r.Context(), database.UpdateLeadStageParams{
-					Stage:       database.LeadStageConverted,
-					ID:          lead.ID,
-					WorkspaceID: wsID,
-				})
-				if err == nil {
-					_, _ = h.q.CreateLeadEvent(r.Context(), database.CreateLeadEventParams{
-						LeadID:        updatedLead.ID,
-						PreviousStage: database.NullLeadStage{LeadStage: prev, Valid: true},
-						NewStage:      database.LeadStageConverted,
-						ChangedBy:     parseUUID(middleware.UserID(r.Context())),
-						Notes:         pgtype.Text{String: "utm_" + body.EventType, Valid: true},
-					})
-				}
-			}
-		}
 	}
 
 	writeJSON(w, http.StatusOK, updated)

@@ -117,6 +117,12 @@ SET status = @status,
 WHERE id = @id AND workspace_id = @workspace_id
 RETURNING *;
 
+-- name: PatchMentionScoringMetadata :one
+UPDATE mentions
+SET scoring_metadata = @scoring_metadata
+WHERE id = @id AND workspace_id = @workspace_id
+RETURNING *;
+
 -- ─── Smart Inbox Tiers ────────────────────────────────
 
 -- name: ListMentionsLeadsReady :many

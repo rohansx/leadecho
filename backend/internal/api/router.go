@@ -12,6 +12,7 @@ import (
 
 	"leadecho/internal/api/handler"
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/attribution"
 	"leadecho/internal/auth"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
@@ -42,10 +43,15 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 	// sqlc queries instance
 	queries := database.New(db)
+	attrib := attribution.NewService(queries, logger)
 
 	// Public UTM redirect — outside /api/v1, no auth
-	utmPublic := handler.NewUTMHandler(queries)
+	utmPublic := handler.NewUTMHandler(queries, attrib)
 	r.Get("/r/{code}", utmPublic.RedirectUTM)
+
+	// Public conversion webhook (secret auth in body)
+	convHook := handler.NewConversionWebhookHandler(queries, attrib)
+	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -91,6 +97,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/mentions", mentions.List)
 			r.Get("/mentions/counts", mentions.Counts)
 			r.Get("/mentions/tier-counts", mentions.TierCounts)
+			r.Get("/mentions/queue-counts", mentions.QueueCounts)
+			r.Get("/mentions/platform-counts", mentions.PlatformCounts)
 			r.Get("/mentions/{id}", mentions.Get)
 			r.Get("/mentions/{id}/person360", mentions.Person360)
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)
@@ -149,6 +157,13 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/analytics/top-keywords", analytics.TopKeywords)
 			r.Get("/analytics/scoring-precision", analytics.ScoringPrecision)
 			r.Get("/analytics/reply-attribution", analytics.ReplyAttribution)
+			r.Get("/analytics/reply-style-attribution", analytics.ReplyStyleAttribution)
+
+			// Human proposals (Discovery queue)
+			proposals := handler.NewProposalHandler(queries)
+			r.Get("/proposals", proposals.List)
+			r.Get("/proposals/counts", proposals.Counts)
+			r.Patch("/proposals/{id}/status", proposals.UpdateStatus)
 
 			// Notifications (Slack/Discord webhooks)
 			notifs := handler.NewNotificationHandler(queries, cfg.ResendAPIKey)
@@ -197,7 +212,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/settings/onboarding/complete", onboarding.Complete)
 
 			// UTM tracking links
-			utm := handler.NewUTMHandler(queries)
+			utm := handler.NewUTMHandler(queries, attrib)
 			r.Get("/utm-links", utm.List)
 			r.Post("/utm-links", utm.Create)
 			r.Delete("/utm-links/{id}", utm.Delete)

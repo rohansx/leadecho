@@ -881,6 +881,54 @@ func (q *Queries) ListUnclassifiedMentions(ctx context.Context, arg ListUnclassi
 	return items, nil
 }
 
+const patchMentionScoringMetadata = `-- name: PatchMentionScoringMetadata :one
+UPDATE mentions
+SET scoring_metadata = $1
+WHERE id = $2 AND workspace_id = $3
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+`
+
+type PatchMentionScoringMetadataParams struct {
+	ScoringMetadata []byte `json:"scoring_metadata"`
+	ID              string `json:"id"`
+	WorkspaceID     string `json:"workspace_id"`
+}
+
+func (q *Queries) PatchMentionScoringMetadata(ctx context.Context, arg PatchMentionScoringMetadataParams) (Mention, error) {
+	row := q.db.QueryRow(ctx, patchMentionScoringMetadata, arg.ScoringMetadata, arg.ID, arg.WorkspaceID)
+	var i Mention
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.KeywordID,
+		&i.Platform,
+		&i.PlatformID,
+		&i.Url,
+		&i.Title,
+		&i.Content,
+		&i.ContentTsv,
+		&i.AuthorUsername,
+		&i.AuthorProfileUrl,
+		&i.AuthorKarma,
+		&i.AuthorAccountAgeDays,
+		&i.RelevanceScore,
+		&i.Intent,
+		&i.ConversionProbability,
+		&i.Status,
+		&i.AssignedTo,
+		&i.PlatformMetadata,
+		&i.EngagementMetrics,
+		&i.KeywordMatches,
+		&i.PlatformCreatedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContentEmbedding,
+		&i.ScoringMetadata,
+		&i.AwarenessLevel,
+	)
+	return i, err
+}
+
 const searchMentions = `-- name: SearchMentions :many
 SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
 WHERE workspace_id = $1

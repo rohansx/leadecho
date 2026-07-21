@@ -33,6 +33,21 @@ export const MENTION_TIERS = {
   FILTERED: "filtered",
 } as const;
 
+export const INBOX_QUEUES = {
+  ACTION_REQUIRED: "action_required",
+  ALL: "all",
+  PROPOSALS: "proposals",
+  /** @deprecated legacy API queue names */
+  AUTO_FLOWING: "auto_flowing",
+  ESCALATIONS: "escalations",
+} as const;
+
+export const ACTION_KINDS = {
+  READY_TO_SEND: "ready_to_send",
+  NEEDS_DRAFT: "needs_draft",
+  NEEDS_REVIEW: "needs_review",
+} as const;
+
 export const MENTION_STATUSES = ["new", "reviewed", "replied", "archived", "spam"] as const;
 export type MentionStatus = (typeof MENTION_STATUSES)[number];
 
@@ -40,6 +55,10 @@ export const QUERY_KEYS = {
   mentions: "mentions",
   mentionCounts: "mentionCounts",
   mentionTierCounts: "mentionTierCounts",
+  mentionQueueCounts: "mentionQueueCounts",
+  mentionPlatformCounts: "mentionPlatformCounts",
+  proposals: "proposals",
+  proposalCounts: "proposalCounts",
   mentionsPerPlatform: "mentionsPerPlatform",
   replies: "replies",
   person360: "person360",

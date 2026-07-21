@@ -259,6 +259,16 @@ func (h *NotificationHandler) GetWebhookConfig(w http.ResponseWriter, r *http.Re
 		webhooks = map[string]any{}
 	}
 
+	if secret, _ := webhooks["conversion_secret"].(string); secret == "" {
+		webhooks["conversion_secret"] = randomWebhookSecret()
+		settings["webhooks"] = webhooks
+		data, _ := json.Marshal(settings)
+		_ = h.q.UpdateWorkspaceSettings(r.Context(), database.UpdateWorkspaceSettingsParams{
+			ID:       wsID,
+			Settings: data,
+		})
+	}
+
 	// Tell the frontend whether Resend is configured server-side
 	webhooks["resend_configured"] = h.resendAPIKey != ""
 
@@ -294,14 +304,23 @@ func (h *NotificationHandler) SaveWebhookConfig(w http.ResponseWriter, r *http.R
 		settings = map[string]any{}
 	}
 
+	existing, _ := settings["webhooks"].(map[string]any)
+	if existing == nil {
+		existing = map[string]any{}
+	}
+	if _, ok := existing["conversion_secret"]; !ok {
+		existing["conversion_secret"] = randomWebhookSecret()
+	}
+
 	settings["webhooks"] = map[string]any{
-		"slack_url":      body.SlackURL,
-		"discord_url":    body.DiscordURL,
-		"email_to":       body.EmailTo,
-		"enabled":        body.Enabled,
-		"on_new_mention": body.OnNewMention,
-		"on_high_intent": body.OnHighIntent,
-		"on_new_lead":    body.OnNewLead,
+		"slack_url":          body.SlackURL,
+		"discord_url":        body.DiscordURL,
+		"email_to":           body.EmailTo,
+		"enabled":            body.Enabled,
+		"on_new_mention":     body.OnNewMention,
+		"on_high_intent":     body.OnHighIntent,
+		"on_new_lead":        body.OnNewLead,
+		"conversion_secret":  existing["conversion_secret"],
 	}
 
 	data, _ := json.Marshal(settings)
@@ -314,4 +333,8 @@ func (h *NotificationHandler) SaveWebhookConfig(w http.ResponseWriter, r *http.R
 	}
 
 	writeJSON(w, http.StatusOK, settings["webhooks"])
+}
+
+func randomWebhookSecret() string {
+	return "whsec_" + randomCode(32)
 }

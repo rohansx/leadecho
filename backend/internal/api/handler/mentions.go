@@ -28,6 +28,18 @@ var (
 		"buy_signal": true, "complaint": true, "recommendation_ask": true,
 		"comparison": true, "general": true,
 	}
+	validMentionQueues = map[string]bool{
+		"action_required": true,
+		"auto_flowing":    true,
+		"escalations":     true,
+		"all":             true,
+	}
+	validActionKinds = map[string]bool{
+		"ready_to_send": true, "needs_draft": true, "needs_review": true,
+	}
+	validEscalationKinds = map[string]bool{
+		"needs_draft": true, "flagged": true,
+	}
 )
 
 type MentionHandler struct {
@@ -66,6 +78,7 @@ type MentionResponse struct {
 	CreatedAt             time.Time       `json:"created_at"`
 	UpdatedAt             time.Time       `json:"updated_at"`
 	AwarenessLevel        *string         `json:"awareness_level"`
+	NextAction            *string         `json:"next_action,omitempty"`
 }
 
 func mentionToResponse(m database.Mention) MentionResponse {
@@ -166,14 +179,17 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	// All filters compose (ANDed) in a single query rather than being mutually
 	// exclusive, and total reflects the full match count, not the page size.
 	params := database.ListMentionsComposedParams{
-		WorkspaceID: workspaceID,
-		Tier:        r.URL.Query().Get("tier"),
-		Status:      r.URL.Query().Get("status"),
-		Platform:    r.URL.Query().Get("platform"),
-		Intent:      r.URL.Query().Get("intent"),
-		Search:      r.URL.Query().Get("search"),
-		Lim:         limit,
-		Off:         offset,
+		WorkspaceID:    workspaceID,
+		Tier:           r.URL.Query().Get("tier"),
+		Queue:          r.URL.Query().Get("queue"),
+		ActionKind:     resolveActionKind(r.URL.Query().Get("queue"), r.URL.Query().Get("action_kind"), r.URL.Query().Get("escalation_kind")),
+		EscalationKind: r.URL.Query().Get("escalation_kind"),
+		Status:         r.URL.Query().Get("status"),
+		Platform:       r.URL.Query().Get("platform"),
+		Intent:         r.URL.Query().Get("intent"),
+		Search:         r.URL.Query().Get("search"),
+		Lim:            limit,
+		Off:            offset,
 	}
 
 	// Reject unknown enum filter values up front (400) rather than letting them
@@ -191,6 +207,30 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid intent")
 		return
 	}
+	if params.Queue != "" && !validMentionQueues[params.Queue] {
+		writeError(w, http.StatusBadRequest, "invalid queue")
+		return
+	}
+	if params.EscalationKind != "" {
+		if params.Queue != "escalations" {
+			writeError(w, http.StatusBadRequest, "escalation_kind requires queue=escalations")
+			return
+		}
+		if !validEscalationKinds[params.EscalationKind] {
+			writeError(w, http.StatusBadRequest, "invalid escalation_kind")
+			return
+		}
+	}
+	if params.ActionKind != "" {
+		if params.Queue != "action_required" {
+			writeError(w, http.StatusBadRequest, "action_kind requires queue=action_required")
+			return
+		}
+		if !validActionKinds[params.ActionKind] {
+			writeError(w, http.StatusBadRequest, "invalid action_kind")
+			return
+		}
+	}
 
 	mentions, err := h.q.ListMentionsComposed(ctx, params)
 	if err != nil {
@@ -204,8 +244,22 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := make([]MentionResponse, len(mentions))
+	draftIDs := map[string]bool{}
+	if params.Queue == "action_required" && len(mentions) > 0 {
+		ids := make([]string, len(mentions))
+		for i, m := range mentions {
+			ids[i] = m.ID
+		}
+		draftIDs, _ = h.q.MentionIDsWithDraftOrApprovedReply(ctx, workspaceID, ids)
+	}
 	for i, m := range mentions {
 		resp[i] = mentionToResponse(m)
+		if params.Queue == "action_required" {
+			action := nextActionFor(m, draftIDs[m.ID])
+			if action != "" {
+				resp[i].NextAction = &action
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, listResponse{
@@ -362,6 +416,111 @@ func (h *MentionHandler) TierCounts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *MentionHandler) QueueCounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := middleware.WorkspaceID(ctx)
+
+	counts, err := h.q.CountMentionsByQueue(ctx, workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count mentions by queue")
+		return
+	}
+
+	subcounts, err := h.q.CountActionSubcounts(ctx, workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count action subqueues")
+		return
+	}
+
+	type queueItem struct {
+		Queue string `json:"queue"`
+		Count int32  `json:"count"`
+	}
+	queues := make([]queueItem, len(counts))
+	for i, c := range counts {
+		queues[i] = queueItem{Queue: c.Queue, Count: c.Count}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"queues": queues,
+		"actions": subcounts,
+		// Legacy field — older dashboard builds read escalations.{needs_draft,flagged}
+		"escalations": database.EscalationSubcounts{
+			NeedsDraft: subcounts.NeedsDraft,
+			Flagged:    subcounts.NeedsReview,
+		},
+	})
+}
+
+func resolveActionKind(queue, actionKind, escalationKind string) string {
+	if actionKind != "" {
+		return actionKind
+	}
+	if queue != "action_required" {
+		return ""
+	}
+	if escalationKind == "flagged" {
+		return "needs_review"
+	}
+	if escalationKind == "needs_draft" {
+		return "needs_draft"
+	}
+	return ""
+}
+
+// PlatformCounts returns per-platform totals scoped to the same inbox queue
+// filters as GET /mentions (so dropdown counts match the visible list).
+func (h *MentionHandler) PlatformCounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := middleware.WorkspaceID(ctx)
+
+	params := database.ListMentionsComposedParams{
+		WorkspaceID: workspaceID,
+		Queue:       r.URL.Query().Get("queue"),
+		ActionKind: resolveActionKind(
+			r.URL.Query().Get("queue"),
+			r.URL.Query().Get("action_kind"),
+			r.URL.Query().Get("escalation_kind"),
+		),
+		Status:   r.URL.Query().Get("status"),
+		Platform: "",
+		Intent:   r.URL.Query().Get("intent"),
+		Search:   r.URL.Query().Get("search"),
+	}
+	if params.Queue != "" && !validMentionQueues[params.Queue] {
+		writeError(w, http.StatusBadRequest, "invalid queue")
+		return
+	}
+	if params.ActionKind != "" {
+		if params.Queue != "action_required" {
+			writeError(w, http.StatusBadRequest, "action_kind requires queue=action_required")
+			return
+		}
+		if !validActionKinds[params.ActionKind] {
+			writeError(w, http.StatusBadRequest, "invalid action_kind")
+			return
+		}
+	}
+	if params.Status != "" && !validMentionStatuses[params.Status] {
+		writeError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+	if params.Intent != "" && !validMentionIntents[params.Intent] {
+		writeError(w, http.StatusBadRequest, "invalid intent")
+		return
+	}
+
+	rows, err := h.q.CountMentionsByPlatformForQueue(ctx, params)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count mentions by platform")
+		return
+	}
+	if rows == nil {
+		rows = []database.CountMentionsByPlatformRow{}
+	}
+	writeJSON(w, http.StatusOK, rows)
+}
+
 // Person360 returns identity enrichment for a mention's associated lead.
 func (h *MentionHandler) Person360(w http.ResponseWriter, r *http.Request) {
 	if h.researcher == nil {
@@ -377,4 +536,48 @@ func (h *MentionHandler) Person360(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
+}
+
+func nextActionFor(m database.Mention, hasDraftReply bool) string {
+	flagged := bytesContainsTrue(m.ScoringMetadata, "needs_escalation")
+	if flagged {
+		return "needs_review"
+	}
+	if !isLeadIntentMention(m) {
+		return ""
+	}
+	if hasDraftReply {
+		return "ready_to_send"
+	}
+	if string(m.Status) == "new" {
+		return "needs_draft"
+	}
+	return ""
+}
+
+func isLeadIntentMention(m database.Mention) bool {
+	if !m.RelevanceScore.Valid || m.RelevanceScore.Float32 < 7.0 {
+		return false
+	}
+	if !m.Intent.Valid {
+		return false
+	}
+	switch m.Intent.IntentType {
+	case database.IntentTypeBuySignal, database.IntentTypeRecommendationAsk, database.IntentTypeComplaint:
+		return true
+	default:
+		return false
+	}
+}
+
+func bytesContainsTrue(meta []byte, key string) bool {
+	if len(meta) == 0 {
+		return false
+	}
+	var s map[string]any
+	if json.Unmarshal(meta, &s) != nil {
+		return false
+	}
+	v, ok := s[key].(bool)
+	return ok && v
 }
