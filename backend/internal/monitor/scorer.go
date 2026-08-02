@@ -70,10 +70,11 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			if a.Title != "" {
 				text = a.Title + "\n\n" + text
 			}
-			// Truncate to ~2000 chars to avoid huge embedding costs
-			if len(text) > 2000 {
-				text = text[:2000]
-			}
+			// Truncate to ~2000 chars to avoid huge embedding costs.
+			// Slice on a rune boundary: a plain text[:2000] byte slice can cut a
+			// multi-byte character in half and hand invalid UTF-8 to the embedding
+			// provider, which matters for the non-English communities we crawl.
+			text = truncateRunes(text, 2000)
 			texts[i] = text
 		}
 
@@ -85,6 +86,13 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 				candidates = append(candidates, scored{alert: a, similarity: 0})
 			}
 		} else {
+			// Profile count is workspace-wide and constant for this batch — read it
+			// once rather than issuing an identical query per mention.
+			profileCount, err := m.q.CountMonitoringProfiles(ctx, wsID)
+			if err != nil {
+				m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("scorer: failed to count monitoring profiles")
+			}
+
 			// Store embeddings and find similar pain points
 			for i, a := range scoreable {
 				// The embedder returned fewer vectors than inputs (shouldn't
@@ -117,19 +125,18 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 					bestSim = similar[0].Similarity
 				}
 
-				// Check if any profiles exist for this workspace
-				profileCount, _ := m.q.CountMonitoringProfiles(ctx, wsID)
-
 				// If profiles exist, only pass mentions with similarity > 0.40
 				// If no profiles configured, pass everything (just classify)
 				if profileCount > 0 && bestSim < 0.40 {
 					// Low similarity, update metadata and skip
-					m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
+					if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 						ID:              a.ID,
 						WorkspaceID:     wsID,
 						ScoringMetadata: jsonBytes(map[string]any{"stage": "stage2_low_similarity", "best_similarity": bestSim, "auto_scored": true}),
 						AwarenessLevel:  pgtype.Text{},
-					})
+					}); err != nil {
+						m.logger.Error().Err(err).Str("mention_id", a.ID).Msg("scorer: failed to record stage2 filter")
+					}
 					continue
 				}
 
@@ -151,7 +158,11 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	for _, c := range candidates {
 		result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform)
 		if err != nil {
+			// Record the failure. Without this the mention keeps null scoring
+			// metadata, which is indistinguishable from "never reached stage 3":
+			// it is not retried, not surfaced as filtered, and silently stalls.
 			m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
+			m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
 			continue
 		}
 
@@ -164,7 +175,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		}
 
 		// Update mention with classification + awareness level
-		m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
+		if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 			ID:                    c.alert.ID,
 			WorkspaceID:           c.alert.WorkspaceID,
 			Intent:                database.NullIntentType{IntentType: database.IntentType(result.Intent), Valid: true},
@@ -172,7 +183,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			RelevanceScore:        pgtype.Float4{Float32: float32(result.RelevanceScore), Valid: true},
 			ScoringMetadata:       jsonBytes(meta),
 			AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
-		})
+		}); err != nil {
+			m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
+		}
 
 		m.publishMentionScored(ctx, c.alert, result)
 
