@@ -2,8 +2,10 @@ package publishers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
@@ -11,6 +13,19 @@ import (
 	"leadecho/internal/events"
 	streamredis "leadecho/internal/events/redis"
 )
+
+// ErrDuplicateEvent reports that an event with this stream + idempotency key was
+// already published. Callers should treat it as success: that is what an
+// idempotency key means. Returning a hard error instead made every repeat
+// publish for an aggregate fail permanently — a second "draft reply" on the
+// same mention 500'd forever, and re-scoring spammed ERROR logs.
+var ErrDuplicateEvent = errors.New("event already published for this idempotency key")
+
+// isUniqueViolation reports whether err is a Postgres 23505 unique_violation.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 type Publisher struct {
 	q       *database.Queries
@@ -50,6 +65,9 @@ func (p *Publisher) Publish(ctx context.Context, env events.Envelope) (string, e
 		ReplayOfEventID: uuidOrNull(""),
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return "", ErrDuplicateEvent
+		}
 		return "", fmt.Errorf("create event log: %w", err)
 	}
 

@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"leadecho/internal/ai"
 	"leadecho/internal/database"
 	"leadecho/internal/events"
+	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
 )
 
@@ -239,7 +241,13 @@ func (m *Monitor) publishMentionScored(ctx context.Context, alert mentionAlert, 
 		return
 	}
 	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
-		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.scored")
+		// A duplicate idempotency key just means this event was already
+		// emitted (e.g. the mention is being re-scored). Not an error.
+		if errors.Is(err, publishers.ErrDuplicateEvent) {
+			m.logger.Debug().Str("mention_id", alert.ID).Msg("streams: mention.scored already published")
+		} else {
+			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.scored")
+		}
 	}
 
 	notifyEnv, err := events.NewEnvelope(
@@ -265,7 +273,11 @@ func (m *Monitor) publishMentionScored(ctx context.Context, alert mentionAlert, 
 		return
 	}
 	if _, err := m.eventPublisher.Publish(ctx, notifyEnv); err != nil {
-		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish notification request")
+		if errors.Is(err, publishers.ErrDuplicateEvent) {
+			m.logger.Debug().Str("mention_id", alert.ID).Msg("streams: notification request already published")
+		} else {
+			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish notification request")
+		}
 	}
 
 	m.publishWorkflowTrigger(ctx, alert, result)
@@ -302,7 +314,13 @@ func (m *Monitor) publishWorkflowTrigger(ctx context.Context, alert mentionAlert
 		return
 	}
 	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
-		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish workflow trigger")
+		// A duplicate idempotency key just means this event was already
+		// emitted (e.g. the mention is being re-scored). Not an error.
+		if errors.Is(err, publishers.ErrDuplicateEvent) {
+			m.logger.Debug().Str("mention_id", alert.ID).Msg("streams: workflow trigger already published")
+		} else {
+			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish workflow trigger")
+		}
 	}
 }
 
@@ -408,6 +426,12 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 		return
 	}
 	if _, err := m.eventPublisher.Publish(ctx, env); err != nil {
-		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.qualified")
+		// A duplicate idempotency key just means this event was already
+		// emitted (e.g. the mention is being re-scored). Not an error.
+		if errors.Is(err, publishers.ErrDuplicateEvent) {
+			m.logger.Debug().Str("mention_id", alert.ID).Msg("streams: mention.qualified already published")
+		} else {
+			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.qualified")
+		}
 	}
 }
