@@ -20,6 +20,7 @@ import {
   saveLLMConfig,
   saveLLMProviderKey,
   verifyLLMProvider,
+  deleteLLMProviderKey,
   type LLMConfigResponse,
   type LLMModelTarget,
   type LLMProviderStatus,
@@ -60,6 +61,8 @@ function cloneModels(config?: LLMConfigResponse): Record<string, LLMModelTarget>
 function LLMRouterCard() {
   const queryClient = useQueryClient();
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  // Two-step confirm for key removal: holds the provider awaiting confirmation.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [models, setModels] = useState<Record<string, LLMModelTarget>>({});
   const [routing, setRouting] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -94,6 +97,18 @@ function LLMRouterCard() {
     mutationFn: (provider: string) => verifyLLMProvider(provider),
     onSuccess: (_, provider) => setMessage(`${provider} verified`),
     onError: (err) => setMessage(err instanceof Error ? err.message : "Verification failed"),
+  });
+
+  // The DELETE endpoint and API client both existed; only this binding was
+  // missing, so a saved key could be overwritten but never actually removed.
+  const removeKey = useMutation({
+    mutationFn: (provider: string) => deleteLLMProviderKey(provider),
+    onSuccess: (_, provider) => {
+      setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
+      setMessage(`${provider} key removed`);
+      queryClient.invalidateQueries({ queryKey: ["llm-config"] });
+    },
+    onError: (err) => setMessage(err instanceof Error ? err.message : "Failed to remove key"),
   });
 
   const saveRoutes = useMutation({
@@ -165,13 +180,15 @@ function LLMRouterCard() {
                     {provider.is_set ? "Configured" : "No key"}
                   </Badge>
                 </div>
-                <div className="flex gap-2">
+                {/* wrap + a min-width on the input so the extra Remove action
+                    cannot push the row past the card edge on narrow columns */}
+                <div className="flex flex-wrap gap-2">
                   <input
                     type="password"
                     placeholder={`Paste ${provider.provider} key`}
                     value={keyDrafts[provider.provider] ?? ""}
                     onChange={(e) => setKeyDrafts((prev) => ({ ...prev, [provider.provider]: e.target.value }))}
-                    className="flex-1 px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                    className="flex-1 min-w-[8rem] px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
                   />
                   <button
                     onClick={() => saveKey.mutate({ provider: provider.provider, apiKey: keyDrafts[provider.provider] ?? "" })}
@@ -187,7 +204,35 @@ function LLMRouterCard() {
                   >
                     Verify
                   </button>
+                  {provider.is_set && (
+                    <button
+                      onClick={() => {
+                        if (confirmRemove === provider.provider) {
+                          removeKey.mutate(provider.provider);
+                          setConfirmRemove(null);
+                        } else {
+                          setConfirmRemove(provider.provider);
+                        }
+                      }}
+                      onBlur={() => setConfirmRemove((cur) => (cur === provider.provider ? null : cur))}
+                      disabled={removeKey.isPending}
+                      title={`Remove the stored ${provider.display_name} key`}
+                      className={`px-3 py-1.5 text-sm font-medium rounded border-2 disabled:opacity-50 ${
+                        confirmRemove === provider.provider
+                          ? "border-destructive text-destructive bg-destructive/10"
+                          : "border-border bg-background hover:bg-accent text-muted-foreground"
+                      }`}
+                    >
+                      {confirmRemove === provider.provider ? "Confirm?" : "Remove"}
+                    </button>
+                  )}
                 </div>
+                {provider.is_set && provider.key_source === "env" && (
+                  <Text as="p" className="text-xs text-muted-foreground">
+                    This key comes from a server environment variable, not this workspace.
+                    Removing it here will not unset it — clear it from the server's .env.
+                  </Text>
+                )}
               </div>
             ))}
           </div>
@@ -449,16 +494,20 @@ function SettingsPage() {
               <CardTitle>AI Features</CardTitle>
               <CardDescription>
                 Intent classification and reply drafting are included for all
-                users.
+                users — no plan upgrade required.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          {/* This card is a billing statement, not a status one. Saying the
+              features are "available on every mention" read as a contradiction
+              next to the router below reporting "Needs setup". */}
           <div className="flex items-center gap-2 p-3 rounded border-2 border-border bg-background">
-            <Badge variant="surface" size="sm">Included</Badge>
+            <Badge variant="surface" size="sm" className="shrink-0">Included</Badge>
             <Text as="p" className="text-sm text-muted-foreground">
-              AI-powered classify and draft reply are available on every mention in your Inbox.
+              Classify and draft reply are unlocked on every mention. They run on your
+              own provider keys — configure those in the AI Router below before they work.
             </Text>
           </div>
         </CardContent>

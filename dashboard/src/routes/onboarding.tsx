@@ -11,16 +11,20 @@ export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
 });
 
+// `note` marks sources that need extra setup or are currently unavailable, so the
+// picker does not present every option as equally ready. Indie Hackers retired the
+// RSS feed the crawler depends on; the authenticated platforms need a browser
+// sidecar running, and Exa needs its own API key.
 const PLATFORMS = [
-  { value: "reddit", label: "Reddit" },
   { value: "hackernews", label: "Hacker News" },
-  { value: "twitter", label: "Twitter / X" },
-  { value: "linkedin", label: "LinkedIn" },
-  { value: "quora", label: "Quora" },
   { value: "devto", label: "Dev.to" },
   { value: "lobsters", label: "Lobsters" },
-  { value: "indiehackers", label: "Indie Hackers" },
-  { value: "exa", label: "Web (Exa)" },
+  { value: "reddit", label: "Reddit", note: "may be rate limited without a browser sidecar" },
+  { value: "twitter", label: "Twitter / X", note: "needs browser sidecar" },
+  { value: "linkedin", label: "LinkedIn", note: "needs browser sidecar" },
+  { value: "quora", label: "Quora", note: "needs browser sidecar" },
+  { value: "exa", label: "Web (Exa)", note: "needs EXA_API_KEY" },
+  { value: "indiehackers", label: "Indie Hackers", note: "unavailable — feed retired" },
 ];
 
 const DEPLOY_STEPS = [
@@ -59,7 +63,7 @@ function OnboardingPage() {
   const [description, setDescription] = useState("");
   const [painPoints, setPainPoints] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
-  const [platforms, setPlatforms] = useState<string[]>(["reddit", "hackernews"]);
+  const [platforms, setPlatforms] = useState<string[]>(["hackernews", "devto"]);
   const [subreddits, setSubreddits] = useState<string[]>([]);
   const [newPainPoint, setNewPainPoint] = useState("");
   const [newKeyword, setNewKeyword] = useState("");
@@ -81,7 +85,7 @@ function OnboardingPage() {
       setDescription(data.description || "");
       setPainPoints(data.pain_points || []);
       setKeywords(data.suggested_keywords || []);
-      setPlatforms(data.suggested_platforms || ["reddit", "hackernews"]);
+      setPlatforms(data.suggested_platforms || ["hackernews", "devto"]);
       setSubreddits(data.suggested_subreddits || []);
       setStep(2);
     },
@@ -217,9 +221,28 @@ function OnboardingPage() {
               {analyzeMutation.isPending ? "Analyzing your product..." : "Analyze & Set Up"}
             </Button>
             {analyzeMutation.isError && (
-              <p className="text-destructive text-sm mt-3">
-                {analyzeMutation.error?.message || "Failed to analyze URL. Please try again."}
-              </p>
+              <div className="mt-3">
+                <p className="text-destructive text-sm">
+                  {analyzeMutation.error?.message || "Failed to analyze URL. Please try again."}
+                </p>
+                {/* This step is the first thing a new workspace sees, but it needs a
+                    configured AI provider — and that lives in Settings, which is behind
+                    onboarding. Without this link the user is simply stuck. */}
+                {/no ai provider|not configured|no key/i.test(
+                  analyzeMutation.error?.message || "",
+                ) && (
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Add a provider key in{" "}
+                    <a
+                      href="/app/settings"
+                      className="text-primary underline underline-offset-2"
+                    >
+                      Settings → AI Router
+                    </a>
+                    , then come back — or continue manually below.
+                  </p>
+                )}
+              </div>
             )}
             <button
               onClick={() => setStep(2)}
@@ -303,6 +326,7 @@ function OnboardingPage() {
                 <button
                   key={p.value}
                   onClick={() => togglePlatform(p.value)}
+                  title={p.note ? `${p.label} — ${p.note}` : p.label}
                   className={`px-4 py-1.5 border-2 border-border text-sm cursor-pointer font-[family-name:var(--font-sans)] transition-all ${
                     platforms.includes(p.value)
                       ? "bg-primary text-primary-foreground font-semibold shadow-xs"
@@ -310,6 +334,7 @@ function OnboardingPage() {
                   }`}
                 >
                   {p.label}
+                  {p.note && <span className="ml-1.5 opacity-60 text-xs">*</span>}
                 </button>
               ))}
             </div>
