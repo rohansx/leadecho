@@ -174,9 +174,7 @@ func (r *Router) SaveConfig(ctx context.Context, workspaceID string, cfg Config)
 	if err != nil {
 		return PublicConfig{}, err
 	}
-	if cfg.Providers == nil {
-		cfg.Providers = existing.Providers
-	}
+	cfg = mergeProviderKeys(cfg, existing)
 	if cfg.Models == nil {
 		cfg.Models = existing.Models
 	}
@@ -196,6 +194,34 @@ func (r *Router) SaveConfig(ctx context.Context, workspaceID string, cfg Config)
 		return PublicConfig{}, err
 	}
 	return r.PublicConfig(ctx, workspaceID)
+}
+
+// mergeProviderKeys carries stored API keys across a config save. Callers build
+// the providers map from the *public* config, which omits api_key by design, so
+// overwriting it wholesale silently destroyed every provider credential —
+// saving the routing table alone was enough to sign a workspace out of its own
+// providers. Keys change only via SaveProviderKey / DeleteProviderKey.
+func mergeProviderKeys(cfg, existing Config) Config {
+	if cfg.Providers == nil {
+		cfg.Providers = existing.Providers
+		return cfg
+	}
+	for name, incoming := range cfg.Providers {
+		if incoming.APIKey != "" {
+			continue
+		}
+		if prev, ok := existing.Providers[name]; ok && prev.APIKey != "" {
+			incoming.APIKey = prev.APIKey
+			cfg.Providers[name] = incoming
+		}
+	}
+	// Preserve providers the caller did not mention at all.
+	for name, prev := range existing.Providers {
+		if _, ok := cfg.Providers[name]; !ok {
+			cfg.Providers[name] = prev
+		}
+	}
+	return cfg
 }
 
 func (r *Router) SaveProviderKey(ctx context.Context, workspaceID, provider, apiKey, baseURL string) (ProviderStatus, error) {
