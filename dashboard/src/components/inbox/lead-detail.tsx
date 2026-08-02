@@ -204,7 +204,15 @@ function OverviewTab({
             className="overflow-hidden"
           >
             <div className="rounded-xl border border-primary/30 bg-accent-soft/40 p-4 space-y-3">
-              {!draft.should_reply ? (
+              {draft.status === "queued" && !draft.reply ? (
+                <>
+                  <div className="text-sm font-medium mb-1">Draft queued</div>
+                  <p className="text-sm text-foreground-soft">
+                    The drafter is working on this in the background. It will appear here shortly —
+                    reopen the mention to refresh.
+                  </p>
+                </>
+              ) : draft.should_reply === false ? (
                 <>
                   <div className="text-sm font-medium mb-1">Not worth replying</div>
                   <p className="text-sm text-foreground-soft">{draft.reason}</p>
