@@ -40,3 +40,4 @@ pgdata/
 # Tool caches / local-only indexes
 .fastembed_cache/
 .illuminate/
+.claude/settings.local.json

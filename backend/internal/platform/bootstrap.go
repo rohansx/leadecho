@@ -75,6 +75,8 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		DeepSeekAPIKey: cfg.DeepSeekAPIKey,
 		GLMAPIKey:      cfg.GLMAPIKey,
 		OpenAIAPIKey:   cfg.OpenAIAPIKey,
+		OllamaAPIKey:   cfg.OllamaAPIKey,
+		OllamaModel:    cfg.OllamaModel,
 		VoyageAPIKey:   cfg.VoyageAPIKey,
 	}, logger)
 

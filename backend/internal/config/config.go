@@ -57,12 +57,16 @@ type Config struct {
 	FrontendURL string `env:"FRONTEND_URL,default=http://localhost:3100"`
 
 	// System-level AI keys (fallback when no BYOK key is set)
-	// Priority at startup: NVIDIA → DeepSeek → GLM → OpenAI
+	// Priority at startup: NVIDIA → DeepSeek → GLM → OpenAI → Ollama
 	NVIDIAAPIKey   string `env:"NVIDIA_API_KEY,default="`
 	NVIDIAModel    string `env:"NVIDIA_MODEL,default=nvidia/llama-3.3-nemotron-super-49b-v1"`
 	DeepSeekAPIKey string `env:"DEEPSEEK_API_KEY,default="`
 	GLMAPIKey      string `env:"GLM_API_KEY,default="`
 	OpenAIAPIKey   string `env:"OPENAI_API_KEY,default="`
+
+	// Ollama Cloud (OpenAI-compatible; https://ollama.com/v1)
+	OllamaAPIKey string `env:"OLLAMA_API_KEY,default="`
+	OllamaModel  string `env:"OLLAMA_MODEL,default=gpt-oss:120b"`
 
 	// Voyage AI (embeddings)
 	VoyageAPIKey string `env:"VOYAGE_API_KEY,default="`
