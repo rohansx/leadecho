@@ -1,6 +1,13 @@
-import { createFileRoute, Outlet, Navigate, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  Navigate,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useAuth } from "@/lib/auth";
@@ -14,6 +21,7 @@ export const Route = createFileRoute("/_dashboard")({
 function DashboardLayout() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const { data: onboarding } = useQuery({
     queryKey: ["onboarding"],
@@ -33,7 +41,7 @@ function DashboardLayout() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex h-dvh items-center justify-center bg-background">
         <Text as="p" className="text-muted-foreground">
           Loading...
         </Text>
@@ -46,12 +54,20 @@ function DashboardLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh gap-3 overflow-hidden bg-background p-3">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-auto p-6 bg-background">
-          <Outlet />
+        <main className="flex-1 overflow-auto rounded-2xl">
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="p-2 md:p-4"
+          >
+            <Outlet />
+          </motion.div>
         </main>
       </div>
     </div>
