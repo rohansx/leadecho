@@ -6,7 +6,7 @@ type CardProps = HTMLAttributes<HTMLDivElement>;
 const Card = ({ className, ...props }: CardProps) => (
   <div
     className={cn(
-      "border border-border rounded-xl shadow-xs transition-shadow bg-card text-card-foreground",
+      "glass-card rounded-2xl text-card-foreground shadow-sm transition-shadow",
       className,
     )}
     {...props}
