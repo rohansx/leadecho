@@ -29,7 +29,7 @@ function LoginPage() {
     setLoading(true);
     try {
       await loginWithEmail(email, password);
-      window.location.href = "/app/inbox";
+      window.location.href = "/inbox";
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
