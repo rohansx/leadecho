@@ -198,6 +198,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/settings/extension-token", ext.RotateToken)
 			r.Delete("/settings/extension-token", ext.RevokeToken)
 
+			// Serve the packaged extension from this instance: there is no Web
+			// Store listing, so self-hosters otherwise had no way to install it.
+			extDL := handler.NewExtensionDownloadHandler(cfg.ExtensionDistDir)
+			r.Get("/extension/download", extDL.Download)
+			r.Get("/extension/download/status", extDL.Status)
+
 			streams := handler.NewStreamsHandler(queries, eventPublisher)
 			r.Get("/streams/status", streams.Status)
 			r.Get("/streams/dead-letters", streams.DeadLetters)

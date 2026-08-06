@@ -38,7 +38,16 @@ type Monitor struct {
 	streamsDualWrite bool
 	inlineFallback   bool
 	qualifierAsync   bool
+
+	// googleNewsEnabled opts in to the Google News RSS source. Off by default:
+	// Google's feed terms limit it to personal, non-commercial use, so it must
+	// be a deliberate operator choice rather than a default in a shipped build.
+	googleNewsEnabled bool
 }
+
+// SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
+// rather than another positional argument on an already 14-parameter New().
+func (m *Monitor) SetGoogleNewsEnabled(v bool) { m.googleNewsEnabled = v }
 
 func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool, enricher LeadEnricher) *Monitor {
 	return &Monitor{
@@ -202,6 +211,12 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 		case database.PlatformTypeExa:
 			if m.exaAPIKey != "" {
 				alerts = append(alerts, m.crawlExa(ctx, wsID, akw)...)
+			}
+		case database.PlatformTypeGooglenews:
+			// Opt-in: Google's RSS terms restrict the feed to personal,
+			// non-commercial use, so it stays off unless an operator enables it.
+			if m.googleNewsEnabled {
+				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeTwitter:
 			if m.pinchtab != nil {

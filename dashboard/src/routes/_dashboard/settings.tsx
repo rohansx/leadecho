@@ -10,7 +10,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity } from "lucide-react";
+import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -21,6 +21,7 @@ import {
   saveLLMProviderKey,
   verifyLLMProvider,
   deleteLLMProviderKey,
+  getExtensionDownloadStatus,
   type LLMConfigResponse,
   type LLMModelTarget,
   type LLMProviderStatus,
@@ -349,6 +350,12 @@ function ChromeExtensionCard() {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Whether this instance has a packaged extension build to hand out.
+  const { data: extDownload } = useQuery({
+    queryKey: ["extension-download-status"],
+    queryFn: getExtensionDownloadStatus,
+  });
+
   const { data: tokenInfo, isLoading } = useQuery({
     queryKey: ["extension-token"],
     queryFn: getExtensionToken,
@@ -459,13 +466,50 @@ function ChromeExtensionCard() {
           </div>
         )}
 
+        {/* Download — there is no Chrome Web Store listing, so the instance
+            serves the packaged build it was shipped with. */}
+        <div className="space-y-2 pt-1">
+          <Text as="p" className="text-sm font-medium">Download</Text>
+          {extDownload?.available ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href="/api/v1/extension/download"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-primary text-primary-foreground hover:opacity-90"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download extension (.zip)
+              </a>
+              <Text as="span" className="text-xs text-muted-foreground">
+                {extDownload.filename}
+                {typeof extDownload.size === "number"
+                  ? ` · ${Math.round(extDownload.size / 1024)} KB`
+                  : null}
+              </Text>
+            </div>
+          ) : (
+            <Text as="p" className="text-sm text-muted-foreground">
+              No packaged build on this instance. Build one with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">make extension</code>, then reload
+              this page.
+            </Text>
+          )}
+        </div>
+
         {/* Setup instructions */}
         <div className="space-y-2 pt-1">
           <Text as="p" className="text-sm font-medium">Setup</Text>
           <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
-            <li>Install the LeadEcho extension from the Chrome Web Store</li>
-            <li>Click the extension icon → enter your backend URL</li>
-            <li>Generate a key above and paste it into the extension popup</li>
+            <li>Download the .zip above and unzip it</li>
+            <li>
+              Open <code className="rounded bg-muted px-1 py-0.5">chrome://extensions</code>, turn
+              on Developer mode, click <strong>Load unpacked</strong>, and select the unzipped
+              folder
+            </li>
+            <li>
+              Click the LeadEcho icon to open the side panel, then open its{" "}
+              <strong>Settings</strong> tab
+            </li>
+            <li>Enter your backend URL, and the key from above</li>
             <li>Browse Reddit, X, LinkedIn, or HN — signals are captured automatically</li>
           </ol>
         </div>

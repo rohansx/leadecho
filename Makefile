@@ -1,4 +1,4 @@
-.PHONY: help up down logs migrate-up migrate-down migrate-status migrate-new install build clean check web-dev web-build web-preview web-check api-dev api-build api-test seed sqlc fmt lint db-up db-down db-reset db-connect redis-connect
+.PHONY: extension help up down logs migrate-up migrate-down migrate-status migrate-new install build clean check web-dev web-build web-preview web-check api-dev api-build api-test seed sqlc fmt lint db-up db-down db-reset db-connect redis-connect
 
 # ──────────────────────────────────────────────
 # leadecho — monorepo makefile
@@ -171,6 +171,10 @@ api-test: ## Run Go tests
 
 sqlc: ## Generate Go code from SQL queries
 	cd backend && $(SQLC) generate
+
+extension: ## Build + package the Chrome extension (served from Settings)
+	cd extension && $(PNPM) install && $(PNPM) zip
+	@printf '\n  Packaged to extension/.output/ — download it from Settings → Chrome Extension\n\n'
 
 seed: ## Run seed migration (dev data)
 	@echo "Seed data is applied via migrations (00002_seed_dev_data.sql)."

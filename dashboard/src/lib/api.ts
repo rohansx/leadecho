@@ -718,6 +718,18 @@ export function rotateExtensionToken(name?: string) {
   );
 }
 
+export interface ExtensionDownloadStatus {
+  available: boolean;
+  filename?: string;
+  size?: number;
+  reason?: string;
+}
+
+/** Whether this instance has a packaged extension build available to download. */
+export function getExtensionDownloadStatus() {
+  return request<ExtensionDownloadStatus>("/extension/download/status");
+}
+
 export function revokeExtensionToken() {
   return request<{ status: string }>("/settings/extension-token", {
     method: "DELETE",

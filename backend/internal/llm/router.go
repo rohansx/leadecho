@@ -71,6 +71,9 @@ type ProviderStatus struct {
 	Capabilities      []string `json:"capabilities"`
 	DefaultModel      string   `json:"default_model,omitempty"`
 	RecommendedModels []string `json:"recommended_models,omitempty"`
+	// EmbeddingModels lists models valid for the embedding tier, which differ
+	// from the chat models on dual-capability providers.
+	EmbeddingModels []string `json:"embedding_models,omitempty"`
 	IsSet             bool     `json:"is_set"`
 	MaskedKey         string   `json:"masked_key,omitempty"`
 	KeySource         string   `json:"key_source,omitempty"`
@@ -108,10 +111,10 @@ func NewRouter(q *database.Queries, encKey []byte, system SystemKeys, logger zer
 var providerRegistry = []ProviderStatus{
 	{Provider: "nvidia", DisplayName: "NVIDIA Nemotron", Capabilities: []string{"chat"}, DefaultModel: "nvidia/llama-3.3-nemotron-super-49b-v1", RecommendedModels: []string{"nvidia/llama-3.3-nemotron-super-49b-v1", "nvidia/llama-3.1-nemotron-70b-instruct"}, Enabled: true},
 	{Provider: "deepseek", DisplayName: "DeepSeek", Capabilities: []string{"chat"}, DefaultModel: "deepseek-chat", RecommendedModels: []string{"deepseek-chat", "deepseek-reasoner"}, Enabled: true},
-	{Provider: "glm", DisplayName: "GLM / ZhipuAI", Capabilities: []string{"chat"}, DefaultModel: "glm-4.5-flash", RecommendedModels: []string{"glm-4.5-flash", "glm-4-plus", "glm-4-air"}, Enabled: true},
-	{Provider: "openai", DisplayName: "OpenAI", Capabilities: []string{"chat"}, DefaultModel: "gpt-4o-mini", RecommendedModels: []string{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}, Enabled: true},
+	{Provider: "glm", DisplayName: "GLM / ZhipuAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "glm-4.5-flash", RecommendedModels: []string{"glm-4.5-flash", "glm-4-plus", "glm-4-air"}, EmbeddingModels: []string{"embedding-3"}, Enabled: true},
+	{Provider: "openai", DisplayName: "OpenAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "gpt-4o-mini", RecommendedModels: []string{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}, EmbeddingModels: []string{"text-embedding-3-small", "text-embedding-3-large"}, Enabled: true},
 	{Provider: "openrouter", DisplayName: "OpenRouter", Capabilities: []string{"chat"}, DefaultModel: "openai/gpt-4o-mini", RecommendedModels: []string{"openai/gpt-4o-mini", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"}, Enabled: true},
-	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, Enabled: true},
+	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, EmbeddingModels: []string{"voyage-3"}, Enabled: true},
 }
 
 func DefaultConfig() Config {
@@ -338,6 +341,43 @@ func (r *Router) AnalyzeProductPage(ctx context.Context, workspaceID, pageText s
 	return out, err
 }
 
+// embeddingClient is the shared shape of the Voyage and OpenAI-compatible
+// embedding clients.
+type embeddingClient interface {
+	EmbedTexts(ctx context.Context, texts []string) ([]pgvector.Vector, error)
+}
+
+// embeddingSpec describes how to reach a provider's embeddings endpoint.
+type embeddingSpec struct {
+	baseURL      string
+	defaultModel string
+	// sendDimensions requests EmbeddingDims explicitly; required because the
+	// pgvector columns are vector(1024) and these models default to wider.
+	sendDimensions bool
+}
+
+// embeddingProviders lets a workspace run the entire pipeline on one API key.
+// Embeddings were Voyage-only, so BYOK silently meant "bring two keys" —
+// anyone with just an OpenAI or GLM key lost semantic matching and KB search.
+var embeddingProviderSpecs = map[string]embeddingSpec{
+	"voyage": {}, // handled by the dedicated Voyage client
+	"openai": {
+		baseURL:        "https://api.openai.com/v1",
+		defaultModel:   "text-embedding-3-small",
+		sendDimensions: true,
+	},
+	"glm": {
+		baseURL:        "https://open.bigmodel.cn/api/paas/v4",
+		defaultModel:   "embedding-3",
+		sendDimensions: true,
+	},
+}
+
+func embeddingSpecFor(provider string) (embeddingSpec, bool) {
+	spec, ok := embeddingProviderSpecs[provider]
+	return spec, ok
+}
+
 func (r *Router) EmbedTexts(ctx context.Context, workspaceID string, task Task, texts []string) ([]pgvector.Vector, error) {
 	if len(texts) == 0 {
 		return nil, nil
@@ -353,8 +393,9 @@ func (r *Router) EmbedTexts(ctx context.Context, workspaceID string, task Task, 
 	var lastErr error
 	for idx, target := range targets {
 		provider := strings.ToLower(target.Provider)
-		if provider != "voyage" {
-			lastErr = fmt.Errorf("provider %s does not support embeddings in this MVP", provider)
+		spec, ok := embeddingSpecFor(provider)
+		if !ok {
+			lastErr = fmt.Errorf("provider %s does not support embeddings", provider)
 			continue
 		}
 		key, source, err := r.resolveKey(provider, cfg, legacy)
@@ -363,7 +404,20 @@ func (r *Router) EmbedTexts(ctx context.Context, workspaceID string, task Task, 
 			continue
 		}
 		start := time.Now()
-		client := embedding.New(key)
+		var client embeddingClient
+		if provider == "voyage" {
+			client = embedding.New(key)
+		} else {
+			model := target.Model
+			if model == "" {
+				model = spec.defaultModel
+			}
+			baseURL := target.BaseURL
+			if baseURL == "" {
+				baseURL = spec.baseURL
+			}
+			client = embedding.NewCompatible(key, baseURL, model, spec.sendDimensions)
+		}
 		vectors, err := client.EmbedTexts(ctx, texts)
 		r.recordUsage(ctx, workspaceID, task, provider, defaultModel(target, provider), source, idx, time.Since(start), err)
 		if err == nil {
@@ -448,9 +502,17 @@ func (r *Router) targetsForTask(task Task, cfg Config, legacy map[string]string)
 		}
 	}
 	primary := cfg.Models[tier]
+	// An embedding slot pointing at a provider with no key is as good as unset:
+	// the default config pins voyage, so a workspace whose only key is OpenAI or
+	// GLM would fail every embedding call rather than using the key it has.
+	if isEmbeddingTask(task) && primary.Provider != "" {
+		if !hasConfiguredKey(primary.Provider, cfg, legacy) && !r.hasSystemKey(primary.Provider) {
+			primary = ModelTarget{}
+		}
+	}
 	if primary.Provider == "" {
 		if isEmbeddingTask(task) {
-			primary = ModelTarget{Provider: "voyage", Model: "voyage-3"}
+			primary = r.defaultEmbeddingTarget(cfg, legacy)
 		} else {
 			primary = r.defaultChatTarget(cfg, legacy)
 		}
@@ -480,6 +542,24 @@ func (r *Router) defaultChatTarget(cfg Config, legacy map[string]string) ModelTa
 	for _, provider := range []string{"nvidia", "deepseek", "glm", "openai", "openrouter"} {
 		if hasConfiguredKey(provider, cfg, legacy) || r.hasSystemKey(provider) {
 			return ModelTarget{Provider: provider, Model: defaultModel(ModelTarget{}, provider)}
+		}
+	}
+	return ModelTarget{}
+}
+
+// defaultEmbeddingTarget picks any embedding-capable provider the workspace has
+// a key for. Voyage is preferred for retrieval quality, but a workspace running
+// on a single OpenAI or GLM key still gets semantic matching instead of an
+// error.
+func (r *Router) defaultEmbeddingTarget(cfg Config, legacy map[string]string) ModelTarget {
+	for _, provider := range []string{"voyage", "openai", "glm"} {
+		if hasConfiguredKey(provider, cfg, legacy) || r.hasSystemKey(provider) {
+			spec := embeddingProviderSpecs[provider]
+			model := spec.defaultModel
+			if model == "" {
+				model = defaultModel(ModelTarget{}, provider)
+			}
+			return ModelTarget{Provider: provider, Model: model}
 		}
 	}
 	return ModelTarget{}
@@ -636,8 +716,14 @@ func (r *Router) health(cfg Config, legacy map[string]string) HealthStatus {
 	} else {
 		strong = chat
 	}
-	if hasConfiguredKey("voyage", cfg, legacy) || r.hasSystemKey("voyage") {
-		embed = true
+	// Any embedding-capable provider counts, not just Voyage — otherwise a
+	// workspace running on one OpenAI or GLM key is reported "not ready" even
+	// though embeddings work.
+	for provider := range embeddingProviderSpecs {
+		if hasConfiguredKey(provider, cfg, legacy) || r.hasSystemKey(provider) {
+			embed = true
+			break
+		}
 	}
 	if !chat {
 		warnings = append(warnings, "No chat provider configured")

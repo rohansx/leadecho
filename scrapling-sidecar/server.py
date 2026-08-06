@@ -15,7 +15,16 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from scrapling import StealthyFetcher, PlayWrightFetcher
+from scrapling import StealthyFetcher
+
+# Scrapling renamed PlayWrightFetcher to DynamicFetcher. Import whichever the
+# installed version exposes so the sidecar works across both: the hard import of
+# PlayWrightFetcher failed at startup on any current scrapling, which meant the
+# container exited(1) before serving a request.
+try:  # scrapling >= 0.4.x
+    from scrapling import DynamicFetcher as _PlaywrightFetcher
+except ImportError:  # older releases
+    from scrapling import PlayWrightFetcher as _PlaywrightFetcher
 
 PORT = int(os.environ.get("SCRAPLING_PORT", "9869"))
 TOKEN = os.environ.get("SCRAPLING_TOKEN", "changeme")
@@ -36,7 +45,7 @@ def _get_fetcher():
         if USE_STEALTH:
             _fetcher = StealthyFetcher()
         else:
-            _fetcher = PlayWrightFetcher()
+            _fetcher = _PlaywrightFetcher()
     return _fetcher
 
 
