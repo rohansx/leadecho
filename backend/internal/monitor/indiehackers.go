@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/xml"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -29,12 +31,18 @@ type ihRSSItem struct {
 }
 
 func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) []mentionAlert {
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://www.indiehackers.com/feed.xml", nil)
+	// IndieHackers retired their RSS feed (feed.xml now redirects to the homepage).
+	// Instead of scraping the SPA (which needs a full browser), we search for
+	// the keyword on IndieHackers via Google News, which indexes IH posts.
+	// This gives us IH content without needing a sidecar.
+	query := url.QueryEscape("site:indiehackers.com " + kw.Term)
+	apiURL := fmt.Sprintf("https://news.google.com/rss/search?q=%s&hl=en-US&gl=US&ceid=US:en", query)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
-		m.logger.Error().Err(err).Str("keyword", kw.Term).Msg("indiehackers: failed to create request")
 		return nil
 	}
-	req.Header.Set("User-Agent", "LeadEcho/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -48,14 +56,6 @@ func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw databas
 		return nil
 	}
 
-	// IndieHackers removed their RSS feed — the URL now returns HTML.
-	// Detect non-XML responses and skip gracefully instead of decoding errors.
-	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "xml") {
-		m.logger.Debug().Str("keyword", kw.Term).Str("content_type", ct).Msg("indiehackers: feed no longer XML, skipping")
-		return nil
-	}
-
 	var feed ihRSS
 	if err := xml.NewDecoder(resp.Body).Decode(&feed); err != nil {
 		m.logger.Error().Err(err).Str("keyword", kw.Term).Msg("indiehackers: failed to decode RSS")
@@ -64,13 +64,11 @@ func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw databas
 
 	var alerts []mentionAlert
 	for _, item := range feed.Channel.Items {
-		// Strip HTML tags from description for plain text matching
-		desc := stripHTML(item.Description)
-		content := item.Title
-		if desc != "" {
-			content = item.Title + "\n\n" + desc
-		}
+		content := stripHTML(item.Description)
 		if content == "" {
+			content = item.Title
+		}
+		if content == "" || len(content) < 20 {
 			continue
 		}
 
@@ -78,7 +76,6 @@ func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw databas
 			continue
 		}
 
-		// Generate a stable ID from the link
 		h := sha256.Sum256([]byte(item.Link))
 		platformID := "ih_" + hex.EncodeToString(h[:8])
 
@@ -89,11 +86,6 @@ func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw databas
 			pubDate = pgtype.Timestamptz{Time: t, Valid: true}
 		}
 
-		author := item.Creator
-		if author == "" {
-			author = "indiehacker"
-		}
-
 		alert := m.insertMention(ctx, database.CreateMentionParams{
 			WorkspaceID:       wsID,
 			KeywordID:         pgUUID(kw.ID),
@@ -102,9 +94,9 @@ func (m *Monitor) crawlIndieHackers(ctx context.Context, wsID string, kw databas
 			Url:               item.Link,
 			Title:             pgtextPtr(item.Title),
 			Content:           content,
-			AuthorUsername:     pgtextPtr(author),
+			AuthorUsername:     pgtextPtr("indiehacker"),
 			Status:            database.MentionStatusNew,
-			PlatformMetadata:  jsonBytes(map[string]any{}),
+			PlatformMetadata:  jsonBytes(map[string]any{"source": "google_news_search"}),
 			EngagementMetrics: jsonBytes(map[string]any{}),
 			KeywordMatches:    []string{kw.Term},
 			PlatformCreatedAt: pubDate,

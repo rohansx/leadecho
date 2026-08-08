@@ -10,12 +10,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-<<<<<<< HEAD
 import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
-=======
-import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
->>>>>>> 5cf8f2b (feat: inline AI key setup in onboarding, live agent status, backfill scoring, Reddit vanilla extension script)
 import {
   getExtensionToken,
   rotateExtensionToken,

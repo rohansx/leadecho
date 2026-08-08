@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import {
   approveReply,
   classifyMention,
+  createReply,
   draftReply,
   getMentionPerson360,
   listReplies,
@@ -68,6 +69,8 @@ function OverviewTab({
   const [copied, setCopied] = useState(false);
   const [destinationURL, setDestinationURL] = useState("");
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [manualReply, setManualReply] = useState("");
+  const [manualError, setManualError] = useState<string | null>(null);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
@@ -94,6 +97,29 @@ function OverviewTab({
     mutationFn: () => updateMentionStatus(mention.id, "replied"),
     onSuccess: invalidate,
   });
+
+  const manualMutation = useMutation({
+    mutationFn: (content: string) => createReply(mention.id, content),
+    onSuccess: (reply) => {
+      setDraft((prev) =>
+        prev
+          ? { ...prev, reply, should_reply: true }
+          : { reply, should_reply: true, status: "done", reason: "" } as Awaited<ReturnType<typeof draftReply>>,
+      );
+      setManualReply("");
+      setManualError(null);
+      invalidate();
+    },
+    onError: (err) => {
+      setManualError(err instanceof Error ? err.message : "Failed to create draft");
+    },
+  });
+
+  const handleManualDraft = () => {
+    if (!manualReply.trim()) return;
+    setManualError(null);
+    manualMutation.mutate(manualReply.trim());
+  };
 
   const approveMutation = useMutation({
     mutationFn: (replyId: string) =>
@@ -216,6 +242,43 @@ function OverviewTab({
                 <>
                   <div className="text-sm font-medium mb-1">Not worth replying</div>
                   <p className="text-sm text-foreground-soft">{draft.reason}</p>
+                  <div className="pt-2 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Still want to reply? You can draft one manually.
+                    </p>
+                    <div className="flex gap-2">
+                      <textarea
+                        value={manualReply}
+                        onChange={(e) => setManualReply(e.target.value)}
+                        placeholder="Type your reply..."
+                        className="flex-1 min-h-[80px] px-3 py-2 text-sm rounded-lg border-2 border-border bg-background text-foreground resize-y"
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleManualDraft()}
+                        disabled={!manualReply.trim() || manualMutation.isPending}
+                      >
+                        {manualMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <MessageSquareText className="h-3.5 w-3.5" />
+                        )}
+                        Create draft
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setManualReply("")}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    {manualError && (
+                      <p className="text-xs text-destructive mt-1">{manualError}</p>
+                    )}
+                  </div>
                 </>
               ) : draft.reply ? (
                 <>
