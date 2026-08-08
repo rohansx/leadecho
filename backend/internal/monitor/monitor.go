@@ -245,6 +245,8 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlLobsters(ctx, wsID, akw)...)
 			case "indiehackers":
 				alerts = append(alerts, m.crawlIndieHackers(ctx, wsID, akw)...)
+			case "googlenews":
+				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
 			}
 		}
 	}

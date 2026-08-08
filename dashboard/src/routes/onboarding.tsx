@@ -19,6 +19,7 @@ export const Route = createFileRoute("/onboarding")({
 const PLATFORMS = [
   { value: "hackernews", label: "Hacker News" },
   { value: "devto", label: "Dev.to" },
+  { value: "googlenews", label: "Google News" },
   { value: "lobsters", label: "Lobsters" },
   { value: "reddit", label: "Reddit", note: "may be rate limited without a browser sidecar" },
   { value: "twitter", label: "Twitter / X", note: "needs browser sidecar" },
