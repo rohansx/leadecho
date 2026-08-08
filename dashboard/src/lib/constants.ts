@@ -4,8 +4,14 @@ export const API_BASE_URL =
 export const PLATFORMS = [
   "reddit",
   "hackernews",
+  "devto",
+  "googlenews",
+  "lobsters",
+  "indiehackers",
   "twitter",
   "linkedin",
+  "quora",
+  "exa",
 ] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
