@@ -211,7 +211,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/streams/replays", streams.TriggerReplay)
 
 			// Onboarding wizard
-			onboarding := handler.NewOnboardingHandler(queries, scrapling, llmRouter)
+			onboarding := handler.NewOnboardingHandler(queries, scrapling, llmRouter, logger)
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
 			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)

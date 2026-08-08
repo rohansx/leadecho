@@ -209,6 +209,43 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		Msg("scorer: batch scoring complete")
 }
 
+// backfillUnclassified picks up mentions with intent IS NULL that were inserted
+// in earlier ticks but never scored (usually because no AI provider was configured
+// at the time). It converts them to mentionAlerts and runs them through the same
+// batch scoring pipeline.
+func (m *Monitor) backfillUnclassified(ctx context.Context, wsID string) {
+	unclassified, err := m.q.ListUnclassifiedMentions(ctx, database.ListUnclassifiedMentionsParams{
+		WorkspaceID: wsID,
+		Lim:         50,
+	})
+	if err != nil {
+		m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("backfill: failed to list unclassified mentions")
+		return
+	}
+	if len(unclassified) == 0 {
+		return
+	}
+
+	m.logger.Info().
+		Int("count", len(unclassified)).
+		Str("workspace_id", wsID).
+		Msg("backfill: scoring previously unclassified mentions")
+
+	alerts := make([]mentionAlert, 0, len(unclassified))
+	for _, u := range unclassified {
+		alerts = append(alerts, mentionAlert{
+			ID:          u.ID,
+			WorkspaceID: u.WorkspaceID,
+			Platform:    string(u.Platform),
+			Title:       u.Title.String,
+			URL:         u.Url,
+			Content:     u.Content,
+			Author:      u.AuthorUsername.String,
+		})
+	}
+	m.batchScoreMentions(ctx, wsID, alerts)
+}
+
 func (m *Monitor) publishMentionScored(ctx context.Context, alert mentionAlert, result *ai.ClassifyResult) {
 	if !m.streamsEnabled || m.eventPublisher == nil {
 		return

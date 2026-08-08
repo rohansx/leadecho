@@ -75,12 +75,24 @@ export async function runPendingReply(cfg: ReplyConfig): Promise<void> {
   if (tabId == null) return;
 
   const key = `pending_reply_${tabId}`;
-  const stored = await chrome.storage.session.get(key);
-  const pending = stored[key] as PendingReply | undefined;
+  let pending: PendingReply | undefined;
+  try {
+    const stored = await chrome.storage.session.get(key);
+    pending = stored[key] as PendingReply | undefined;
+  } catch {
+    // Storage access blocked by the host page (e.g. Reddit). This is
+    // non-fatal — there's simply no pending reply to post. Signal capture
+    // continues unaffected.
+    return;
+  }
   if (!pending) return;
 
   // Consume immediately so a reload can't double-post.
-  await chrome.storage.session.remove(key);
+  try {
+    await chrome.storage.session.remove(key);
+  } catch {
+    // Best-effort — if we can't remove, don't block the reply.
+  }
 
   const report = (success: boolean, reason?: string): void => {
     chrome.runtime

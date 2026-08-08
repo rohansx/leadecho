@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
-import { analyzeProductURL, completeOnboarding, getOnboardingStatus } from "@/lib/api";
+import { analyzeProductURL, completeOnboarding, getOnboardingStatus, getLLMConfig, saveLLMProviderKey, verifyLLMProvider } from "@/lib/api";
 import type { ProductAnalysis } from "@/lib/types";
+import type { LLMConfigResponse } from "@/lib/api";
 
 export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
@@ -38,8 +39,8 @@ const DEPLOY_STEPS = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user, loading } = useAuth();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
 
   const { data: onboarding } = useQuery({
@@ -48,6 +49,29 @@ function OnboardingPage() {
     enabled: !!user,
     retry: false,
   });
+
+  // Fetch LLM config to check if any chat provider is configured.
+  // If not, we show an inline key-setup form so the user can add one
+  // without leaving the onboarding flow.
+  const { data: llmConfig, refetch: refetchLLMConfig } = useQuery<LLMConfigResponse>({
+    queryKey: ["llm-config"],
+    queryFn: getLLMConfig,
+    enabled: !!user,
+    retry: false,
+  });
+
+  const aiConfigured = llmConfig?.health?.chat_ok ?? false;
+
+  // Inline AI key setup state
+  const [showKeyForm, setShowKeyForm] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState("openai");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [keyMessage, setKeyMessage] = useState("");
+  const [keyVerifying, setKeyVerifying] = useState(false);
+
+  const chatProviders = (llmConfig?.providers ?? []).filter((p) =>
+    p.capabilities.includes("chat"),
+  );
 
   useEffect(() => {
     if (onboarding?.completed) {
@@ -102,9 +126,9 @@ function OnboardingPage() {
         subreddits,
       }),
     onSuccess: () => {
-      // Refresh cached onboarding status so the dashboard guard sees completed=true
-      queryClient.invalidateQueries({ queryKey: ["onboarding"] });
-      // Start deploy animation
+      // Start deploy animation immediately. We intentionally do NOT invalidate
+      // the onboarding query here: the dashboard guard would see completed=true
+      // and redirect to /inbox before the user sees the "agents are live" step.
       setStep(3);
       let i = 0;
       const interval = setInterval(() => {
@@ -121,6 +145,29 @@ function OnboardingPage() {
     setPlatforms((prev) =>
       prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
     );
+  }
+
+  async function handleSaveApiKey() {
+    if (!apiKeyInput.trim() || !selectedProvider) return;
+    setKeyVerifying(true);
+    setKeyMessage("");
+    try {
+      await saveLLMProviderKey(selectedProvider, apiKeyInput.trim());
+      try {
+        await verifyLLMProvider(selectedProvider);
+        setKeyMessage(`${selectedProvider} key verified — you can now analyze your product URL.`);
+        setApiKeyInput("");
+        setShowKeyForm(false);
+        refetchLLMConfig();
+      } catch {
+        setKeyMessage(`Key saved but verification failed — the key may be invalid or your account may lack credits. You can still try to analyze, or use a different provider.`);
+        refetchLLMConfig();
+      }
+    } catch (err) {
+      setKeyMessage(err instanceof Error ? err.message : "Failed to save key");
+    } finally {
+      setKeyVerifying(false);
+    }
   }
 
   function removeChip(list: string[], setList: (v: string[]) => void, item: string) {
@@ -204,6 +251,99 @@ function OnboardingPage() {
             <p className="text-muted-foreground text-sm mb-6">
               We'll analyze your website and automatically set up monitoring agents.
             </p>
+
+            {/* Inline AI provider setup — shown when no chat provider is configured */}
+            {!aiConfigured && (
+              <div className="mb-6 p-4 border-2 border-dashed border-border rounded space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                    AI Provider Required
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  An AI provider key is needed to analyze your product and score leads.
+                  Add one now to get accurate results — it takes 30 seconds.
+                </p>
+
+                {!showKeyForm ? (
+                  <button
+                    onClick={() => setShowKeyForm(true)}
+                    className="text-sm text-primary underline underline-offset-2 cursor-pointer font-medium"
+                  >
+                    + Add AI provider key
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1 font-medium">
+                        Provider
+                      </label>
+                      <select
+                        value={selectedProvider}
+                        onChange={(e) => setSelectedProvider(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                      >
+                        {chatProviders.map((p) => (
+                          <option key={p.provider} value={p.provider}>
+                            {p.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1 font-medium">
+                        API Key
+                      </label>
+                      <input
+                        type="password"
+                        placeholder={`Paste your ${selectedProvider} key`}
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSaveApiKey}
+                        disabled={!apiKeyInput.trim() || keyVerifying}
+                        size="sm"
+                        className="flex-1"
+                      >
+                        {keyVerifying ? "Saving & verifying..." : "Save & verify"}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowKeyForm(false);
+                          setKeyMessage("");
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    {keyMessage && (
+                      <p className="text-sm text-muted-foreground">{keyMessage}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Get a key:{" "}
+                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">OpenAI</a>
+                      {" · "}
+                      <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">DeepSeek</a>
+                      {" · "}
+                      <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">OpenRouter</a>
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {aiConfigured && (
+              <div className="mb-4 p-2 rounded border-2 border-border bg-muted text-xs text-muted-foreground">
+                ✓ AI provider configured — URL analysis is ready.
+              </div>
+            )}
+
             <Input
               placeholder="https://yourproduct.com"
               value={url}
@@ -225,22 +365,15 @@ function OnboardingPage() {
                 <p className="text-destructive text-sm">
                   {analyzeMutation.error?.message || "Failed to analyze URL. Please try again."}
                 </p>
-                {/* This step is the first thing a new workspace sees, but it needs a
-                    configured AI provider — and that lives in Settings, which is behind
-                    onboarding. Without this link the user is simply stuck. */}
                 {/no ai provider|not configured|no key/i.test(
                   analyzeMutation.error?.message || "",
-                ) && (
-                  <p className="text-muted-foreground text-sm mt-2">
-                    Add a provider key in{" "}
-                    <a
-                      href="/app/settings"
-                      className="text-primary underline underline-offset-2"
-                    >
-                      Settings → AI Router
-                    </a>
-                    , then come back — or continue manually below.
-                  </p>
+                ) && !showKeyForm && (
+                  <button
+                    onClick={() => setShowKeyForm(true)}
+                    className="text-primary text-sm mt-2 underline underline-offset-2 cursor-pointer"
+                  >
+                    Add an AI provider key to fix this
+                  </button>
                 )}
               </div>
             )}
@@ -366,12 +499,17 @@ function OnboardingPage() {
               </>
             )}
 
+            {keywords.length === 0 && (
+              <p className="mt-3 text-sm text-destructive">
+                Add at least one monitoring keyword before deploying agents.
+              </p>
+            )}
             <Button
               onClick={() => completeMutation.mutate()}
-              disabled={!productName.trim() || completeMutation.isPending}
+              disabled={!productName.trim() || keywords.length === 0 || completeMutation.isPending}
               className="w-full mt-4"
             >
-              {completeMutation.isPending ? "Deploying..." : "Deploy Agents"}
+              {completeMutation.isPending ? "Deploying..." : keywords.length === 0 ? "Add at least one keyword" : "Deploy Agents"}
             </Button>
           </div>
         )}

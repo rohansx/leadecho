@@ -11,6 +11,8 @@ import {
   proposalCounts,
   updateMentionStatus,
   updateProposalStatus,
+  listKeywords,
+  getLLMConfig,
 } from "@/lib/api";
 import { ACTION_KINDS, INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 import type { InboxQueueCountsResponse } from "@/lib/types";
@@ -54,7 +56,29 @@ function InboxPage() {
   const { data: queueCountsData } = useQuery({
     queryKey: [QUERY_KEYS.mentionQueueCounts],
     queryFn: mentionQueueCounts,
+    refetchInterval: 30000,
   });
+
+  // Fetch keywords to determine if the agent is active and how many monitors are running
+  const { data: keywords } = useQuery({
+    queryKey: ["keywords"],
+    queryFn: listKeywords,
+    refetchInterval: 30000,
+  });
+
+  // Fetch LLM config to check if AI scoring is configured
+  const { data: llmConfig } = useQuery({
+    queryKey: ["llm-config"],
+    queryFn: getLLMConfig,
+    retry: false,
+  });
+
+  const activeKeywords = (keywords ?? []).filter((k) => k.is_active);
+  const aiConfigured = llmConfig?.health?.chat_ok ?? false;
+  const totalMentions =
+    queueCountsData?.queues.find((q) => q.queue === INBOX_QUEUES.ALL)?.count ?? 0;
+  const agentActive = activeKeywords.length > 0;
+  const agentNeedsAI = agentActive && !aiConfigured;
 
   const queue = search.queue ?? pickDefaultQueue(queueCountsData);
   const isProposalsView = queue === INBOX_QUEUES.PROPOSALS;
@@ -105,6 +129,7 @@ function InboxPage() {
       return next < lastPage.total ? next : undefined;
     },
     enabled: !isProposalsView,
+    refetchInterval: 30000,
   });
 
   const { data: proposals, isLoading: proposalsLoading, refetch: refetchProposals } = useQuery({
@@ -259,6 +284,10 @@ function InboxPage() {
           proposalMutation.mutate({ id: proposalId, status: nextStatus })
         }
         proposalActionPending={proposalMutation.isPending}
+        agentActive={agentActive}
+        agentNeedsAI={agentNeedsAI}
+        activeKeywordCount={activeKeywords.length}
+        totalMentions={totalMentions}
       />
       {isProposalsView ? (
         <section className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-8">

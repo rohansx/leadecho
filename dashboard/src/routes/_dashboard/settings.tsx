@@ -10,7 +10,12 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+<<<<<<< HEAD
 import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
+=======
+import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity } from "lucide-react";
+import { ErrorBoundary } from "@/components/error-boundary";
+>>>>>>> 5cf8f2b (feat: inline AI key setup in onboarding, live agent status, backfill scoring, Reddit vanilla extension script)
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -65,6 +70,7 @@ function LLMRouterCard() {
   // Two-step confirm for key removal: holds the provider awaiting confirmation.
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [models, setModels] = useState<Record<string, LLMModelTarget>>({});
+  const [renderError, setRenderError] = useState<string | null>(null);
   const [routing, setRouting] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
 
@@ -84,14 +90,28 @@ function LLMRouterCard() {
   }, [config]);
 
   const saveKey = useMutation({
-    mutationFn: ({ provider, apiKey }: { provider: string; apiKey: string }) =>
-      saveLLMProviderKey(provider, apiKey),
-    onSuccess: (_, vars) => {
-      setKeyDrafts((prev) => ({ ...prev, [vars.provider]: "" }));
-      setMessage(`${vars.provider} key saved`);
+    mutationFn: async ({ provider, apiKey }: { provider: string; apiKey: string }) => {
+      await saveLLMProviderKey(provider, apiKey);
+      // Auto-verify immediately after saving so the user sees auth errors right away.
+      await verifyLLMProvider(provider);
+      return provider;
+    },
+    onSuccess: (_, provider) => {
+      setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
+      setMessage(`${provider} key saved and verified`);
       queryClient.invalidateQueries({ queryKey: ["llm-config"] });
     },
-    onError: (err) => setMessage(err instanceof Error ? err.message : "Failed to save key"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Failed to save key";
+      // The save itself may have succeeded but verification failed — refresh config
+      // so the UI reflects the saved (but invalid) key, and surface the verify error.
+      queryClient.invalidateQueries({ queryKey: ["llm-config"] });
+      if (/verification failed|401|auth|unauthor|invalid key/i.test(msg)) {
+        setMessage(`Key saved but verification failed: ${msg}. The key may be invalid or expired.`);
+      } else {
+        setMessage(msg);
+      }
+    },
   });
 
   const verify = useMutation({
@@ -126,14 +146,59 @@ function LLMRouterCard() {
   const chatProviders = providers.filter((p) => p.capabilities.includes("chat"));
   const embeddingProviders = providers.filter((p) => p.capabilities.includes("embedding"));
   const defaultModelFor = (provider: string) => providerByID.get(provider)?.default_model ?? "";
-  const modelOptionsFor = (provider: string) => providerByID.get(provider)?.recommended_models ?? [];
+  const isKnownProvider = (provider: string) => providerByID.has(provider);
 
   function updateModel(slot: string, patch: Partial<LLMModelTarget>) {
     setModels((prev) => {
-      const next = { ...(prev[slot] ?? { provider: "", model: "" }), ...patch };
-      if (patch.provider && !next.model) next.model = defaultModelFor(patch.provider);
+      const current = prev[slot] ?? { provider: "", model: "" };
+      const next = { ...current, ...patch };
+      if (patch.provider && !next.model) {
+        next.model = defaultModelFor(patch.provider);
+      }
+      // Guard against selecting a provider/model that disappeared from config.
+      if (next.provider && !isKnownProvider(next.provider)) {
+        next.provider = "";
+        next.model = "";
+      }
       return { ...prev, [slot]: next };
     });
+  }
+
+  // Defensive wrapper: if model state ever drifts out of sync with the
+  // provider list, reset it from the latest config instead of crashing.
+  useEffect(() => {
+    if (!config) return;
+    setModels((prev) => {
+      const next = { ...prev };
+      for (const slot of modelSlots.map((s) => s.key)) {
+        const slotModel = next[slot];
+        if (slotModel?.provider && !isKnownProvider(slotModel.provider)) {
+          next[slot] = { provider: "", model: "" };
+        }
+      }
+      return next;
+    });
+  }, [config]);
+
+  // Surface any unexpected render-time problem instead of letting it white-screen.
+  if (renderError) {
+    return (
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <Text as="p" className="font-medium">AI Router failed to load</Text>
+          </div>
+          <Text as="p" className="text-sm text-muted-foreground">{renderError}</Text>
+          <button
+            onClick={() => setRenderError(null)}
+            className="px-4 py-2 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent"
+          >
+            Try again
+          </button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -168,74 +233,77 @@ function LLMRouterCard() {
             <Text as="p" className="font-medium">Providers</Text>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {providers.map((provider) => (
-              <div key={provider.provider} className="rounded border-2 border-border bg-background p-3 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <Text as="p" className="font-medium">{provider.display_name}</Text>
-                    <Text as="p" className="text-xs text-muted-foreground">
-                      {provider.is_set ? `${provider.masked_key} · ${provider.key_source}` : provider.capabilities.join(", ")}
-                    </Text>
+            {providers.map((provider) => {
+              const providerKey = provider.provider;
+              return (
+                <div key={providerKey} className="rounded border-2 border-border bg-background p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Text as="p" className="font-medium">{provider.display_name}</Text>
+                      <Text as="p" className="text-xs text-muted-foreground">
+                        {provider.is_set ? `${provider.masked_key} · ${provider.key_source}` : provider.capabilities.join(", ")}
+                      </Text>
+                    </div>
+                    <Badge variant={provider.is_set ? "surface" : "outline"} size="sm">
+                      {provider.is_set ? "Configured" : "No key"}
+                    </Badge>
                   </div>
-                  <Badge variant={provider.is_set ? "surface" : "outline"} size="sm">
-                    {provider.is_set ? "Configured" : "No key"}
-                  </Badge>
-                </div>
-                {/* wrap + a min-width on the input so the extra Remove action
-                    cannot push the row past the card edge on narrow columns */}
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="password"
-                    placeholder={`Paste ${provider.provider} key`}
-                    value={keyDrafts[provider.provider] ?? ""}
-                    onChange={(e) => setKeyDrafts((prev) => ({ ...prev, [provider.provider]: e.target.value }))}
-                    className="flex-1 min-w-[8rem] px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
-                  />
-                  <button
-                    onClick={() => saveKey.mutate({ provider: provider.provider, apiKey: keyDrafts[provider.provider] ?? "" })}
-                    disabled={!keyDrafts[provider.provider] || saveKey.isPending}
-                    className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => verify.mutate(provider.provider)}
-                    disabled={!provider.is_set || verify.isPending}
-                    className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
-                  >
-                    Verify
-                  </button>
-                  {provider.is_set && (
+                  {/* wrap + a min-width on the input so the extra Remove action
+                      cannot push the row past the card edge on narrow columns */}
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="password"
+                      placeholder={`Paste ${providerKey} key`}
+                      value={keyDrafts[providerKey] ?? ""}
+                      onChange={(e) => setKeyDrafts((prev) => ({ ...prev, [providerKey]: e.target.value }))}
+                      className="flex-1 min-w-[8rem] px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                    />
                     <button
-                      onClick={() => {
-                        if (confirmRemove === provider.provider) {
-                          removeKey.mutate(provider.provider);
-                          setConfirmRemove(null);
-                        } else {
-                          setConfirmRemove(provider.provider);
-                        }
-                      }}
-                      onBlur={() => setConfirmRemove((cur) => (cur === provider.provider ? null : cur))}
-                      disabled={removeKey.isPending}
-                      title={`Remove the stored ${provider.display_name} key`}
-                      className={`px-3 py-1.5 text-sm font-medium rounded border-2 disabled:opacity-50 ${
-                        confirmRemove === provider.provider
-                          ? "border-destructive text-destructive bg-destructive/10"
-                          : "border-border bg-background hover:bg-accent text-muted-foreground"
-                      }`}
+                      onClick={() => saveKey.mutate({ provider: providerKey, apiKey: keyDrafts[providerKey] ?? "" })}
+                      disabled={!keyDrafts[providerKey] || saveKey.isPending}
+                      className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
                     >
-                      {confirmRemove === provider.provider ? "Confirm?" : "Remove"}
+                      Save
                     </button>
+                    <button
+                      onClick={() => verify.mutate(providerKey)}
+                      disabled={!provider.is_set || verify.isPending}
+                      className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
+                    >
+                      Verify
+                    </button>
+                    {provider.is_set && (
+                      <button
+                        onClick={() => {
+                          if (confirmRemove === providerKey) {
+                            removeKey.mutate(providerKey);
+                            setConfirmRemove(null);
+                          } else {
+                            setConfirmRemove(providerKey);
+                          }
+                        }}
+                        onBlur={() => setConfirmRemove((cur) => (cur === providerKey ? null : cur))}
+                        disabled={removeKey.isPending}
+                        title={`Remove the stored ${provider.display_name} key`}
+                        className={`px-3 py-1.5 text-sm font-medium rounded border-2 disabled:opacity-50 ${
+                          confirmRemove === providerKey
+                            ? "border-destructive text-destructive bg-destructive/10"
+                            : "border-border bg-background hover:bg-accent text-muted-foreground"
+                        }`}
+                      >
+                        {confirmRemove === providerKey ? "Confirm?" : "Remove"}
+                      </button>
+                    )}
+                  </div>
+                  {provider.is_set && provider.key_source === "env" && (
+                    <Text as="p" className="text-xs text-muted-foreground">
+                      This key comes from a server environment variable, not this workspace.
+                      Removing it here will not unset it — clear it from the server's .env.
+                    </Text>
                   )}
                 </div>
-                {provider.is_set && provider.key_source === "env" && (
-                  <Text as="p" className="text-xs text-muted-foreground">
-                    This key comes from a server environment variable, not this workspace.
-                    Removing it here will not unset it — clear it from the server's .env.
-                  </Text>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -244,10 +312,21 @@ function LLMRouterCard() {
           <div className="grid gap-3 md:grid-cols-3">
             {modelSlots.map((slot) => {
               const options = slot.key === "embedding" ? embeddingProviders : chatProviders;
-              const selectedProvider = models[slot.key]?.provider ?? "";
-              const selectedModel = models[slot.key]?.model ?? "";
-              const modelOptions = modelOptionsFor(selectedProvider);
-              const isCustomModel = !!selectedModel && !modelOptions.includes(selectedModel);
+              const slotModel = models[slot.key] ?? { provider: "", model: "" };
+              const selectedProvider = slotModel.provider ?? "";
+              const selectedModel = slotModel.model ?? "";
+              const providerInfo = selectedProvider ? providerByID.get(selectedProvider) : undefined;
+              const modelOptions = providerInfo?.recommended_models ?? [];
+              const defaultModel = providerInfo?.default_model ?? "";
+              const hasOptions = modelOptions.length > 0;
+              const isCustomModel = !!selectedModel && !modelOptions.includes(selectedModel) && selectedModel !== defaultModel;
+              const safeModelValue = !selectedProvider
+                ? ""
+                : isCustomModel
+                  ? CUSTOM_MODEL
+                  : modelOptions.includes(selectedModel)
+                    ? selectedModel
+                    : defaultModel || "";
               return (
                 <div key={slot.key} className="rounded border-2 border-border bg-background p-3 space-y-3">
                   <div>
@@ -270,18 +349,18 @@ function LLMRouterCard() {
                   <label className="space-y-1 block">
                     <span className="text-xs font-medium text-muted-foreground">Model</span>
                     <select
-                      value={!selectedProvider ? "" : isCustomModel ? CUSTOM_MODEL : selectedModel}
+                      value={safeModelValue}
                       disabled={!selectedProvider}
                       onChange={(e) => updateModel(slot.key, { model: e.target.value === CUSTOM_MODEL ? "" : e.target.value })}
                       className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background disabled:opacity-50"
                     >
-                      <option value="">Select a model</option>
-                      {modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
+                      <option value="">{selectedProvider ? "Select a model" : "Choose a provider first"}</option>
+                      {hasOptions && modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
                       {selectedProvider && <option value={CUSTOM_MODEL}>Custom model...</option>}
                     </select>
                   </label>
 
-                  {selectedProvider && (!modelOptions.length || isCustomModel || selectedModel === "") && (
+                  {selectedProvider && (!hasOptions || isCustomModel || (selectedModel === "" && !defaultModel)) && (
                     <input
                       value={selectedModel}
                       onChange={(e) => updateModel(slot.key, { model: e.target.value })}
@@ -557,7 +636,9 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
-      <LLMRouterCard />
+      <ErrorBoundary>
+        <LLMRouterCard />
+      </ErrorBoundary>
 
       <ChromeExtensionCard />
 
