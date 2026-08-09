@@ -11,10 +11,17 @@ jobs:
   meat:
     runs-on: ubuntu-latest
     steps:
-      - name: Check secret
+      - name: Pick LLM backend
         run: |
-          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret is not set on this repo — meat cannot run. Add it with: gh secret set ANTHROPIC_API_KEY"
+          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
+            echo "OPENAI_API_KEY=${{ secrets.OLLAMA_API_KEY }}" >> "$GITHUB_ENV"
+            echo "OPENAI_BASE_URL=https://ollama.com/v1" >> "$GITHUB_ENV"
+            echo "MEAT_MODEL=gpt-oss:120b" >> "$GITHUB_ENV"
+          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> "$GITHUB_ENV"
+            echo "MEAT_MODEL=claude-sonnet-5" >> "$GITHUB_ENV"
+          else
+            echo "::error::No LLM key set — add one with: gh secret set OLLAMA_API_KEY (or ANTHROPIC_API_KEY)"
             exit 1
           fi
 
@@ -30,8 +37,6 @@ jobs:
         run: go install meat.dev/cmd/meat@latest
 
       - name: Generate reading diff
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           git diff "origin/${{ github.base_ref }}...HEAD" | meat > /tmp/meat-raw.txt
 
@@ -46,7 +51,7 @@ jobs:
             head -c 60000 /tmp/meat-raw.txt
             echo '```'
             echo
-            echo "_Abridged by [meat](https://github.com/boldsoftware/meat) — mechanical noise elided, behavior-bearing changes kept._"
+            echo "_Abridged by [meat](https://github.com/boldsoftware/meat) (model: \`$MEAT_MODEL\`) — mechanical noise elided, behavior-bearing changes kept._"
           } > /tmp/meat-comment.md
           gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --edit-last --body-file /tmp/meat-comment.md \
             || gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file /tmp/meat-comment.md
