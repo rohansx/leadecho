@@ -1,0 +1,57 @@
+name: meat reading diff
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  meat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick LLM backend
+        run: |
+          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
+            echo "OPENAI_API_KEY=${{ secrets.OLLAMA_API_KEY }}" >> "$GITHUB_ENV"
+            echo "OPENAI_BASE_URL=https://ollama.com/v1" >> "$GITHUB_ENV"
+            echo "MEAT_MODEL=gpt-oss:120b" >> "$GITHUB_ENV"
+          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> "$GITHUB_ENV"
+            echo "MEAT_MODEL=claude-sonnet-5" >> "$GITHUB_ENV"
+          else
+            echo "::error::No LLM key set — add one with: gh secret set OLLAMA_API_KEY (or ANTHROPIC_API_KEY)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install meat
+        run: go install meat.dev/cmd/meat@latest
+
+      - name: Generate reading diff
+        run: |
+          git diff "origin/${{ github.base_ref }}...HEAD" | meat > /tmp/meat-raw.txt
+
+      - name: Post comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## 🥩 Reading diff"
+            echo
+            echo '```diff'
+            head -c 60000 /tmp/meat-raw.txt
+            echo '```'
+            echo
+            echo "_Abridged by [meat](https://github.com/boldsoftware/meat) (model: \`$MEAT_MODEL\`) — mechanical noise elided, behavior-bearing changes kept._"
+          } > /tmp/meat-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --edit-last --body-file /tmp/meat-comment.md \
+            || gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file /tmp/meat-comment.md
