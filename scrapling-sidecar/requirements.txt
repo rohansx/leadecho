@@ -1,3 +1,9 @@
+# Kept unpinned: server.py uses PlayWrightFetcher, which older scrapling
+# releases do not export, so pinning back to dodge the browserforge fingerprint
+# mismatch breaks the sidecar's own API. The mismatch is handled in the
+# Dockerfile instead, by clamping scrapling's requested Chrome version to what
+# browserforge actually ships data for.
 scrapling[all]
+browserforge==1.2.4
 fastapi
 uvicorn[standard]

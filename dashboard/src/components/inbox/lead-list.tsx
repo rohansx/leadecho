@@ -106,6 +106,10 @@ export function LeadList({
   hasMore,
   onLoadMore,
   isLoadingMore,
+  agentActive,
+  agentNeedsAI,
+  activeKeywordCount,
+  totalMentions,
 }: {
   mentions: Mention[];
   listTotal?: number;
@@ -132,6 +136,10 @@ export function LeadList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  agentActive?: boolean;
+  agentNeedsAI?: boolean;
+  activeKeywordCount?: number;
+  totalMentions?: number;
 }) {
   const isProposalsView = queueFilter === INBOX_QUEUES.PROPOSALS;
   const isActionView = queueFilter === INBOX_QUEUES.ACTION_REQUIRED;
@@ -317,7 +325,51 @@ export function LeadList({
         )}
 
         {!isLoading && !isProposalsView && mentions.length === 0 && (
-          <div className="p-6 text-center text-sm text-muted-foreground">
+          <div className="p-6 text-center text-sm text-muted-foreground space-y-4">
+            {/* Agent status indicator — shown when no mentions yet but agent is active */}
+            {agentActive && totalMentions === 0 && (
+              <div className="space-y-3 py-4">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-primary"></span>
+                  </span>
+                  <span className="text-primary-ink font-medium text-sm">Agent is live & scanning</span>
+                </div>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    Monitoring <span className="text-foreground-soft font-medium">{activeKeywordCount}</span>{" "}
+                    {activeKeywordCount === 1 ? "keyword" : "keywords"} across platforms
+                  </p>
+                  <p>Scans every 5 minutes · Next results will appear automatically</p>
+                  {agentNeedsAI && (
+                    <p className="text-orange-600 dark:text-orange-400 mt-2">
+                      ⚠ No AI key configured — mentions won't be scored.
+                      Add one in Settings → AI Router.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* Agent active but all mentions are filtered out in this view */}
+            {agentActive && totalMentions > 0 && (
+              <div className="flex items-center justify-center gap-2 py-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40"></span>
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary"></span>
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Agent active · {totalMentions.toLocaleString()} mention{totalMentions === 1 ? "" : "s"} found
+                </span>
+              </div>
+            )}
+            {/* No keywords configured — agent not running */}
+            {!agentActive && totalMentions === 0 && (
+              <div className="space-y-2 py-4">
+                <p className="text-muted-foreground">No keywords configured.</p>
+                <p className="text-xs">Go to Settings → Keywords to start monitoring.</p>
+              </div>
+            )}
             {emptyMessage(queueFilter, actionKind)}
           </div>
         )}

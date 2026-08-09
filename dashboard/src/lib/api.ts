@@ -540,10 +540,15 @@ export interface DraftReplyResponse {
   reply?: Reply;
   tone?: string;
   template_style?: string;
-  should_reply: boolean;
+  // Absent when the reply drafter runs asynchronously: that response is an
+  // acknowledgement ({status: "queued"}), not a verdict. Optional so a queued
+  // response cannot be misread as "should_reply: false".
+  should_reply?: boolean;
   reason?: string;
   awareness_level?: string;
   thread_context_used?: boolean;
+  /** "queued" when the draft was handed to the async drafter worker. */
+  status?: string;
 }
 
 export function classifyMention(id: string) {
@@ -711,6 +716,18 @@ export function rotateExtensionToken(name?: string) {
     "/settings/extension-token",
     { method: "POST", body: JSON.stringify({ name: name ?? "Default" }) },
   );
+}
+
+export interface ExtensionDownloadStatus {
+  available: boolean;
+  filename?: string;
+  size?: number;
+  reason?: string;
+}
+
+/** Whether this instance has a packaged extension build available to download. */
+export function getExtensionDownloadStatus() {
+  return request<ExtensionDownloadStatus>("/extension/download/status");
 }
 
 export function revokeExtensionToken() {

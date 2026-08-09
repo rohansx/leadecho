@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/browser"
@@ -19,10 +20,11 @@ type OnboardingHandler struct {
 	q         *database.Queries
 	scrapling *browser.ScraplingClient
 	llmRouter *llm.Router
+	logger    zerolog.Logger
 }
 
-func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, llmRouter *llm.Router) *OnboardingHandler {
-	return &OnboardingHandler{q: q, scrapling: scrapling, llmRouter: llmRouter}
+func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, llmRouter *llm.Router, logger zerolog.Logger) *OnboardingHandler {
+	return &OnboardingHandler{q: q, scrapling: scrapling, llmRouter: llmRouter, logger: logger}
 }
 
 type onboardingState struct {
@@ -227,6 +229,16 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
+
+	h.logger.Info().
+		Str("workspace_id", wsID).
+		Str("product_name", body.ProductName).
+		Int("pain_points", len(body.PainPoints)).
+		Int("keywords", len(body.Keywords)).
+		Strs("platforms", body.Platforms).
+		Strs("subreddits", body.Subreddits).
+		Msg("onboarding complete request received")
+
 	body.ProductName = strings.TrimSpace(body.ProductName)
 	if body.ProductName == "" {
 		writeError(w, http.StatusBadRequest, "product_name is required")
@@ -297,10 +309,15 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		keywordsCreated++
 	}
 
-	// Guard: if we failed to create every keyword, don't mark onboarding complete
-	// — otherwise the idempotency check blocks the user from retrying.
-	if len(body.Keywords) > 0 && keywordsCreated == 0 && keywordErrors > 0 {
-		writeError(w, http.StatusInternalServerError, "failed to create keywords")
+	// Guard: require at least one usable keyword. Without keywords the monitor has
+	// nothing to crawl, so the inbox stays empty forever. We also block if every
+	// keyword failed with a real error so the user can retry.
+	if len(body.Keywords) > 0 && keywordsCreated == 0 {
+		if keywordErrors > 0 {
+			writeError(w, http.StatusInternalServerError, "failed to create keywords")
+		} else {
+			writeError(w, http.StatusBadRequest, "all keywords were empty or duplicates; add at least one unique keyword")
+		}
 		return
 	}
 

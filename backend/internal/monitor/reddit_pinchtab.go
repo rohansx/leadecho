@@ -167,7 +167,22 @@ func (m *Monitor) fetchSubredditPinchtab(ctx context.Context, wsID string, kw da
 
 // parseCookieString parses a cookie header string ("name=value; name2=value2")
 // into browser.Cookie structs with the given domain.
+// If the string has no "=" (a bare token), it's treated as the value of
+// defaultCookieName — e.g. a user who pastes just the reddit_session JWT
+// value without wrapping it in "reddit_session=...".
 func parseCookieString(cookieStr, domain string) []browser.Cookie {
+	cookieStr = strings.TrimSpace(cookieStr)
+	if cookieStr == "" {
+		return nil
+	}
+
+	// Bare token without any "=" → treat as a single named cookie value.
+	if !strings.ContainsAny(cookieStr, "=") {
+		return []browser.Cookie{
+			{Name: defaultCookieName(domain), Value: cookieStr, Domain: domain, Path: "/"},
+		}
+	}
+
 	var cookies []browser.Cookie
 	for _, part := range strings.Split(cookieStr, ";") {
 		part = strings.TrimSpace(part)
@@ -191,4 +206,20 @@ func parseCookieString(cookieStr, domain string) []browser.Cookie {
 		})
 	}
 	return cookies
+}
+
+// defaultCookieName returns the primary auth cookie name for a given domain.
+func defaultCookieName(domain string) string {
+	switch domain {
+	case ".reddit.com":
+		return "reddit_session"
+	case ".x.com":
+		return "auth_token"
+	case ".linkedin.com":
+		return "li_at"
+	case ".quora.com":
+		return "m-s"
+	default:
+		return "session"
+	}
 }

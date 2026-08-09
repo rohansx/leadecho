@@ -22,7 +22,7 @@ export default defineConfig({
       128: "icons/icon-128.png",
     },
     homepage_url: "https://github.com/rohansx/leadecho",
-    permissions: ["storage", "alarms", "sidePanel", "activeTab", "tabs"],
+    permissions: ["storage", "alarms", "sidePanel", "activeTab", "tabs", "scripting"],
     host_permissions: [
       "https://www.linkedin.com/*",
       "https://www.reddit.com/*",
@@ -35,7 +35,13 @@ export default defineConfig({
       default_title: "LeadEcho",
     },
     side_panel: {
-      default_path: "sidepanel/index.html",
+      default_path: "sidepanel.html",
     },
+    web_accessible_resources: [
+      {
+        resources: ["vanilla/reddit.js"],
+        matches: ["https://www.reddit.com/*", "https://reddit.com/*"],
+      },
+    ],
   },
 });

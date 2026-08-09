@@ -74,6 +74,14 @@ type Config struct {
 	// Exa (web-wide semantic discovery source for the monitor)
 	ExaAPIKey string `env:"EXA_API_KEY,default="`
 
+	// GoogleNewsEnabled opts in to the Google News RSS source. Default false:
+	// Google's feed terms restrict it to personal, non-commercial use.
+	GoogleNewsEnabled bool `env:"GOOGLE_NEWS_ENABLED,default=false"`
+
+	// ExtensionDistDir holds packaged Chrome extension builds, served from
+	// Settings so self-hosters can install it without a Web Store listing.
+	ExtensionDistDir string `env:"EXTENSION_DIST_DIR,default=../extension/.output"`
+
 	// Resend (email notifications)
 	ResendAPIKey string `env:"RESEND_API_KEY,default="`
 

@@ -21,22 +21,47 @@ export default defineBackground(() => {
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch(() => {});
 
+  // Inject the vanilla Reddit script on Reddit tabs. The WXT content script
+  // crashes because the webextension-polyfill tries to access chrome.storage
+  // during init, which Reddit blocks. This vanilla script has no polyfill and
+  // no storage access — it just captures posts and sends signals.
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status !== "complete") return;
+    if (!tab.url) return;
+    try {
+      const u = new URL(tab.url);
+      const isReddit = u.hostname === "www.reddit.com" || u.hostname === "reddit.com";
+      if (!isReddit) return;
+      chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["vanilla/reddit.js"],
+      }).catch(() => {});
+    } catch {
+      // Invalid URL — ignore.
+    }
+  });
+
   // Cache the capture toggle so the hot SIGNAL path stays synchronous.
   let captureEnabled = true;
-  getCaptureEnabled().then((v) => (captureEnabled = v));
+  getCaptureEnabled().then((v) => (captureEnabled = v)).catch(() => {
+    // Storage access may fail in some contexts — default to enabled.
+    captureEnabled = true;
+  });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes[CAPTURE_KEY]) {
       captureEnabled = changes[CAPTURE_KEY].newValue !== false;
     }
   });
 
-  // Alarm-based flush every 30 seconds (chrome.alarms survives worker sleep).
-  chrome.alarms.create("flush-signals", { periodInMinutes: 0.5 });
+  // Alarm-based flush every 15 seconds (chrome.alarms survives worker sleep).
+  // Reduced from 30s to 15s so signals reach the backend faster.
+  chrome.alarms.create("flush-signals", { periodInMinutes: 0.25 });
 
   chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === "flush-signals") flush();
+    if (alarm.name === "flush-signals") flush().catch(() => {});
   });
 
+  // Also flush when a SIGNAL message arrives and the buffer has enough.
   chrome.runtime.onMessage.addListener(
     (message: ExtensionMessage, sender, sendResponse) => {
       if (message.type === "SIGNAL") {
@@ -45,7 +70,9 @@ export default defineBackground(() => {
         if (buffer.length > MAX_BUFFER) {
           buffer.splice(0, buffer.length - MAX_BUFFER);
         }
-        if (buffer.length >= FLUSH_THRESHOLD) flush();
+        // Flush immediately if we have any signals (don't wait for threshold
+        // — Reddit posts may come in slowly one at a time).
+        if (buffer.length >= 1) flush().catch(() => {});
         return;
       }
 

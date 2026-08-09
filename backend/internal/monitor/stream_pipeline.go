@@ -8,20 +8,25 @@ import (
 )
 
 func (m *Monitor) handleNewMentionBatch(ctx context.Context, wsID string, alerts []mentionAlert, producer string) {
-	if len(alerts) == 0 {
-		return
-	}
+	if len(alerts) > 0 {
+		if m.streamsEnabled && m.eventPublisher != nil {
+			m.publishMentionIngestedBatch(ctx, wsID, alerts, producer)
+			if !m.streamsDualWrite && !m.inlineFallback {
+				return
+			}
+		}
 
-	if m.streamsEnabled && m.eventPublisher != nil {
-		m.publishMentionIngestedBatch(ctx, wsID, alerts, producer)
-		if !m.streamsDualWrite && !m.inlineFallback {
-			return
+		if m.inlineFallback || !m.streamsEnabled || m.streamsDualWrite {
+			m.batchScoreMentions(ctx, wsID, alerts)
+			m.notifyNewMentions(ctx, wsID, alerts)
 		}
 	}
 
+	// Always backfill unclassified mentions from earlier ticks, even if this
+	// crawl produced no new alerts — e.g. when an AI provider was just configured
+	// and existing mentions need to be retroactively scored.
 	if m.inlineFallback || !m.streamsEnabled || m.streamsDualWrite {
-		m.batchScoreMentions(ctx, wsID, alerts)
-		m.notifyNewMentions(ctx, wsID, alerts)
+		m.backfillUnclassified(ctx, wsID)
 	}
 }
 

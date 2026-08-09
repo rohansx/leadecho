@@ -10,7 +10,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity } from "lucide-react";
+import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -20,6 +21,8 @@ import {
   saveLLMConfig,
   saveLLMProviderKey,
   verifyLLMProvider,
+  deleteLLMProviderKey,
+  getExtensionDownloadStatus,
   type LLMConfigResponse,
   type LLMModelTarget,
   type LLMProviderStatus,
@@ -60,7 +63,10 @@ function cloneModels(config?: LLMConfigResponse): Record<string, LLMModelTarget>
 function LLMRouterCard() {
   const queryClient = useQueryClient();
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  // Two-step confirm for key removal: holds the provider awaiting confirmation.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [models, setModels] = useState<Record<string, LLMModelTarget>>({});
+  const [renderError, setRenderError] = useState<string | null>(null);
   const [routing, setRouting] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
 
@@ -80,20 +86,46 @@ function LLMRouterCard() {
   }, [config]);
 
   const saveKey = useMutation({
-    mutationFn: ({ provider, apiKey }: { provider: string; apiKey: string }) =>
-      saveLLMProviderKey(provider, apiKey),
-    onSuccess: (_, vars) => {
-      setKeyDrafts((prev) => ({ ...prev, [vars.provider]: "" }));
-      setMessage(`${vars.provider} key saved`);
+    mutationFn: async ({ provider, apiKey }: { provider: string; apiKey: string }) => {
+      await saveLLMProviderKey(provider, apiKey);
+      // Auto-verify immediately after saving so the user sees auth errors right away.
+      await verifyLLMProvider(provider);
+      return provider;
+    },
+    onSuccess: (_, provider) => {
+      setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
+      setMessage(`${provider} key saved and verified`);
       queryClient.invalidateQueries({ queryKey: ["llm-config"] });
     },
-    onError: (err) => setMessage(err instanceof Error ? err.message : "Failed to save key"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Failed to save key";
+      // The save itself may have succeeded but verification failed — refresh config
+      // so the UI reflects the saved (but invalid) key, and surface the verify error.
+      queryClient.invalidateQueries({ queryKey: ["llm-config"] });
+      if (/verification failed|401|auth|unauthor|invalid key/i.test(msg)) {
+        setMessage(`Key saved but verification failed: ${msg}. The key may be invalid or expired.`);
+      } else {
+        setMessage(msg);
+      }
+    },
   });
 
   const verify = useMutation({
     mutationFn: (provider: string) => verifyLLMProvider(provider),
     onSuccess: (_, provider) => setMessage(`${provider} verified`),
     onError: (err) => setMessage(err instanceof Error ? err.message : "Verification failed"),
+  });
+
+  // The DELETE endpoint and API client both existed; only this binding was
+  // missing, so a saved key could be overwritten but never actually removed.
+  const removeKey = useMutation({
+    mutationFn: (provider: string) => deleteLLMProviderKey(provider),
+    onSuccess: (_, provider) => {
+      setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
+      setMessage(`${provider} key removed`);
+      queryClient.invalidateQueries({ queryKey: ["llm-config"] });
+    },
+    onError: (err) => setMessage(err instanceof Error ? err.message : "Failed to remove key"),
   });
 
   const saveRoutes = useMutation({
@@ -110,14 +142,59 @@ function LLMRouterCard() {
   const chatProviders = providers.filter((p) => p.capabilities.includes("chat"));
   const embeddingProviders = providers.filter((p) => p.capabilities.includes("embedding"));
   const defaultModelFor = (provider: string) => providerByID.get(provider)?.default_model ?? "";
-  const modelOptionsFor = (provider: string) => providerByID.get(provider)?.recommended_models ?? [];
+  const isKnownProvider = (provider: string) => providerByID.has(provider);
 
   function updateModel(slot: string, patch: Partial<LLMModelTarget>) {
     setModels((prev) => {
-      const next = { ...(prev[slot] ?? { provider: "", model: "" }), ...patch };
-      if (patch.provider && !next.model) next.model = defaultModelFor(patch.provider);
+      const current = prev[slot] ?? { provider: "", model: "" };
+      const next = { ...current, ...patch };
+      if (patch.provider && !next.model) {
+        next.model = defaultModelFor(patch.provider);
+      }
+      // Guard against selecting a provider/model that disappeared from config.
+      if (next.provider && !isKnownProvider(next.provider)) {
+        next.provider = "";
+        next.model = "";
+      }
       return { ...prev, [slot]: next };
     });
+  }
+
+  // Defensive wrapper: if model state ever drifts out of sync with the
+  // provider list, reset it from the latest config instead of crashing.
+  useEffect(() => {
+    if (!config) return;
+    setModels((prev) => {
+      const next = { ...prev };
+      for (const slot of modelSlots.map((s) => s.key)) {
+        const slotModel = next[slot];
+        if (slotModel?.provider && !isKnownProvider(slotModel.provider)) {
+          next[slot] = { provider: "", model: "" };
+        }
+      }
+      return next;
+    });
+  }, [config]);
+
+  // Surface any unexpected render-time problem instead of letting it white-screen.
+  if (renderError) {
+    return (
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <Text as="p" className="font-medium">AI Router failed to load</Text>
+          </div>
+          <Text as="p" className="text-sm text-muted-foreground">{renderError}</Text>
+          <button
+            onClick={() => setRenderError(null)}
+            className="px-4 py-2 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent"
+          >
+            Try again
+          </button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -152,44 +229,77 @@ function LLMRouterCard() {
             <Text as="p" className="font-medium">Providers</Text>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {providers.map((provider) => (
-              <div key={provider.provider} className="rounded border-2 border-border bg-background p-3 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <Text as="p" className="font-medium">{provider.display_name}</Text>
-                    <Text as="p" className="text-xs text-muted-foreground">
-                      {provider.is_set ? `${provider.masked_key} · ${provider.key_source}` : provider.capabilities.join(", ")}
-                    </Text>
+            {providers.map((provider) => {
+              const providerKey = provider.provider;
+              return (
+                <div key={providerKey} className="rounded border-2 border-border bg-background p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Text as="p" className="font-medium">{provider.display_name}</Text>
+                      <Text as="p" className="text-xs text-muted-foreground">
+                        {provider.is_set ? `${provider.masked_key} · ${provider.key_source}` : provider.capabilities.join(", ")}
+                      </Text>
+                    </div>
+                    <Badge variant={provider.is_set ? "surface" : "outline"} size="sm">
+                      {provider.is_set ? "Configured" : "No key"}
+                    </Badge>
                   </div>
-                  <Badge variant={provider.is_set ? "surface" : "outline"} size="sm">
-                    {provider.is_set ? "Configured" : "No key"}
-                  </Badge>
+                  {/* wrap + a min-width on the input so the extra Remove action
+                      cannot push the row past the card edge on narrow columns */}
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="password"
+                      placeholder={`Paste ${providerKey} key`}
+                      value={keyDrafts[providerKey] ?? ""}
+                      onChange={(e) => setKeyDrafts((prev) => ({ ...prev, [providerKey]: e.target.value }))}
+                      className="flex-1 min-w-[8rem] px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                    />
+                    <button
+                      onClick={() => saveKey.mutate({ provider: providerKey, apiKey: keyDrafts[providerKey] ?? "" })}
+                      disabled={!keyDrafts[providerKey] || saveKey.isPending}
+                      className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => verify.mutate(providerKey)}
+                      disabled={!provider.is_set || verify.isPending}
+                      className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
+                    >
+                      Verify
+                    </button>
+                    {provider.is_set && (
+                      <button
+                        onClick={() => {
+                          if (confirmRemove === providerKey) {
+                            removeKey.mutate(providerKey);
+                            setConfirmRemove(null);
+                          } else {
+                            setConfirmRemove(providerKey);
+                          }
+                        }}
+                        onBlur={() => setConfirmRemove((cur) => (cur === providerKey ? null : cur))}
+                        disabled={removeKey.isPending}
+                        title={`Remove the stored ${provider.display_name} key`}
+                        className={`px-3 py-1.5 text-sm font-medium rounded border-2 disabled:opacity-50 ${
+                          confirmRemove === providerKey
+                            ? "border-destructive text-destructive bg-destructive/10"
+                            : "border-border bg-background hover:bg-accent text-muted-foreground"
+                        }`}
+                      >
+                        {confirmRemove === providerKey ? "Confirm?" : "Remove"}
+                      </button>
+                    )}
+                  </div>
+                  {provider.is_set && provider.key_source === "env" && (
+                    <Text as="p" className="text-xs text-muted-foreground">
+                      This key comes from a server environment variable, not this workspace.
+                      Removing it here will not unset it — clear it from the server's .env.
+                    </Text>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    placeholder={`Paste ${provider.provider} key`}
-                    value={keyDrafts[provider.provider] ?? ""}
-                    onChange={(e) => setKeyDrafts((prev) => ({ ...prev, [provider.provider]: e.target.value }))}
-                    className="flex-1 px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
-                  />
-                  <button
-                    onClick={() => saveKey.mutate({ provider: provider.provider, apiKey: keyDrafts[provider.provider] ?? "" })}
-                    disabled={!keyDrafts[provider.provider] || saveKey.isPending}
-                    className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => verify.mutate(provider.provider)}
-                    disabled={!provider.is_set || verify.isPending}
-                    className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
-                  >
-                    Verify
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -198,10 +308,21 @@ function LLMRouterCard() {
           <div className="grid gap-3 md:grid-cols-3">
             {modelSlots.map((slot) => {
               const options = slot.key === "embedding" ? embeddingProviders : chatProviders;
-              const selectedProvider = models[slot.key]?.provider ?? "";
-              const selectedModel = models[slot.key]?.model ?? "";
-              const modelOptions = modelOptionsFor(selectedProvider);
-              const isCustomModel = !!selectedModel && !modelOptions.includes(selectedModel);
+              const slotModel = models[slot.key] ?? { provider: "", model: "" };
+              const selectedProvider = slotModel.provider ?? "";
+              const selectedModel = slotModel.model ?? "";
+              const providerInfo = selectedProvider ? providerByID.get(selectedProvider) : undefined;
+              const modelOptions = providerInfo?.recommended_models ?? [];
+              const defaultModel = providerInfo?.default_model ?? "";
+              const hasOptions = modelOptions.length > 0;
+              const isCustomModel = !!selectedModel && !modelOptions.includes(selectedModel) && selectedModel !== defaultModel;
+              const safeModelValue = !selectedProvider
+                ? ""
+                : isCustomModel
+                  ? CUSTOM_MODEL
+                  : modelOptions.includes(selectedModel)
+                    ? selectedModel
+                    : defaultModel || "";
               return (
                 <div key={slot.key} className="rounded border-2 border-border bg-background p-3 space-y-3">
                   <div>
@@ -224,18 +345,18 @@ function LLMRouterCard() {
                   <label className="space-y-1 block">
                     <span className="text-xs font-medium text-muted-foreground">Model</span>
                     <select
-                      value={!selectedProvider ? "" : isCustomModel ? CUSTOM_MODEL : selectedModel}
+                      value={safeModelValue}
                       disabled={!selectedProvider}
                       onChange={(e) => updateModel(slot.key, { model: e.target.value === CUSTOM_MODEL ? "" : e.target.value })}
                       className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background disabled:opacity-50"
                     >
-                      <option value="">Select a model</option>
-                      {modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
+                      <option value="">{selectedProvider ? "Select a model" : "Choose a provider first"}</option>
+                      {hasOptions && modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
                       {selectedProvider && <option value={CUSTOM_MODEL}>Custom model...</option>}
                     </select>
                   </label>
 
-                  {selectedProvider && (!modelOptions.length || isCustomModel || selectedModel === "") && (
+                  {selectedProvider && (!hasOptions || isCustomModel || (selectedModel === "" && !defaultModel)) && (
                     <input
                       value={selectedModel}
                       onChange={(e) => updateModel(slot.key, { model: e.target.value })}
@@ -303,6 +424,12 @@ function ChromeExtensionCard() {
   const queryClient = useQueryClient();
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Whether this instance has a packaged extension build to hand out.
+  const { data: extDownload } = useQuery({
+    queryKey: ["extension-download-status"],
+    queryFn: getExtensionDownloadStatus,
+  });
 
   const { data: tokenInfo, isLoading } = useQuery({
     queryKey: ["extension-token"],
@@ -414,13 +541,50 @@ function ChromeExtensionCard() {
           </div>
         )}
 
+        {/* Download — there is no Chrome Web Store listing, so the instance
+            serves the packaged build it was shipped with. */}
+        <div className="space-y-2 pt-1">
+          <Text as="p" className="text-sm font-medium">Download</Text>
+          {extDownload?.available ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href="/api/v1/extension/download"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-primary text-primary-foreground hover:opacity-90"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download extension (.zip)
+              </a>
+              <Text as="span" className="text-xs text-muted-foreground">
+                {extDownload.filename}
+                {typeof extDownload.size === "number"
+                  ? ` · ${Math.round(extDownload.size / 1024)} KB`
+                  : null}
+              </Text>
+            </div>
+          ) : (
+            <Text as="p" className="text-sm text-muted-foreground">
+              No packaged build on this instance. Build one with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">make extension</code>, then reload
+              this page.
+            </Text>
+          )}
+        </div>
+
         {/* Setup instructions */}
         <div className="space-y-2 pt-1">
           <Text as="p" className="text-sm font-medium">Setup</Text>
           <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
-            <li>Install the LeadEcho extension from the Chrome Web Store</li>
-            <li>Click the extension icon → enter your backend URL</li>
-            <li>Generate a key above and paste it into the extension popup</li>
+            <li>Download the .zip above and unzip it</li>
+            <li>
+              Open <code className="rounded bg-muted px-1 py-0.5">chrome://extensions</code>, turn
+              on Developer mode, click <strong>Load unpacked</strong>, and select the unzipped
+              folder
+            </li>
+            <li>
+              Click the LeadEcho icon to open the side panel, then open its{" "}
+              <strong>Settings</strong> tab
+            </li>
+            <li>Enter your backend URL, and the key from above</li>
             <li>Browse Reddit, X, LinkedIn, or HN — signals are captured automatically</li>
           </ol>
         </div>
@@ -449,22 +613,28 @@ function SettingsPage() {
               <CardTitle>AI Features</CardTitle>
               <CardDescription>
                 Intent classification and reply drafting are included for all
-                users.
+                users — no plan upgrade required.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          {/* This card is a billing statement, not a status one. Saying the
+              features are "available on every mention" read as a contradiction
+              next to the router below reporting "Needs setup". */}
           <div className="flex items-center gap-2 p-3 rounded border-2 border-border bg-background">
-            <Badge variant="surface" size="sm">Included</Badge>
+            <Badge variant="surface" size="sm" className="shrink-0">Included</Badge>
             <Text as="p" className="text-sm text-muted-foreground">
-              AI-powered classify and draft reply are available on every mention in your Inbox.
+              Classify and draft reply are unlocked on every mention. They run on your
+              own provider keys — configure those in the AI Router below before they work.
             </Text>
           </div>
         </CardContent>
       </Card>
 
-      <LLMRouterCard />
+      <ErrorBoundary>
+        <LLMRouterCard />
+      </ErrorBoundary>
 
       <ChromeExtensionCard />
 

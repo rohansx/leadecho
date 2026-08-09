@@ -1,4 +1,4 @@
-export type Platform = "reddit" | "hackernews" | "twitter" | "linkedin" | "devto" | "lobsters" | "indiehackers";
+export type Platform = "reddit" | "hackernews" | "twitter" | "linkedin" | "devto" | "lobsters" | "indiehackers" | "googlenews" | "quora" | "exa";
 export type MentionStatus = "new" | "reviewed" | "replied" | "archived" | "spam";
 export type IntentType = "buy_signal" | "complaint" | "recommendation_ask" | "comparison" | "general";
 export type AwarenessLevel = "problem_aware" | "solution_aware" | "product_aware" | "purchase_ready";

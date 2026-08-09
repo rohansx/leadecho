@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -105,13 +107,19 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if h.replyDrafterAsync && h.publisher != nil {
+		// Drafting is an explicit, repeatable user action: asking again means
+		// "generate another draft", not "retry the same request". Keying on
+		// eventType:mentionID made the key constant for the lifetime of the
+		// mention, so the first request succeeded and every later one collided
+		// on the unique index and 500'd. Scope the key to this request instead.
+		requestedAt := time.Now().UTC().Format(time.RFC3339Nano)
 		env, err := events.NewEnvelope(
 			events.EventTypeReplyDraftRequested,
 			events.AggregateTypeReply,
 			id,
 			"api",
 			wsID,
-			events.EventTypeReplyDraftRequested+":"+id,
+			fmt.Sprintf("%s:%s:%s", events.EventTypeReplyDraftRequested, id, requestedAt),
 			events.ReplyDraftRequestedPayload{
 				MentionID:   id,
 				WorkspaceID: wsID,
@@ -122,7 +130,7 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to build draft event")
 			return
 		}
-		if _, err := h.publisher.Publish(ctx, env); err != nil {
+		if _, err := h.publisher.Publish(ctx, env); err != nil && !errors.Is(err, publishers.ErrDuplicateEvent) {
 			writeError(w, http.StatusInternalServerError, "failed to enqueue draft request")
 			return
 		}

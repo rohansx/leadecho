@@ -12,6 +12,10 @@ extension/.output/
 .env
 .env.local
 .env.*.local
+# Any .env copy or backup — these hold real provider keys and JWT secrets.
+# .env was ignored but sidecars like .env.bak-* were not.
+.env.*
+!.env.example
 
 # IDE
 .vscode/

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,18 +13,41 @@ import (
 )
 
 type lobstersStory struct {
-	ShortID      string   `json:"short_id"`
-	Title        string   `json:"title"`
-	URL          string   `json:"url"`
-	Description  string   `json:"description"`
-	CommentsURL  string   `json:"comments_url"`
-	Score        int      `json:"score"`
-	CommentCount int      `json:"comment_count"`
-	Tags         []string `json:"tags"`
-	CreatedAt    string   `json:"created_at"`
-	Submitter    struct {
+	ShortID          string      `json:"short_id"`
+	Title            string      `json:"title"`
+	URL              string      `json:"url"`
+	Description      string      `json:"description"`
+	DescriptionPlain string      `json:"description_plain"`
+	CommentsURL      string      `json:"comments_url"`
+	Score        int             `json:"score"`
+	CommentCount int             `json:"comment_count"`
+	Tags         []string        `json:"tags"`
+	CreatedAt    string          `json:"created_at"`
+	Submitter    lobstersUsername `json:"submitter_user"`
+}
+
+// lobstersUsername accepts both shapes Lobsters has served for submitter_user:
+// the current bare string ("PuercoPop") and the older {"username": "..."} object.
+// Decoding the wrong one used to fail the whole page, silently yielding zero
+// mentions for every keyword.
+type lobstersUsername struct {
+	Username string
+}
+
+func (u *lobstersUsername) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		u.Username = s
+		return nil
+	}
+	var obj struct {
 		Username string `json:"username"`
-	} `json:"submitter_user"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	u.Username = obj.Username
+	return nil
 }
 
 func (m *Monitor) crawlLobsters(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) []mentionAlert {
@@ -54,12 +78,27 @@ func (m *Monitor) crawlLobsters(ctx context.Context, wsID string, kw database.Li
 	}
 
 	var alerts []mentionAlert
+	term := strings.ToLower(strings.TrimSpace(kw.Term))
 	for _, s := range stories {
+		// Prefer the plain-text body; `description` is raw HTML and leaks tags
+		// into the mention content and the inbox preview.
+		body := s.DescriptionPlain
+		if body == "" {
+			body = stripHTML(s.Description)
+		}
 		content := s.Title
-		if s.Description != "" {
-			content = s.Title + "\n\n" + s.Description
+		if body != "" {
+			content = s.Title + "\n\n" + body
 		}
 		if content == "" {
+			continue
+		}
+
+		// Lobsters has no search endpoint — this is the /newest firehose, so the
+		// keyword has to be applied here. filterContent's default "contains" arm
+		// is a pass-through that assumes the platform already searched, which
+		// would admit every new post regardless of the keyword.
+		if term != "" && !strings.Contains(strings.ToLower(content), term) {
 			continue
 		}
 

@@ -248,6 +248,7 @@ const (
 	PlatformTypeIndiehackers PlatformType = "indiehackers"
 	PlatformTypeQuora        PlatformType = "quora"
 	PlatformTypeExa          PlatformType = "exa"
+	PlatformTypeGooglenews   PlatformType = "googlenews"
 )
 
 func (e *PlatformType) Scan(src interface{}) error {

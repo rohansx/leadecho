@@ -118,6 +118,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		cfg.StreamsEnabled && cfg.StreamsQualifierConsumerEnabled,
 		researcherSvc,
 	)
+	mon.SetGoogleNewsEnabled(cfg.GoogleNewsEnabled)
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
 	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
