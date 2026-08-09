@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       credentials: "include",
     });
     setUser(null);
-    window.location.href = "/app/login";  // dashboard login route (basepath-aware)
+    window.location.href = "/login";  // dashboard login route
   };
 
   return (

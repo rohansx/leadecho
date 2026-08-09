@@ -14,7 +14,7 @@ import {
   listKeywords,
   getLLMConfig,
 } from "@/lib/api";
-import { ACTION_KINDS, INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
+import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 import type { InboxQueueCountsResponse } from "@/lib/types";
 
 const PAGE_SIZE = 30;

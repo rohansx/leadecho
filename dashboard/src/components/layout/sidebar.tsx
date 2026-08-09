@@ -42,12 +42,12 @@ export function Sidebar() {
   const leadsReady = tierCounts?.find((c) => c.tier === MENTION_TIERS.LEADS_READY)?.count ?? 0;
 
   return (
-    <aside className="w-[var(--sidebar-width)] h-screen border-r border-border bg-card flex flex-col shrink-0">
-      <div className="h-[var(--header-height)] flex items-center px-5 border-b border-border">
+    <aside className="glass flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden rounded-2xl">
+      <div className="flex h-[var(--header-height)] items-center border-b border-border/40 px-5">
         <Logo />
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.to);
           const Icon = item.icon;
@@ -56,16 +56,16 @@ export function Sidebar() {
               key={item.label}
               to={item.to}
               className={cn(
-                "relative flex items-center gap-3 px-3 py-2 rounded-lg font-[family-name:var(--font-sans)] text-sm transition-colors",
+                "relative flex items-center gap-3 rounded-xl px-3 py-2 font-[family-name:var(--font-sans)] text-sm transition-colors duration-150",
                 isActive
-                  ? "text-primary-foreground font-medium"
-                  : "text-foreground-soft hover:bg-accent hover:text-foreground",
+                  ? "font-medium text-primary-foreground"
+                  : "text-foreground-soft hover:bg-accent/70 hover:text-foreground",
               )}
             >
               {isActive && (
                 <motion.div
                   layoutId="sidebar-active"
-                  className="absolute inset-0 bg-primary rounded-lg"
+                  className="absolute inset-0 rounded-xl bg-primary shadow-sm"
                   transition={{ type: "spring", stiffness: 400, damping: 34 }}
                 />
               )}

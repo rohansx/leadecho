@@ -35,15 +35,15 @@ export function Header() {
   };
 
   return (
-    <header className="h-[var(--header-height)] border-b border-border bg-card flex items-center gap-4 px-6 shrink-0">
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <header className="glass flex h-[var(--header-height)] shrink-0 items-center gap-4 rounded-2xl px-4">
+      <div className="relative max-w-md flex-1">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submitSearch()}
           placeholder="Search mentions…"
-          className="w-full rounded-lg border border-border bg-background pl-9 pr-14 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-ring/30 focus:border-ring placeholder:text-muted-foreground"
+          className="w-full rounded-xl border border-border/50 bg-background/40 py-1.5 pl-9 pr-14 text-sm placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-2 focus:ring-ring/30"
         />
         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-[family-name:var(--font-mono)] text-muted-foreground border border-border rounded px-1.5 py-0.5">
           ⏎
@@ -55,7 +55,7 @@ export function Header() {
           type="button"
           onClick={toggleTheme}
           aria-label="Toggle theme"
-          className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center cursor-pointer"
+          className="flex size-9 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-background/40 transition-[color,background-color,transform] duration-150 hover:bg-accent/70 active:scale-95"
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
@@ -80,7 +80,7 @@ export function Header() {
             <button
               type="button"
               onClick={logout}
-              className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center cursor-pointer"
+              className="flex size-9 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-background/40 transition-[color,background-color,transform] duration-150 hover:bg-accent/70 active:scale-95"
               title="Log out"
             >
               <LogOut className="h-4 w-4" />

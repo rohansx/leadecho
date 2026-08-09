@@ -160,6 +160,14 @@ func DefaultProvider(name, apiKey string) Provider {
 			BaseURL: "https://integrate.api.nvidia.com/v1",
 			Model:   "nvidia/llama-3.3-nemotron-super-49b-v1",
 		}
+	case "ollama":
+		// Ollama Cloud — OpenAI-compatible endpoint, Bearer API key.
+		return Provider{
+			Name:    "ollama",
+			APIKey:  apiKey,
+			BaseURL: "https://ollama.com/v1",
+			Model:   "gpt-oss:120b",
+		}
 	default:
 		return Provider{
 			Name:    "openai",
@@ -223,12 +231,69 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 	return strings.TrimSpace(chatResp.Choices[0].Message.Content), nil
 }
 
-// stripCodeFences removes markdown code fences from LLM responses.
+// stripCodeFences removes markdown code fences and the JSON-invalid artifacts
+// (// and /* */ comments, trailing commas) that some LLMs emit despite being
+// told to return strict JSON — e.g. NVIDIA Nemotron writing `[], // none` which
+// encoding/json rejects with "invalid character '/'".
 func stripCodeFences(s string) string {
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
-	return strings.TrimSpace(s)
+	return sanitizeJSON(strings.TrimSpace(s))
+}
+
+// sanitizeJSON strips JS-style comments and trailing commas that fall outside
+// string literals; anything inside a string (e.g. "https://x") is left intact.
+// ponytail: single-pass scanner, O(n); handles the JSON LLMs actually emit.
+func sanitizeJSON(s string) string {
+	buf := make([]byte, 0, len(s))
+	inStr, esc := false, false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			buf = append(buf, c)
+			switch {
+			case esc:
+				esc = false
+			case c == '\\':
+				esc = true
+			case c == '"':
+				inStr = false
+			}
+			continue
+		}
+		switch {
+		case c == '"':
+			inStr = true
+			buf = append(buf, c)
+		case c == '/' && i+1 < len(s) && s[i+1] == '/': // line comment
+			for i+1 < len(s) && s[i+1] != '\n' {
+				i++
+			}
+		case c == '/' && i+1 < len(s) && s[i+1] == '*': // block comment
+			i += 2
+			for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
+				i++
+			}
+			i++ // consume the closing '/'
+		case c == '}' || c == ']': // drop any trailing comma before a closer
+			for len(buf) > 0 {
+				last := buf[len(buf)-1]
+				if last == ' ' || last == '\t' || last == '\n' || last == '\r' {
+					buf = buf[:len(buf)-1]
+					continue
+				}
+				break
+			}
+			if len(buf) > 0 && buf[len(buf)-1] == ',' {
+				buf = buf[:len(buf)-1]
+			}
+			buf = append(buf, c)
+		default:
+			buf = append(buf, c)
+		}
+	}
+	return string(buf)
 }
 
 // ClassifyIntent classifies a social mention into intent categories.

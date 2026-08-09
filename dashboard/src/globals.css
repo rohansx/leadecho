@@ -11,8 +11,8 @@
   --card: #fffdf8;
   --card-foreground: #18150f;
 
-  --primary: #d4a017;
-  --primary-hover: #b8880f;
+  --primary: #e2a516;
+  --primary-hover: #f2bd45;
   --primary-foreground: #18150f;
   --primary-ink: #8b6608;
 
@@ -44,33 +44,34 @@
 }
 
 .dark {
-  --background: #16130e;
-  --foreground: #f1ece0;
-  --foreground-soft: #cbc2ac;
-  --card: #1c1811;
-  --card-foreground: #f1ece0;
+  /* Cool-neutral dark — no warm brown film. Gold stays the single accent. */
+  --background: #0a0c0f;
+  --foreground: #e9ecf1;
+  --foreground-soft: #a7adb8;
+  --card: #14171c;
+  --card-foreground: #e9ecf1;
 
-  --primary: #d4a017;
-  --primary-hover: #e6b422;
-  --primary-foreground: #16130e;
-  --primary-ink: #e6b422;
+  --primary: #e6b422;
+  --primary-hover: #f0c33a;
+  --primary-foreground: #0a0c0f;
+  --primary-ink: #f0c33a;
 
-  --secondary: #241f16;
-  --secondary-foreground: #f1ece0;
+  --secondary: #191d23;
+  --secondary-foreground: #e9ecf1;
 
-  --muted: #241f16;
-  --muted-foreground: #948a72;
+  --muted: #191d23;
+  --muted-foreground: #8b929e;
 
-  --accent: #241f16;
-  --accent-foreground: #f1ece0;
-  --accent-soft: #2e2717;
+  --accent: #1b2028;
+  --accent-foreground: #e9ecf1;
+  --accent-soft: #2a2410; /* subtle gold tint — badges/avatars only */
 
-  --destructive: #e0574a;
-  --destructive-foreground: #16130e;
+  --destructive: #e5675a;
+  --destructive-foreground: #0a0c0f;
 
-  --border: #2c2619;
-  --input: #2c2619;
-  --ring: #d4a017;
+  --border: #232830;
+  --input: #1b2028;
+  --ring: #e6b422;
 }
 
 @theme inline {
@@ -127,11 +128,54 @@ html {
   color: var(--foreground);
 }
 
+/* Subtle single-hue backdrop so glass surfaces have something to refract. */
+.dark body {
+  background-image:
+    radial-gradient(900px 500px at 12% -8%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 60%),
+    radial-gradient(1100px 700px at 100% 0%, color-mix(in oklab, var(--primary) 4%, transparent), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* === Glassmorphism surfaces === */
+.glass {
+  background-color: color-mix(in oklab, var(--card) 68%, transparent);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  box-shadow: var(--shadow-md), inset 0 1px 0 0 color-mix(in oklab, white 6%, transparent);
+}
+.glass-strong {
+  background-color: color-mix(in oklab, var(--card) 82%, transparent);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 0 color-mix(in oklab, white 7%, transparent);
+}
+/* Lighter frosted surface for the many cards on a page (bounded blur). */
+.glass-card {
+  background-color: color-mix(in oklab, var(--card) 80%, transparent);
+  backdrop-filter: blur(8px) saturate(130%);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+/* Page-transition entrance (paired with motion/react in the shell). */
 @keyframes marquee {
   from {
     transform: translateX(0);
   }
   to {
     transform: translateX(-50%);
+  }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

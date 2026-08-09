@@ -43,6 +43,8 @@ type SystemKeys struct {
 	DeepSeekAPIKey string
 	GLMAPIKey      string
 	OpenAIAPIKey   string
+	OllamaAPIKey   string
+	OllamaModel    string
 	VoyageAPIKey   string
 }
 
@@ -114,6 +116,7 @@ var providerRegistry = []ProviderStatus{
 	{Provider: "glm", DisplayName: "GLM / ZhipuAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "glm-4.5-flash", RecommendedModels: []string{"glm-4.5-flash", "glm-4-plus", "glm-4-air"}, EmbeddingModels: []string{"embedding-3"}, Enabled: true},
 	{Provider: "openai", DisplayName: "OpenAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "gpt-4o-mini", RecommendedModels: []string{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}, EmbeddingModels: []string{"text-embedding-3-small", "text-embedding-3-large"}, Enabled: true},
 	{Provider: "openrouter", DisplayName: "OpenRouter", Capabilities: []string{"chat"}, DefaultModel: "openai/gpt-4o-mini", RecommendedModels: []string{"openai/gpt-4o-mini", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"}, Enabled: true},
+	{Provider: "ollama", DisplayName: "Ollama Cloud", Capabilities: []string{"chat"}, DefaultModel: "gpt-oss:120b", RecommendedModels: []string{"gpt-oss:120b", "gpt-oss:20b", "deepseek-v3.1:671b", "qwen3-coder:480b"}, Enabled: true},
 	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, EmbeddingModels: []string{"voyage-3"}, Enabled: true},
 }
 
@@ -539,9 +542,11 @@ func withProviderDefaults(target ModelTarget, cfg Config) ModelTarget {
 }
 
 func (r *Router) defaultChatTarget(cfg Config, legacy map[string]string) ModelTarget {
-	for _, provider := range []string{"nvidia", "deepseek", "glm", "openai", "openrouter"} {
+	for _, provider := range []string{"nvidia", "deepseek", "glm", "openai", "openrouter", "ollama"} {
 		if hasConfiguredKey(provider, cfg, legacy) || r.hasSystemKey(provider) {
-			return ModelTarget{Provider: provider, Model: defaultModel(ModelTarget{}, provider)}
+			// Leave Model empty so providerForTarget applies the operator's
+			// system-model override (e.g. OLLAMA_MODEL) before the built-in default.
+			return ModelTarget{Provider: provider}
 		}
 	}
 	return ModelTarget{}
@@ -742,6 +747,9 @@ func providerForTarget(name, key string, target ModelTarget, sys SystemKeys) ai.
 	if name == "nvidia" && sys.NVIDIAModel != "" {
 		p.Model = sys.NVIDIAModel
 	}
+	if name == "ollama" && sys.OllamaModel != "" {
+		p.Model = sys.OllamaModel
+	}
 	if target.Model != "" {
 		p.Model = target.Model
 	}
@@ -772,6 +780,8 @@ func (r *Router) systemKey(provider string) string {
 		return r.system.GLMAPIKey
 	case "openai":
 		return r.system.OpenAIAPIKey
+	case "ollama":
+		return r.system.OllamaAPIKey
 	case "voyage":
 		return r.system.VoyageAPIKey
 	default:
