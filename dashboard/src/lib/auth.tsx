@@ -47,9 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetch("/api/v1/auth/logout", {
       method: "POST",
       credentials: "include",
+      // The API requires JSON on auth POSTs (blocks cross-site form CSRF).
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
     });
     setUser(null);
-    window.location.href = "/login";  // dashboard login route
+    window.location.href = "/login";
   };
 
   return (
