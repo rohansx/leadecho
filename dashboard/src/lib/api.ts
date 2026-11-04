@@ -841,6 +841,47 @@ export function completeOnboarding(data: {
   });
 }
 
+// ─── Onboarding v2 (brand profile, listener builder, first value) ──
+
+export function getBrandProfile() {
+  return request<import("@/components/onboarding/types").BrandProfile>("/brand-profile");
+}
+
+export function saveBrandProfile(bp: import("@/components/onboarding/types").BrandProfile) {
+  return request<import("@/components/onboarding/types").BrandProfile>("/brand-profile", {
+    method: "PUT",
+    body: JSON.stringify(bp),
+  });
+}
+
+export function sendSampleFeedback(data: {
+  goal: string;
+  url: string;
+  text: string;
+  platform: string;
+  label: "up" | "down";
+}) {
+  return request<{ id: string }>("/onboarding/listeners/feedback", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function completeOnboardingWithListeners(data: {
+  brand_profile: import("@/components/onboarding/types").BrandProfile;
+  listeners: import("@/components/onboarding/types").Proposal[];
+  subreddits: string[];
+}) {
+  return request<{ status: string; profile_ids?: string[]; keywords_created?: number; already_completed?: boolean }>(
+    "/onboarding/complete",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function getFirstValue() {
+  return request<import("@/components/onboarding/types").FirstValue>("/onboarding/first-value");
+}
+
 // ─── UTM Tracking Links ────────────────────────────────
 
 export function listUTMLinks() {
