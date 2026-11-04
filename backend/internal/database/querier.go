@@ -13,9 +13,14 @@ import (
 type Querier interface {
 	ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error)
 	AssignMention(ctx context.Context, arg AssignMentionParams) (Mention, error)
+	// Per keyword over mentions created in the last @days days: volume, posted
+	// replies and the clicks/signups/revenue of those replies' tracked links.
+	AutomationKeywordValue(ctx context.Context, arg AutomationKeywordValueParams) ([]AutomationKeywordValueRow, error)
 	// Returns a row only when this caller owns the (workspace, kind, period) slot:
 	// a fresh insert, or a retry of a failed run (max 3 attempts).
 	ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error)
+	// Returns a row only for the first caller of an (automation, period) slot.
+	ClaimScheduledAutomationRun(ctx context.Context, arg ClaimScheduledAutomationRunParams) (AutomationRun, error)
 	ConversionFunnel(ctx context.Context, workspaceID string) ([]ConversionFunnelRow, error)
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountConvertedLeads(ctx context.Context, workspaceID string) (int32, error)
@@ -38,6 +43,7 @@ type Querier interface {
 	CountRepliesByStatus(ctx context.Context, workspaceID string) ([]CountRepliesByStatusRow, error)
 	CountRepliesPosted30d(ctx context.Context, workspaceID string) (int32, error)
 	CountTotalLeads(ctx context.Context, workspaceID string) (int32, error)
+	CreateAutomation(ctx context.Context, arg CreateAutomationParams) (Automation, error)
 	CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error)
 	// chat (P2 #15). Every query is scoped by workspace_id and, for threads, user_id.
 	CreateChatThread(ctx context.Context, arg CreateChatThreadParams) (ChatThread, error)
@@ -51,6 +57,7 @@ type Querier interface {
 	CreateKeyword(ctx context.Context, arg CreateKeywordParams) (CreateKeywordRow, error)
 	CreateLead(ctx context.Context, arg CreateLeadParams) (Lead, error)
 	CreateLeadEvent(ctx context.Context, arg CreateLeadEventParams) (LeadEvent, error)
+	CreateManualAutomationRun(ctx context.Context, arg CreateManualAutomationRunParams) (AutomationRun, error)
 	CreateMention(ctx context.Context, arg CreateMentionParams) (Mention, error)
 	CreateMonitoringProfile(ctx context.Context, arg CreateMonitoringProfileParams) (MonitoringProfile, error)
 	// Idempotent: re-muting the same value returns the existing row.
@@ -72,6 +79,7 @@ type Querier interface {
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	CreateWorkspaceAPIKey(ctx context.Context, arg CreateWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
+	DeleteAutomation(ctx context.Context, arg DeleteAutomationParams) (int64, error)
 	DeleteChatThread(ctx context.Context, arg DeleteChatThreadParams) (int64, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
 	DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error
@@ -99,8 +107,10 @@ type Querier interface {
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) (AutomationRun, error)
 	FinishDigestRun(ctx context.Context, arg FinishDigestRunParams) error
 	GetActiveWorkspaceAPIKeyByHash(ctx context.Context, keyHash string) (WorkspaceApiKey, error)
+	GetAutomation(ctx context.Context, arg GetAutomationParams) (Automation, error)
 	// ─── Brand profile (onboarding) ───────────────────────
 	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
 	GetChatMessageForUser(ctx context.Context, arg GetChatMessageForUserParams) (ChatMessage, error)
@@ -148,6 +158,9 @@ type Querier interface {
 	ListAllActiveKeywords(ctx context.Context) ([]ListAllActiveKeywordsRow, error)
 	ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfile, error)
 	ListApprovedRepliesByWorkspace(ctx context.Context, workspaceID string) ([]ListApprovedRepliesByWorkspaceRow, error)
+	ListAutomationRuns(ctx context.Context, arg ListAutomationRunsParams) ([]AutomationRun, error)
+	// automations (P2 #17)
+	ListAutomations(ctx context.Context, workspaceID string) ([]Automation, error)
 	ListChatMessages(ctx context.Context, arg ListChatMessagesParams) ([]ChatMessage, error)
 	ListChatThreads(ctx context.Context, arg ListChatThreadsParams) ([]ChatThread, error)
 	ListConsumerCheckpoints(ctx context.Context) ([]ConsumerCheckpoint, error)
@@ -156,6 +169,8 @@ type Querier interface {
 	ListDocuments(ctx context.Context, workspaceID string) ([]Document, error)
 	// Cross-workspace on purpose (monitor tick); every row carries workspace_id.
 	ListDueTrackedProfiles(ctx context.Context, arg ListDueTrackedProfilesParams) ([]TrackedProfile, error)
+	// Scheduler scan across all workspaces; every follow-up query is scoped by workspace_id.
+	ListEnabledAutomations(ctx context.Context) ([]Automation, error)
 	ListEventLogByWorkspace(ctx context.Context, arg ListEventLogByWorkspaceParams) ([]EventLog, error)
 	ListEventReplays(ctx context.Context, arg ListEventReplaysParams) ([]EventReplay, error)
 	ListHumanProposals(ctx context.Context, arg ListHumanProposalsParams) ([]HumanProposal, error)
@@ -220,6 +235,7 @@ type Querier interface {
 	RevokeWorkspaceAPIKey(ctx context.Context, arg RevokeWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
+	SetAutomationLastRun(ctx context.Context, arg SetAutomationLastRunParams) error
 	// One statement flips the old default off and the new one on; no-op when the
 	// id is not in this workspace.
 	SetDefaultResponseProfile(ctx context.Context, arg SetDefaultResponseProfileParams) (int64, error)
@@ -241,6 +257,7 @@ type Querier interface {
 	TouchExtensionToken(ctx context.Context, token string) error
 	TouchWorkspaceAPIKey(ctx context.Context, arg TouchWorkspaceAPIKeyParams) error
 	TregSpendByTool(ctx context.Context, arg TregSpendByToolParams) ([]TregSpendByToolRow, error)
+	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDocumentChunkCount(ctx context.Context, arg UpdateDocumentChunkCountParams) error
 	UpdateEventReplayStatus(ctx context.Context, arg UpdateEventReplayStatusParams) (EventReplay, error)

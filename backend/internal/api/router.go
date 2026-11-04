@@ -15,6 +15,7 @@ import (
 	"leadecho/internal/apikey"
 	"leadecho/internal/attribution"
 	"leadecho/internal/auth"
+	"leadecho/internal/automation" // automations (P2 #17)
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
@@ -325,6 +326,18 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Delete("/chat/threads/{id}", chatH.DeleteThread)
 			r.Post("/chat/messages/{id}/confirm", chatH.Confirm)
 			// end chat
+			// automations (P2 #17): scheduled playbooks + prompt library
+			autoH := handler.NewAutomationHandler(queries, automation.NewService(queries, agentTools,
+				cfg.ResendAPIKey, cfg.DigestFromEmail, cfg.FrontendURL, logger))
+			r.Get("/automations", autoH.List)
+			r.Post("/automations", autoH.Create)
+			r.Get("/automations/{id}", autoH.Get)
+			r.Put("/automations/{id}", autoH.Update)
+			r.Delete("/automations/{id}", autoH.Delete)
+			r.Post("/automations/{id}/run", autoH.Run)
+			r.Get("/automations/{id}/runs", autoH.Runs)
+			r.Get("/skills", handler.ListSkills)
+			// end automations
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the
