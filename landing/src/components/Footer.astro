@@ -1,4 +1,5 @@
 ---
+import { growthPages } from '../data/growth'; // growth
 ---
 
 <footer>
@@ -13,6 +14,12 @@
       <a href="#pricing">Pricing</a>
       <a href="#how-it-works">How it works</a>
       <a href="https://github.com/rohansx/leadecho#readme" target="_blank" rel="noreferrer">Docs</a>
+    </div>
+    <!-- growth: compare / monitor / free tool links -->
+    <div class="footer-col">
+      <h4>Compare</h4>
+      {growthPages.map((p) => <a href={`/${p.section}/${p.slug}`}>{p.label}</a>)}
+      <a href="/tools/keyword-tester">Free keyword tester</a>
     </div>
     <div class="footer-col">
       <h4>Company</h4>

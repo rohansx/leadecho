@@ -45,3 +45,7 @@ pgdata/
 .fastembed_cache/
 .illuminate/
 .claude/settings.local.json
+
+# growth: landing build outputs
+landing/dist/
+landing/.astro/

@@ -47,6 +47,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	r.Get("/healthz", health.Healthz)
 	r.Get("/readyz", health.Readyz)
 
+	// growth: agent index (no auth)
+	r.Get("/llms.txt", handler.LLMSTxt)
+
 	// sqlc queries instance
 	queries := database.New(db)
 	crm := crmsync.NewDispatcher(queries, crypto.DeriveKey(cfg.EncryptionKeyOrDefault()), logger)

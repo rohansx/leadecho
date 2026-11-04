@@ -4,6 +4,7 @@ import react from '@astrojs/react';
 export default defineConfig({
   integrations: [react()],
   output: 'static',
+  site: 'https://leadecho.app', // growth: canonical origin for sitemap
   vite: {
     server: {
       proxy: {
