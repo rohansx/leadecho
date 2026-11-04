@@ -145,11 +145,38 @@ func (s *Service) EnrichLead(ctx context.Context, leadID, workspaceID string) er
 		return fmt.Errorf("link lead to person: %w", err)
 	}
 
+	var gh *GitHubProfile
 	githubHandle := extractGitHubHandle(profileURL, mention.Content, handle)
 	if githubHandle != "" {
-		if err := s.enrichFromGitHub(ctx, workspaceID, person.ID, githubHandle); err != nil {
+		if gh, err = s.enrichFromGitHub(ctx, workspaceID, person.ID, githubHandle); err != nil {
 			s.logger.Debug().Err(err).Str("handle", githubHandle).Msg("github enrichment skipped")
 		}
+	}
+	return s.updateICPFit(ctx, workspaceID, person.ID, mention, gh)
+}
+
+func (s *Service) updateICPFit(ctx context.Context, workspaceID, personID string, mention database.Mention, gh *GitHubProfile) error {
+	person, err := s.q.GetPerson(ctx, database.GetPersonParams{ID: personID, WorkspaceID: workspaceID})
+	if err != nil {
+		return fmt.Errorf("get person for icp: %w", err)
+	}
+	sig := ICPSignals{
+		ProfileSimilarity:     similarityFromMeta(mention.ScoringMetadata),
+		RelevanceScore:        float64(mention.RelevanceScore.Float32),
+		ConversionProbability: float64(mention.ConversionProbability.Float32),
+		HasCompany:            person.Company.Valid && person.Company.String != "",
+	}
+	if gh != nil {
+		sig.HasWebsite = strings.TrimSpace(gh.Blog) != ""
+		sig.PublicRepos = gh.PublicRepos
+	}
+	if _, err := s.q.UpdatePerson(ctx, database.UpdatePersonParams{
+		ID:          personID,
+		WorkspaceID: workspaceID,
+		IcpFitScore: pgtype.Float4{Float32: ICPFitScore(sig), Valid: true},
+		Confidence:  person.Confidence,
+	}); err != nil {
+		return fmt.Errorf("update icp fit: %w", err)
 	}
 	return nil
 }
@@ -197,10 +224,10 @@ func (s *Service) ensurePerson(ctx context.Context, workspaceID string, lead dat
 	return person, nil
 }
 
-func (s *Service) enrichFromGitHub(ctx context.Context, workspaceID, personID, handle string) error {
+func (s *Service) enrichFromGitHub(ctx context.Context, workspaceID, personID, handle string) (*GitHubProfile, error) {
 	profile, err := s.github.FetchUser(ctx, handle)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	meta, _ := json.Marshal(map[string]any{
@@ -218,7 +245,7 @@ func (s *Service) enrichFromGitHub(ctx context.Context, workspaceID, personID, h
 		Metadata:    meta,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	confidence := float32(0.75)
@@ -236,14 +263,33 @@ func (s *Service) enrichFromGitHub(ctx context.Context, workspaceID, personID, h
 		Confidence:  confidence,
 		Metadata:    meta,
 	})
-	return err
+	return profile, err
 }
 
 // Person360View is the API response for mention/lead enrichment.
 type Person360View struct {
-	Person      *database.Person             `json:"person,omitempty"`
-	Identities  []database.PersonIdentity    `json:"identities"`
-	Enriched    bool                         `json:"enriched"`
+	Person     *PersonView    `json:"person,omitempty"`
+	Identities []IdentityView `json:"identities"`
+	Enriched   bool           `json:"enriched"`
+}
+
+// PersonView / IdentityView shadow the jsonb []byte Metadata column so it
+// serializes as a JSON object instead of base64.
+type PersonView struct {
+	database.Person
+	Metadata json.RawMessage `json:"metadata"`
+}
+
+type IdentityView struct {
+	database.PersonIdentity
+	Metadata json.RawMessage `json:"metadata"`
+}
+
+func rawJSON(b []byte) json.RawMessage {
+	if !json.Valid(b) {
+		return json.RawMessage("{}")
+	}
+	return json.RawMessage(b)
 }
 
 func (s *Service) GetPerson360ByMention(ctx context.Context, workspaceID, mentionID string) (*Person360View, error) {
@@ -253,13 +299,13 @@ func (s *Service) GetPerson360ByMention(ctx context.Context, workspaceID, mentio
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &Person360View{Identities: []database.PersonIdentity{}}, nil
+			return &Person360View{Identities: []IdentityView{}}, nil
 		}
 		return nil, err
 	}
 	if !lead.PersonID.Valid {
 		s.EnrichLeadAsync(lead.ID, workspaceID)
-		return &Person360View{Identities: []database.PersonIdentity{}, Enriched: false}, nil
+		return &Person360View{Identities: []IdentityView{}, Enriched: false}, nil
 	}
 
 	person, err := s.q.GetPerson(ctx, database.GetPersonParams{
@@ -281,9 +327,13 @@ func (s *Service) GetPerson360ByMention(ctx context.Context, workspaceID, mentio
 		identities = []database.PersonIdentity{}
 	}
 
+	views := make([]IdentityView, 0, len(identities))
+	for _, id := range identities {
+		views = append(views, IdentityView{PersonIdentity: id, Metadata: rawJSON(id.Metadata)})
+	}
 	return &Person360View{
-		Person:     &person,
-		Identities: identities,
+		Person:     &PersonView{Person: person, Metadata: rawJSON(person.Metadata)},
+		Identities: views,
 		Enriched:   true,
 	}, nil
 }

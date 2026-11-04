@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,6 +16,7 @@ import (
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/database"
+	"leadecho/internal/netsafe"
 )
 
 // allowedWebhookHosts pins outbound webhook tests to the real provider hosts so
@@ -48,51 +48,6 @@ func validateWebhookURL(channel, raw string) error {
 	return nil
 }
 
-// isDisallowedIP blocks loopback/private/link-local/unspecified and CGNAT ranges.
-func isDisallowedIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-		return true
-	}
-	// CGNAT 100.64.0.0/10
-	if v4 := ip.To4(); v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127 {
-		return true
-	}
-	return false
-}
-
-// safeWebhookClient resolves the target itself and refuses to connect to any
-// internal address (re-checked at dial time to defeat DNS rebinding), and
-// disallows redirects.
-func safeWebhookClient(timeout time.Duration) *http.Client {
-	dialer := &net.Dialer{Timeout: timeout}
-	return &http.Client{
-		Timeout: timeout,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("redirects are not allowed")
-		},
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, err
-				}
-				ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-				if err != nil || len(ips) == 0 {
-					return nil, fmt.Errorf("dns lookup failed for %s", host)
-				}
-				for _, ip := range ips {
-					if isDisallowedIP(ip.IP) {
-						return nil, fmt.Errorf("blocked internal address: %s", ip.IP)
-					}
-				}
-				// Dial the already-validated IP to avoid a TOCTOU re-resolution.
-				return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
-			},
-		},
-	}
-}
-
 // postWebhook validates + sends a webhook test and treats a non-2xx response as
 // a failure (so a broken webhook never reports a green "sent").
 func postWebhook(ctx context.Context, channel, webhookURL string, payload []byte) error {
@@ -104,7 +59,7 @@ func postWebhook(ctx context.Context, channel, webhookURL string, payload []byte
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := safeWebhookClient(8 * time.Second).Do(req)
+	resp, err := netsafe.Client(8 * time.Second).Do(req)
 	if err != nil {
 		return err
 	}
@@ -313,14 +268,14 @@ func (h *NotificationHandler) SaveWebhookConfig(w http.ResponseWriter, r *http.R
 	}
 
 	settings["webhooks"] = map[string]any{
-		"slack_url":          body.SlackURL,
-		"discord_url":        body.DiscordURL,
-		"email_to":           body.EmailTo,
-		"enabled":            body.Enabled,
-		"on_new_mention":     body.OnNewMention,
-		"on_high_intent":     body.OnHighIntent,
-		"on_new_lead":        body.OnNewLead,
-		"conversion_secret":  existing["conversion_secret"],
+		"slack_url":         body.SlackURL,
+		"discord_url":       body.DiscordURL,
+		"email_to":          body.EmailTo,
+		"enabled":           body.Enabled,
+		"on_new_mention":    body.OnNewMention,
+		"on_high_intent":    body.OnHighIntent,
+		"on_new_lead":       body.OnNewLead,
+		"conversion_secret": existing["conversion_secret"],
 	}
 
 	data, _ := json.Marshal(settings)

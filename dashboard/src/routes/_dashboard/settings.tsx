@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { IntegrationsCard } from "@/components/settings/integrations-card";
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -637,6 +638,8 @@ function SettingsPage() {
       </ErrorBoundary>
 
       <ChromeExtensionCard />
+
+      <IntegrationsCard />
 
       <Card>
         <CardHeader>

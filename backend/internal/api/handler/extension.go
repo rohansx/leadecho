@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/monitor"
 )
@@ -30,10 +31,11 @@ var validExtensionPlatforms = map[string]bool{
 type ExtensionHandler struct {
 	q   *database.Queries
 	mon *monitor.Monitor
+	crm *crmsync.Dispatcher
 }
 
-func NewExtensionHandler(q *database.Queries, mon *monitor.Monitor) *ExtensionHandler {
-	return &ExtensionHandler{q: q, mon: mon}
+func NewExtensionHandler(q *database.Queries, mon *monitor.Monitor, crm *crmsync.Dispatcher) *ExtensionHandler {
+	return &ExtensionHandler{q: q, mon: mon, crm: crm}
 }
 
 // ── Token management (JWT-protected, called from the dashboard) ───────────────
@@ -336,6 +338,7 @@ func (h *ExtensionHandler) MarkReplyPosted(w http.ResponseWriter, r *http.Reques
 					ChangedBy:     pgtype.UUID{},
 					Notes:         pgtype.Text{String: "reply_posted", Valid: true},
 				})
+				h.crm.Emit(wsID, crmsync.Event{Type: crmsync.EventLeadStageChanged, LeadID: updated.ID, PrevStage: string(prev)})
 			}
 		}
 	}

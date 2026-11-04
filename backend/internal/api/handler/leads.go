@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 )
 
@@ -23,11 +24,12 @@ var validLeadStages = map[string]bool{
 }
 
 type LeadHandler struct {
-	q *database.Queries
+	q   *database.Queries
+	crm *crmsync.Dispatcher
 }
 
-func NewLeadHandler(q *database.Queries) *LeadHandler {
-	return &LeadHandler{q: q}
+func NewLeadHandler(q *database.Queries, crm *crmsync.Dispatcher) *LeadHandler {
+	return &LeadHandler{q: q, crm: crm}
 }
 
 type LeadResponse struct {
@@ -97,11 +99,7 @@ func (h *LeadHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	limit := int32(50)
 	offset := int32(0)
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
-			limit = int32(n)
-		}
-	}
+	limit = parseLimit(r, limit, maxPageSize)
 	if v := r.URL.Query().Get("offset"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			offset = int32(n)
@@ -238,6 +236,7 @@ func (h *LeadHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.crm.Emit(workspaceID, crmsync.Event{Type: crmsync.EventLeadCreated, LeadID: l.ID})
 	writeJSON(w, http.StatusCreated, leadToResponse(l))
 }
 
@@ -291,6 +290,7 @@ func (h *LeadHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 			ChangedBy:     parseUUID(middleware.UserID(ctx)),
 			Notes:         pgtype.Text{String: "stage_updated", Valid: true},
 		})
+		h.crm.Emit(workspaceID, crmsync.Event{Type: crmsync.EventLeadStageChanged, LeadID: l.ID, PrevStage: string(existing.Stage)})
 	}
 
 	writeJSON(w, http.StatusOK, leadToResponse(l))
