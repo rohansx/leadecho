@@ -65,6 +65,9 @@ type Monitor struct {
 
 	// sources: optional Bluesky session (BLUESKY_HANDLE/BLUESKY_APP_PASSWORD).
 	bluesky blueskyAuth
+
+	// enrich: tracked LinkedIn/X profile poll interval (0 = off).
+	trackedEvery time.Duration
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -131,6 +134,8 @@ func (m *Monitor) tick(ctx context.Context) {
 				Msg("monitor: recovered from panic in tick")
 		}
 	}()
+
+	m.pollTrackedProfiles(ctx) // enrich: tracked LinkedIn/X profiles
 
 	// Fetch all active keywords across every workspace
 	allKeywords, err := m.q.ListAllActiveKeywords(ctx)

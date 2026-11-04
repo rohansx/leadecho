@@ -23,11 +23,11 @@ type tregPost struct {
 // ponytail: key lists cover anyapi/tikhub/justoneapi-style rows as documented;
 // tighten against captured traffic once a TREG_TOKEN is live.
 var (
-	rowContainerKeys = []string{"output", "posts", "results", "data", "items", "elements", "tweets"}
+	rowContainerKeys = []string{"output", "posts", "results", "data", "items", "elements", "tweets", "rows"}
 	idKeys           = []string{"id_str", "rest_id", "tweetId", "tweet_id", "urn", "activityId", "postId", "id"}
 	textKeys         = []string{"full_text", "fullText", "text", "content", "commentary", "body", "description", "snippet"}
 	urlKeys          = []string{"url", "twitterUrl", "tweetUrl", "postUrl", "post_url", "shareUrl", "link"}
-	timeKeys         = []string{"createdAt", "created_at", "publishedAt", "published_at", "postedAt", "posted_at", "publishDate", "date", "timestamp", "time"}
+	timeKeys         = []string{"createdAt", "created_at", "publishedAt", "published_at", "postedAt", "posted_at", "publishDate", "date", "timestamp", "time", "createdUtc"}
 	userKeys         = []string{"userName", "username", "screen_name", "handle", "publicIdentifier", "name"}
 	authorURLKeys    = []string{"url", "profileUrl", "profile_url", "linkedinUrl"}
 )

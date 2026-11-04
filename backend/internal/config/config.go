@@ -95,6 +95,10 @@ type Config struct {
 	TregOrgID        string `env:"TREG_ORG_ID,default="`
 	TregBaseURL      string `env:"TREG_BASE_URL,default=https://treg.to"`
 	TregMaxCostMicro int64  `env:"TREG_MAX_COST_MICRO,default=20000"`
+	// enrich: treg lead enrichment (qualified leads only) + tracked profiles.
+	EnrichDailyCap            int   `env:"ENRICH_DAILY_CAP,default=25"`
+	TregCustomerDailyCapMicro int64 `env:"TREG_CUSTOMER_DAILY_CAP_MICRO,default=0"`
+	TrackedProfilesPollHours  int   `env:"TRACKED_PROFILES_POLL_HOURS,default=6"`
 	// RedditCommentsEnabled searches subreddit comments (free public JSON).
 	RedditCommentsEnabled bool `env:"REDDIT_COMMENTS_ENABLED,default=true"`
 	// sources: optional Bluesky session for authenticated search. Unset =

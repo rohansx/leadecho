@@ -39,6 +39,13 @@ type LeadPayload struct {
 	Platform       string `json:"platform,omitempty"`
 	ProfileURL     string `json:"profile_url,omitempty"`
 	EstimatedValue int32  `json:"estimated_value,omitempty"`
+	// enrich: from leads.metadata.enrichment
+	JobTitle      string `json:"job_title,omitempty"`
+	Industry      string `json:"industry,omitempty"`
+	CompanyDomain string `json:"company_domain,omitempty"`
+	CompanySize   int    `json:"company_size,omitempty"`
+	LinkedInURL   string `json:"linkedin_url,omitempty"`
+	EmailStatus   string `json:"email_status,omitempty"`
 }
 
 // Dispatcher fans events out to every destination a workspace has configured.
@@ -147,7 +154,7 @@ func toPayload(l database.Lead) LeadPayload {
 	if l.Platform.Valid {
 		p.Platform = string(l.Platform.PlatformType)
 	}
-	return p
+	return withEnrichment(p, l.Metadata) // enrich
 }
 
 // displayName picks the best human label for a lead.

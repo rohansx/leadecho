@@ -22,6 +22,8 @@ type Querier interface {
 	CountDocuments(ctx context.Context, workspaceID string) (int32, error)
 	// ─── KB seed ──────────────────────────────────────────
 	CountDocumentsBySourceURL(ctx context.Context, arg CountDocumentsBySourceURLParams) (int32, error)
+	// enrich (P1 #11, P2 #16): lead enrichment cap, LinkedIn engagers, tracked profiles.
+	CountEnrichedLeadsSince(ctx context.Context, arg CountEnrichedLeadsSinceParams) (int64, error)
 	CountHumanProposalsByStatus(ctx context.Context, workspaceID string) ([]CountHumanProposalsByStatusRow, error)
 	CountKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountLeadsByStage(ctx context.Context, workspaceID string) ([]CountLeadsByStageRow, error)
@@ -60,6 +62,7 @@ type Querier interface {
 	// The first profile in a workspace becomes its default.
 	CreateResponseProfile(ctx context.Context, arg CreateResponseProfileParams) (ResponseProfile, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
+	CreateTrackedProfile(ctx context.Context, arg CreateTrackedProfileParams) (TrackedProfile, error)
 	CreateUTMEvent(ctx context.Context, arg CreateUTMEventParams) (UtmEvent, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -75,6 +78,7 @@ type Querier interface {
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
 	DeleteResponseProfile(ctx context.Context, arg DeleteResponseProfileParams) (int64, error)
+	DeleteTrackedProfile(ctx context.Context, arg DeleteTrackedProfileParams) (int64, error)
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
 	DigestAttribution(ctx context.Context, arg DigestAttributionParams) (DigestAttributionRow, error)
 	DigestIntentCounts(ctx context.Context, arg DigestIntentCountsParams) ([]DigestIntentCountsRow, error)
@@ -142,6 +146,8 @@ type Querier interface {
 	// Every workspace with its digest schedule; workspaces without a row get the defaults.
 	ListDigestSchedules(ctx context.Context) ([]ListDigestSchedulesRow, error)
 	ListDocuments(ctx context.Context, workspaceID string) ([]Document, error)
+	// Cross-workspace on purpose (monitor tick); every row carries workspace_id.
+	ListDueTrackedProfiles(ctx context.Context, arg ListDueTrackedProfilesParams) ([]TrackedProfile, error)
 	ListEventLogByWorkspace(ctx context.Context, arg ListEventLogByWorkspaceParams) ([]EventLog, error)
 	ListEventReplays(ctx context.Context, arg ListEventReplaysParams) ([]EventReplay, error)
 	ListHumanProposals(ctx context.Context, arg ListHumanProposalsParams) ([]HumanProposal, error)
@@ -181,6 +187,7 @@ type Querier interface {
 	// Latest labelled mentions for one listener; profile_id NULL = mentions with
 	// no listener (workspace-level examples).
 	ListScoringExamples(ctx context.Context, arg ListScoringExamplesParams) ([]ListScoringExamplesRow, error)
+	ListTrackedProfiles(ctx context.Context, workspaceID string) ([]TrackedProfile, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
 	// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
 	// re-sending them to the LLM every tick wastes tokens. Classification errors
@@ -191,6 +198,7 @@ type Querier interface {
 	MarkEventLogPublishFailed(ctx context.Context, arg MarkEventLogPublishFailedParams) (EventLog, error)
 	MarkEventLogPublished(ctx context.Context, arg MarkEventLogPublishedParams) (EventLog, error)
 	MarkReplyPosted(ctx context.Context, arg MarkReplyPostedParams) (Reply, error)
+	MarkTrackedProfilePolled(ctx context.Context, arg MarkTrackedProfilePolledParams) error
 	MentionsPerDay(ctx context.Context, workspaceID string) ([]MentionsPerDayRow, error)
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
@@ -252,6 +260,9 @@ type Querier interface {
 	UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error)
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
 	UpsertDigestSettings(ctx context.Context, arg UpsertDigestSettingsParams) (DigestSetting, error)
+	// scoring_metadata.stage keeps these out of the LLM backfill (which would
+	// auto-qualify a second lead); relevance is the engager heuristic.
+	UpsertEngagerMention(ctx context.Context, arg UpsertEngagerMentionParams) (string, error)
 	UpsertKeywordPlatformScan(ctx context.Context, arg UpsertKeywordPlatformScanParams) error
 	UpsertMentionFeedback(ctx context.Context, arg UpsertMentionFeedbackParams) (MentionFeedback, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)

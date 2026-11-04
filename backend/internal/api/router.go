@@ -21,6 +21,7 @@ import (
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
 	"leadecho/internal/digest" // digests (P1 #13)
+	"leadecho/internal/engagers"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
@@ -228,6 +229,20 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// treg feature: workspace data (treg) spend this month
 			r.Get("/usage/data-spend", handler.NewDataSpendHandler(queries).Get)
+
+			// enrich: LinkedIn engagers -> leads, tracked LinkedIn/X profiles
+			var engScorer engagers.Scorer
+			if rs != nil { // avoid a typed-nil interface
+				engScorer = rs
+			}
+			engH := handler.NewEngagersHandler(engagers.NewImporter(queries, mon.Treg(), engScorer, logger), queries, crm)
+			r.Post("/linkedin/engagers", engH.Pull)
+			r.Post("/linkedin/engagers/push", engH.Push)
+			trackedH := handler.NewTrackedProfilesHandler(queries)
+			r.Get("/tracked-profiles", trackedH.List)
+			r.Post("/tracked-profiles", trackedH.Create)
+			r.Delete("/tracked-profiles/{id}", trackedH.Delete)
+			// end enrich
 
 			// Browser sessions (Pinchtab)
 			sessions := handler.NewSessionHandler(queries, encKey, pinchtab)
