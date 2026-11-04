@@ -23,7 +23,7 @@ import (
 const (
 	competitorLookupTimeout = 10 * time.Second
 	kbSeedTimeout           = 3 * time.Minute
-	sseWriteWindow          = 2 * time.Minute
+	sseWriteWindow          = 3 * time.Minute
 )
 
 var errBadURL = errors.New("bad url")
