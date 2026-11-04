@@ -5,7 +5,7 @@ const nodes = [
     kind: "system",
     when: "Mon 09:14",
     who: "Scout + Triage + Researcher",
-    body: "Post detected. Intent 9.2 · ICP 88%. Person360 stitched (3 handles). Routed to Conversation agent.",
+    body: "Post detected. Intent 9.2 · ICP 88%. Person360 enriched via GitHub. Routed to Conversation agent.",
   },
   {
     kind: "agent",

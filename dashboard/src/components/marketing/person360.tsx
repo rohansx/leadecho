@@ -2,27 +2,17 @@ import { motion } from "motion/react";
 import { Reveal } from "./reveal";
 
 const personRows = [
-  { key: "Role", val: <><b>Founder &amp; engineer</b> · Cursive Labs (since 2024)</> },
-  { key: "GitHub", val: <><span className="rounded bg-muted px-1.5 py-0.5 text-xs mr-1">danielreyes</span> 1.4k stars · <b>Python · TypeScript</b></> },
-  { key: "LinkedIn", val: "SF Bay · ex-Stripe (3y) · ex-Lyft (2y)" },
-  { key: "Reddit", val: <><span className="rounded bg-muted px-1.5 py-0.5 text-xs mr-1">u/build_in_public</span> 7.2k karma · active in r/saas, r/startups</> },
-  { key: "Recent", val: <>Shipped <b>v2 of inbox classifier</b> 4d ago · 3 HN comments this week</> },
+  { key: "Role", val: <><b>Founder &amp; engineer</b> · Cursive Labs</> },
+  { key: "GitHub", val: <><span className="rounded bg-muted px-1.5 py-0.5 text-xs mr-1">danielreyes</span> 42 repos · 310 followers</> },
+  { key: "Location", val: "SF Bay Area" },
   { key: "Awareness", val: <span className="rounded-full bg-accent-soft text-primary-ink text-xs px-2 py-0.5">Vendor Aware · evaluating, has budget</span> },
 ];
 
 const accountRows = [
-  { key: "Industry", val: <><b>B2B SaaS</b> · developer tools, AI workflow</> },
-  { key: "Size", val: "4 employees · 2 engineers · pre-seed stage" },
-  { key: "Funding", val: "$420k angel round · Aug 2024" },
-  { key: "Stack", val: (
-    <div className="flex flex-wrap gap-1">
-      {["Next.js 15", "Postgres", "Stripe", "OpenAI", "Vercel"].map((s) => (
-        <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">{s}</span>
-      ))}
-    </div>
-  ) },
-  { key: "Signals", val: <>Built-in-public on X, MRR shared monthly · <b>$2.4k MRR</b></> },
-  { key: "Pain", val: <>3 of last 5 posts reference <span className="rounded-full bg-accent-soft text-primary-ink text-xs px-2 py-0.5">rate limiting</span></> },
+  { key: "Company", val: <><b>Cursive Labs</b> · from GitHub profile</> },
+  { key: "Website", val: "cursivelabs.dev" },
+  { key: "Profile", val: <>Matched <span className="rounded-full bg-accent-soft text-primary-ink text-xs px-2 py-0.5">API rate limiting</span> pain point · 0.82 similarity</> },
+  { key: "Intent", val: <><b>buy_signal</b> · score 9.2</> },
 ];
 
 export function Person360Section() {
@@ -44,8 +34,8 @@ export function Person360Section() {
           </Reveal>
           <Reveal delay={0.1}>
             <p className="text-lg text-foreground-soft leading-relaxed">
-              The Researcher agent stitches one Reddit username into a real human with a GitHub history, a company,
-              a tech stack, and an ICP fit score — before you open the lead.
+              The Researcher agent links one username to a GitHub history, a company,
+              and an ICP fit score — before you open the lead.
             </p>
           </Reveal>
         </div>
@@ -58,12 +48,11 @@ export function Person360Section() {
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary mr-1.5" />
                   PERSON
                 </span>{" "}
-                <span className="text-muted-foreground font-normal ml-1">stitched in 6s</span>
+                <span className="text-muted-foreground font-normal ml-1">enriched in 2s</span>
               </h5>
               <div className="mt-4 text-2xl font-[family-name:var(--font-head)] font-medium">Daniel Reyes</div>
               <div className="text-sm text-muted-foreground mt-1">
-                @build_in_public · 3 handles linked ·{" "}
-                <span className="text-primary-ink">writing-style match 0.91</span>
+                @build_in_public · GitHub linked
               </div>
 
               <div className="mt-5 divide-y divide-border">
@@ -100,10 +89,10 @@ export function Person360Section() {
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary mr-1.5" />
                   ACCOUNT
                 </span>{" "}
-                <span className="text-muted-foreground font-normal ml-1">enriched in 4s</span>
+                <span className="text-muted-foreground font-normal ml-1">from lead signals</span>
               </h5>
               <div className="mt-4 text-2xl font-[family-name:var(--font-head)] font-medium">Cursive Labs</div>
-              <div className="text-sm text-muted-foreground mt-1">cursivelabs.dev · founded 2024</div>
+              <div className="text-sm text-muted-foreground mt-1">cursivelabs.dev</div>
 
               <div className="mt-5 divide-y divide-border">
                 {accountRows.map((r) => (
@@ -116,7 +105,7 @@ export function Person360Section() {
 
               <div className="mt-5 rounded-lg bg-accent-soft/60 p-4">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Recommended playbook</span>
+                  <span className="text-muted-foreground">Suggested reply style</span>
                   <b className="font-[family-name:var(--font-head)]">storytelling · technical</b>
                 </div>
                 <div className="mt-2 text-xs text-foreground-soft font-[family-name:var(--font-mono)] leading-relaxed">
