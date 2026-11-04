@@ -52,7 +52,7 @@ WHERE id = @id AND workspace_id = @workspace_id;
 
 -- name: DigestTopMentions :many
 SELECT m.id, m.platform, m.url, m.title, m.content, m.author_username,
-       m.relevance_score, m.intent
+       m.relevance_score, m.intent, m.intent_tags
 FROM mentions m
 WHERE m.workspace_id = @workspace_id
   AND m.created_at >= @period_start AND m.created_at < @period_end

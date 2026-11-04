@@ -221,7 +221,7 @@ func (q *Queries) DigestRepliesPosted(ctx context.Context, arg DigestRepliesPost
 
 const digestTopMentions = `-- name: DigestTopMentions :many
 SELECT m.id, m.platform, m.url, m.title, m.content, m.author_username,
-       m.relevance_score, m.intent
+       m.relevance_score, m.intent, m.intent_tags
 FROM mentions m
 WHERE m.workspace_id = $1
   AND m.created_at >= $2 AND m.created_at < $3
@@ -247,6 +247,7 @@ type DigestTopMentionsRow struct {
 	AuthorUsername pgtype.Text    `json:"author_username"`
 	RelevanceScore pgtype.Float4  `json:"relevance_score"`
 	Intent         NullIntentType `json:"intent"`
+	IntentTags     []string       `json:"intent_tags"`
 }
 
 func (q *Queries) DigestTopMentions(ctx context.Context, arg DigestTopMentionsParams) ([]DigestTopMentionsRow, error) {
@@ -272,6 +273,7 @@ func (q *Queries) DigestTopMentions(ctx context.Context, arg DigestTopMentionsPa
 			&i.AuthorUsername,
 			&i.RelevanceScore,
 			&i.Intent,
+			&i.IntentTags,
 		); err != nil {
 			return nil, err
 		}

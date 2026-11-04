@@ -227,6 +227,10 @@ func TestOnboardingFlowDB(t *testing.T) {
 		if err != nil || len(ex) != 1 || !ex[0].Relevant {
 			t.Fatalf("calibration examples: %+v %v", ex, err)
 		}
+		// voice: completing onboarding seeds a default reply voice.
+		if rp, err := q.GetPreferredResponseProfile(ctx, ws.ID); err != nil || rp.Name != "Default" {
+			t.Fatalf("default response profile: %+v %v", rp, err)
+		}
 		if code, body := call("POST", "/onboarding/complete", map[string]any{"listeners": []map[string]any{{"goal": "find_buyers", "name": "B", "keywords": []string{"z"}}}}); code != 200 || !strings.Contains(body, "already_completed") {
 			t.Fatalf("idempotency: %d %s", code, body)
 		}

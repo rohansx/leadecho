@@ -16,6 +16,7 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
+	"leadecho/internal/reply"
 	"leadecho/internal/onboarding"
 )
 
@@ -409,6 +410,10 @@ func (h *OnboardingHandler) markOnboardingComplete(ctx context.Context, wsID str
 	newRaw, _ := json.Marshal(settings)
 	if err := h.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{ID: wsID, Settings: newRaw}); err != nil {
 		h.logger.Error().Err(err).Str("workspace_id", wsID).Msg("onboarding: mark complete")
+	}
+	// voice: give the workspace a default reply voice (no-op if one exists).
+	if _, err := reply.EnsureDefaultResponseProfile(ctx, h.q, wsID); err != nil {
+		h.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("onboarding: default response profile")
 	}
 }
 

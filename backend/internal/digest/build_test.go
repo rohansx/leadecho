@@ -116,3 +116,12 @@ func TestFacts(t *testing.T) {
 		}
 	}
 }
+
+func TestLeadIntent(t *testing.T) {
+	if got := leadIntent("buy_signal", []string{"buying_intent", "pricing"}); got != "buying_intent, pricing" {
+		t.Fatalf("tags: %q", got)
+	}
+	if got := leadIntent("complaint", nil); got != "complaint" {
+		t.Fatalf("legacy: %q", got)
+	}
+}

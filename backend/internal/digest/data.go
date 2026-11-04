@@ -3,6 +3,7 @@ package digest
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"leadecho/internal/database"
 )
@@ -21,7 +22,7 @@ func (s *Service) Build(ctx context.Context, wsID string, kind Kind, p Period) (
 	for _, m := range top {
 		d.TopLeads = append(d.TopLeads, Lead{
 			Title: firstNonEmpty(m.Title.String, truncate(m.Content, 120)), URL: m.Url, Platform: m.Platform,
-			Author: m.AuthorUsername.String, Intent: string(m.Intent.IntentType), Score: float64(m.RelevanceScore.Float32),
+			Author: m.AuthorUsername.String, Intent: leadIntent(string(m.Intent.IntentType), m.IntentTags), Score: float64(m.RelevanceScore.Float32),
 		})
 	}
 
@@ -70,4 +71,13 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// leadIntent labels a lead by its intent tags (P0 #6), falling back to the
+// legacy single intent for mentions scored before tags existed.
+func leadIntent(intent string, tags []string) string {
+	if len(tags) > 0 {
+		return strings.Join(tags, ", ")
+	}
+	return intent
 }
