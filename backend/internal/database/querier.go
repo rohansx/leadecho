@@ -174,6 +174,7 @@ type Querier interface {
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
 	PatchMentionScoringMetadata(ctx context.Context, arg PatchMentionScoringMetadataParams) (Mention, error)
+	RecordTregCall(ctx context.Context, arg RecordTregCallParams) error
 	RecordUTMConversion(ctx context.Context, arg RecordUTMConversionParams) (UtmLink, error)
 	ReplyAttributionFunnel(ctx context.Context, workspaceID string) (ReplyAttributionFunnelRow, error)
 	ReplyStats(ctx context.Context, workspaceID string) ([]ReplyStatsRow, error)
@@ -199,6 +200,7 @@ type Querier interface {
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchExtensionToken(ctx context.Context, token string) error
 	TouchWorkspaceAPIKey(ctx context.Context, arg TouchWorkspaceAPIKeyParams) error
+	TregSpendByTool(ctx context.Context, arg TregSpendByToolParams) ([]TregSpendByToolRow, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDocumentChunkCount(ctx context.Context, arg UpdateDocumentChunkCountParams) error
 	UpdateEventReplayStatus(ctx context.Context, arg UpdateEventReplayStatusParams) (EventReplay, error)

@@ -884,6 +884,16 @@ type Thread struct {
 	CreatedAt           time.Time   `json:"created_at"`
 }
 
+type TregCall struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Tool        string    `json:"tool"`
+	CallID      string    `json:"call_id"`
+	CostMicro   int64     `json:"cost_micro"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type User struct {
 	ID             string             `json:"id"`
 	ClerkUserID    string             `json:"clerk_user_id"`
