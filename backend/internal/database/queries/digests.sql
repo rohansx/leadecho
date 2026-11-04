@@ -56,7 +56,8 @@ ON CONFLICT (workspace_id, kind, period_start) DO UPDATE
     SET status = 'pending', attempts = digest_runs.attempts + 1, updated_at = now()
     WHERE (digest_runs.status = 'failed' AND digest_runs.attempts < 5
            AND digest_runs.updated_at < now() - make_interval(mins => 10 * digest_runs.attempts))
-       OR (digest_runs.status = 'pending' AND digest_runs.updated_at < now() - interval '15 minutes')
+       OR (digest_runs.status = 'pending' AND digest_runs.attempts < 5
+           AND digest_runs.updated_at < now() - interval '15 minutes')
 RETURNING id;
 
 -- name: FinishDigestRun :exec

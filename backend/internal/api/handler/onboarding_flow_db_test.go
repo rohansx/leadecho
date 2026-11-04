@@ -196,6 +196,10 @@ func TestOnboardingFlowDB(t *testing.T) {
 		if _, err := q.CreateMonitoringProfile(ctx, database.CreateMonitoringProfileParams{WorkspaceID: ws.ID, Name: "Buyers", IsActive: true}); err != nil {
 			t.Fatal(err)
 		}
+		// ...but a user's own older profile that happens to share a name is left alone.
+		if _, err := pool.Exec(ctx, `INSERT INTO monitoring_profiles (workspace_id, name, is_active, created_at) VALUES ($1, 'Mentions', true, now() - interval '3 days')`, ws.ID); err != nil {
+			t.Fatal(err)
+		}
 		code, body := call("POST", "/onboarding/complete", map[string]any{
 			"brand_profile": map[string]any{"product": "Acme", "competitors": []string{"HubSpot", "Pipedrive"}},
 			"listeners": []map[string]any{
@@ -221,6 +225,11 @@ func TestOnboardingFlowDB(t *testing.T) {
 		_ = pool.QueryRow(ctx, `SELECT count(*) FROM monitoring_profiles WHERE workspace_id = $1 AND name = 'Buyers'`, ws.ID).Scan(&buyers)
 		if buyers != 1 {
 			t.Fatalf("retry duplicated the listener: %d 'Buyers' profiles", buyers)
+		}
+		var mentionsProfiles int
+		_ = pool.QueryRow(ctx, `SELECT count(*) FROM monitoring_profiles WHERE workspace_id = $1 AND name = 'Mentions'`, ws.ID).Scan(&mentionsProfiles)
+		if mentionsProfiles != 2 {
+			t.Fatalf("an unrelated older profile was reused: %d 'Mentions' profiles", mentionsProfiles)
 		}
 		bp, _ := q.GetBrandProfile(ctx, ws.ID)
 		if len(bp.Competitors) != 2 {

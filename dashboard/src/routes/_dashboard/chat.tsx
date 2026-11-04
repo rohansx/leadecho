@@ -59,7 +59,9 @@ function ChatPage() {
   const messages = useQuery({
     queryKey: messagesKey(thread),
     queryFn: () => listChatMessages(thread as string),
-    enabled: !!thread,
+    // Not while streaming: the server already stored the user message, so a
+    // fetch mid-stream would render it next to the pending draft (twice).
+    enabled: !!thread && !streaming,
   });
   const shown = [...(thread ? (messages.data?.data ?? []) : []), ...((thread ?? "new") === pendingFor ? pending : [])];
 
@@ -103,8 +105,8 @@ function ChatPage() {
       // Unmounted/aborted mid-stream: don't refetch or navigate (would yank the user back to /chat).
       if (ctrl.signal.aborted) return;
       if (threadId) {
-        await qc.invalidateQueries({ queryKey: messagesKey(threadId) });
-        await qc.refetchQueries({ queryKey: messagesKey(threadId) });
+        const id = threadId;
+        await qc.fetchQuery({ queryKey: messagesKey(id), queryFn: () => listChatMessages(id), staleTime: 0 });
         qc.invalidateQueries({ queryKey: THREADS_KEY });
       }
       setPending([]);

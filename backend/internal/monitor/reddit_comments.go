@@ -97,9 +97,9 @@ func (m *Monitor) fetchSubredditComments(ctx context.Context, base, sub string) 
 	case errors.As(err, &se) && se.Code == http.StatusTooManyRequests:
 		m.setRedditBackoff(10 * time.Minute)
 		return nil, fmt.Errorf("rate limited")
-	case errors.As(err, &se) && se.Code == http.StatusForbidden:
-		m.setRedditBackoff(30 * time.Minute)
-		return nil, fmt.Errorf("blocked (403)")
+	case errors.As(err, &se) && (se.Code == http.StatusForbidden || se.Code == http.StatusUnauthorized):
+		m.setRedditBackoff(30 * time.Minute) // 401 = bad REDDIT_CLIENT_ID/SECRET
+		return nil, fmt.Errorf("blocked (%d)", se.Code)
 	default:
 		return nil, err
 	}

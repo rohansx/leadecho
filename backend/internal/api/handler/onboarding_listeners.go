@@ -201,18 +201,17 @@ func (h *OnboardingHandler) completeListeners(ctx context.Context, wsID string, 
 	}
 	created := 0
 	var profileIDs []string
-	// A retry after a partial failure reuses listeners created by the earlier
-	// attempt (matched by name) instead of duplicating them.
-	// ponytail: name match, not a transaction; wrap in a tx if the handler gets a pool.
-	existing := map[string]database.MonitoringProfile{}
-	if list, err := h.q.ListMonitoringProfiles(ctx, wsID); err == nil {
-		for _, p := range list {
-			existing[p.Name] = p
-		}
+	// A retry after a partial failure reuses the listeners the earlier attempt
+	// left behind instead of duplicating them: same name, same (or not yet
+	// set) goal, created in the last hour. A user's own profiles are left alone.
+	// ponytail: heuristic, not a transaction; wrap in a tx if the handler gets a pool.
+	list, err := h.q.ListMonitoringProfiles(ctx, wsID)
+	if err != nil {
+		return 0, nil, fmt.Errorf("list profiles: %w", err)
 	}
 	for i, raw := range body.Listeners {
 		l, _ := raw.validate() // validated up front in Complete
-		profile, ok := existing[l.Name]
+		profile, ok := retryableProfile(list, l.Name, l.Goal, time.Now())
 		if !ok {
 			var err error
 			profile, err = h.q.CreateMonitoringProfile(ctx, database.CreateMonitoringProfileParams{
@@ -254,6 +253,16 @@ func (h *OnboardingHandler) completeListeners(ctx context.Context, wsID string, 
 		}
 	}
 	return created, profileIDs, nil
+}
+
+// retryableProfile finds a profile a failed onboarding attempt created.
+func retryableProfile(list []database.MonitoringProfile, name, goal string, now time.Time) (database.MonitoringProfile, bool) {
+	for _, p := range list {
+		if p.Name == name && (p.Goal == goal || p.Goal == "") && now.Sub(p.CreatedAt) < time.Hour {
+			return p, true
+		}
+	}
+	return database.MonitoringProfile{}, false
 }
 
 // startFirstScan triggers the 7-day backfill (or a plain scan if the scanner

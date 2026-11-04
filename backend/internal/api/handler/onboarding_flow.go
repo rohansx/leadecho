@@ -145,8 +145,13 @@ func (h *OnboardingHandler) crawlSite(ctx context.Context, pageURL string, step 
 	if err == nil && len(pages) > 0 && len(pages[0].Text) > 200 {
 		return pages, nil
 	}
-	// The sidecar does its own networking, so guard the URL before it loads it.
-	if h.scrapling != nil && netsafe.ValidatePublicURL(ctx, pageURL) == nil {
+	// Fall back to the sidecar only for a JS-heavy page the guarded crawl
+	// *reached* (err == nil): a crawl error may be netsafe refusing an internal
+	// redirect, which the sidecar would otherwise follow. The sidecar does its
+	// own networking, so the URL is re-validated too.
+	// ponytail: the page can still redirect client-side inside the browser;
+	// network-isolate the sidecar from internal services for a hard guarantee.
+	if err == nil && h.scrapling != nil && netsafe.ValidatePublicURL(ctx, pageURL) == nil {
 		if nerr := h.scrapling.Navigate(ctx, pageURL); nerr == nil {
 			if text, terr := h.scrapling.GetText(ctx); terr == nil && text != "" {
 				return append([]onboarding.Page{{URL: pageURL, Text: text}}, tail(pages)...), nil

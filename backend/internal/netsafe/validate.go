@@ -25,8 +25,11 @@ func ValidatePublicURL(ctx context.Context, raw string) error {
 		return nil
 	}
 	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil || len(ips) == 0 {
+	if err != nil {
 		return fmt.Errorf("netsafe: resolve %s: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("netsafe: %s has no addresses", host)
 	}
 	for _, ip := range ips {
 		if DisallowedIP(ip.IP) {

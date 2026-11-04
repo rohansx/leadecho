@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"strconv"
 
 	"leadecho/internal/auth"
 	"net/http"
@@ -41,19 +42,37 @@ func (q *Quota) Shared(c auth.Counter, name string) *Quota {
 
 // Allow records one call for key and reports whether it fits the window.
 func (q *Quota) Allow(ctx context.Context, key string) bool {
+	ok, _ := q.allow(ctx, key)
+	return ok
+}
+
+// allow also returns how long until the window resets.
+func (q *Quota) allow(ctx context.Context, key string) (bool, time.Duration) {
 	if q.shared != nil {
-		if n, _, err := q.shared.Incr(ctx, "quota:"+q.name+":"+key, q.window); err == nil {
-			return n <= int64(q.limit)
+		if n, ttl, err := q.shared.Incr(ctx, "quota:"+q.name+":"+key, q.window); err == nil {
+			return n <= int64(q.limit), ttl
 		}
 	}
-	return q.allowLocal(key)
+	ok := q.allowLocal(key)
+	start := q.now().Truncate(q.window)
+	return ok, start.Add(q.window).Sub(q.now())
 }
+
+// maxLocalKeys bounds the fallback map; stale windows are pruned past it.
+const maxLocalKeys = 10_000
 
 func (q *Quota) allowLocal(key string) bool {
 	now := q.now()
 	start := now.Truncate(q.window)
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if len(q.seen) > maxLocalKeys {
+		for k, w := range q.seen {
+			if !w.start.Equal(start) {
+				delete(q.seen, k)
+			}
+		}
+	}
 	w := q.seen[key]
 	if !w.start.Equal(start) {
 		w = quotaWindow{start: start}
@@ -69,9 +88,9 @@ func (q *Quota) allowLocal(key string) bool {
 func WorkspaceQuota(q *Quota) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !q.Allow(r.Context(), WorkspaceID(r.Context())) {
+			if ok, wait := q.allow(r.Context(), WorkspaceID(r.Context())); !ok {
 				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("Retry-After", "60")
+				w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 				w.WriteHeader(http.StatusTooManyRequests)
 				_, _ = w.Write([]byte(`{"error":"too many requests for this workspace, try again shortly"}`))
 				return

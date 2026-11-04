@@ -101,6 +101,9 @@ func (m *Monitor) handleRedditErr(err error, target string) bool {
 	case errors.As(err, &se) && se.Code == http.StatusTooManyRequests:
 		m.setRedditBackoff(10 * time.Minute)
 		m.logger.Warn().Str("subreddit", target).Dur("backoff", 10*time.Minute).Msg("reddit: rate limited, backing off 10m")
+	case errors.As(err, &se) && se.Code == http.StatusUnauthorized:
+		m.setRedditBackoff(30 * time.Minute)
+		m.logger.Warn().Str("subreddit", target).Msg("reddit: OAuth credentials rejected (401), backing off 30m — check REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET")
 	case errors.As(err, &se) && se.Code == http.StatusForbidden:
 		// Reddit now blocks unauthenticated JSON API access entirely.
 		// Back off for 30 minutes to avoid spamming 403s every tick.

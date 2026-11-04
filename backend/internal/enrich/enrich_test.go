@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -289,6 +290,37 @@ func TestEnricherCapHoldsUnderConcurrency(t *testing.T) {
 	wg.Wait()
 	if ran > 3 {
 		t.Fatalf("%d enrichments ran past a cap of 3", ran)
+	}
+}
+
+type atomicCounter struct{ n *atomic.Int64 }
+
+func (c atomicCounter) CountEnrichedLeadsSince(context.Context, database.CountEnrichedLeadsSinceParams) (int64, error) {
+	return c.n.Load(), nil
+}
+
+// The reservation must cover the save: released before it, a slow save lets
+// later calls see neither in-flight nor stored work and overrun the cap.
+func TestEnricherReservationCoversSave(t *testing.T) {
+	_, c := newFake(t, fullAnswers)
+	stored := &atomic.Int64{}
+	e := New(c, atomicCounter{stored}, 3, 0, zerolog.Nop())
+	var wg sync.WaitGroup
+	for i := 0; i < 12; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			time.Sleep(time.Duration(i%4) * 15 * time.Millisecond)
+			_, _ = e.EnrichThen(context.Background(), ws, Subject{ProfileURL: "https://linkedin.com/in/jd"}, func(*Result) error {
+				time.Sleep(40 * time.Millisecond) // slow metadata write
+				stored.Add(1)
+				return nil
+			})
+		}(i)
+	}
+	wg.Wait()
+	if n := stored.Load(); n > 3 {
+		t.Fatalf("%d enrichments stored past a cap of 3", n)
 	}
 }
 

@@ -43,10 +43,14 @@ func RedditOAuthFromEnv() *RedditOAuth {
 	return NewRedditOAuth(id, secret, ua, "https://www.reddit.com", "https://oauth.reddit.com")
 }
 
-func (o *RedditOAuth) bearer(ctx context.Context, c *http.Client, refresh bool) (string, error) {
+// bearer returns the cached token, fetching a new one when it is missing,
+// expired, or equal to rejected (a token the API just 401'd). Concurrent
+// callers rejected with the same token share one refresh.
+// ponytail: the lock is held across the token request; fine for one poller.
+func (o *RedditOAuth) bearer(ctx context.Context, c *http.Client, rejected string) (string, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if !refresh && o.token != "" && time.Now().Before(o.expires) {
+	if o.token != "" && o.token != rejected && time.Now().Before(o.expires) {
 		return o.token, nil
 	}
 	form := url.Values{"grant_type": {"client_credentials"}}
@@ -79,8 +83,9 @@ func (o *RedditOAuth) bearer(ctx context.Context, c *http.Client, refresh bool) 
 
 // getJSON fetches pathAndQuery from oauth.reddit.com, refreshing the token once on 401.
 func (o *RedditOAuth) getJSON(ctx context.Context, c *http.Client, pathAndQuery string, out any) error {
+	rejected := ""
 	for attempt := 0; attempt < 2; attempt++ {
-		tok, err := o.bearer(ctx, c, attempt > 0)
+		tok, err := o.bearer(ctx, c, rejected)
 		if err != nil {
 			return err
 		}
@@ -96,6 +101,7 @@ func (o *RedditOAuth) getJSON(ctx context.Context, c *http.Client, pathAndQuery 
 		}
 		if resp.StatusCode == http.StatusUnauthorized && attempt == 0 {
 			resp.Body.Close()
+			rejected = tok
 			continue
 		}
 		defer resp.Body.Close()

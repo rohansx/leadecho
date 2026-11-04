@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -38,14 +39,21 @@ func (s *Service) enrichWithTreg(ctx context.Context, ws string, lead database.L
 	if !s.enricher.Enabled() || alreadyEnriched(lead.Metadata) {
 		return nil
 	}
-	res, err := s.enricher.Enrich(ctx, ws, enrichSubject(lead, platform, handle, profileURL))
-	if err != nil {
+	saved := false
+	res, err := s.enricher.EnrichThen(ctx, ws, enrichSubject(lead, platform, handle, profileURL), func(r *enrich.Result) error {
+		if err := s.saveEnrichment(ctx, ws, lead, personID, r); err != nil {
+			return fmt.Errorf("save enrichment: %w", err)
+		}
+		saved = true
+		return nil
+	})
+	if err != nil && !saved && res == nil {
 		if !errors.Is(err, enrich.ErrDailyCap) {
 			s.logger.Warn().Err(err).Str("lead_id", lead.ID).Msg("treg enrichment failed")
 		}
 		return nil
 	}
-	if err := s.saveEnrichment(ctx, ws, lead, personID, res); err != nil {
+	if !saved {
 		s.logger.Error().Err(err).Str("lead_id", lead.ID).Msg("save enrichment")
 		return res
 	}

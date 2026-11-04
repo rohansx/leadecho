@@ -317,6 +317,12 @@ func New(c *treg.Client, counter Counter, dailyCap int, budgetMicro int64, logge
 func (e *Enricher) Enabled() bool { return e != nil }
 
 func (e *Enricher) Enrich(ctx context.Context, ws string, s Subject) (*Result, error) {
+	return e.EnrichThen(ctx, ws, s, nil)
+}
+
+// EnrichThen runs the pipeline and then save while still holding the cap
+// reservation, so the stored count is updated before the slot is released.
+func (e *Enricher) EnrichThen(ctx context.Context, ws string, s Subject, save func(*Result) error) (*Result, error) {
 	if !e.Enabled() {
 		return nil, ErrDisabled
 	}
@@ -326,18 +332,24 @@ func (e *Enricher) Enrich(ctx context.Context, ws string, s Subject) (*Result, e
 	}
 	defer release()
 	e.ensureBudget(ctx, ws)
-	return e.pipeline.Run(ctx, ws, s)
+	res, err := e.pipeline.Run(ctx, ws, s)
+	if err != nil || save == nil {
+		return res, err
+	}
+	return res, save(res)
 }
 
 // reserve atomically checks stored + in-flight enrichments against the cap.
 func (e *Enricher) reserve(ctx context.Context, ws string) (func(), error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	// Count outside the lock so a slow query doesn't serialize every workspace;
+	// a save only lands while its reservation is held, so n+inflight never undercounts.
 	day := time.Now().UTC().Truncate(24 * time.Hour)
 	n, err := e.counter.CountEnrichedLeadsSince(ctx, database.CountEnrichedLeadsSinceParams{WorkspaceID: ws, Since: day})
 	if err != nil {
 		return nil, err
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if e.inflight == nil {
 		e.inflight = map[string]int{}
 	}

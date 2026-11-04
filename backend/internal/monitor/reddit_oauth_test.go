@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"github.com/rs/zerolog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -67,5 +68,26 @@ func TestRedditOAuthFromEnv(t *testing.T) {
 	t.Setenv("REDDIT_CLIENT_SECRET", "s")
 	if RedditOAuthFromEnv() == nil {
 		t.Fatal("credentials set -> oauth enabled")
+	}
+}
+
+// Bad credentials must back off like a 403, not hammer the token endpoint every poll.
+func TestRedditOAuthBadCredentialsBackOff(t *testing.T) {
+	var tokenCalls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenCalls.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	m := &Monitor{logger: zerolog.Nop(), public: &PublicSources{Client: srv.Client(), RedditOAuth: NewRedditOAuth("c", "bad", "ua", srv.URL, srv.URL)}}
+	if _, err := m.fetchSubredditComments(context.Background(), redditBaseURL, "sales"); err == nil {
+		t.Fatal("want error")
+	}
+	if !m.redditBackedOff() {
+		t.Fatal("401 from the token endpoint must set the Reddit backoff")
+	}
+	_, err := m.sources().SearchReddit(context.Background(), "crm", time.Time{})
+	if !m.handleRedditErr(err, "search") || !m.redditBackedOff() {
+		t.Fatal("search path must also treat 401 as a backoff")
 	}
 }

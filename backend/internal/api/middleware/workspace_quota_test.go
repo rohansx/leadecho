@@ -78,3 +78,18 @@ func TestQuotaSharedCounter(t *testing.T) {
 		t.Fatal("with redis down the local limit must still apply")
 	}
 }
+
+func TestWorkspaceQuotaRetryAfterMatchesWindow(t *testing.T) {
+	q := NewQuota(1, 24*time.Hour)
+	h := WorkspaceQuota(q)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	var rec *httptest.ResponseRecorder
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/linkedin/engagers", nil)
+		req = req.WithContext(WithClaims(req.Context(), &auth.Claims{WorkspaceID: "ws1"}))
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+	}
+	if ra := rec.Header().Get("Retry-After"); ra == "60" || ra == "" {
+		t.Fatalf("Retry-After = %q, want the time left in the 24h window", ra)
+	}
+}
