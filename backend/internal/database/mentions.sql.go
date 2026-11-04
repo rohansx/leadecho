@@ -834,6 +834,9 @@ type ListUnclassifiedMentionsParams struct {
 	Lim         int32  `json:"lim"`
 }
 
+// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
+// re-sending them to the LLM every tick wastes tokens. Classification errors
+// stay eligible so transient provider outages are retried.
 func (q *Queries) ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error) {
 	rows, err := q.db.Query(ctx, listUnclassifiedMentions, arg.WorkspaceID, arg.Lim)
 	if err != nil {

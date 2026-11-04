@@ -138,6 +138,9 @@ type Querier interface {
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
 	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
+	// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
+	// re-sending them to the LLM every tick wastes tokens. Classification errors
+	// stay eligible so transient provider outages are retried.
 	ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error)
 	ListUsersByExternalID(ctx context.Context, clerkUserID string) ([]User, error)
 	MarkEventLogPublishFailed(ctx context.Context, arg MarkEventLogPublishFailedParams) (EventLog, error)

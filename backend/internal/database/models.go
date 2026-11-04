@@ -416,6 +416,16 @@ func (ns NullWorkflowStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowStatus), nil
 }
 
+type AuthToken struct {
+	ID        string             `json:"id"`
+	UserID    string             `json:"user_id"`
+	Kind      string             `json:"kind"`
+	TokenHash string             `json:"token_hash"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
 type ConsumerCheckpoint struct {
 	ID                 string      `json:"id"`
 	StreamName         string      `json:"stream_name"`
@@ -654,6 +664,9 @@ type MonitoringProfile struct {
 	IsActive    bool      `json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	LooksFor    string    `json:"looks_for"`
+	Skips       string    `json:"skips"`
+	Goal        string    `json:"goal"`
 }
 
 type Notification struct {
@@ -810,18 +823,20 @@ type Thread struct {
 }
 
 type User struct {
-	ID           string             `json:"id"`
-	ClerkUserID  string             `json:"clerk_user_id"`
-	WorkspaceID  string             `json:"workspace_id"`
-	Email        string             `json:"email"`
-	Name         string             `json:"name"`
-	AvatarUrl    pgtype.Text        `json:"avatar_url"`
-	Role         UserRole           `json:"role"`
-	IsActive     bool               `json:"is_active"`
-	LastActiveAt pgtype.Timestamptz `json:"last_active_at"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	PasswordHash pgtype.Text        `json:"password_hash"`
+	ID             string             `json:"id"`
+	ClerkUserID    string             `json:"clerk_user_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Email          string             `json:"email"`
+	Name           string             `json:"name"`
+	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	Role           UserRole           `json:"role"`
+	IsActive       bool               `json:"is_active"`
+	LastActiveAt   pgtype.Timestamptz `json:"last_active_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	PasswordHash   pgtype.Text        `json:"password_hash"`
+	EmailVerified  bool               `json:"email_verified"`
+	SessionVersion int32              `json:"session_version"`
 }
 
 type UtmEvent struct {
