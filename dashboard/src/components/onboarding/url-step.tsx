@@ -12,6 +12,7 @@ export const LISTENER_PLATFORMS = [
   { value: "reddit", label: "Reddit" },
   { value: "hackernews", label: "Hacker News" },
   { value: "devto", label: "Dev.to" },
+  { value: "bluesky", label: "Bluesky" }, // sources
   { value: "twitter", label: "Twitter / X", note: "needs browser sidecar" },
   { value: "linkedin", label: "LinkedIn", note: "needs browser sidecar" },
   { value: "exa", label: "Web (Exa)", note: "needs EXA_API_KEY" },

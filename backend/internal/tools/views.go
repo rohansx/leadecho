@@ -25,7 +25,7 @@ var (
 	mentionIntents  = set("buy_signal", "complaint", "recommendation_ask", "comparison", "general")
 	leadStages      = set("prospect", "qualified", "engaged", "converted", "lost")
 	platforms       = set("reddit", "hackernews", "devto", "lobsters", "indiehackers", "twitter",
-		"linkedin", "quora", "exa", "googlenews")
+		"linkedin", "quora", "exa", "googlenews", "bluesky")
 	defaultPlatforms = []string{"hackernews", "reddit", "twitter", "linkedin"}
 )
 

@@ -249,6 +249,7 @@ const (
 	PlatformTypeQuora        PlatformType = "quora"
 	PlatformTypeExa          PlatformType = "exa"
 	PlatformTypeGooglenews   PlatformType = "googlenews"
+	PlatformTypeBluesky      PlatformType = "bluesky"
 )
 
 func (e *PlatformType) Scan(src interface{}) error {
@@ -592,6 +593,14 @@ type Keyword struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 	Subreddits    []string  `json:"subreddits"`
 	ProfileID     string    `json:"profile_id"`
+	Cadence       []byte    `json:"cadence"`
+}
+
+type KeywordPlatformScan struct {
+	KeywordID     string    `json:"keyword_id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	Platform      string    `json:"platform"`
+	LastScannedAt time.Time `json:"last_scanned_at"`
 }
 
 type Lead struct {
@@ -699,6 +708,15 @@ type MonitoringProfile struct {
 	LooksFor    string    `json:"looks_for"`
 	Skips       string    `json:"skips"`
 	Goal        string    `json:"goal"`
+}
+
+type Mute struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	Kind        string      `json:"kind"`
+	Value       string      `json:"value"`
+	CreatedBy   pgtype.UUID `json:"created_by"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type Notification struct {

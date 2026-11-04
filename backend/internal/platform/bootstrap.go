@@ -125,6 +125,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	// treg feature: hosted X/LinkedIn sources + Reddit comment search.
 	mon.SetTreg(treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger))
 	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
+	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources
 	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)

@@ -20,7 +20,7 @@ func readTools(d Deps) []Tool {
 "query":{"type":"string","maxLength":500,"description":"Full-text search over title and content"},
 "status":{"type":"string","enum":["new","reviewed","replied","archived","spam"]},
 "intent":{"type":"string","enum":["buy_signal","complaint","recommendation_ask","comparison","general"]},
-"platform":{"type":"string","enum":["reddit","hackernews","devto","lobsters","indiehackers","twitter","linkedin","quora","exa","googlenews"]},
+"platform":{"type":"string","enum":["reddit","hackernews","devto","lobsters","indiehackers","twitter","linkedin","quora","exa","googlenews","bluesky"]},
 "tier":{"type":"string","enum":["leads_ready"]},
 "limit":{"type":"integer","minimum":1,"maximum":100,"default":20},
 "offset":{"type":"integer","minimum":0,"default":0}}}`),

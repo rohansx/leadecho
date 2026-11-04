@@ -79,8 +79,6 @@ type MentionResponse struct {
 	UpdatedAt             time.Time       `json:"updated_at"`
 	AwarenessLevel        *string         `json:"awareness_level"`
 	NextAction            *string         `json:"next_action,omitempty"`
-	IntentTags            []string        `json:"intent_tags"` // scoring
-	Sentiment             *string         `json:"sentiment"`   // scoring
 }
 
 func mentionToResponse(m database.Mention) MentionResponse {
@@ -96,7 +94,6 @@ func mentionToResponse(m database.Mention) MentionResponse {
 		EngagementMetrics: json.RawMessage(m.EngagementMetrics),
 		ScoringMetadata:   json.RawMessage(m.ScoringMetadata),
 		KeywordMatches:    m.KeywordMatches,
-		IntentTags:        nonNilTags(m.IntentTags),
 		CreatedAt:         m.CreatedAt,
 		UpdatedAt:         m.UpdatedAt,
 	}
@@ -139,9 +136,6 @@ func mentionToResponse(m database.Mention) MentionResponse {
 	if m.AwarenessLevel.Valid {
 		r.AwarenessLevel = &m.AwarenessLevel.String
 	}
-	if m.Sentiment.Valid {
-		r.Sentiment = &m.Sentiment.String
-	}
 	return r
 }
 
@@ -178,67 +172,12 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// All filters compose (ANDed) in a single query rather than being mutually
-	// exclusive, and total reflects the full match count, not the page size.
-	params := database.ListMentionsComposedParams{
-		WorkspaceID:    workspaceID,
-		Tier:           r.URL.Query().Get("tier"),
-		Queue:          r.URL.Query().Get("queue"),
-		ActionKind:     resolveActionKind(r.URL.Query().Get("queue"), r.URL.Query().Get("action_kind"), r.URL.Query().Get("escalation_kind")),
-		EscalationKind: r.URL.Query().Get("escalation_kind"),
-		Status:         r.URL.Query().Get("status"),
-		Platform:       r.URL.Query().Get("platform"),
-		Intent:         r.URL.Query().Get("intent"),
-		Search:         r.URL.Query().Get("search"),
-		Tag:            r.URL.Query().Get("tag"),       // scoring
-		Sentiment:      r.URL.Query().Get("sentiment"), // scoring
-		Lim:            limit,
-		Off:            offset,
-	}
-
-	// Reject unknown enum filter values up front (400) rather than letting them
-	// fail an enum cast deep in the query (500). platform_type is shared with
-	// keywords (validKeywordPlatforms).
-	if params.Status != "" && !validMentionStatuses[params.Status] {
-		writeError(w, http.StatusBadRequest, "invalid status")
+	params, errMsg := mentionFilters(r, workspaceID)
+	if errMsg != "" {
+		writeError(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	if params.Platform != "" && !validKeywordPlatforms[params.Platform] {
-		writeError(w, http.StatusBadRequest, "invalid platform")
-		return
-	}
-	if params.Intent != "" && !validMentionIntents[params.Intent] {
-		writeError(w, http.StatusBadRequest, "invalid intent")
-		return
-	}
-	if params.Queue != "" && !validMentionQueues[params.Queue] {
-		writeError(w, http.StatusBadRequest, "invalid queue")
-		return
-	}
-	if msg := validateTagFilters(params); msg != "" { // scoring
-		writeError(w, http.StatusBadRequest, msg)
-		return
-	}
-	if params.EscalationKind != "" {
-		if params.Queue != "escalations" {
-			writeError(w, http.StatusBadRequest, "escalation_kind requires queue=escalations")
-			return
-		}
-		if !validEscalationKinds[params.EscalationKind] {
-			writeError(w, http.StatusBadRequest, "invalid escalation_kind")
-			return
-		}
-	}
-	if params.ActionKind != "" {
-		if params.Queue != "action_required" {
-			writeError(w, http.StatusBadRequest, "action_kind requires queue=action_required")
-			return
-		}
-		if !validActionKinds[params.ActionKind] {
-			writeError(w, http.StatusBadRequest, "invalid action_kind")
-			return
-		}
-	}
+	params.Lim, params.Off = limit, offset
 
 	mentions, err := h.q.ListMentionsComposed(ctx, params)
 	if err != nil {
@@ -494,16 +433,9 @@ func (h *MentionHandler) PlatformCounts(w http.ResponseWriter, r *http.Request) 
 		Platform: "",
 		Intent:   r.URL.Query().Get("intent"),
 		Search:   r.URL.Query().Get("search"),
-		// scoring: keep platform pills consistent with tag/sentiment filters
-		Tag:       r.URL.Query().Get("tag"),
-		Sentiment: r.URL.Query().Get("sentiment"),
 	}
 	if params.Queue != "" && !validMentionQueues[params.Queue] {
 		writeError(w, http.StatusBadRequest, "invalid queue")
-		return
-	}
-	if msg := validateTagFilters(params); msg != "" {
-		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 	if params.ActionKind != "" {

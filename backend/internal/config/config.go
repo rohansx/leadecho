@@ -97,6 +97,10 @@ type Config struct {
 	TregMaxCostMicro int64  `env:"TREG_MAX_COST_MICRO,default=20000"`
 	// RedditCommentsEnabled searches subreddit comments (free public JSON).
 	RedditCommentsEnabled bool `env:"REDDIT_COMMENTS_ENABLED,default=true"`
+	// sources: optional Bluesky session for authenticated search. Unset =
+	// anonymous search via the public AppView (still works).
+	BlueskyHandle      string `env:"BLUESKY_HANDLE,default="`
+	BlueskyAppPassword string `env:"BLUESKY_APP_PASSWORD,default="`
 
 	// ExtensionDistDir holds packaged Chrome extension builds, served from
 	// Settings so self-hosters can install it without a Web Store listing.

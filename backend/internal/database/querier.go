@@ -45,6 +45,8 @@ type Querier interface {
 	CreateLeadEvent(ctx context.Context, arg CreateLeadEventParams) (LeadEvent, error)
 	CreateMention(ctx context.Context, arg CreateMentionParams) (Mention, error)
 	CreateMonitoringProfile(ctx context.Context, arg CreateMonitoringProfileParams) (MonitoringProfile, error)
+	// Idempotent: re-muting the same value returns the existing row.
+	CreateMute(ctx context.Context, arg CreateMuteParams) (Mute, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateOnboardingAnalysis(ctx context.Context, arg CreateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	// ─── Pain-Point Embeddings ─────────────────────────────
@@ -66,6 +68,7 @@ type Querier interface {
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
 	DeleteKeyword(ctx context.Context, arg DeleteKeywordParams) error
 	DeleteMonitoringProfile(ctx context.Context, arg DeleteMonitoringProfileParams) error
+	DeleteMute(ctx context.Context, arg DeleteMuteParams) (int64, error)
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
 	DeleteResponseProfile(ctx context.Context, arg DeleteResponseProfileParams) (int64, error)
@@ -127,6 +130,8 @@ type Querier interface {
 	ListEventLogByWorkspace(ctx context.Context, arg ListEventLogByWorkspaceParams) ([]EventLog, error)
 	ListEventReplays(ctx context.Context, arg ListEventReplaysParams) ([]EventReplay, error)
 	ListHumanProposals(ctx context.Context, arg ListHumanProposalsParams) ([]HumanProposal, error)
+	ListKeywordCadences(ctx context.Context, workspaceID string) ([]ListKeywordCadencesRow, error)
+	ListKeywordPlatformScans(ctx context.Context, workspaceID string) ([]ListKeywordPlatformScansRow, error)
 	ListKeywords(ctx context.Context, workspaceID string) ([]ListKeywordsRow, error)
 	ListLeadEvents(ctx context.Context, leadID string) ([]LeadEvent, error)
 	ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, error)
@@ -144,6 +149,7 @@ type Querier interface {
 	ListMentionsLeadsReady(ctx context.Context, arg ListMentionsLeadsReadyParams) ([]Mention, error)
 	ListMentionsWorthWatching(ctx context.Context, arg ListMentionsWorthWatchingParams) ([]Mention, error)
 	ListMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
+	ListMutes(ctx context.Context, workspaceID string) ([]Mute, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	ListOpenDeadLetterEvents(ctx context.Context, arg ListOpenDeadLetterEventsParams) ([]DeadLetterEvent, error)
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
@@ -206,6 +212,7 @@ type Querier interface {
 	UpdateEventReplayStatus(ctx context.Context, arg UpdateEventReplayStatusParams) (EventReplay, error)
 	UpdateHumanProposalStatus(ctx context.Context, arg UpdateHumanProposalStatusParams) (HumanProposal, error)
 	UpdateKeyword(ctx context.Context, arg UpdateKeywordParams) (UpdateKeywordRow, error)
+	UpdateKeywordCadence(ctx context.Context, arg UpdateKeywordCadenceParams) (UpdateKeywordCadenceRow, error)
 	UpdateLead(ctx context.Context, arg UpdateLeadParams) (Lead, error)
 	UpdateLeadStage(ctx context.Context, arg UpdateLeadStageParams) (Lead, error)
 	UpdateMentionAwarenessLevel(ctx context.Context, arg UpdateMentionAwarenessLevelParams) error
@@ -229,6 +236,7 @@ type Querier interface {
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error)
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
+	UpsertKeywordPlatformScan(ctx context.Context, arg UpsertKeywordPlatformScanParams) error
 	UpsertMentionFeedback(ctx context.Context, arg UpsertMentionFeedbackParams) (MentionFeedback, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)

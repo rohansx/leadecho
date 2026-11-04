@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
 import { ACTION_KINDS, INBOX_QUEUES, INTENT_TAGS, MENTION_STATUSES, SENTIMENTS } from "@/lib/constants";
 import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
+import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 
 const intentColors: Record<string, string> = {
   buy_signal: "text-primary-ink",
@@ -219,6 +220,17 @@ export function LeadList({
               <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
+          {/* sources: CSV export of the current view */}
+          {queueFilter !== INBOX_QUEUES.PROPOSALS && (
+            <ExportCsvButton
+              kind="mentions"
+              params={
+                queueFilter === INBOX_QUEUES.ALL
+                  ? { queue: queueFilter, platform: platformFilter, status: statusFilter, search }
+                  : { queue: queueFilter, action_kind: queueFilter === INBOX_QUEUES.ACTION_REQUIRED ? actionKind : undefined }
+              }
+            />
+          )}
           <button
             type="button"
             onClick={onRefresh}

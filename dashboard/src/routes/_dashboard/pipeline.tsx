@@ -14,6 +14,7 @@ import {
 import { listLeads, updateLeadStage, leadCounts } from "@/lib/api";
 import type { Lead, LeadStage } from "@/lib/types";
 import { platformTone, stageTone } from "@/lib/tones";
+import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 
 export const Route = createFileRoute("/_dashboard/pipeline")({
   component: PipelinePage,
@@ -70,6 +71,7 @@ function PipelinePage() {
         <Text as="h2">Lead Pipeline</Text>
         <div className="flex gap-2 items-center">
           <Badge variant="surface">{leads.length} leads</Badge>
+          <ExportCsvButton kind="leads" label="Export CSV" /> {/* sources */}
           <Button size="sm" variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Refresh

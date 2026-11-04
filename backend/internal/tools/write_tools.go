@@ -21,7 +21,7 @@ const (
 	maxReplyLen   = 10000
 )
 
-var platformEnum = `{"type":"string","enum":["reddit","hackernews","devto","lobsters","indiehackers","twitter","linkedin","quora","exa","googlenews"]}`
+var platformEnum = `{"type":"string","enum":["reddit","hackernews","devto","lobsters","indiehackers","twitter","linkedin","quora","exa","googlenews","bluesky"]}`
 
 func writeTools(d Deps) []Tool {
 	return []Tool{
