@@ -199,6 +199,7 @@ const (
 	NotificationChannelSlack   NotificationChannel = "slack"
 	NotificationChannelDiscord NotificationChannel = "discord"
 	NotificationChannelEmail   NotificationChannel = "email"
+	NotificationChannelInApp   NotificationChannel = "in_app"
 )
 
 func (e *NotificationChannel) Scan(src interface{}) error {
@@ -425,6 +426,35 @@ type AuthToken struct {
 	ExpiresAt time.Time          `json:"expires_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	CreatedAt time.Time          `json:"created_at"`
+}
+
+type Automation struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Kind        string             `json:"kind"`
+	Frequency   string             `json:"frequency"`
+	RunTime     string             `json:"run_time"`
+	Weekday     string             `json:"weekday"`
+	Timezone    string             `json:"timezone"`
+	Enabled     bool               `json:"enabled"`
+	Config      []byte             `json:"config"`
+	LastRunAt   pgtype.Timestamptz `json:"last_run_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+type AutomationRun struct {
+	ID           string             `json:"id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	AutomationID string             `json:"automation_id"`
+	Trigger      string             `json:"trigger"`
+	PeriodStart  pgtype.Timestamptz `json:"period_start"`
+	Status       string             `json:"status"`
+	Output       []byte             `json:"output"`
+	Error        string             `json:"error"`
+	StartedAt    time.Time          `json:"started_at"`
+	FinishedAt   pgtype.Timestamptz `json:"finished_at"`
 }
 
 type BrandProfile struct {

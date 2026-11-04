@@ -113,6 +113,9 @@ type Config struct {
 	DigestsEnabled  bool   `env:"DIGESTS_ENABLED,default=true"`
 	DigestFromEmail string `env:"DIGEST_FROM_EMAIL,default=LeadEcho <hello@leadecho.io>"`
 
+	// automations (P2 #17): scheduler for user-enabled automations, runs wherever the monitor runs.
+	AutomationsEnabled bool `env:"AUTOMATIONS_ENABLED,default=true"`
+
 	// Pinchtab (browser automation sidecar for Reddit + Twitter)
 	PinchtabURL   string `env:"PINCHTAB_URL,default=http://localhost:9867"`
 	PinchtabToken string `env:"PINCHTAB_TOKEN,default="`
