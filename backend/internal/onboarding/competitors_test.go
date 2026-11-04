@@ -15,7 +15,7 @@ func TestCompetitorNameFromResult(t *testing.T) {
 		{"Close | The Inside Sales CRM", "https://close.com", "Close"},
 		{"", "https://www.folk.app/", "Folk"},
 		{"Top 10 HubSpot alternatives in 2026", "https://www.g2.com/x", ""}, // aggregator
-		{"Acme: home", "https://acme.test", ""},                           // own product
+		{"Acme: home", "https://acme.test", ""},                             // own product
 	}
 	for _, c := range cases {
 		if got := competitorName(c.title, c.url, "Acme", "acme.test"); got != c.want {
