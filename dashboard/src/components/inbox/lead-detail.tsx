@@ -34,6 +34,7 @@ import {
 import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
+import { EnrichmentCard } from "./enrichment-card"; // enrich
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -443,6 +444,8 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
         </div>
         {person.bio && <p className="text-sm mt-3 leading-relaxed text-foreground-soft">{person.bio}</p>}
       </div>
+
+      <EnrichmentCard metadata={person.metadata} />
 
       <div>
         <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">

@@ -21,6 +21,7 @@ import { Route as DashboardPipelineRouteImport } from "./routes/_dashboard/pipel
 import { Route as DashboardKnowledgeBaseRouteImport } from "./routes/_dashboard/knowledge-base"
 import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywords"
 import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
+import { Route as DashboardEngagersRouteImport } from "./routes/_dashboard/engagers"
 import { Route as DashboardBrowserSessionsRouteImport } from "./routes/_dashboard/browser-sessions"
 import { Route as DashboardAnalyticsRouteImport } from "./routes/_dashboard/analytics"
 import { Route as DashboardAlertsRouteImport } from "./routes/_dashboard/alerts"
@@ -87,6 +88,11 @@ const DashboardInboxRoute = DashboardInboxRouteImport.update({
   path: "/inbox",
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardEngagersRoute = DashboardEngagersRouteImport.update({
+  id: "/engagers",
+  path: "/engagers",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardBrowserSessionsRoute =
   DashboardBrowserSessionsRouteImport.update({
     id: "/browser-sessions",
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
   "/browser-sessions": typeof DashboardBrowserSessionsRoute
+  "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
   "/knowledge-base": typeof DashboardKnowledgeBaseRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
   "/browser-sessions": typeof DashboardBrowserSessionsRoute
+  "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
   "/knowledge-base": typeof DashboardKnowledgeBaseRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   "/_dashboard/alerts": typeof DashboardAlertsRoute
   "/_dashboard/analytics": typeof DashboardAnalyticsRoute
   "/_dashboard/browser-sessions": typeof DashboardBrowserSessionsRoute
+  "/_dashboard/engagers": typeof DashboardEngagersRoute
   "/_dashboard/inbox": typeof DashboardInboxRoute
   "/_dashboard/keywords": typeof DashboardKeywordsRoute
   "/_dashboard/knowledge-base": typeof DashboardKnowledgeBaseRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | "/alerts"
     | "/analytics"
     | "/browser-sessions"
+    | "/engagers"
     | "/inbox"
     | "/keywords"
     | "/knowledge-base"
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | "/alerts"
     | "/analytics"
     | "/browser-sessions"
+    | "/engagers"
     | "/inbox"
     | "/keywords"
     | "/knowledge-base"
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | "/_dashboard/alerts"
     | "/_dashboard/analytics"
     | "/_dashboard/browser-sessions"
+    | "/_dashboard/engagers"
     | "/_dashboard/inbox"
     | "/_dashboard/keywords"
     | "/_dashboard/knowledge-base"
@@ -340,6 +352,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardInboxRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/engagers": {
+      id: "/_dashboard/engagers"
+      path: "/engagers"
+      fullPath: "/engagers"
+      preLoaderRoute: typeof DashboardEngagersRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/browser-sessions": {
       id: "/_dashboard/browser-sessions"
       path: "/browser-sessions"
@@ -412,6 +431,7 @@ interface DashboardRouteChildren {
   DashboardAlertsRoute: typeof DashboardAlertsRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardBrowserSessionsRoute: typeof DashboardBrowserSessionsRoute
+  DashboardEngagersRoute: typeof DashboardEngagersRoute
   DashboardInboxRoute: typeof DashboardInboxRoute
   DashboardKeywordsRoute: typeof DashboardKeywordsRoute
   DashboardKnowledgeBaseRoute: typeof DashboardKnowledgeBaseRoute
@@ -425,6 +445,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAlertsRoute: DashboardAlertsRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardBrowserSessionsRoute: DashboardBrowserSessionsRoute,
+  DashboardEngagersRoute: DashboardEngagersRoute,
   DashboardInboxRoute: DashboardInboxRoute,
   DashboardKeywordsRoute: DashboardKeywordsRoute,
   DashboardKnowledgeBaseRoute: DashboardKnowledgeBaseRoute,
