@@ -90,6 +90,7 @@ func (a *Agent) Run(ctx context.Context, ws string, history []ai.ChatMessage, em
 	msgs := append([]ai.ChatMessage{{Role: "system", Content: systemPrompt(list, time.Now())}}, history...)
 
 	var turn Turn
+	protocolErrs := 0 // consecutive; a model that can't follow the format stops early instead of burning every step
 	for turn.Steps < a.maxSteps() {
 		turn.Steps++
 		raw, err := a.step(ctx, ws, msgs)
@@ -99,10 +100,16 @@ func (a *Agent) Run(ctx context.Context, ws string, history []ai.ChatMessage, em
 		msgs = append(msgs, ai.ChatMessage{Role: "assistant", Content: raw})
 		st, perr := ParseStep(raw, known)
 		if perr != nil {
+			if protocolErrs++; protocolErrs >= maxProtocolErrors {
+				turn.Answer = "The AI model didn't follow LeadEcho's tool format, so I stopped. Try again, or pick a stronger chat model in Settings → AI Router."
+				emit("answer", map[string]string{"content": turn.Answer})
+				return turn, nil
+			}
 			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: "PROTOCOL_ERROR: " + perr.Error() +
 				`. Reply with exactly one JSON object: {"tool":"<name>","args":{...}} or {"answer":"<text>"}.`})
 			continue
 		}
+		protocolErrs = 0
 		if st.Answer != "" {
 			turn.Answer = st.Answer
 			emit("answer", map[string]string{"content": turn.Answer})
@@ -127,6 +134,9 @@ func (a *Agent) Run(ctx context.Context, ws string, history []ai.ChatMessage, em
 	emit("answer", map[string]string{"content": turn.Answer})
 	return turn, nil
 }
+
+// maxProtocolErrors is how many malformed replies in a row end the turn.
+const maxProtocolErrors = 2
 
 func (a *Agent) maxSteps() int {
 	if a.MaxSteps <= 0 {

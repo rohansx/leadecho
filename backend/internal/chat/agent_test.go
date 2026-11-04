@@ -128,6 +128,12 @@ func TestAgentRun(t *testing.T) {
 			wantEvents: []string{"tool_call", "tool_result", "answer"}, wantInModel: "internal error",
 		},
 		{
+			name:       "a model that keeps breaking the protocol stops after two tries",
+			replies:    []string{`{"reply":"x","intent":"buy_signal"}`},
+			wantAnswer: "didn't follow",
+			wantEvents: []string{"answer"},
+		},
+		{
 			name:       "step budget is enforced",
 			replies:    []string{`{"tool":"list_leads"}`},
 			wantAnswer: "couldn't finish", wantCalls: []string{"list_leads", "list_leads", "list_leads"},
@@ -183,6 +189,9 @@ func TestAgentRun(t *testing.T) {
 				if !strings.Contains(last[len(last)-1].Content, tc.wantInModel) {
 					t.Errorf("model's last message %q lacks %q", last[len(last)-1].Content, tc.wantInModel)
 				}
+			}
+			if tc.name == "a model that keeps breaking the protocol stops after two tries" && len(m.seen) != 2 {
+				t.Errorf("model called %d times, want 2", len(m.seen))
 			}
 			if strings.Contains(strings.Join(lastContents(m), "\n"), "hunter2") {
 				t.Error("internal error leaked to the model")
