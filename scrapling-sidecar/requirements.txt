@@ -1,9 +1,6 @@
-# Kept unpinned: server.py uses PlayWrightFetcher, which older scrapling
-# releases do not export, so pinning back to dodge the browserforge fingerprint
-# mismatch breaks the sidecar's own API. The mismatch is handled in the
-# Dockerfile instead, by clamping scrapling's requested Chrome version to what
-# browserforge actually ships data for.
-scrapling[all]
+# Pinned to the 0.5 line: an unpinned upgrade silently broke the image build.
+# server.py handles both DynamicFetcher (0.5) and the older PlayWrightFetcher.
+scrapling[all]>=0.5,<0.6
 browserforge==1.2.4
 fastapi
 uvicorn[standard]
