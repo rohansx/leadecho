@@ -77,8 +77,8 @@ type FeedbackStore interface {
 }
 
 // ListCalibrationExamples returns the onboarding 👍/👎 examples for a
-// listener (monitoring profile), newest first. Intended for the scorer's
-// few-shot prompt; not wired there yet.
+// listener (monitoring profile), newest first. The scorer reads them
+// through CalibrationSource.
 func ListCalibrationExamples(ctx context.Context, store FeedbackStore, workspaceID, profileID string) ([]CalibrationExample, error) {
 	var pid pgtype.UUID
 	if err := pid.Scan(profileID); err != nil {
@@ -91,6 +91,32 @@ func ListCalibrationExamples(ctx context.Context, store FeedbackStore, workspace
 	out := make([]CalibrationExample, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, CalibrationExample{Platform: r.Platform, URL: r.Url, Text: r.Text, Relevant: r.Label == "up"})
+	}
+	return out, nil
+}
+
+// CalibrationSource feeds onboarding 👍/👎 samples to the scorer as few-shot
+// examples (satisfies monitor.ExampleSource).
+type CalibrationSource struct{ Store FeedbackStore }
+
+func (c CalibrationSource) ScoringExamples(ctx context.Context, workspaceID, profileID string, limit int) ([]ai.ScoringExample, error) {
+	if profileID == "" { // onboarding samples are always tied to a listener
+		return nil, nil
+	}
+	rows, err := ListCalibrationExamples(ctx, c.Store, workspaceID, profileID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ai.ScoringExample, 0, min(limit, len(rows)))
+	for _, r := range rows {
+		if len(out) >= limit {
+			break
+		}
+		label := "down"
+		if r.Relevant {
+			label = "up"
+		}
+		out = append(out, ai.ScoringExample{Content: r.Text, Label: label, Note: "onboarding sample (" + r.Platform + ")"})
 	}
 	return out, nil
 }

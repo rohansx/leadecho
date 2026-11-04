@@ -73,3 +73,22 @@ func TestListCalibrationExamples(t *testing.T) {
 		t.Fatal("db error must propagate")
 	}
 }
+
+func TestCalibrationSource(t *testing.T) {
+	store := &fakeFeedbackStore{rows: []database.OnboardingSampleFeedback{
+		{Platform: "reddit", Text: "need a tool for this", Label: "up"},
+		{Platform: "hackernews", Text: "Show HN: my thing", Label: "down"},
+		{Platform: "devto", Text: "third", Label: "up"},
+	}}
+	src := CalibrationSource{Store: store}
+	got, err := src.ScoringExamples(context.Background(), "ws", "00000000-0000-0000-0000-000000000001", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Label != "up" || got[1].Label != "down" || got[0].Content != "need a tool for this" {
+		t.Fatalf("got %+v", got)
+	}
+	if got, err := src.ScoringExamples(context.Background(), "ws", "", 6); err != nil || got != nil {
+		t.Fatalf("workspace-level: %v %v", got, err)
+	}
+}

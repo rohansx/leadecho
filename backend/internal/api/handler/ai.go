@@ -17,6 +17,7 @@ import (
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
+	"leadecho/internal/onboarding"
 	"leadecho/internal/reply"
 )
 
@@ -57,7 +58,7 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 
 	// Classify
 	// scoring: same listener context (Looks for / Skips / few-shot) as the monitor
-	sc := monitor.ScoringContextFor(ctx, h.q, nil, wsID, id, func(error) {})
+	sc := monitor.ScoringContextFor(ctx, h.q, []monitor.ExampleSource{onboarding.CalibrationSource{Store: h.q}}, wsID, id, func(error) {})
 	result, err := h.llmRouter.ClassifyIntent(ctx, wsID, title, mention.Content, string(mention.Platform), sc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "classification failed: "+err.Error())

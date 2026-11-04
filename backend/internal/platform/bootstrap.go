@@ -25,6 +25,7 @@ import (
 	"leadecho/internal/llm"
 	"leadecho/internal/metrics"
 	"leadecho/internal/monitor"
+	"leadecho/internal/onboarding"
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
 	"leadecho/internal/streamworkers"
@@ -127,6 +128,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
 	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources
 	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
+	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
 	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
