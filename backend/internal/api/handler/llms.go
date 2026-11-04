@@ -1,0 +1,42 @@
+package handler
+
+import "net/http"
+
+// llmsTxt is the llms.txt agent index (feature: growth). Keep identical to
+// landing/public/llms.txt; TestLLMSTxtMatchesLanding enforces it.
+const llmsTxt = `# LeadEcho
+
+> LeadEcho finds buying-intent social mentions (Reddit, Hacker News, X, LinkedIn, Bluesky, Dev.to and more), drafts replies grounded in your own knowledge base, tracks UTM clicks through to revenue, and syncs qualified leads to HubSpot or Attio. It closes the loop: reply -> posted -> clicked -> revenue. Open source (MIT), hosted at https://leadecho.app or self-hosted.
+
+## For agents
+
+- MCP endpoint: https://leadecho.app/mcp (Streamable HTTP; authenticate with a workspace API key as a Bearer token)
+- REST API base: https://leadecho.app/api/public/v1 (send the workspace API key in the X-API-Key header)
+- Key check: GET https://leadecho.app/api/public/v1/probe returns 200 for a valid key and 401 for an invalid one
+- Workspace API keys: create and revoke them in the dashboard under Settings -> API keys
+- MCP tools: search_mentions, list_leads, get_lead, create_listener, tune_listener, mute, draft_reply, queue_reply, push_to_crm, set_stage, attribution_report, weekly_summary
+
+## Docs
+
+- [Getting started](https://leadecho.app/docs/getting-started): sign up, add a URL, get a scored inbox
+- [API reference](https://leadecho.app/docs/api-reference): REST endpoints and payloads
+- [Webhooks](https://leadecho.app/docs/webhooks): outbound mention and lead events
+- [UTM tracking](https://leadecho.app/docs/utm-tracking): attribution from reply to revenue
+- [Knowledge base](https://leadecho.app/docs/knowledge-base): ground reply drafts in your docs
+- [Self-hosting](https://leadecho.app/docs/self-hosting): Docker Compose deployment
+- [Agent skills](https://github.com/rohansx/leadecho/tree/master/docs/skills): copy-paste prompts for Claude/ChatGPT via MCP (setup, triage, lead sweep, attribution review)
+
+## Optional
+
+- [Compare: SnitchFeed](https://leadecho.app/compare/snitchfeed)
+- [Compare: Octolens](https://leadecho.app/compare/octolens)
+- [Free Reddit + HN keyword tester](https://leadecho.app/tools/keyword-tester)
+- [Source code](https://github.com/rohansx/leadecho)
+`
+
+// LLMSTxt serves GET /llms.txt.
+func LLMSTxt(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write([]byte(llmsTxt))
+}

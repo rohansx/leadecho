@@ -1,0 +1,137 @@
+---
+// One template for /compare/*, /alternatives/* and /monitor/* (feature: growth).
+// Content lives in src/data/growth.ts.
+import Layout from '../../layouts/Layout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import { AS_OF, LOOP, PILLARS, competitors, platforms, growthPages, type GrowthPage } from '../../data/growth';
+
+export function getStaticPaths() {
+  return growthPages.map((page) => ({ params: { section: page.section, slug: page.slug }, props: { page } }));
+}
+
+const { page } = Astro.props as { page: GrowthPage };
+const comp = competitors.find((c) => c.slug === page.slug);
+const plat = platforms.find((p) => p.slug === page.slug);
+const isMonitor = page.section === 'monitor';
+
+const description = isMonitor
+  ? `Find people on ${plat!.name} asking for a product like yours. LeadEcho scores intent, drafts a grounded reply, and tracks the click through to revenue.`
+  : `${page.title}: LeadEcho closes the loop from reply to posted to clicked to revenue, with CRM, CSV and webhooks on every plan. Facts as of ${AS_OF}.`;
+
+const related = growthPages.filter((p) => !(p.section === page.section && p.slug === page.slug));
+---
+
+<Layout title={`${page.title} | LeadEcho`} description={description}>
+  <Nav />
+  <main>
+    <section class="hero" style="padding-bottom: 40px;">
+      <div class="container-sm">
+        <div class="section-label section-label-bracket">
+          {isMonitor ? 'Platform monitoring' : page.section === 'compare' ? 'Comparison' : 'Alternative'}
+        </div>
+        <h1 class="section-title">{page.title}</h1>
+        <p class="section-sub">
+          {isMonitor && plat!.how}
+          {page.section === 'compare' && <>LeadEcho and {comp!.name} both surface social posts that signal buying intent. {comp!.name} is {comp!.summary} LeadEcho keeps going after the post: reply, posted, clicked, revenue.</>}
+          {page.section === 'alternatives' && <>Looking for a {comp!.name} alternative? LeadEcho finds the same buying-intent conversations and then tracks what your reply earned, from posted to clicked to revenue.</>}
+        </p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary btn-lg" href="/app/register">Start for free</a>
+          <a class="btn btn-outline btn-lg" href="/tools/keyword-tester">Test your keywords</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="steps">
+      <div class="container">
+        <div class="section-label section-label-bracket">The closed loop</div>
+        <div class="section-title">From a post to revenue</div>
+        <div class="steps-grid">
+          {LOOP.map((s, i) => (
+            <div class="step">
+              <div class="step-num">{String(i + 1).padStart(2, '0')}</div>
+              <h3>{s.step}</h3>
+              <p>{s.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {isMonitor && (
+      <section class="features">
+        <div class="container">
+          <div class="section-title">What LeadEcho catches on {plat!.name}</div>
+          <div class="feature-grid">
+            {plat!.signals.map((s) => (<div class="feat"><h3>{s}</h3></div>))}
+          </div>
+          <p class="section-sub" style="margin-top: 32px;">Starter queries to adapt:</p>
+          <ul class="mono" style="list-style: none; display: grid; gap: 8px;">
+            {plat!.queries.map((q) => (<li><code>{q}</code></li>))}
+          </ul>
+        </div>
+      </section>
+    )}
+
+    {!isMonitor && comp!.rows.length > 0 && (
+      <section class="compare-section">
+        <div class="container">
+          <div class="section-title">LeadEcho vs {comp!.name}, feature by feature</div>
+          <p class="section-sub">{comp!.name} facts as of {AS_OF}, from its public site and a trial workspace. Plans change; check <a href={comp!.site} rel="nofollow noreferrer" target="_blank">{comp!.site.replace('https://', '')}</a> for current details.</p>
+          <div class="compare-wrap">
+            <table class="compare">
+              <thead><tr><th>Feature</th><th class="ours">LeadEcho</th><th>{comp!.name}</th></tr></thead>
+              <tbody>
+                {comp!.rows.map((r) => (<tr><td>{r.feature}</td><td>{r.us}</td><td>{r.them}</td></tr>))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    )}
+
+    {!isMonitor && comp!.rows.length === 0 && (
+      <section class="compare-section">
+        <div class="container-sm">
+          <p class="section-sub">We have not yet verified {comp!.name}'s current feature set (as of {AS_OF}), so we are not publishing a feature table. See <a href={comp!.site} rel="nofollow noreferrer" target="_blank">{comp!.site.replace('https://', '')}</a> for their plans, and the list below for what LeadEcho includes.</p>
+        </div>
+      </section>
+    )}
+
+    {!isMonitor && comp!.credit.length > 0 && (
+      <section class="usecases">
+        <div class="container">
+          <div class="section-title">Where {comp!.name} is strong</div>
+          <div class="feature-grid">
+            {comp!.credit.map((c) => (<div class="feat"><p>{c}</p></div>))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <section class="features">
+      <div class="container">
+        <div class="section-title">Why teams pick LeadEcho</div>
+        <div class="feature-grid">
+          {PILLARS.map((p) => (<div class="feat"><h3>{p.title}</h3><p>{p.text}</p></div>))}
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta">
+      <div class="container-sm">
+        <div class="cta-box">
+          <h2>See your first scored lead in minutes</h2>
+          <p>Paste your URL. LeadEcho builds the listeners, finds the threads and drafts the reply.</p>
+          <a class="btn btn-primary btn-lg" href="/app/register">Start for free</a>
+        </div>
+        <nav aria-label="Related pages" style="margin-top: 40px; display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center;">
+          {related.map((p) => (<a href={`/${p.section}/${p.slug}`}>{p.label}</a>))}
+          <a href="/tools/keyword-tester">Free keyword tester</a>
+        </nav>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
