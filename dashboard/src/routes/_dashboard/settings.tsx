@@ -92,7 +92,7 @@ function LLMRouterCard() {
       await verifyLLMProvider(provider);
       return provider;
     },
-    onSuccess: (_, provider) => {
+    onSuccess: (provider) => {
       setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
       setMessage(`${provider} key saved and verified`);
       queryClient.invalidateQueries({ queryKey: ["llm-config"] });
@@ -188,7 +188,7 @@ function LLMRouterCard() {
           <Text as="p" className="text-sm text-muted-foreground">{renderError}</Text>
           <button
             onClick={() => setRenderError(null)}
-            className="px-4 py-2 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent"
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent"
           >
             Try again
           </button>
@@ -201,8 +201,8 @@ function LLMRouterCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-            <Router className="h-5 w-5 text-primary-foreground" />
+          <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+            <Router className="h-4 w-4 text-foreground-soft" />
           </div>
           <div>
             <CardTitle>AI Router</CardTitle>
@@ -213,7 +213,7 @@ function LLMRouterCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex flex-wrap items-center gap-2 p-3 rounded border-2 border-border bg-background">
+        <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border border-border bg-background">
           <Badge variant={config?.health.ready ? "surface" : "outline"} size="sm">
             {isLoading ? "Loading" : config?.health.ready ? "Ready" : "Needs setup"}
           </Badge>
@@ -232,7 +232,7 @@ function LLMRouterCard() {
             {providers.map((provider) => {
               const providerKey = provider.provider;
               return (
-                <div key={providerKey} className="rounded border-2 border-border bg-background p-3 space-y-3">
+                <div key={providerKey} className="rounded-lg border border-border bg-background p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <Text as="p" className="font-medium">{provider.display_name}</Text>
@@ -252,19 +252,19 @@ function LLMRouterCard() {
                       placeholder={`Paste ${providerKey} key`}
                       value={keyDrafts[providerKey] ?? ""}
                       onChange={(e) => setKeyDrafts((prev) => ({ ...prev, [providerKey]: e.target.value }))}
-                      className="flex-1 min-w-[8rem] px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                      className="flex-1 min-w-[8rem] px-2 py-1.5 text-sm rounded-lg border border-border bg-background text-foreground"
                     />
                     <button
                       onClick={() => saveKey.mutate({ provider: providerKey, apiKey: keyDrafts[providerKey] ?? "" })}
                       disabled={!keyDrafts[providerKey] || saveKey.isPending}
-                      className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent disabled:opacity-50"
                     >
                       Save
                     </button>
                     <button
                       onClick={() => verify.mutate(providerKey)}
                       disabled={!provider.is_set || verify.isPending}
-                      className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent disabled:opacity-50"
                     >
                       Verify
                     </button>
@@ -281,7 +281,7 @@ function LLMRouterCard() {
                         onBlur={() => setConfirmRemove((cur) => (cur === providerKey ? null : cur))}
                         disabled={removeKey.isPending}
                         title={`Remove the stored ${provider.display_name} key`}
-                        className={`px-3 py-1.5 text-sm font-medium rounded border-2 disabled:opacity-50 ${
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                           confirmRemove === providerKey
                             ? "border-destructive text-destructive bg-destructive/10"
                             : "border-border bg-background hover:bg-accent text-muted-foreground"
@@ -324,7 +324,7 @@ function LLMRouterCard() {
                     ? selectedModel
                     : defaultModel || "";
               return (
-                <div key={slot.key} className="rounded border-2 border-border bg-background p-3 space-y-3">
+                <div key={slot.key} className="rounded-lg border border-border bg-background p-3 space-y-3">
                   <div>
                     <Text as="p" className="font-medium">{slot.label}</Text>
                     <Text as="p" className="text-xs text-muted-foreground">{slot.description}</Text>
@@ -335,7 +335,7 @@ function LLMRouterCard() {
                     <select
                       value={selectedProvider}
                       onChange={(e) => updateModel(slot.key, { provider: e.target.value, model: defaultModelFor(e.target.value) })}
-                      className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background"
+                      className="w-full px-2 py-1.5 text-sm rounded-lg border border-border bg-background"
                     >
                       <option value="">Auto choose configured provider</option>
                       {options.map((p) => <option key={p.provider} value={p.provider}>{p.display_name}</option>)}
@@ -348,7 +348,7 @@ function LLMRouterCard() {
                       value={safeModelValue}
                       disabled={!selectedProvider}
                       onChange={(e) => updateModel(slot.key, { model: e.target.value === CUSTOM_MODEL ? "" : e.target.value })}
-                      className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background disabled:opacity-50"
+                      className="w-full px-2 py-1.5 text-sm rounded-lg border border-border bg-background disabled:opacity-50"
                     >
                       <option value="">{selectedProvider ? "Select a model" : "Choose a provider first"}</option>
                       {hasOptions && modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}
@@ -361,7 +361,7 @@ function LLMRouterCard() {
                       value={selectedModel}
                       onChange={(e) => updateModel(slot.key, { model: e.target.value })}
                       placeholder="Enter custom model id"
-                      className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background"
+                      className="w-full px-2 py-1.5 text-sm rounded-lg border border-border bg-background"
                     />
                   )}
                 </div>
@@ -372,14 +372,14 @@ function LLMRouterCard() {
 
         <div className="space-y-3">
           <Text as="p" className="font-medium">Task routing</Text>
-          <div className="rounded border-2 border-border overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             {routeRows.map(([task, label]) => (
               <div key={task} className="flex items-center justify-between gap-3 p-3 border-b last:border-b-0 border-border bg-background">
                 <Text as="p" className="text-sm">{label}</Text>
                 <select
                   value={routing[task] ?? (task.startsWith("embed") ? "embedding" : "cheap")}
                   onChange={(e) => setRouting((prev) => ({ ...prev, [task]: e.target.value }))}
-                  className="px-2 py-1.5 text-sm rounded border-2 border-border bg-background"
+                  className="px-2 py-1.5 text-sm rounded-lg border border-border bg-background"
                 >
                   <option value="cheap">Cheap</option>
                   <option value="strong">Strong</option>
@@ -391,7 +391,7 @@ function LLMRouterCard() {
           <button
             onClick={() => saveRoutes.mutate()}
             disabled={saveRoutes.isPending}
-            className="px-4 py-2 text-sm font-medium rounded border-2 border-border bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-foreground text-background hover:bg-foreground/85 disabled:opacity-50"
           >
             {saveRoutes.isPending ? "Saving..." : "Save routing"}
           </button>
@@ -402,7 +402,7 @@ function LLMRouterCard() {
             <Activity className="h-4 w-4" />
             <Text as="p" className="font-medium">30-day usage</Text>
           </div>
-          <div className="rounded border-2 border-border overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             {(usage ?? []).length === 0 ? (
               <div className="p-3 bg-background text-sm text-muted-foreground">No LLM calls recorded yet.</div>
             ) : usage?.slice(0, 6).map((row) => (
@@ -466,8 +466,8 @@ function ChromeExtensionCard() {
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-            <Puzzle className="h-5 w-5 text-primary-foreground" />
+          <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+            <Puzzle className="h-4 w-4 text-foreground-soft" />
           </div>
           <div>
             <CardTitle>Chrome Extension</CardTitle>
@@ -479,7 +479,7 @@ function ChromeExtensionCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Token status */}
-        <div className="flex items-center justify-between p-3 rounded border-2 border-border bg-background">
+        <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
           <div className="flex items-center gap-2">
             <Badge variant={hasToken ? "surface" : "outline"} size="sm">
               {isLoading ? "Loading..." : hasToken ? "Active" : "No key"}
@@ -499,7 +499,7 @@ function ChromeExtensionCard() {
             <button
               onClick={() => rotate.mutate()}
               disabled={rotate.isPending}
-              className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent transition-colors disabled:opacity-50"
             >
               {rotate.isPending ? "Generating..." : hasToken ? "Rotate key" : "Generate key"}
             </button>
@@ -507,7 +507,7 @@ function ChromeExtensionCard() {
               <button
                 onClick={() => revoke.mutate()}
                 disabled={revoke.isPending}
-                className="px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
               >
                 Revoke
               </button>
@@ -517,7 +517,7 @@ function ChromeExtensionCard() {
 
         {/* New token reveal — shown once after generation */}
         {newToken && (
-          <div className="p-3 rounded border-2 border-amber-500/50 bg-amber-500/5 space-y-2">
+          <div className="p-3 rounded-lg border border-amber-500/50 bg-amber-500/5 space-y-2">
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <Text as="p" className="text-sm font-medium">
@@ -528,11 +528,11 @@ function ChromeExtensionCard() {
               <input
                 readOnly
                 value={newToken}
-                className="flex-1 px-2 py-1.5 text-sm font-mono rounded border-2 border-border bg-background text-foreground"
+                className="flex-1 px-2 py-1.5 text-sm font-mono rounded-lg border border-border bg-background text-foreground"
               />
               <button
                 onClick={copyToken}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-background hover:bg-accent transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent transition-colors"
               >
                 {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 {copied ? "Copied" : "Copy"}
@@ -549,7 +549,7 @@ function ChromeExtensionCard() {
             <div className="flex items-center gap-2 flex-wrap">
               <a
                 href="/api/v1/extension/download"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border-2 border-border bg-primary text-primary-foreground hover:opacity-90"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-foreground text-background hover:bg-foreground/85"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download extension (.zip)
@@ -564,7 +564,7 @@ function ChromeExtensionCard() {
           ) : (
             <Text as="p" className="text-sm text-muted-foreground">
               No packaged build on this instance. Build one with{" "}
-              <code className="rounded bg-muted px-1 py-0.5">make extension</code>, then reload
+              <code className="rounded-lg bg-muted px-1 py-0.5">make extension</code>, then reload
               this page.
             </Text>
           )}
@@ -576,7 +576,7 @@ function ChromeExtensionCard() {
           <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
             <li>Download the .zip above and unzip it</li>
             <li>
-              Open <code className="rounded bg-muted px-1 py-0.5">chrome://extensions</code>, turn
+              Open <code className="rounded-lg bg-muted px-1 py-0.5">chrome://extensions</code>, turn
               on Developer mode, click <strong>Load unpacked</strong>, and select the unzipped
               folder
             </li>
@@ -595,7 +595,7 @@ function ChromeExtensionCard() {
 
 function SettingsPage() {
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Text as="h2">Settings</Text>
         <Text as="p" className="text-muted-foreground mt-1">
@@ -606,8 +606,8 @@ function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>AI Features</CardTitle>
@@ -622,7 +622,7 @@ function SettingsPage() {
           {/* This card is a billing statement, not a status one. Saying the
               features are "available on every mention" read as a contradiction
               next to the router below reporting "Needs setup". */}
-          <div className="flex items-center gap-2 p-3 rounded border-2 border-border bg-background">
+          <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-background">
             <Badge variant="surface" size="sm" className="shrink-0">Included</Badge>
             <Text as="p" className="text-sm text-muted-foreground">
               Classify and draft reply are unlocked on every mention. They run on your
@@ -641,8 +641,8 @@ function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <SettingsIcon className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <SettingsIcon className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Account</CardTitle>

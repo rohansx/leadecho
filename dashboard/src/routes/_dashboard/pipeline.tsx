@@ -13,25 +13,18 @@ import {
 } from "lucide-react";
 import { listLeads, updateLeadStage, leadCounts } from "@/lib/api";
 import type { Lead, LeadStage } from "@/lib/types";
+import { platformTone, stageTone } from "@/lib/tones";
 
 export const Route = createFileRoute("/_dashboard/pipeline")({
   component: PipelinePage,
 });
 
-const stages: { key: LeadStage; label: string; color: string }[] = [
-  { key: "prospect", label: "Prospect", color: "bg-slate-100 text-slate-700" },
-  {
-    key: "qualified",
-    label: "Qualified",
-    color: "bg-blue-100 text-blue-700",
-  },
-  { key: "engaged", label: "Engaged", color: "bg-purple-100 text-purple-700" },
-  {
-    key: "converted",
-    label: "Converted",
-    color: "bg-green-100 text-green-700",
-  },
-  { key: "lost", label: "Lost", color: "bg-red-100 text-red-700" },
+const stages: { key: LeadStage; label: string }[] = [
+  { key: "prospect", label: "Prospect" },
+  { key: "qualified", label: "Qualified" },
+  { key: "engaged", label: "Engaged" },
+  { key: "converted", label: "Converted" },
+  { key: "lost", label: "Lost" },
 ];
 
 const nextStage: Record<string, LeadStage | null> = {
@@ -40,15 +33,6 @@ const nextStage: Record<string, LeadStage | null> = {
   engaged: "converted",
   converted: null,
   lost: null,
-};
-
-const platformColors: Record<string, string> = {
-  reddit: "bg-orange-100 text-orange-800",
-  hackernews: "bg-amber-100 text-amber-800",
-  twitter: "bg-sky-100 text-sky-800",
-  linkedin: "bg-blue-100 text-blue-800",
-  quora: "bg-purple-100 text-purple-800",
-  exa: "bg-emerald-100 text-emerald-800",
 };
 
 function PipelinePage() {
@@ -113,13 +97,13 @@ function PipelinePage() {
             return (
               <div
                 key={stage.key}
-                className="min-w-[280px] w-[280px] flex-shrink-0"
+                className="min-w-[256px] w-[256px] flex-shrink-0"
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-2">
                     <Badge
-                      className={`${stage.color} border border-border`}
+                      className={stageTone(stage.key)}
                       size="sm"
                     >
                       {stage.label}
@@ -133,7 +117,7 @@ function PipelinePage() {
                 {/* Lead Cards */}
                 <div className="space-y-3">
                   {stageLeads.length === 0 && (
-                    <div className="border-2 border-dashed border-border rounded p-6 text-center">
+                    <div className="border border-dashed border-border rounded-lg p-6 text-center">
                       <Text
                         as="p"
                         className="text-xs text-muted-foreground"
@@ -186,7 +170,7 @@ function LeadCard({
           </div>
           {lead.platform && (
             <Badge
-              className={`${platformColors[lead.platform] ?? ""} border border-border`}
+              className={platformTone(lead.platform)}
               size="sm"
             >
               {lead.platform}
@@ -204,8 +188,8 @@ function LeadCard({
         {/* Value */}
         {lead.estimated_value != null && lead.estimated_value > 0 && (
           <div className="flex items-center gap-1">
-            <DollarSign className="h-3 w-3 text-green-600" />
-            <Text as="span" className="text-xs font-medium text-green-700">
+            <DollarSign className="h-3 w-3 text-success" />
+            <Text as="span" className="text-xs font-medium text-success tabular-nums">
               ${lead.estimated_value.toLocaleString()}/yr
             </Text>
           </div>

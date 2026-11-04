@@ -251,7 +251,7 @@ function InboxPage() {
   };
 
   return (
-    <div className="flex -m-6 min-h-0 overflow-hidden h-[calc(100vh-var(--header-height))]">
+    <div className="flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
       <LeadList
         mentions={mentions}
         listTotal={listTotal}

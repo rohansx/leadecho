@@ -231,7 +231,7 @@ export function LeadList({
                 onClick={() => onQueueChange(t.key)}
                 className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
                   active
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-foreground text-background"
                     : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
@@ -352,7 +352,7 @@ export function LeadList({
               </div>
             )}
             {/* Agent active but all mentions are filtered out in this view */}
-            {agentActive && totalMentions > 0 && (
+            {agentActive && totalMentions !== undefined && totalMentions > 0 && (
               <div className="flex items-center justify-center gap-2 py-2">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40"></span>
@@ -398,7 +398,7 @@ export function LeadList({
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1 flex-wrap">
                     {badge && (
                       <span
-                        className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${badge.className}`}
+                        className={`px-1.5 py-0.5 rounded-lg border text-[10px] font-medium ${badge.className}`}
                       >
                         {badge.label}
                       </span>

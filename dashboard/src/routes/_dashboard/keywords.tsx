@@ -81,7 +81,7 @@ function KeywordsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Text as="h2">Keywords</Text>
         <Text as="p" className="text-muted-foreground mt-1">
@@ -93,8 +93,8 @@ function KeywordsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Plus className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Plus className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Add Keyword</CardTitle>
@@ -132,9 +132,9 @@ function KeywordsPage() {
                   key={p}
                   type="button"
                   onClick={() => togglePlatform(p)}
-                  className={`px-2.5 py-1 rounded text-xs border-2 cursor-pointer transition font-medium ${
+                  className={`px-2.5 py-1 rounded-lg text-xs border cursor-pointer transition font-medium ${
                     selectedPlatforms.includes(p)
-                      ? "bg-primary text-primary-foreground border-border shadow-xs"
+                      ? "bg-accent-soft text-primary-ink border-primary/40"
                       : "bg-muted text-muted-foreground border-transparent hover:border-border"
                   }`}
                 >
@@ -153,9 +153,9 @@ function KeywordsPage() {
                   key={mt}
                   type="button"
                   onClick={() => setMatchType(mt)}
-                  className={`px-2.5 py-1 rounded text-xs border-2 cursor-pointer transition font-medium ${
+                  className={`px-2.5 py-1 rounded-lg text-xs border cursor-pointer transition font-medium ${
                     matchType === mt
-                      ? "bg-primary text-primary-foreground border-border shadow-xs"
+                      ? "bg-accent-soft text-primary-ink border-primary/40"
                       : "bg-muted text-muted-foreground border-transparent hover:border-border"
                   }`}
                 >
@@ -204,8 +204,8 @@ function KeywordsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Search className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Search className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Active Keywords</CardTitle>
@@ -232,7 +232,7 @@ function KeywordsPage() {
               {keywords.map((kw: Keyword) => (
                 <div
                   key={kw.id}
-                  className={`p-3 rounded border-2 border-border transition ${
+                  className={`p-3 rounded-lg border border-border transition ${
                     kw.is_active ? "bg-card" : "bg-muted opacity-60"
                   }`}
                 >

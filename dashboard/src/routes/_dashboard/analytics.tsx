@@ -34,18 +34,10 @@ import {
   MousePointerClick,
 } from "lucide-react";
 
+import { platformTone, stageTone } from "@/lib/tones";
 export const Route = createFileRoute("/_dashboard/analytics")({
   component: AnalyticsPage,
 });
-
-const platformColors: Record<string, string> = {
-  reddit: "bg-orange-100 text-orange-800",
-  hackernews: "bg-amber-100 text-amber-800",
-  twitter: "bg-sky-100 text-sky-800",
-  linkedin: "bg-blue-100 text-blue-800",
-  quora: "bg-purple-100 text-purple-800",
-  exa: "bg-emerald-100 text-emerald-800",
-};
 
 const intentLabels: Record<string, string> = {
   buy_signal: "Buy Signal",
@@ -53,14 +45,6 @@ const intentLabels: Record<string, string> = {
   recommendation_ask: "Recommendation",
   comparison: "Comparison",
   general: "General",
-};
-
-const stageColors: Record<string, string> = {
-  prospect: "bg-slate-200 text-slate-800",
-  qualified: "bg-blue-200 text-blue-800",
-  engaged: "bg-purple-200 text-purple-800",
-  converted: "bg-green-200 text-green-800",
-  lost: "bg-red-200 text-red-800",
 };
 
 function AnalyticsPage() {
@@ -115,12 +99,12 @@ function AnalyticsPage() {
   });
 
   const stats = [
-    { label: "Mentions (30d)", value: overview?.mentions_30d ?? 0, icon: MessageSquare, color: "text-blue-600" },
-    { label: "New / Unread", value: overview?.mentions_new ?? 0, icon: Zap, color: "text-amber-600" },
-    { label: "Total Leads", value: overview?.total_leads ?? 0, icon: Users, color: "text-purple-600" },
-    { label: "Converted", value: overview?.converted_leads ?? 0, icon: TrendingUp, color: "text-green-600" },
-    { label: "Replies Posted", value: overview?.replies_posted ?? 0, icon: Send, color: "text-indigo-600" },
-    { label: "Active Keywords", value: overview?.active_keywords ?? 0, icon: Target, color: "text-rose-600" },
+    { label: "Mentions (30d)", value: overview?.mentions_30d ?? 0, icon: MessageSquare },
+    { label: "New / Unread", value: overview?.mentions_new ?? 0, icon: Zap },
+    { label: "Total Leads", value: overview?.total_leads ?? 0, icon: Users },
+    { label: "Converted", value: overview?.converted_leads ?? 0, icon: TrendingUp },
+    { label: "Replies Posted", value: overview?.replies_posted ?? 0, icon: Send },
+    { label: "Active Keywords", value: overview?.active_keywords ?? 0, icon: Target },
   ];
 
   const conversionRate =
@@ -129,7 +113,7 @@ function AnalyticsPage() {
       : "0";
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <Text as="h2">Analytics</Text>
 
       {/* KPI Cards */}
@@ -138,10 +122,14 @@ function AnalyticsPage() {
           const Icon = s.icon;
           return (
             <Card key={s.label}>
-              <CardContent className="p-4 text-center">
-                <Icon className={`h-5 w-5 mx-auto mb-1 ${s.color}`} />
-                <Text as="p" className="text-2xl font-[family-name:var(--font-head)]">{s.value}</Text>
-                <Text as="p" className="text-xs text-muted-foreground">{s.label}</Text>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-medium">{s.label}</span>
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+                <p className="mt-2 font-[family-name:var(--font-head)] text-2xl font-semibold tracking-tight tabular-nums">
+                  {s.value.toLocaleString()}
+                </p>
               </CardContent>
             </Card>
           );
@@ -171,9 +159,9 @@ function AnalyticsPage() {
                     {Math.round(band.reject_rate * 100)}%
                   </span>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden border border-border">
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-amber-500 rounded-full"
+                    className="h-full bg-primary rounded-full"
                     style={{ width: `${Math.min(band.reject_rate * 100, 100)}%` }}
                   />
                 </div>
@@ -223,10 +211,10 @@ function AnalyticsPage() {
               return (
                 <div key={p.platform} className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Badge className={`${platformColors[p.platform] ?? ""} border border-border`} size="sm">{p.platform}</Badge>
+                    <Badge className={platformTone(p.platform)} size="sm">{p.platform}</Badge>
                     <Text as="span" className="text-sm font-medium">{p.count}</Text>
                   </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden border border-border">
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -249,8 +237,8 @@ function AnalyticsPage() {
                     <Text as="span" className="text-sm">{intentLabels[item.intent] ?? item.intent}</Text>
                     <Text as="span" className="text-sm font-medium">{item.count}</Text>
                   </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden border border-border">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -272,9 +260,9 @@ function AnalyticsPage() {
               const pct = (count / max) * 100;
               return (
                 <div key={stage} className="flex items-center gap-3">
-                  <Badge className={`${stageColors[stage] ?? ""} border border-border w-24 justify-center`} size="sm">{stage}</Badge>
-                  <div className="flex-1 h-6 bg-muted rounded border border-border overflow-hidden">
-                    <div className="h-full bg-primary rounded flex items-center justify-end pr-2" style={{ width: `${Math.max(pct, 8)}%` }}>
+                  <Badge className={`${stageTone(stage)} w-24 justify-center`} size="sm">{stage}</Badge>
+                  <div className="flex-1 h-6 bg-muted rounded-lg border border-border overflow-hidden">
+                    <div className="h-full bg-primary rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(pct, 8)}%` }}>
                       <span className="text-xs font-medium text-primary-foreground">{count}</span>
                     </div>
                   </div>
@@ -316,7 +304,7 @@ function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           {showNewLink && (
-            <div className="mb-4 p-3 border-2 border-border rounded space-y-2">
+            <div className="mb-4 p-3 border border-border rounded-lg space-y-2">
               <Input
                 placeholder="Destination URL (e.g. https://example.com/page)"
                 value={newLink.destination_url}
@@ -354,7 +342,7 @@ function AnalyticsPage() {
           <div className="space-y-1">
             {utmLinks.map((link) => (
               <div key={link.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <code className="text-xs bg-muted px-2 py-1 rounded border border-border font-mono shrink-0">
+                <code className="text-xs bg-muted px-2 py-1 rounded-lg border border-border font-mono shrink-0">
                   /r/{link.code}
                 </code>
                 <div className="flex-1 min-w-0">

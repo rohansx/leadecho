@@ -1,84 +1,95 @@
 @import "tailwindcss";
 
+/* Theme is toggled via the .dark class on <html>, not the OS media query. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* === LeadEcho Design System — warm editorial "paper & ink" theme === */
 
 :root {
   --radius: 0.625rem;
 
-  --background: #faf7f0;
-  --foreground: #18150f;
-  --foreground-soft: #4d4738;
-  --card: #fffdf8;
-  --card-foreground: #18150f;
+  /* Neutral stone canvas, ink primary actions, amber as the single brand accent. */
+  --background: #fafaf9;
+  --foreground: #0c0a09;
+  --foreground-soft: #44403c;
+  --card: #ffffff;
+  --card-foreground: #0c0a09;
 
-  --primary: #e2a516;
-  --primary-hover: #f2bd45;
-  --primary-foreground: #18150f;
-  --primary-ink: #8b6608;
+  --primary: #f0b429;
+  --primary-hover: #f5c451;
+  --primary-foreground: #1c1405;
+  --primary-ink: #a16207;
 
-  --secondary: #f0ebdd;
-  --secondary-foreground: #18150f;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #0c0a09;
 
-  --muted: #f0ebdd;
-  --muted-foreground: #8a8172;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
 
-  --accent: #f0ebdd;
-  --accent-foreground: #18150f;
-  --accent-soft: #f6ecce;
+  --accent: #f2f1ef;
+  --accent-foreground: #0c0a09;
+  --accent-soft: #fdf3d7;
 
-  --destructive: #c23b2e;
-  --destructive-foreground: #fff8f0;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
 
-  --border: #e6ddc9;
-  --input: #e6ddc9;
-  --ring: #d4a017;
+  --success: #15803d;
+  --warning: #b45309;
+  --info: #1d4ed8;
 
-  --chart-1: #c4a1ff;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #d6a015;
+
+  --chart-1: #f0b429;
   --chart-2: #0f9d7c;
-  --chart-3: #d4a017;
+  --chart-3: #4c8bd9;
   --chart-4: #e6636b;
-  --chart-5: #4c8bd9;
+  --chart-5: #a78bfa;
 
-  --sidebar-width: 280px;
+  --sidebar-width: 232px;
   --header-height: 56px;
 }
 
 .dark {
-  /* Cool-neutral dark — no warm brown film. Gold stays the single accent. */
-  --background: #0a0c0f;
-  --foreground: #e9ecf1;
-  --foreground-soft: #a7adb8;
-  --card: #14171c;
-  --card-foreground: #e9ecf1;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --foreground-soft: #d4d4d8;
+  --card: #111113;
+  --card-foreground: #fafafa;
 
-  --primary: #e6b422;
-  --primary-hover: #f0c33a;
-  --primary-foreground: #0a0c0f;
-  --primary-ink: #f0c33a;
+  --primary: #f0b429;
+  --primary-hover: #f5c451;
+  --primary-foreground: #1c1405;
+  --primary-ink: #facc15;
 
-  --secondary: #191d23;
-  --secondary-foreground: #e9ecf1;
+  --secondary: #18181b;
+  --secondary-foreground: #fafafa;
 
-  --muted: #191d23;
-  --muted-foreground: #8b929e;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
 
-  --accent: #1b2028;
-  --accent-foreground: #e9ecf1;
-  --accent-soft: #2a2410; /* subtle gold tint — badges/avatars only */
+  --accent: #1f1f23;
+  --accent-foreground: #fafafa;
+  --accent-soft: #2a2108;
 
-  --destructive: #e5675a;
-  --destructive-foreground: #0a0c0f;
+  --destructive: #f87171;
+  --destructive-foreground: #09090b;
 
-  --border: #232830;
-  --input: #1b2028;
-  --ring: #e6b422;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #f0b429;
 }
 
 @theme inline {
-  --font-head: "Space Grotesk", system-ui, sans-serif;
-  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-head: "Geist", "Inter", system-ui, sans-serif;
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-serif: "Instrument Serif", Georgia, serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-mono: "Geist Mono", "JetBrains Mono", monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -99,6 +110,11 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
 
   /* Soft editorial shadow system — no hard neubrutalist offsets */
   --shadow-xs: 0 1px 2px 0 rgba(30, 24, 8, 0.04);
@@ -128,14 +144,6 @@ html {
   color: var(--foreground);
 }
 
-/* Subtle single-hue backdrop so glass surfaces have something to refract. */
-.dark body {
-  background-image:
-    radial-gradient(900px 500px at 12% -8%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 60%),
-    radial-gradient(1100px 700px at 100% 0%, color-mix(in oklab, var(--primary) 4%, transparent), transparent 55%);
-  background-attachment: fixed;
-}
-
 /* === Glassmorphism surfaces === */
 .glass {
   background-color: color-mix(in oklab, var(--card) 68%, transparent);
@@ -151,12 +159,10 @@ html {
   border: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
   box-shadow: var(--shadow-lg), inset 0 1px 0 0 color-mix(in oklab, white 7%, transparent);
 }
-/* Lighter frosted surface for the many cards on a page (bounded blur). */
+/* Flat card surface used across the app. */
 .glass-card {
-  background-color: color-mix(in oklab, var(--card) 80%, transparent);
-  backdrop-filter: blur(8px) saturate(130%);
-  -webkit-backdrop-filter: blur(8px) saturate(130%);
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  background-color: var(--card);
+  border: 1px solid var(--border);
 }
 
 /* Page-transition entrance (paired with motion/react in the shell). */

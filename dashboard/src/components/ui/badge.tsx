@@ -2,17 +2,17 @@ import { cn } from "@/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { HTMLAttributes } from "react";
 
-const badgeVariants = cva("font-medium rounded-full inline-flex items-center gap-1", {
+const badgeVariants = cva("font-medium rounded-md inline-flex items-center gap-1 whitespace-nowrap", {
   variants: {
     variant: {
       default: "bg-muted text-muted-foreground",
       outline: "border border-border text-foreground",
       solid: "bg-foreground text-background",
-      surface: "bg-accent-soft text-primary-ink border border-primary/20",
+      surface: "bg-accent-soft text-primary-ink",
     },
     size: {
-      sm: "px-2 py-0.5 text-xs",
-      md: "px-2.5 py-1 text-sm",
+      sm: "px-1.5 py-0.5 text-[11px]",
+      md: "px-2 py-0.5 text-xs",
       lg: "px-3 py-1.5 text-base",
     },
   },

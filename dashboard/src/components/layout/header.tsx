@@ -35,27 +35,27 @@ export function Header() {
   };
 
   return (
-    <header className="glass flex h-[var(--header-height)] shrink-0 items-center gap-4 rounded-2xl px-4">
-      <div className="relative max-w-md flex-1">
+    <header className="flex h-[var(--header-height)] shrink-0 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur">
+      <div className="relative max-w-sm flex-1">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submitSearch()}
           placeholder="Search mentions…"
-          className="w-full rounded-xl border border-border/50 bg-background/40 py-1.5 pl-9 pr-14 text-sm placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-2 focus:ring-ring/30"
+          className="h-8 w-full rounded-lg border border-border bg-card pl-9 pr-10 text-[13px] placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-3 focus:ring-ring/20"
         />
         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-[family-name:var(--font-mono)] text-muted-foreground border border-border rounded px-1.5 py-0.5">
           ⏎
         </span>
       </div>
 
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="ml-auto flex items-center gap-1">
         <button
           type="button"
           onClick={toggleTheme}
           aria-label="Toggle theme"
-          className="flex size-9 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-background/40 transition-[color,background-color,transform] duration-150 hover:bg-accent/70 active:scale-95"
+          className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
@@ -63,31 +63,31 @@ export function Header() {
           type="button"
           onClick={() => pathname !== "/inbox" && navigate({ to: "/inbox" })}
           aria-label="New mentions"
-          className="relative w-9 h-9 rounded-lg border border-border bg-background hover:bg-accent transition-colors flex items-center justify-center cursor-pointer"
+          className="relative flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Bell className="h-4 w-4" />
           {newCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums ring-2 ring-background flex items-center justify-center">
               {newCount > 99 ? "99+" : newCount}
             </span>
           )}
         </button>
         {user ? (
           <>
-            <div className="w-9 h-9 rounded-full bg-accent-soft text-primary-ink flex items-center justify-center font-[family-name:var(--font-head)] text-xs font-medium">
+            <div className="ml-1 size-7 rounded-full bg-accent-soft text-primary-ink flex items-center justify-center text-[11px] font-semibold">
               {initials}
             </div>
             <button
               type="button"
               onClick={logout}
-              className="flex size-9 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-background/40 transition-[color,background-color,transform] duration-150 hover:bg-accent/70 active:scale-95"
+              className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
               title="Log out"
             >
               <LogOut className="h-4 w-4" />
             </button>
           </>
         ) : (
-          <div className="w-9 h-9 rounded-full bg-accent-soft text-primary-ink flex items-center justify-center font-[family-name:var(--font-head)] text-xs font-medium">
+          <div className="ml-1 size-7 rounded-full bg-accent-soft text-primary-ink flex items-center justify-center text-[11px] font-semibold">
             U
           </div>
         )}

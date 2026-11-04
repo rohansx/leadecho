@@ -5,15 +5,15 @@ import type { ElementType, HTMLAttributes } from "react";
 const textVariants = cva("", {
   variants: {
     as: {
-      p: "font-[family-name:var(--font-sans)] text-base",
+      p: "font-[family-name:var(--font-sans)] text-sm leading-6",
       display:
         "font-[family-name:var(--font-head)] text-5xl lg:text-6xl font-medium tracking-tight leading-[1.05] [&_em]:font-[family-name:var(--font-serif)] [&_em]:italic [&_em]:font-normal [&_em]:text-primary-ink",
-      h1: "font-[family-name:var(--font-head)] text-4xl lg:text-5xl font-medium tracking-tight [&_em]:font-[family-name:var(--font-serif)] [&_em]:italic [&_em]:font-normal [&_em]:text-primary-ink",
-      h2: "font-[family-name:var(--font-head)] text-3xl lg:text-4xl font-medium tracking-tight [&_em]:font-[family-name:var(--font-serif)] [&_em]:italic [&_em]:font-normal [&_em]:text-primary-ink",
-      h3: "font-[family-name:var(--font-head)] text-2xl font-medium",
-      h4: "font-[family-name:var(--font-head)] text-xl font-normal",
-      h5: "font-[family-name:var(--font-head)] text-lg font-normal",
-      span: "font-[family-name:var(--font-sans)] text-base",
+      h1: "font-[family-name:var(--font-head)] text-3xl lg:text-4xl font-semibold tracking-[-0.02em] [&_em]:font-[family-name:var(--font-serif)] [&_em]:italic [&_em]:font-normal [&_em]:text-primary-ink",
+      h2: "font-[family-name:var(--font-head)] text-2xl font-semibold tracking-[-0.02em] [&_em]:font-[family-name:var(--font-serif)] [&_em]:italic [&_em]:font-normal [&_em]:text-primary-ink",
+      h3: "font-[family-name:var(--font-head)] text-lg font-semibold tracking-tight",
+      h4: "font-[family-name:var(--font-head)] text-base font-semibold",
+      h5: "font-[family-name:var(--font-head)] text-sm font-semibold",
+      span: "font-[family-name:var(--font-sans)] text-sm",
     },
   },
   defaultVariants: {

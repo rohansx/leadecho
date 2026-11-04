@@ -18,17 +18,32 @@ import {
   Settings,
 } from "lucide-react";
 
-const navItems = [
-  { to: "/inbox", label: "Inbox", icon: Inbox },
-  { to: "/pipeline", label: "Pipeline", icon: GitBranch },
-  { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
-  { to: "/workflows", label: "Workflows", icon: Zap },
-  { to: "/keywords", label: "Keywords", icon: Search },
-  { to: "/profiles", label: "Profiles", icon: Target },
-  { to: "/browser-sessions", label: "Browser", icon: Globe },
-  { to: "/alerts", label: "Alerts", icon: Bell },
-  { to: "/settings", label: "Settings", icon: Settings },
+const navGroups = [
+  {
+    label: "Work",
+    items: [
+      { to: "/inbox", label: "Inbox", icon: Inbox },
+      { to: "/pipeline", label: "Pipeline", icon: GitBranch },
+      { to: "/analytics", label: "Analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Targeting",
+    items: [
+      { to: "/keywords", label: "Keywords", icon: Search },
+      { to: "/profiles", label: "Profiles", icon: Target },
+      { to: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
+      { to: "/workflows", label: "Workflows", icon: Zap },
+    ],
+  },
+  {
+    label: "Workspace",
+    items: [
+      { to: "/browser-sessions", label: "Browser", icon: Globe },
+      { to: "/alerts", label: "Alerts", icon: Bell },
+      { to: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ] as const;
 
 export function Sidebar() {
@@ -42,49 +57,60 @@ export function Sidebar() {
   const leadsReady = tierCounts?.find((c) => c.tier === MENTION_TIERS.LEADS_READY)?.count ?? 0;
 
   return (
-    <aside className="glass flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden rounded-2xl">
-      <div className="flex h-[var(--header-height)] items-center border-b border-border/40 px-5">
+    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-border bg-card/60">
+      <div className="flex h-[var(--header-height)] items-center px-5">
         <Logo />
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.to);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.label}
-              to={item.to}
-              className={cn(
-                "relative flex items-center gap-3 rounded-xl px-3 py-2 font-[family-name:var(--font-sans)] text-sm transition-colors duration-150",
-                isActive
-                  ? "font-medium text-primary-foreground"
-                  : "text-foreground-soft hover:bg-accent/70 hover:text-foreground",
-              )}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 rounded-xl bg-primary shadow-sm"
-                  transition={{ type: "spring", stiffness: 400, damping: 34 }}
-                />
-              )}
-              <Icon className="relative z-10 h-4 w-4 shrink-0" />
-              <span className="relative z-10 flex-1">{item.label}</span>
-              {item.to === "/inbox" && leadsReady > 0 && (
-                <span
-                  aria-label={`${leadsReady} leads ready`}
-                  className={cn(
-                    "relative z-10 text-[11px] font-medium rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
-                    isActive ? "bg-primary-foreground/20" : "bg-accent-soft text-primary-ink",
-                  )}
-                >
-                  {leadsReady}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+              {group.label}
+            </p>
+            <div className="space-y-px">
+              {group.items.map((item) => {
+                const isActive = pathname.startsWith(item.to);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    className={cn(
+                      "relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
+                      isActive
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="sidebar-active"
+                        className="absolute inset-0 rounded-md bg-accent shadow-[inset_0_0_0_1px_var(--border)]"
+                        transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                      />
+                    )}
+                    <Icon
+                      className={cn(
+                        "relative z-10 h-4 w-4 shrink-0",
+                        isActive ? "text-primary-ink" : "text-muted-foreground",
+                      )}
+                    />
+                    <span className="relative z-10 flex-1">{item.label}</span>
+                    {item.to === "/inbox" && leadsReady > 0 && (
+                      <span
+                        aria-label={`${leadsReady} leads ready`}
+                        className="relative z-10 min-w-5 rounded-md bg-accent-soft px-1.5 py-px text-center text-[11px] font-medium text-primary-ink tabular-nums"
+                      >
+                        {leadsReady}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
     </aside>
   );

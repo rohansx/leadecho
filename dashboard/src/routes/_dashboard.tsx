@@ -13,6 +13,7 @@ import { Header } from "@/components/layout/header";
 import { useAuth } from "@/lib/auth";
 import { Text } from "@/components/ui/text";
 import { getOnboardingStatus } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_dashboard")({
   component: DashboardLayout,
@@ -54,17 +55,26 @@ function DashboardLayout() {
   }
 
   return (
-    <div className="flex h-dvh gap-3 overflow-hidden bg-background p-3">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-auto rounded-2xl">
+        <main className="flex-1 overflow-auto">
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="p-2 md:p-4"
+            className={
+              // Inbox is a full-bleed split pane; every other page gets the reading container.
+              pathname.startsWith("/inbox")
+                ? "h-full"
+                : cn(
+                    "w-full px-6 py-6 md:px-8 md:py-8",
+                    // Kanban needs every column visible; other pages read better in a container.
+                    !pathname.startsWith("/pipeline") && "mx-auto max-w-[1200px]",
+                  )
+            }
           >
             <Outlet />
           </motion.div>

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
@@ -41,7 +41,6 @@ const DEPLOY_STEPS = [
 function OnboardingPage() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
-  const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
 
   const { data: onboarding } = useQuery({
@@ -230,10 +229,10 @@ function OnboardingPage() {
       <div className="ob-shape ob-shape-3" />
       <div className="ob-shape ob-shape-4" />
 
-      <div className="relative z-10 w-full max-w-[580px] bg-card border-2 border-border shadow-lg p-10">
+      <div className="relative z-10 w-full max-w-[580px] bg-card border border-border shadow-lg p-10">
         {/* Logo */}
         <div className="flex items-center gap-2.5 mb-8">
-          <div className="w-9 h-9 bg-primary border-2 border-border shadow-xs flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-sm font-bold">
+          <div className="w-9 h-9 bg-primary border border-border shadow-xs flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-sm font-bold">
             LE
           </div>
           <span className="font-[family-name:var(--font-head)] text-xl">LeadEcho</span>
@@ -255,7 +254,7 @@ function OnboardingPage() {
 
             {/* Inline AI provider setup — shown when no chat provider is configured */}
             {!aiConfigured && (
-              <div className="mb-6 p-4 border-2 border-dashed border-border rounded space-y-3">
+              <div className="mb-6 p-4 border border-dashed border-border rounded-lg space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-primary uppercase tracking-wider">
                     AI Provider Required
@@ -282,7 +281,7 @@ function OnboardingPage() {
                       <select
                         value={selectedProvider}
                         onChange={(e) => setSelectedProvider(e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                        className="w-full px-2 py-1.5 text-sm rounded-lg border border-border bg-background text-foreground"
                       >
                         {chatProviders.map((p) => (
                           <option key={p.provider} value={p.provider}>
@@ -300,7 +299,7 @@ function OnboardingPage() {
                         placeholder={`Paste your ${selectedProvider} key`}
                         value={apiKeyInput}
                         onChange={(e) => setApiKeyInput(e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm rounded border-2 border-border bg-background text-foreground"
+                        className="w-full px-2 py-1.5 text-sm rounded-lg border border-border bg-background text-foreground"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -340,7 +339,7 @@ function OnboardingPage() {
             )}
 
             {aiConfigured && (
-              <div className="mb-4 p-2 rounded border-2 border-border bg-muted text-xs text-muted-foreground">
+              <div className="mb-4 p-2 rounded-lg border border-border bg-muted text-xs text-muted-foreground">
                 ✓ AI provider configured — URL analysis is ready.
               </div>
             )}
@@ -461,7 +460,7 @@ function OnboardingPage() {
                   key={p.value}
                   onClick={() => togglePlatform(p.value)}
                   title={p.note ? `${p.label} — ${p.note}` : p.label}
-                  className={`px-4 py-1.5 border-2 border-border text-sm cursor-pointer font-[family-name:var(--font-sans)] transition-all ${
+                  className={`px-4 py-1.5 border border-border text-sm cursor-pointer font-[family-name:var(--font-sans)] transition-all ${
                     platforms.includes(p.value)
                       ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                       : "bg-background text-muted-foreground hover:bg-muted"
@@ -528,7 +527,7 @@ function OnboardingPage() {
                   }`}
                 >
                   <div
-                    className={`w-5 h-5 border-2 border-border flex items-center justify-center text-xs transition-colors ${
+                    className={`w-5 h-5 border border-border flex items-center justify-center text-xs transition-colors ${
                       i < deployStep
                         ? "bg-primary text-primary-foreground"
                         : i === deployStep
