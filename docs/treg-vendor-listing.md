@@ -12,8 +12,8 @@ shape and must be reconciled with the shipped routes before submission.
 
 | Requirement (treg) | LeadEcho | Status |
 |---|---|---|
-| Self-serve API keys, no sales call | Workspace API keys created in Settings -> API keys after self-serve sign-up | Pending: keys ship with the MCP/API branch |
-| Key in a header or query param, never the path | `X-API-Key: <key>` header (also `Authorization: Bearer <key>`) | OK by design |
+| Self-serve API keys, no sales call | Workspace API keys created in Settings -> API & MCP after self-serve sign-up | Pending: keys ship with the MCP/API branch |
+| Key in a header or query param, never the path | `Authorization: Bearer <key>` header | OK by design |
 | Free probe that rejects a bad key distinguishably | `GET /api/public/v1/probe`: 200 + workspace id for a valid key, 401 JSON for an invalid one | Pending: must be observed live and quoted from the wire |
 | Published pricing page, stable URL | https://leadecho.app/#pricing | Exists; update it to match the final plan pricing first |
 | Docs with example parameter values | https://leadecho.app/docs/api-reference | Needs a section for `/api/public/v1` with example values |
@@ -34,12 +34,12 @@ LEADECHO = OAuthProvider(
     token_label="Workspace API key",
     token_placeholder="your LeadEcho workspace API key",
     # Header keeps the key out of logged URLs.
-    token_header="X-API-Key",
-    token_format="{secret}",
+    token_header="Authorization",
+    token_format="Bearer {secret}",
     setup_url="https://leadecho.app/app/settings",
     setup_action_label="Get your LeadEcho API key",
     setup_steps=(
-        "Sign in to LeadEcho and open Settings -> API keys.",
+        "Sign in to LeadEcho and open Settings -> API & MCP.",
         "Create a key, give it a name, and copy it (it is shown once).",
     ),
     setup_note="Calls are included in your LeadEcho plan; the probe is free.",
@@ -238,8 +238,8 @@ LeadEcho finds people on Reddit, Hacker News, X, LinkedIn and Bluesky asking for
 like yours, scores the intent, drafts a reply from your own docs, and reports clicks and
 revenue from those replies. Agents use it to run social lead generation end to end.
 
-Auth: workspace API key in the X-API-Key header. Self-serve: sign up at
-https://leadecho.app/app/register, Settings -> API keys.
+Auth: workspace API key as an Authorization: Bearer header. Self-serve: sign up at
+https://leadecho.app/app/register, Settings -> API & MCP.
 
 Probe: GET /api/public/v1/probe
   valid key   -> TODO status + body, observed YYYY-MM-DD

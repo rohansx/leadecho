@@ -4,9 +4,9 @@ Copy-paste playbooks for Claude, ChatGPT or any MCP client connected to LeadEcho
 
 ## Connect
 
-1. In LeadEcho, open **Settings -> API keys** and create a workspace key.
-2. Add the MCP server to your client: URL `https://leadecho.app/mcp`, header `Authorization: Bearer <your key>`.
-   Self-hosted: use `https://<your-host>/mcp`.
+1. In LeadEcho, open **Settings -> API & MCP** and create a workspace key.
+2. Add the MCP server to your client: URL `https://leadecho.app/api/mcp`, header `Authorization: Bearer <your key>`.
+   Self-hosted: use `https://<your-host>/api/mcp`.
 3. Paste a skill below into a new chat. Skills marked *schedulable* can run as a scheduled task in clients that support it.
 
 ## MCP tools

@@ -4,10 +4,10 @@
 
 ## For agents
 
-- MCP endpoint: https://leadecho.app/mcp (Streamable HTTP; authenticate with a workspace API key as a Bearer token)
-- REST API base: https://leadecho.app/api/public/v1 (send the workspace API key in the X-API-Key header)
+- MCP endpoint: https://leadecho.app/api/mcp (Streamable HTTP; authenticate with a workspace API key as a Bearer token)
+- REST API base: https://leadecho.app/api/public/v1 (send the workspace API key as an Authorization: Bearer header)
 - Key check: GET https://leadecho.app/api/public/v1/probe returns 200 for a valid key and 401 for an invalid one
-- Workspace API keys: create and revoke them in the dashboard under Settings -> API keys
+- Workspace API keys: create and revoke them in the dashboard under Settings -> API & MCP
 - MCP tools: search_mentions, list_leads, get_lead, create_listener, tune_listener, mute, draft_reply, queue_reply, push_to_crm, set_stage, attribution_report, weekly_summary
 
 ## Docs
