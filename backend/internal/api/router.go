@@ -18,6 +18,7 @@ import (
 	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/digest" // digests (P1 #13)
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
@@ -156,6 +157,13 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/settings/api-keys", settings.GetAPIKeys)
 			r.Put("/settings/api-keys", settings.SaveAPIKey)
 			r.Delete("/settings/api-keys", settings.DeleteAPIKey)
+
+			// digests (P1 #13): daily/weekly digest settings + HTML preview
+			digests := handler.NewDigestHandler(digest.NewService(queries, llmRouter,
+				cfg.ResendAPIKey, cfg.DigestFromEmail, cfg.FrontendURL, logger))
+			r.Get("/settings/digests", digests.Get)
+			r.Put("/settings/digests", digests.Put)
+			r.Post("/settings/digests/preview", digests.Preview)
 
 			// Outbound integrations (signed webhook, HubSpot, Attio)
 			integrations := handler.NewIntegrationsHandler(queries, encKey)

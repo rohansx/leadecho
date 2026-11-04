@@ -13,6 +13,9 @@ import (
 type Querier interface {
 	ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error)
 	AssignMention(ctx context.Context, arg AssignMentionParams) (Mention, error)
+	// Returns a row only when this caller owns the (workspace, kind, period) slot:
+	// a fresh insert, or a retry of a failed run (max 3 attempts).
+	ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error)
 	ConversionFunnel(ctx context.Context, workspaceID string) ([]ConversionFunnelRow, error)
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountConvertedLeads(ctx context.Context, workspaceID string) (int32, error)
@@ -64,11 +67,20 @@ type Querier interface {
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
+	DigestAttribution(ctx context.Context, arg DigestAttributionParams) (DigestAttributionRow, error)
+	DigestIntentCounts(ctx context.Context, arg DigestIntentCountsParams) ([]DigestIntentCountsRow, error)
+	DigestKeywordStats(ctx context.Context, arg DigestKeywordStatsParams) ([]DigestKeywordStatsRow, error)
+	DigestPlatformCounts(ctx context.Context, arg DigestPlatformCountsParams) ([]DigestPlatformCountsRow, error)
+	DigestRepliesPosted(ctx context.Context, arg DigestRepliesPostedParams) (int32, error)
+	DigestTopMentions(ctx context.Context, arg DigestTopMentionsParams) ([]DigestTopMentionsRow, error)
 	FindSimilarDocumentChunks(ctx context.Context, arg FindSimilarDocumentChunksParams) ([]FindSimilarDocumentChunksRow, error)
 	// Only match pain points from ACTIVE monitoring profiles so deactivating a
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	FinishDigestRun(ctx context.Context, arg FinishDigestRunParams) error
+	// Digests (P1 #13)
+	GetDigestSettings(ctx context.Context, workspaceID string) (DigestSetting, error)
 	GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error)
 	GetEventLogByEventID(ctx context.Context, eventID string) (EventLog, error)
 	GetExtensionTokenByToken(ctx context.Context, token string) (ExtensionToken, error)
@@ -91,6 +103,7 @@ type Querier interface {
 	GetUser(ctx context.Context, id string) (User, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
+	GetWorkspaceOwnerEmail(ctx context.Context, workspaceID string) (string, error)
 	GetWorkspaceSettings(ctx context.Context, id string) ([]byte, error)
 	HasConsumerProcessedEvent(ctx context.Context, arg HasConsumerProcessedEventParams) (bool, error)
 	HasWorkflowExecutionForMention(ctx context.Context, arg HasWorkflowExecutionForMentionParams) (bool, error)
@@ -105,6 +118,8 @@ type Querier interface {
 	ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfile, error)
 	ListApprovedRepliesByWorkspace(ctx context.Context, workspaceID string) ([]ListApprovedRepliesByWorkspaceRow, error)
 	ListConsumerCheckpoints(ctx context.Context) ([]ConsumerCheckpoint, error)
+	// Every workspace with its digest schedule; workspaces without a row get the defaults.
+	ListDigestSchedules(ctx context.Context) ([]ListDigestSchedulesRow, error)
 	ListDocuments(ctx context.Context, workspaceID string) ([]Document, error)
 	ListEventLogByWorkspace(ctx context.Context, arg ListEventLogByWorkspaceParams) ([]EventLog, error)
 	ListEventReplays(ctx context.Context, arg ListEventReplaysParams) ([]EventReplay, error)
@@ -183,6 +198,7 @@ type Querier interface {
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
+	UpsertDigestSettings(ctx context.Context, arg UpsertDigestSettingsParams) (DigestSetting, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
 }

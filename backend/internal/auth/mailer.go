@@ -1,15 +1,9 @@
 package auth
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"html"
-	"io"
-	"net/http"
-	"strings"
-	"time"
 )
 
 // mailer sends transactional email through Resend. With no API key it is
@@ -23,33 +17,7 @@ type mailer struct {
 func (m mailer) enabled() bool { return m.apiKey != "" }
 
 func (m mailer) send(ctx context.Context, to, subject, body string) error {
-	if !m.enabled() {
-		return nil
-	}
-	payload, err := json.Marshal(map[string]any{
-		"from": m.from, "to": []string{to}, "subject": subject, "html": body,
-	})
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+m.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return fmt.Errorf("resend status %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
-	}
-	return nil
+	return Resend{APIKey: m.apiKey, From: m.from}.Send(ctx, []string{to}, subject, body)
 }
 
 func emailLayout(heading, text, buttonLabel, link string) string {
