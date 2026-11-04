@@ -68,7 +68,8 @@ services:
         VITE_POSTHOG_KEY: ${VITE_POSTHOG_KEY:-}
         VITE_POSTHOG_HOST: ${VITE_POSTHOG_HOST:-}
     ports:
-      - "3100:3100"
+      # Override DASHBOARD_PORT to run a second stack (staging) on the same host.
+      - "${DASHBOARD_PORT:-3100}:3100"
     depends_on:
       - api
     restart: unless-stopped
