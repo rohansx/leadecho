@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/ai"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/events"
 	"leadecho/internal/events/publishers"
@@ -37,19 +39,26 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 	// Stage 1: LLM spam/noise filter (cheap model via TaskFilter)
 	if m.llmRouter != nil {
-		var passed []mentionAlert
-		for _, a := range scoreable {
+		keep := make([]bool, len(scoreable))
+		m.forEachConcurrent(ctx, len(scoreable), func(i int) {
+			a := scoreable[i]
 			fr, err := m.llmRouter.FilterMention(ctx, wsID, a.Title, a.Content, a.Platform)
 			if err != nil {
 				m.logger.Warn().Err(err).Str("mention_id", a.ID).Msg("scorer: stage1 filter failed, fail-open")
-				passed = append(passed, a)
-				continue
+				keep[i] = true
+				return
 			}
 			if !fr.Pass {
 				m.markStageFiltered(ctx, a, "stage1_spam_filter", fr.Reason)
-				continue
+				return
 			}
-			passed = append(passed, a)
+			keep[i] = true
+		})
+		var passed []mentionAlert
+		for i, a := range scoreable {
+			if keep[i] {
+				passed = append(passed, a)
+			}
 		}
 		scoreable = passed
 	}
@@ -156,51 +165,10 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		return
 	}
 
-	// Stage 3: Intent classification
-	for _, c := range candidates {
-		result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform)
-		if err != nil {
-			// Record the failure. Without this the mention keeps null scoring
-			// metadata, which is indistinguishable from "never reached stage 3":
-			// it is not retried, not surfaced as filtered, and silently stalls.
-			m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
-			m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
-			continue
-		}
-
-		meta := map[string]any{
-			"stage":           "stage3_classified",
-			"best_similarity": c.similarity,
-			"auto_scored":     true,
-			"reasoning":       result.Reasoning,
-			"awareness_level": result.AwarenessLevel,
-		}
-
-		// Update mention with classification + awareness level
-		if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
-			ID:                    c.alert.ID,
-			WorkspaceID:           c.alert.WorkspaceID,
-			Intent:                database.NullIntentType{IntentType: database.IntentType(result.Intent), Valid: true},
-			ConversionProbability: pgtype.Float4{Float32: float32(result.ConversionProbability), Valid: true},
-			RelevanceScore:        pgtype.Float4{Float32: float32(result.RelevanceScore), Valid: true},
-			ScoringMetadata:       jsonBytes(meta),
-			AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
-		}); err != nil {
-			m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
-		}
-
-		m.publishMentionScored(ctx, c.alert, result)
-
-		// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
-		if !m.qualifierAsync && result.RelevanceScore >= 7.0 {
-			intent := database.IntentType(result.Intent)
-			if intent == database.IntentTypeBuySignal ||
-				intent == database.IntentTypeRecommendationAsk ||
-				intent == database.IntentTypeComplaint {
-				m.qualifyAsLead(ctx, c.alert, result)
-			}
-		}
-	}
+	// Stage 3: Intent classification (bounded parallel LLM calls)
+	m.forEachConcurrent(ctx, len(candidates), func(i int) {
+		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity)
+	})
 
 	m.logger.Info().
 		Int("total", len(alerts)).
@@ -440,6 +408,7 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 	if m.enricher != nil {
 		m.enricher.EnrichLeadAsync(lead.ID, alert.WorkspaceID)
 	}
+	m.crm.Emit(alert.WorkspaceID, crmsync.Event{Type: crmsync.EventLeadCreated, LeadID: lead.ID})
 
 	if !m.streamsEnabled || m.eventPublisher == nil {
 		return
@@ -471,4 +440,100 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("streams: publish mention.qualified")
 		}
 	}
+}
+
+// classifyAndStore runs stage 3 (intent) and stage 4 (lead qualification) for one mention.
+func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAlert, similarity float64) {
+	c := struct {
+		alert      mentionAlert
+		similarity float64
+	}{a, similarity}
+	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform)
+	if err != nil {
+		// Record the failure. Without this the mention keeps null scoring
+		// metadata, which is indistinguishable from "never reached stage 3":
+		// it is not retried, not surfaced as filtered, and silently stalls.
+		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
+		m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
+		return
+	}
+
+	meta := map[string]any{
+		"stage":           "stage3_classified",
+		"best_similarity": c.similarity,
+		"auto_scored":     true,
+		"reasoning":       result.Reasoning,
+		"awareness_level": result.AwarenessLevel,
+	}
+
+	// Update mention with classification + awareness level
+	if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
+		ID:                    c.alert.ID,
+		WorkspaceID:           c.alert.WorkspaceID,
+		Intent:                database.NullIntentType{IntentType: database.IntentType(result.Intent), Valid: true},
+		ConversionProbability: pgtype.Float4{Float32: float32(result.ConversionProbability), Valid: true},
+		RelevanceScore:        pgtype.Float4{Float32: float32(result.RelevanceScore), Valid: true},
+		ScoringMetadata:       jsonBytes(meta),
+		AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
+	}); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
+	}
+
+	m.publishMentionScored(ctx, c.alert, result)
+
+	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
+	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, result.Intent) {
+		m.qualifyAsLead(ctx, c.alert, result)
+	}
+}
+
+// leadScoreThreshold must match the leads_ready SQL predicate in
+// database/mentions_composed.go and queries/mentions.sql.
+const leadScoreThreshold = 6.0
+
+// qualifiesAsLead: scores are product-aware (competitor launches score 0-3),
+// so 6+ with buying-type intent is a real prospect. comparison counts: someone
+// weighing options is shopping.
+func qualifiesAsLead(score float64, intent string) bool {
+	if score < leadScoreThreshold {
+		return false
+	}
+	switch database.IntentType(intent) {
+	case database.IntentTypeBuySignal, database.IntentTypeRecommendationAsk,
+		database.IntentTypeComplaint, database.IntentTypeComparison:
+		return true
+	}
+	return false
+}
+
+// scoringConcurrency bounds parallel LLM calls per scoring batch.
+// ponytail: fixed at 4 (safe under typical provider rate limits). Make it a
+// config knob if a provider throttles or a faster plan allows more.
+const scoringConcurrency = 4
+
+// forEachConcurrent calls fn(0..n-1) with at most scoringConcurrency in flight
+// and returns when all are done. Stops launching new work once ctx is cancelled.
+func (m *Monitor) forEachConcurrent(ctx context.Context, n int, fn func(i int)) {
+	sem := make(chan struct{}, scoringConcurrency)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		if ctx.Err() != nil {
+			break
+		}
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(i int) {
+			defer func() {
+				// The tick-level recover can't see panics in these goroutines;
+				// without this one bad mention would crash the process.
+				if r := recover(); r != nil {
+					m.logger.Error().Interface("panic", r).Int("index", i).Msg("scorer: recovered from panic in worker")
+				}
+				<-sem
+				wg.Done()
+			}()
+			fn(i)
+		}(i)
+	}
+	wg.Wait()
 }

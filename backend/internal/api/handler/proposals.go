@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -26,11 +25,7 @@ func (h *ProposalHandler) List(w http.ResponseWriter, r *http.Request) {
 		status = "pending"
 	}
 	limit := int32(30)
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
-			limit = int32(n)
-		}
-	}
+	limit = parseLimit(r, limit, maxPageSize)
 
 	rows, err := h.q.ListHumanProposals(r.Context(), database.ListHumanProposalsParams{
 		WorkspaceID: wsID,

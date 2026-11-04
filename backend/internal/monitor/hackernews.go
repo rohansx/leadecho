@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -64,10 +67,10 @@ func (m *Monitor) crawlHackerNews(ctx context.Context, wsID string, kw database.
 	for _, hit := range result.Hits {
 		content := hit.Title
 		if hit.StoryText != "" {
-			content = hit.Title + "\n\n" + hit.StoryText
+			content = hit.Title + "\n\n" + cleanHNText(hit.StoryText)
 		}
 		if hit.CommentText != "" {
-			content = hit.CommentText
+			content = cleanHNText(hit.CommentText)
 		}
 		if content == "" {
 			continue
@@ -89,7 +92,7 @@ func (m *Monitor) crawlHackerNews(ctx context.Context, wsID string, kw database.
 			Url:               itemURL,
 			Title:             pgtextPtr(hit.Title),
 			Content:           content,
-			AuthorUsername:     pgtextPtr(hit.Author),
+			AuthorUsername:    pgtextPtr(hit.Author),
 			AuthorProfileUrl:  pgtextPtr("https://news.ycombinator.com/user?id=" + hit.Author),
 			Status:            database.MentionStatusNew,
 			PlatformMetadata:  jsonBytes(map[string]any{"points": hit.Points, "external_url": hit.URL}),
@@ -107,4 +110,14 @@ func (m *Monitor) crawlHackerNews(ctx context.Context, wsID string, kw database.
 		m.logger.Info().Int("count", len(alerts)).Str("keyword", kw.Term).Msg("hn: new mentions found")
 	}
 	return alerts
+}
+
+var htmlTagRE = regexp.MustCompile(`<[^>]*>`)
+
+// cleanHNText turns Algolia's HTML (<p>, <a>, <i>, &#x27;) into plain text so
+// the inbox, the scorer and reply drafts see what a reader sees.
+func cleanHNText(s string) string {
+	s = strings.ReplaceAll(s, "<p>", "\n\n")
+	s = htmlTagRE.ReplaceAllString(s, "")
+	return strings.TrimSpace(html.UnescapeString(s))
 }

@@ -128,8 +128,8 @@ func (q *Queries) CountMentionsByStatus(ctx context.Context, workspaceID string)
 const countMentionsByTier = `-- name: CountMentionsByTier :many
 SELECT
     CASE
-        WHEN relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint') THEN 'leads_ready'
-        WHEN relevance_score >= 4.0 AND relevance_score < 7.0 THEN 'worth_watching'
+        WHEN relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison') THEN 'leads_ready'
+        WHEN relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false) THEN 'worth_watching'
         ELSE 'filtered'
     END as tier,
     COUNT(*)::int as count
@@ -568,8 +568,8 @@ func (q *Queries) ListMentionsByStatus(ctx context.Context, arg ListMentionsBySt
 const listMentionsFiltered = `-- name: ListMentionsFiltered :many
 SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
 WHERE workspace_id = $1
-AND NOT (COALESCE(relevance_score, 0) >= 7.0 AND COALESCE(intent IN ('buy_signal', 'recommendation_ask', 'complaint'), false))
-AND NOT (COALESCE(relevance_score, 0) >= 4.0 AND COALESCE(relevance_score, 0) < 7.0)
+AND NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
+AND COALESCE(relevance_score, 0) < 4.0
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $2
 `
@@ -636,8 +636,8 @@ const listMentionsLeadsReady = `-- name: ListMentionsLeadsReady :many
 
 SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
 WHERE workspace_id = $1
-AND relevance_score >= 7.0
-AND intent IN ('buy_signal', 'recommendation_ask', 'complaint')
+AND relevance_score >= 6.0
+AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT $3 OFFSET $2
 `
@@ -702,7 +702,7 @@ SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content,
 WHERE workspace_id = $1
 AND relevance_score IS NOT NULL
 AND relevance_score >= 4.0
-AND relevance_score < 7.0
+AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT $3 OFFSET $2
 `
@@ -767,8 +767,8 @@ SELECT id, platform, url, title, content, author_username,
 FROM mentions
 WHERE workspace_id = $1
   AND (
-    (relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint'))
-    OR (relevance_score >= 4.0 AND relevance_score < 7.0)
+    (relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))
+    OR (relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
   )
 ORDER BY created_at DESC
 LIMIT $2
@@ -824,6 +824,7 @@ func (q *Queries) ListRecentLeadsForWorkspace(ctx context.Context, arg ListRecen
 const listUnclassifiedMentions = `-- name: ListUnclassifiedMentions :many
 SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
 WHERE workspace_id = $1 AND intent IS NULL
+  AND NOT (COALESCE(scoring_metadata ? 'stage', false) AND scoring_metadata->>'stage' <> 'stage3_classification_error')
 ORDER BY created_at DESC
 LIMIT $2
 `

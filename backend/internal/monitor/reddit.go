@@ -44,7 +44,7 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 	// If Reddit recently returned 403, the public JSON API is blocked.
 	// Skip all subreddit fetches until the backoff window expires instead of
 	// hammering Reddit and generating a wall of 403 logs every tick.
-	if time.Now().Before(m.redditBackoff) {
+	if m.redditBackedOff() {
 		return nil
 	}
 
@@ -54,7 +54,7 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 		alerts = append(alerts, results...)
 
 		// If fetchSubreddit triggered a 403 backoff, stop hitting more subreddits.
-		if time.Now().Before(m.redditBackoff) {
+		if m.redditBackedOff() {
 			break
 		}
 
@@ -90,16 +90,16 @@ func (m *Monitor) fetchSubreddit(ctx context.Context, wsID string, kw database.L
 	defer resp.Body.Close()
 
 	if resp.StatusCode == 429 {
-		m.redditBackoff = time.Now().Add(10 * time.Minute)
-		m.logger.Warn().Str("subreddit", subreddit).Time("retry_after", m.redditBackoff).Msg("reddit: rate limited, backing off 10m")
+		m.setRedditBackoff(10 * time.Minute)
+		m.logger.Warn().Str("subreddit", subreddit).Dur("backoff", 10*time.Minute).Msg("reddit: rate limited, backing off 10m")
 		return nil
 	}
 
 	if resp.StatusCode == 403 {
 		// Reddit now blocks unauthenticated JSON API access entirely.
 		// Back off for 30 minutes to avoid spamming 403s every tick.
-		m.redditBackoff = time.Now().Add(30 * time.Minute)
-		m.logger.Warn().Str("subreddit", subreddit).Time("retry_after", m.redditBackoff).Msg("reddit: blocked (403), backing off 30m — configure authenticated crawl via Pinchtab or Reddit OAuth2")
+		m.setRedditBackoff(30 * time.Minute)
+		m.logger.Warn().Str("subreddit", subreddit).Dur("backoff", 30*time.Minute).Msg("reddit: blocked (403), backing off 30m — configure authenticated crawl via Pinchtab or Reddit OAuth2")
 		return nil
 	}
 
@@ -141,7 +141,7 @@ func (m *Monitor) fetchSubreddit(ctx context.Context, wsID string, kw database.L
 			Url:               "https://reddit.com" + post.Permalink,
 			Title:             pgtextPtr(post.Title),
 			Content:           content,
-			AuthorUsername:     pgtextPtr(post.Author),
+			AuthorUsername:    pgtextPtr(post.Author),
 			AuthorProfileUrl:  pgtextPtr("https://reddit.com/u/" + post.Author),
 			Status:            database.MentionStatusNew,
 			PlatformMetadata:  jsonBytes(map[string]any{"subreddit": post.Subreddit, "score": post.Score}),

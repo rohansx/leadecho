@@ -37,13 +37,13 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 
 	switch p.Tier {
 	case "leads_ready":
-		clauses = append(clauses, "relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint')")
+		clauses = append(clauses, "relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')")
 	case "worth_watching":
-		clauses = append(clauses, "relevance_score >= 4.0 AND relevance_score < 7.0")
+		clauses = append(clauses, "relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)")
 	case "filtered":
 		clauses = append(clauses,
-			"NOT (COALESCE(relevance_score, 0) >= 7.0 AND COALESCE(intent IN ('buy_signal', 'recommendation_ask', 'complaint'), false))"+
-				" AND NOT (COALESCE(relevance_score, 0) >= 4.0 AND COALESCE(relevance_score, 0) < 7.0)")
+			"NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))"+
+				" AND COALESCE(relevance_score, 0) < 4.0")
 	}
 
 	switch p.Queue {
@@ -84,7 +84,11 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 			)`)
 		}
 	case "all":
-		clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+		// Hide spam/archived by default, but an explicit status filter for them
+		// must win, or archived/spam mentions are unreachable from the UI.
+		if p.Status != "spam" && p.Status != "archived" {
+			clauses = append(clauses, "status NOT IN ('spam', 'archived')")
+		}
 	}
 	if p.Status != "" {
 		add("status = $%d", p.Status)
@@ -102,7 +106,7 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 }
 
 func leadIntentPredicate() string {
-	return "relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint')"
+	return "relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')"
 }
 
 func escalationFlaggedPredicate() string {

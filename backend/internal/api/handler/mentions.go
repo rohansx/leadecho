@@ -61,7 +61,7 @@ type MentionResponse struct {
 	URL                   string          `json:"url"`
 	Title                 *string         `json:"title"`
 	Content               string          `json:"content"`
-	AuthorUsername         *string         `json:"author_username"`
+	AuthorUsername        *string         `json:"author_username"`
 	AuthorProfileURL      *string         `json:"author_profile_url"`
 	AuthorKarma           *int32          `json:"author_karma"`
 	AuthorAccountAgeDays  *int32          `json:"author_account_age_days"`
@@ -165,11 +165,7 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	limit := int32(20)
 	offset := int32(0)
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
-			limit = int32(n)
-		}
-	}
+	limit = parseLimit(r, limit, maxPageSize)
 	if v := r.URL.Query().Get("offset"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			offset = int32(n)
@@ -442,7 +438,7 @@ func (h *MentionHandler) QueueCounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"queues": queues,
+		"queues":  queues,
 		"actions": subcounts,
 		// Legacy field — older dashboard builds read escalations.{needs_draft,flagged}
 		"escalations": database.EscalationSubcounts{

@@ -82,9 +82,13 @@ SET intent = @intent,
 WHERE id = @id AND workspace_id = @workspace_id
 RETURNING *;
 
+-- Skip mentions the scorer already decided on (filtered at stage 0/1/2):
+-- re-sending them to the LLM every tick wastes tokens. Classification errors
+-- stay eligible so transient provider outages are retried.
 -- name: ListUnclassifiedMentions :many
 SELECT * FROM mentions
 WHERE workspace_id = @workspace_id AND intent IS NULL
+  AND NOT (COALESCE(scoring_metadata ? 'stage', false) AND scoring_metadata->>'stage' <> 'stage3_classification_error')
 ORDER BY created_at DESC
 LIMIT @lim;
 
@@ -128,8 +132,8 @@ RETURNING *;
 -- name: ListMentionsLeadsReady :many
 SELECT * FROM mentions
 WHERE workspace_id = @workspace_id
-AND relevance_score >= 7.0
-AND intent IN ('buy_signal', 'recommendation_ask', 'complaint')
+AND relevance_score >= 6.0
+AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT @lim OFFSET @off;
 
@@ -138,7 +142,7 @@ SELECT * FROM mentions
 WHERE workspace_id = @workspace_id
 AND relevance_score IS NOT NULL
 AND relevance_score >= 4.0
-AND relevance_score < 7.0
+AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT @lim OFFSET @off;
 
@@ -149,8 +153,8 @@ LIMIT @lim OFFSET @off;
 -- list and the tier counts stay in lockstep.
 SELECT * FROM mentions
 WHERE workspace_id = @workspace_id
-AND NOT (COALESCE(relevance_score, 0) >= 7.0 AND COALESCE(intent IN ('buy_signal', 'recommendation_ask', 'complaint'), false))
-AND NOT (COALESCE(relevance_score, 0) >= 4.0 AND COALESCE(relevance_score, 0) < 7.0)
+AND NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
+AND COALESCE(relevance_score, 0) < 4.0
 ORDER BY created_at DESC
 LIMIT @lim OFFSET @off;
 
@@ -160,8 +164,8 @@ SELECT id, platform, url, title, content, author_username,
 FROM mentions
 WHERE workspace_id = @workspace_id
   AND (
-    (relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint'))
-    OR (relevance_score >= 4.0 AND relevance_score < 7.0)
+    (relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))
+    OR (relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
   )
 ORDER BY created_at DESC
 LIMIT @lim;
@@ -169,8 +173,8 @@ LIMIT @lim;
 -- name: CountMentionsByTier :many
 SELECT
     CASE
-        WHEN relevance_score >= 7.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint') THEN 'leads_ready'
-        WHEN relevance_score >= 4.0 AND relevance_score < 7.0 THEN 'worth_watching'
+        WHEN relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison') THEN 'leads_ready'
+        WHEN relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false) THEN 'worth_watching'
         ELSE 'filtered'
     END as tier,
     COUNT(*)::int as count

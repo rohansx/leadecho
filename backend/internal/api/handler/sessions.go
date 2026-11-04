@@ -264,13 +264,13 @@ func (h *SessionHandler) validateSessionCookie(ctx context.Context, wsID, platfo
 			domain:    "https://x.com",
 			navigate:  "https://x.com/home",
 			cookieDom: ".x.com",
-			jsCheck: `document.querySelector('[data-testid="loginButton"], a[href="/login"]') ? 'logged_out' : (document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"], [data-testid="AppTabBar_Profile_Link"]') ? 'logged_in' : 'unknown')`,
+			jsCheck:   `document.querySelector('[data-testid="loginButton"], a[href="/login"]') ? 'logged_out' : (document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"], [data-testid="AppTabBar_Profile_Link"]') ? 'logged_in' : 'unknown')`,
 		},
 		"linkedin": {
 			domain:    "https://www.linkedin.com",
 			navigate:  "https://www.linkedin.com/feed/",
 			cookieDom: ".linkedin.com",
-			jsCheck: `document.querySelector('.nav__button-secondary, a[href*="signin"]') ? 'logged_out' : (document.querySelector('.global-nav__me-photo, .feed-identity-module') ? 'logged_in' : 'unknown')`,
+			jsCheck:   `document.querySelector('.nav__button-secondary, a[href*="signin"]') ? 'logged_out' : (document.querySelector('.global-nav__me-photo, .feed-identity-module') ? 'logged_in' : 'unknown')`,
 		},
 		"quora": {
 			domain:    "https://www.quora.com",
