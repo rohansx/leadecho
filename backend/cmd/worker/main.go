@@ -25,6 +25,7 @@ func main() {
 	}
 
 	shared.StartMonitor(ctx, 5*time.Minute)
+	shared.StartDigests(ctx) // digests (P1 #13)
 	shared.StartStreamWorkers(ctx)
 	shared.StartMetricsCollector(ctx)
 

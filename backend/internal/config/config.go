@@ -109,6 +109,10 @@ type Config struct {
 	// Resend (email notifications)
 	ResendAPIKey string `env:"RESEND_API_KEY,default="`
 
+	// Digests (P1 #13): daily/weekly digest scheduler, runs wherever the monitor runs.
+	DigestsEnabled  bool   `env:"DIGESTS_ENABLED,default=true"`
+	DigestFromEmail string `env:"DIGEST_FROM_EMAIL,default=LeadEcho <hello@leadecho.io>"`
+
 	// Pinchtab (browser automation sidecar for Reddit + Twitter)
 	PinchtabURL   string `env:"PINCHTAB_URL,default=http://localhost:9867"`
 	PinchtabToken string `env:"PINCHTAB_TOKEN,default="`

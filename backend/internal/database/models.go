@@ -488,6 +488,32 @@ type DeadLetterEvent struct {
 	CreatedAt        time.Time          `json:"created_at"`
 }
 
+type DigestRun struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Kind        string    `json:"kind"`
+	PeriodStart time.Time `json:"period_start"`
+	PeriodEnd   time.Time `json:"period_end"`
+	Status      string    `json:"status"`
+	Attempts    int32     `json:"attempts"`
+	Error       string    `json:"error"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type DigestSetting struct {
+	WorkspaceID   string    `json:"workspace_id"`
+	DailyEnabled  bool      `json:"daily_enabled"`
+	DailyTime     string    `json:"daily_time"`
+	WeeklyEnabled bool      `json:"weekly_enabled"`
+	WeeklyDay     string    `json:"weekly_day"`
+	Timezone      string    `json:"timezone"`
+	Recipients    []string  `json:"recipients"`
+	Channels      []string  `json:"channels"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 type Document struct {
 	ID            string      `json:"id"`
 	WorkspaceID   string      `json:"workspace_id"`
