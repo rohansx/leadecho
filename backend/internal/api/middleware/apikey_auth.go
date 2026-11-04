@@ -93,6 +93,18 @@ func APIKeyScopes(ctx context.Context) []string {
 	return s
 }
 
+// APIKeyPrincipal returns the workspace and scopes of an API-key-authenticated
+// request, or "" when the request did not come through APIKeyAuth (unlike
+// WorkspaceID, it never falls back to the dev workspace).
+func APIKeyPrincipal(ctx context.Context) (string, []string) {
+	scopes, ok := ctx.Value(apiKeyScopesKey{}).([]string)
+	c := ClaimsFromContext(ctx)
+	if !ok || c == nil {
+		return "", nil
+	}
+	return c.WorkspaceID, scopes
+}
+
 func unauthorized(w http.ResponseWriter, msg string) {
 	w.Header().Set("WWW-Authenticate", `Bearer realm="leadecho"`)
 	http.Error(w, `{"error":"`+msg+`"}`, http.StatusUnauthorized)

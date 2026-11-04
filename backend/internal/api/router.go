@@ -12,7 +12,9 @@ import (
 
 	"leadecho/internal/api/handler"
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/apikey"
 	"leadecho/internal/attribution"
+	"leadecho/internal/auth"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
@@ -21,9 +23,11 @@ import (
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
+	"leadecho/internal/mcp"
 	"leadecho/internal/monitor"
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
+	"leadecho/internal/tools"
 )
 
 func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter, kb *knowledge.Service, rs *researcher.Service) *chi.Mux {
@@ -52,6 +56,26 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	// Public conversion webhook (secret auth in body)
 	convHook := handler.NewConversionWebhookHandler(queries, attrib)
 	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
+
+	// mcp: agent tools behind workspace API keys — MCP server + public REST.
+	toolDeps := tools.Deps{Q: queries, CRM: crm}
+	if replyDrafter != nil { // avoid a typed-nil interface
+		toolDeps.Drafter = replyDrafter
+	}
+	agentTools := tools.New(toolDeps)
+	var keyLimiter auth.Counter
+	if redis != nil {
+		keyLimiter = auth.NewRedisCounter(redis)
+	}
+	publicAPI := handler.NewPublicAPIHandler(agentTools, cfg.AppVersion)
+	r.Get("/api/public/v1/probe", publicAPI.Probe)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.APIKeyAuth(queries, keyLimiter, cfg.APIKeyRateLimitPerMin))
+		r.Handle("/mcp", &mcp.Server{Registry: agentTools, Version: cfg.AppVersion, Logger: logger, Auth: middleware.APIKeyPrincipal})
+		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/mentions", publicAPI.Mentions)
+		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/leads", publicAPI.Leads)
+	})
+	// end mcp
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -212,6 +236,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/utm-links", utm.Create)
 			r.Delete("/utm-links/{id}", utm.Delete)
 			r.Post("/utm-links/{code}/conversion", utm.RecordConversion)
+
+			// mcp: workspace API keys for MCP / public REST (not the BYOK /settings/api-keys)
+			wsKeys := handler.NewWorkspaceAPIKeyHandler(queries)
+			r.Get("/workspace-api-keys", wsKeys.List)
+			r.Post("/workspace-api-keys", wsKeys.Create)
+			r.Delete("/workspace-api-keys/{id}", wsKeys.Revoke)
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

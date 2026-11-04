@@ -75,8 +75,10 @@ func TestAPIKeyAuth(t *testing.T) {
 	var gotWS string
 	var gotScopes []string
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotWS = WorkspaceID(r.Context())
-		gotScopes = APIKeyScopes(r.Context())
+		gotWS, gotScopes = APIKeyPrincipal(r.Context())
+		if WorkspaceID(r.Context()) != gotWS {
+			t.Error("APIKeyAuth must set the same claims the JWT middleware sets")
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -159,5 +161,11 @@ func TestRequireScope(t *testing.T) {
 		if rec.Code != tt.want {
 			t.Fatalf("scopes %v: got %d want %d", tt.scopes, rec.Code, tt.want)
 		}
+	}
+}
+
+func TestAPIKeyPrincipalWithoutAPIKey(t *testing.T) {
+	if ws, _ := APIKeyPrincipal(context.Background()); ws != "" {
+		t.Fatalf("must not fall back to the dev workspace, got %q", ws)
 	}
 }

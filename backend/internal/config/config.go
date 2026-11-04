@@ -136,6 +136,10 @@ type Config struct {
 	MetricsPort               int  `env:"METRICS_PORT,default=9090"`
 	MetricsCollectIntervalSec int  `env:"METRICS_COLLECT_INTERVAL_SEC,default=30"`
 	WorkerHealthPort          int  `env:"WORKER_HEALTH_PORT,default=8091"`
+
+	// mcp: workspace API keys (MCP server + public REST). 0 disables the per-key limit.
+	APIKeyRateLimitPerMin int    `env:"API_KEY_RATE_LIMIT_PER_MIN,default=120"`
+	AppVersion            string `env:"APP_VERSION,default=dev"` // reported by /api/public/v1/probe and MCP serverInfo
 }
 
 func (c *Config) IsWorker() bool {
