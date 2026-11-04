@@ -262,11 +262,11 @@ func (h *ReplyHandler) approve(w http.ResponseWriter, r *http.Request, wsID, id,
 			if existing.EditedContent.Valid && existing.EditedContent.String != "" {
 				base = existing.EditedContent.String
 			}
-			short := h.shortURL(link.Code)
 			if !strings.Contains(base, link.Code) {
-				base = strings.TrimRight(base, "\n") + "\n\n" + short
+				if linked, ok := withTrackingLink(base, destinationURL, h.shortURL(link.Code)); ok {
+					edited = pgtype.Text{String: linked, Valid: true}
+				}
 			}
-			edited = pgtype.Text{String: base, Valid: true}
 		}
 	}
 

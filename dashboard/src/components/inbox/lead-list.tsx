@@ -29,7 +29,7 @@ const actionBadge: Record<string, { label: string; className: string }> = {
 
 function scoreClass(score: number | null) {
   if (score == null) return "bg-muted text-muted-foreground";
-  if (score >= 7) return "bg-primary/15 text-primary-ink";
+  if (score >= 6) return "bg-primary/15 text-primary-ink";
   if (score >= 4) return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
   return "bg-muted text-muted-foreground";
 }
@@ -352,7 +352,7 @@ export function LeadList({
               </div>
             )}
             {/* Agent active but all mentions are filtered out in this view */}
-            {agentActive && totalMentions > 0 && (
+            {agentActive && !!totalMentions && totalMentions > 0 && (
               <div className="flex items-center justify-center gap-2 py-2">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40"></span>

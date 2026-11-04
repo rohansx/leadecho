@@ -318,7 +318,7 @@ function OverviewTab({
                         className="h-9 text-sm"
                       />
                       <p className="text-[11px] text-muted-foreground">
-                        Approving creates a short link, appends it to the reply, and queues it for the Chrome extension.
+                        Approving creates a tracked short link (it replaces your product URL, or is added when the reply names your product) and queues the reply for the Chrome extension.
                       </p>
                       {approveError && (
                         <p className="text-xs text-destructive">{approveError}</p>
@@ -402,9 +402,16 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
             {person.company && <p className="text-sm text-muted-foreground">{person.company}</p>}
             {person.location && <p className="text-xs text-muted-foreground mt-0.5">{person.location}</p>}
           </div>
-          <span className="text-xs rounded-full bg-primary/10 text-primary px-2 py-0.5">
-            {Math.round(person.confidence * 100)}% confidence
-          </span>
+          <div className="flex flex-col items-end gap-1">
+            {person.icp_fit_score != null && (
+              <span className="text-xs rounded-full bg-primary text-primary-foreground px-2 py-0.5">
+                ICP fit {Math.round(person.icp_fit_score * 100)}%
+              </span>
+            )}
+            <span className="text-xs rounded-full bg-primary/10 text-primary px-2 py-0.5">
+              {Math.round(person.confidence * 100)}% confidence
+            </span>
+          </div>
         </div>
         {person.bio && <p className="text-sm mt-3 leading-relaxed text-foreground-soft">{person.bio}</p>}
       </div>
