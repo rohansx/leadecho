@@ -9,6 +9,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+# Optional analytics, inlined by Vite at build time (empty = PostHog off).
+ARG VITE_POSTHOG_KEY=""
+ARG VITE_POSTHOG_HOST=""
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
 RUN pnpm build
 
 FROM nginx:alpine

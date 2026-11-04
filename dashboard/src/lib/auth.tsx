@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { identifyUser, resetAnalytics } from "@/lib/analytics";
 
 interface User {
   user_id: string;
@@ -37,7 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       })
       .then((data) => {
-        if (data && !data.error) setUser(data);
+        if (data && !data.error) {
+          setUser(data);
+          identifyUser(data.user_id, data.workspace_id);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -52,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: "{}",
     });
     setUser(null);
+    resetAnalytics();
     window.location.href = "/login";
   };
 
