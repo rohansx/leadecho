@@ -17,6 +17,7 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
+	"leadecho/internal/treg" // treg: hosted X/LinkedIn sources
 )
 
 // LeadEnricher runs Person360 enrichment after lead qualification.
@@ -49,6 +50,11 @@ type Monitor struct {
 	// Google's feed terms limit it to personal, non-commercial use, so it must
 	// be a deliberate operator choice rather than a default in a shipped build.
 	googleNewsEnabled bool
+
+	// treg: hosted X/LinkedIn search (nil = browser paths). Reddit comment
+	// search via the public JSON stream (see reddit_comments.go).
+	treg                  *treg.Client
+	redditCommentsEnabled bool
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -245,6 +251,10 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 	for _, platform := range akw.Platforms {
 		switch database.PlatformType(platform) {
 		case database.PlatformTypeReddit:
+			// treg feature: keyword hits inside comments (free public JSON).
+			if m.redditCommentsEnabled {
+				alerts = append(alerts, m.crawlRedditComments(ctx, wsID, akw)...)
+			}
 			// Try Pinchtab → Scrapling → unauthenticated
 			if m.pinchtab != nil {
 				if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
@@ -277,13 +287,19 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeTwitter:
-			if m.pinchtab != nil {
+			// treg feature: hosted search first; falls through on failure.
+			if a, ok := m.crawlTwitterTreg(ctx, wsID, akw); ok {
+				alerts = append(alerts, a...)
+			} else if m.pinchtab != nil {
 				alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)
 			} else if m.scrapling != nil {
 				alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeLinkedin:
-			if m.camoufox != nil {
+			// treg feature: hosted search first; falls through on failure.
+			if a, ok := m.crawlLinkedInTreg(ctx, wsID, akw); ok {
+				alerts = append(alerts, a...)
+			} else if m.camoufox != nil {
 				alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
 			} else if m.pinchtab != nil {
 				alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)

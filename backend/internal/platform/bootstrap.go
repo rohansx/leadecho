@@ -28,6 +28,7 @@ import (
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
 	"leadecho/internal/streamworkers"
+	"leadecho/internal/treg" // treg feature
 	"leadecho/internal/workflow"
 )
 
@@ -121,6 +122,9 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		researcherSvc,
 	)
 	mon.SetGoogleNewsEnabled(cfg.GoogleNewsEnabled)
+	// treg feature: hosted X/LinkedIn sources + Reddit comment search.
+	mon.SetTreg(treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger))
+	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
 	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)

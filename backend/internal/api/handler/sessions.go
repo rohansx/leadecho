@@ -30,13 +30,39 @@ type SessionResponse struct {
 	Username         *string `json:"username"`
 	IsConfigured     bool    `json:"is_configured"`
 	IsPinchtabOnline bool    `json:"is_pinchtab_online"`
+	// treg feature: crawled via treg, no browser cookie needed.
+	IsManaged bool `json:"is_managed"`
 }
+
+// TregManagedPlatforms are searched through treg when TREG_TOKEN is set.
+var TregManagedPlatforms = []string{"twitter", "linkedin"}
 
 // SessionHandler manages browser session cookies for Reddit and Twitter.
 type SessionHandler struct {
 	q        *database.Queries
 	encKey   []byte
 	pinchtab *browser.PinchtabClient
+	managed  map[string]bool // treg feature
+}
+
+// SetManaged marks platforms that need no browser session (treg feature).
+func (h *SessionHandler) SetManaged(platforms ...string) {
+	h.managed = make(map[string]bool, len(platforms))
+	for _, p := range platforms {
+		h.managed[p] = true
+	}
+}
+
+func (h *SessionHandler) sessionResponse(platform string, acc *database.PlatformAccount, pinchtabOnline bool) SessionResponse {
+	resp := SessionResponse{Platform: platform, IsPinchtabOnline: pinchtabOnline, IsManaged: h.managed[platform]}
+	if acc != nil && acc.AccessTokenEnc.Valid && acc.AccessTokenEnc.String != "" {
+		resp.IsConfigured = true
+		if acc.Username.Valid && acc.Username.String != "" {
+			u := acc.Username.String
+			resp.Username = &u
+		}
+	}
+	return resp
 }
 
 func NewSessionHandler(q *database.Queries, encKey []byte, pinchtab *browser.PinchtabClient) *SessionHandler {
@@ -61,18 +87,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]SessionResponse, 0, len(supportedSessionPlatforms))
 	for platform := range supportedSessionPlatforms {
-		resp := SessionResponse{
-			Platform:         platform,
-			IsPinchtabOnline: pinchtabOnline,
-		}
-		if acc, ok := configured[platform]; ok && acc.AccessTokenEnc.Valid && acc.AccessTokenEnc.String != "" {
-			resp.IsConfigured = true
-			if acc.Username.Valid && acc.Username.String != "" {
-				u := acc.Username.String
-				resp.Username = &u
-			}
-		}
-		result = append(result, resp)
+		result = append(result, h.sessionResponse(platform, configured[platform], pinchtabOnline))
 	}
 
 	writeJSON(w, http.StatusOK, result)
@@ -143,6 +158,7 @@ func (h *SessionHandler) Save(w http.ResponseWriter, r *http.Request) {
 		Username:         usernamePtr,
 		IsConfigured:     true,
 		IsPinchtabOnline: pinchtabOnline,
+		IsManaged:        h.managed[platform],
 	})
 }
 
@@ -174,6 +190,7 @@ func (h *SessionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Platform:         platform,
 		IsConfigured:     false,
 		IsPinchtabOnline: pinchtabOnline,
+		IsManaged:        h.managed[platform],
 	})
 }
 
