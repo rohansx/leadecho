@@ -863,3 +863,33 @@ export function createUTMLink(data: {
 export function deleteUTMLink(id: string) {
   return request<{ status: string }>(`/utm-links/${id}`, { method: "DELETE" });
 }
+
+// ─── Digests (P1 #13) ──────────────────────────────────
+
+export interface DigestSettings {
+  daily_enabled: boolean;
+  daily_time: string;
+  weekly_enabled: boolean;
+  weekly_day: string;
+  timezone: string;
+  recipients: string[];
+  channels: ("email" | "slack")[];
+}
+
+export function getDigestSettings() {
+  return request<DigestSettings>("/settings/digests");
+}
+
+export function saveDigestSettings(settings: DigestSettings) {
+  return request<DigestSettings>("/settings/digests", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+// Returns rendered HTML (not JSON), so it bypasses request().
+export async function previewDigest(kind: "daily" | "weekly"): Promise<string> {
+  const res = await fetch(`${BASE}/settings/digests/preview?kind=${kind}`, { method: "POST" });
+  if (!res.ok) throw new Error(`Preview failed (${res.status})`);
+  return res.text();
+}

@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import type { WebhookConfig } from "@/lib/types";
 import { Bell, Mail, Send, MessageSquare, Hash } from "lucide-react";
+import { DigestsCard } from "@/components/settings/digests-card"; // digests (P1 #13)
 
 export const Route = createFileRoute("/_dashboard/alerts")({
   component: AlertsPage,
@@ -318,6 +319,9 @@ function AlertsPage() {
           </Text>
         )}
       </div>
+
+      {/* Digests (P1 #13) */}
+      <DigestsCard />
     </div>
   );
 }
