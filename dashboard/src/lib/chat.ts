@@ -67,7 +67,10 @@ export function listChatMessages(threadId: string): Promise<{ data: ChatMessage[
 
 export async function deleteChatThread(threadId: string): Promise<void> {
   const res = await fetch(`/api/v1/chat/threads/${threadId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || `Delete failed (${res.status})`);
+  }
 }
 
 export function confirmChatAction(

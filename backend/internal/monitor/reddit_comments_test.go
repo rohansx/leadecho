@@ -70,3 +70,24 @@ func TestValidSubreddit(t *testing.T) {
 		}
 	}
 }
+
+func TestFetchSubredditCommentsOAuth(t *testing.T) {
+	var path, auth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/access_token" {
+			_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))
+			return
+		}
+		path, auth = r.URL.Path, r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(commentsFixture))
+	}))
+	defer srv.Close()
+	m := &Monitor{logger: zerolog.Nop(), public: &PublicSources{Client: srv.Client(), RedditOAuth: NewRedditOAuth("c", "s", "web:leadecho:1.0", srv.URL, srv.URL)}}
+	comments, err := m.fetchSubredditComments(context.Background(), redditBaseURL, "sales")
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("comments=%v err=%v", comments, err)
+	}
+	if path != "/r/sales/comments" || auth != "Bearer tok" {
+		t.Fatalf("path %q auth %q", path, auth)
+	}
+}

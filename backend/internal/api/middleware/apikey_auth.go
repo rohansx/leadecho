@@ -28,8 +28,10 @@ const apiKeyRateWindow = time.Minute
 
 // APIKeyAuth authenticates "Authorization: Bearer le_live_…" and injects the
 // same claims the JWT middleware does, so WorkspaceID/UserID work unchanged.
-// limiter == nil or perMinute <= 0 disables rate limiting.
+// perMinute <= 0 disables rate limiting; limiter == nil (no Redis) or a
+// limiter error falls back to a per-process window.
 func APIKeyAuth(store APIKeyStore, limiter auth.Counter, perMinute int) func(http.Handler) http.Handler {
+	local := NewQuota(perMinute, apiKeyRateWindow)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := apikey.Bearer(r.Header.Get("Authorization"))
@@ -43,7 +45,7 @@ func APIKeyAuth(store APIKeyStore, limiter auth.Counter, perMinute int) func(htt
 				unauthorized(w, "invalid API key")
 				return
 			}
-			if retry, limited := overLimit(r.Context(), limiter, perMinute, key.ID); limited {
+			if retry, limited := overLimit(r.Context(), limiter, local, perMinute, key.ID); limited {
 				w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))
 				http.Error(w, `{"error":"rate limit exceeded"}`, http.StatusTooManyRequests)
 				return
@@ -63,17 +65,18 @@ func APIKeyAuth(store APIKeyStore, limiter auth.Counter, perMinute int) func(htt
 	}
 }
 
-// overLimit fails open when the counter backend errors: a Redis blip must not
-// lock every agent out.
-func overLimit(ctx context.Context, limiter auth.Counter, perMinute int, keyID string) (time.Duration, bool) {
-	if limiter == nil || perMinute <= 0 {
+// overLimit uses the shared counter, degrading to the per-process window when
+// it is absent or erroring (a Redis blip must not lock agents out, nor lift the limit).
+func overLimit(ctx context.Context, limiter auth.Counter, local *Quota, perMinute int, keyID string) (time.Duration, bool) {
+	if perMinute <= 0 {
 		return 0, false
 	}
-	n, ttl, err := limiter.Incr(ctx, "apikey_rl:"+keyID, apiKeyRateWindow)
-	if err != nil {
-		return 0, false
+	if limiter != nil {
+		if n, ttl, err := limiter.Incr(ctx, "apikey_rl:"+keyID, apiKeyRateWindow); err == nil {
+			return ttl, n > int64(perMinute)
+		}
 	}
-	return ttl, n > int64(perMinute)
+	return apiKeyRateWindow, !local.allowLocal(keyID)
 }
 
 // RequireScope rejects API-key requests lacking scope (use after APIKeyAuth).

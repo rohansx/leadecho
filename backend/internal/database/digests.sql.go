@@ -14,7 +14,14 @@ import (
 
 const claimDigestRun = `-- name: ClaimDigestRun :one
 INSERT INTO digest_runs (workspace_id, kind, period_start, period_end)
-VALUES ($1, $2, $3, $4)
+SELECT $1::uuid, $2::text, $3::timestamptz, $4::timestamptz
+WHERE NOT EXISTS (
+    SELECT 1 FROM digest_runs o
+    WHERE o.workspace_id = $1::uuid AND o.kind = $2::text
+      AND o.period_start <> $3::timestamptz
+      AND o.status IN ('pending', 'sent')
+      AND abs(extract(epoch FROM (o.period_end - $4::timestamptz))) < $5::float8
+)
 ON CONFLICT (workspace_id, kind, period_start) DO UPDATE
     SET status = 'pending', attempts = digest_runs.attempts + 1, updated_at = now()
     WHERE (digest_runs.status = 'failed' AND digest_runs.attempts < 5
@@ -24,22 +31,26 @@ RETURNING id
 `
 
 type ClaimDigestRunParams struct {
-	WorkspaceID string    `json:"workspace_id"`
-	Kind        string    `json:"kind"`
-	PeriodStart time.Time `json:"period_start"`
-	PeriodEnd   time.Time `json:"period_end"`
+	WorkspaceID   string    `json:"workspace_id"`
+	Kind          string    `json:"kind"`
+	PeriodStart   time.Time `json:"period_start"`
+	PeriodEnd     time.Time `json:"period_end"`
+	MinGapSeconds float64   `json:"min_gap_seconds"`
 }
 
 // Returns a row only when this caller owns the (workspace, kind, period) slot:
 // a fresh insert, a retry of a failed run (max 5 attempts, backoff of
 // 10 min x attempts so a provider outage is ridden out inside the due window),
 // or a run left 'pending' >15 min by a sender that crashed mid-send.
+// Also refuses a new slot within min_gap_seconds of a run already sent or
+// sending: editing the send time must not produce a second digest that day.
 func (q *Queries) ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error) {
 	row := q.db.QueryRow(ctx, claimDigestRun,
 		arg.WorkspaceID,
 		arg.Kind,
 		arg.PeriodStart,
 		arg.PeriodEnd,
+		arg.MinGapSeconds,
 	)
 	var id string
 	err := row.Scan(&id)

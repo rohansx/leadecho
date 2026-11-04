@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -45,18 +46,21 @@ const maxSourceBody = 5 << 20
 type PublicSources struct {
 	Client     *http.Client
 	RedditBase string
-	HNBase     string
-	DevToBase  string
+	// RedditOAuth, when set, sends Reddit requests through oauth.reddit.com.
+	RedditOAuth *RedditOAuth
+	HNBase      string
+	DevToBase   string
 }
 
 // DefaultPublicSources returns the production endpoints. The client has no
 // timeout of its own: callers bound each search with a context deadline.
 func DefaultPublicSources() *PublicSources {
 	return &PublicSources{
-		Client:     http.DefaultClient,
-		RedditBase: "https://www.reddit.com",
-		HNBase:     "https://hn.algolia.com",
-		DevToBase:  "https://dev.to",
+		Client:      http.DefaultClient,
+		RedditBase:  "https://www.reddit.com",
+		RedditOAuth: RedditOAuthFromEnv(),
+		HNBase:      "https://hn.algolia.com",
+		DevToBase:   "https://dev.to",
 	}
 }
 
@@ -157,18 +161,26 @@ func redditTimeWindow(since time.Time) string {
 // per-subreddit listings (gentler on rate limits); this is for one-off
 // live tests and backfills.
 func (s *PublicSources) SearchReddit(ctx context.Context, term string, since time.Time) ([]Post, error) {
-	apiURL := fmt.Sprintf("%s/search.json?q=%s&sort=new&limit=25&t=%s", s.RedditBase, url.QueryEscape(term), redditTimeWindow(since))
-	return s.redditListing(ctx, apiURL, since)
+	return s.redditListing(ctx, fmt.Sprintf("/search?q=%s&sort=new&limit=25&t=%s", url.QueryEscape(term), redditTimeWindow(since)), since)
 }
 
 // SubredditNew fetches a subreddit's newest posts.
 func (s *PublicSources) SubredditNew(ctx context.Context, subreddit string, since time.Time) ([]Post, error) {
-	return s.redditListing(ctx, fmt.Sprintf("%s/r/%s/new.json?limit=25", s.RedditBase, url.PathEscape(subreddit)), since)
+	return s.redditListing(ctx, fmt.Sprintf("/r/%s/new?limit=25", url.PathEscape(subreddit)), since)
 }
 
-func (s *PublicSources) redditListing(ctx context.Context, apiURL string, since time.Time) ([]Post, error) {
+// redditListing fetches pathAndQuery ("/search?q=..") via OAuth when
+// configured, else from the public "<path>.json" endpoint.
+func (s *PublicSources) redditListing(ctx context.Context, pathAndQuery string, since time.Time) ([]Post, error) {
 	var listing redditListing
-	if err := s.getJSON(ctx, apiURL, &listing); err != nil {
+	var err error
+	if s.RedditOAuth != nil {
+		err = s.RedditOAuth.getJSON(ctx, s.Client, pathAndQuery, &listing)
+	} else {
+		path, query, _ := strings.Cut(pathAndQuery, "?")
+		err = s.getJSON(ctx, s.RedditBase+path+".json?"+query, &listing)
+	}
+	if err != nil {
 		return nil, err
 	}
 	var posts []Post

@@ -105,6 +105,25 @@ func TestAutomationsDB(t *testing.T) {
 		}
 	})
 
+	t.Run("editing the run time does not run twice", func(t *testing.T) {
+		a := create(KindAttributionReview, `{}`)
+		slot := time.Now().Add(-40 * 24 * time.Hour).Truncate(time.Hour)
+		claimAt := func(ts time.Time) error {
+			_, err := q.ClaimScheduledAutomationRun(ctx, database.ClaimScheduledAutomationRunParams{WorkspaceID: wsID, AutomationID: a.ID,
+				PeriodStart: ts, MinGapSeconds: MinGap(ScheduleOf(a)).Seconds()})
+			return err
+		}
+		if err := claimAt(slot); err != nil {
+			t.Fatal(err)
+		}
+		if err := claimAt(slot.Add(30 * time.Minute)); err == nil {
+			t.Fatal("a moved time the same day must not run again")
+		}
+		if err := claimAt(slot.Add(24 * time.Hour)); err != nil {
+			t.Fatalf("next day must run: %v", err)
+		}
+	})
+
 	t.Run("triage archives noise when allowed; scheduled claim is once per period", func(t *testing.T) {
 		a := create(KindDailyTriage, `{"mark_noise":true}`)
 		slot, _ := ScheduleOf(a).Due(time.Now())

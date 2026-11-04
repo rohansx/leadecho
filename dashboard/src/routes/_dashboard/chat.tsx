@@ -47,6 +47,8 @@ function ChatPage() {
   const qc = useQueryClient();
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<ChatMessage[]>([]);
+  // Thread the in-flight exchange belongs to ("new" until the server names it).
+  const [pendingFor, setPendingFor] = useState("new");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyCall, setBusyCall] = useState<string>();
@@ -59,7 +61,7 @@ function ChatPage() {
     queryFn: () => listChatMessages(thread as string),
     enabled: !!thread,
   });
-  const shown = [...(thread ? (messages.data?.data ?? []) : []), ...pending];
+  const shown = [...(thread ? (messages.data?.data ?? []) : []), ...((thread ?? "new") === pendingFor ? pending : [])];
 
   useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [shown.length, pending]);
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -74,13 +76,21 @@ function ChatPage() {
     setError(null);
     setStreaming(true);
     setPending([draftMessage("user", message), draftMessage("assistant", "")]);
+    setPendingFor(thread ?? "new");
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     let threadId = thread;
     try {
       await sendChat(message, thread, (event, data) => {
         const d = data as Record<string, unknown>;
-        if (event === "thread") threadId = d.thread_id as string;
+        if (event === "thread") {
+          threadId = d.thread_id as string;
+          // Name the new thread in the URL now, so the answer streams under it.
+          if (!thread) {
+            setPendingFor(threadId);
+            navigate({ search: { thread: threadId }, replace: true });
+          }
+        }
         else if (event === "tool_call" || event === "tool_result" || event === "confirm")
           patchAssistant((m) => ({ ...m, tool_calls: upsertCall(m.tool_calls, d as unknown as ToolCall) }));
         else if (event === "answer") patchAssistant((m) => ({ ...m, content: d.content as string }));
@@ -96,7 +106,6 @@ function ChatPage() {
         await qc.invalidateQueries({ queryKey: messagesKey(threadId) });
         await qc.refetchQueries({ queryKey: messagesKey(threadId) });
         qc.invalidateQueries({ queryKey: THREADS_KEY });
-        if (threadId !== thread) navigate({ search: { thread: threadId } });
       }
       setPending([]);
     }
@@ -120,6 +129,7 @@ function ChatPage() {
       qc.invalidateQueries({ queryKey: THREADS_KEY });
       if (id === thread) navigate({ search: {} });
     },
+    onError: (e) => setError(e instanceof Error ? e.message : "Could not delete the conversation"),
   });
 
   return (
@@ -142,6 +152,7 @@ function ChatPage() {
                 aria-label="Delete thread"
                 className="px-2 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                 onClick={() => remove.mutate(t.id)}
+                disabled={remove.isPending || (streaming && t.id === thread)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

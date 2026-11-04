@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"leadecho/internal/auth"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -141,9 +142,13 @@ func TestAPIKeyAuthRateLimit(t *testing.T) {
 			t.Fatalf("call %d: status %d, want %d", i, got, want)
 		}
 	}
-	// A broken limiter backend fails open rather than locking every agent out.
-	if got := call(APIKeyAuth(store, errCounter{}, 1)(ok)); got != 200 {
-		t.Fatalf("fail-open: got %d", got)
+	// A broken or missing limiter backend degrades to a per-process limit:
+	// it neither locks every agent out nor lets a stolen key run unthrottled.
+	for name, lim := range map[string]auth.Counter{"redis error": errCounter{}, "no redis": nil} {
+		h := APIKeyAuth(store, lim, 1)(ok)
+		if a, b := call(h), call(h); a != 200 || b != 429 {
+			t.Fatalf("%s: got %d then %d, want 200 then 429", name, a, b)
+		}
 	}
 }
 

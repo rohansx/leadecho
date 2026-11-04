@@ -153,7 +153,7 @@ func (f *fakeQ) ClaimScheduledAutomationRun(_ context.Context, a database.ClaimS
 	if f.claimed == nil {
 		f.claimed = map[string]bool{}
 	}
-	key := a.AutomationID + "|" + a.PeriodStart.Time.UTC().String()
+	key := a.AutomationID + "|" + a.PeriodStart.UTC().String()
 	if f.claimed[key] {
 		return database.AutomationRun{}, pgx.ErrNoRows
 	}

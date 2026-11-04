@@ -3,7 +3,9 @@ package monitor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"time"
@@ -73,37 +75,33 @@ func (m *Monitor) crawlRedditComments(ctx context.Context, wsID string, kw datab
 	return alerts
 }
 
+type redditCommentListing struct {
+	Data struct {
+		Children []struct {
+			Data redditComment `json:"data"`
+		} `json:"children"`
+	} `json:"data"`
+}
+
 func (m *Monitor) fetchSubredditComments(ctx context.Context, base, sub string) ([]redditComment, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/r/%s/comments.json?limit=100", base, sub), nil)
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+	var listing redditCommentListing
+	var err error
+	if o := m.sources().RedditOAuth; o != nil {
+		err = o.getJSON(ctx, m.sources().Client, fmt.Sprintf("/r/%s/comments?limit=100", sub), &listing)
+	} else {
+		err = fetchPublicJSON(ctx, fmt.Sprintf("%s/r/%s/comments.json?limit=100", base, sub), &listing)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; LeadEcho/1.0)")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request: %w", err)
-	}
-	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusTooManyRequests:
+	var se *StatusError
+	switch {
+	case err == nil:
+	case errors.As(err, &se) && se.Code == http.StatusTooManyRequests:
 		m.setRedditBackoff(10 * time.Minute)
 		return nil, fmt.Errorf("rate limited")
-	case http.StatusForbidden:
+	case errors.As(err, &se) && se.Code == http.StatusForbidden:
 		m.setRedditBackoff(30 * time.Minute)
 		return nil, fmt.Errorf("blocked (403)")
 	default:
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
-	}
-	var listing struct {
-		Data struct {
-			Children []struct {
-				Data redditComment `json:"data"`
-			} `json:"children"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&listing); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
+		return nil, err
 	}
 	var out []redditComment
 	for _, ch := range listing.Data.Children {
@@ -133,4 +131,24 @@ func redditCommentParams(wsID string, kw database.ListActiveKeywordsRow, c reddi
 		KeywordMatches:    []string{kw.Term},
 		PlatformCreatedAt: pgtype.Timestamptz{Time: time.Unix(int64(c.CreatedUTC), 0), Valid: true},
 	}
+}
+
+func fetchPublicJSON(ctx context.Context, rawURL string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; LeadEcho/1.0)")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return &StatusError{Code: resp.StatusCode}
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSourceBody)).Decode(out); err != nil {
+		return fmt.Errorf("decode: %w", err)
+	}
+	return nil
 }

@@ -1,4 +1,5 @@
 // chat (P2 #15): one message bubble with tool activity, lead cards and confirm buttons.
+import { describeCall } from "./describe-call";
 import { Link } from "@tanstack/react-router";
 import { Check, ExternalLink, Loader2, Wrench, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -71,10 +72,21 @@ interface ConfirmProps {
 }
 
 function ConfirmBox({ call, busy, onConfirm }: ConfirmProps) {
+  const desc = describeCall(call.tool, call.args as Record<string, unknown> | undefined);
   return (
     <div className="rounded-lg border border-primary/40 bg-accent-soft/40 p-3">
-      <p className="text-[13px] font-medium">Run {call.tool.replace(/_/g, " ")}?</p>
-      <pre className="mt-1 overflow-x-auto text-[11px] text-muted-foreground">{JSON.stringify(call.args, null, 2)}</pre>
+      <p className="text-[13px] font-medium">{desc.title}?</p>
+      {desc.lines.length > 0 && (
+        <ul className="mt-1 space-y-0.5 text-[12px] text-foreground/90">
+          {desc.lines.map((l) => (
+            <li key={l} className="break-words">{l}</li>
+          ))}
+        </ul>
+      )}
+      <details className="mt-1">
+        <summary className="cursor-pointer text-[11px] text-muted-foreground">Details</summary>
+        <pre className="mt-1 overflow-x-auto text-[11px] text-muted-foreground">{JSON.stringify(call.args, null, 2)}</pre>
+      </details>
       {call.status === "pending" ? (
         <div className="mt-2 flex gap-2">
           <Button size="sm" variant="accent" disabled={busy} onClick={() => onConfirm(true)}>

@@ -114,3 +114,9 @@ func TestScheduleNormalize(t *testing.T) {
 		})
 	}
 }
+
+func TestMinGap(t *testing.T) {
+	if MinGap(KindDaily) != 18*time.Hour || MinGap(KindWeekly) != 7*24*time.Hour-DueWindow {
+		t.Fatalf("daily %v weekly %v", MinGap(KindDaily), MinGap(KindWeekly))
+	}
+}

@@ -82,7 +82,8 @@ func (s *Service) RunDue(ctx context.Context) {
 			continue
 		}
 		run, err := s.q.ClaimScheduledAutomationRun(ctx, database.ClaimScheduledAutomationRunParams{
-			WorkspaceID: a.WorkspaceID, AutomationID: a.ID, PeriodStart: pgtype.Timestamptz{Time: slot, Valid: true},
+			WorkspaceID: a.WorkspaceID, AutomationID: a.ID, PeriodStart: slot,
+			MinGapSeconds: MinGap(ScheduleOf(a)).Seconds(),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue // this period already ran (or is running)

@@ -41,8 +41,17 @@ LIMIT 1;
 -- a fresh insert, a retry of a failed run (max 5 attempts, backoff of
 -- 10 min x attempts so a provider outage is ridden out inside the due window),
 -- or a run left 'pending' >15 min by a sender that crashed mid-send.
+-- Also refuses a new slot within min_gap_seconds of a run already sent or
+-- sending: editing the send time must not produce a second digest that day.
 INSERT INTO digest_runs (workspace_id, kind, period_start, period_end)
-VALUES (@workspace_id, @kind, @period_start, @period_end)
+SELECT @workspace_id::uuid, @kind::text, @period_start::timestamptz, @period_end::timestamptz
+WHERE NOT EXISTS (
+    SELECT 1 FROM digest_runs o
+    WHERE o.workspace_id = @workspace_id::uuid AND o.kind = @kind::text
+      AND o.period_start <> @period_start::timestamptz
+      AND o.status IN ('pending', 'sent')
+      AND abs(extract(epoch FROM (o.period_end - @period_end::timestamptz))) < @min_gap_seconds::float8
+)
 ON CONFLICT (workspace_id, kind, period_start) DO UPDATE
     SET status = 'pending', attempts = digest_runs.attempts + 1, updated_at = now()
     WHERE (digest_runs.status = 'failed' AND digest_runs.attempts < 5

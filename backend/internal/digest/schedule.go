@@ -176,6 +176,15 @@ func (s Schedule) Due(kind Kind, now time.Time) (Period, bool) {
 	return p, enabled && now.Sub(occ) < DueWindow
 }
 
+// MinGap is the least time between two sends of kind: a digest's period
+// length minus DueWindow, so a schedule edit can't trigger a second send.
+func MinGap(kind Kind) time.Duration {
+	if kind == KindWeekly {
+		return 7*24*time.Hour - DueWindow
+	}
+	return 24*time.Hour - DueWindow
+}
+
 // TrailingPeriod is the window ending now, used for previews.
 func TrailingPeriod(kind Kind, now time.Time) Period {
 	days := 1

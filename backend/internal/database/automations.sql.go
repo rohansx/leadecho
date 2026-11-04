@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -77,20 +78,35 @@ func (q *Queries) AutomationKeywordValue(ctx context.Context, arg AutomationKeyw
 
 const claimScheduledAutomationRun = `-- name: ClaimScheduledAutomationRun :one
 INSERT INTO automation_runs (workspace_id, automation_id, trigger, period_start)
-VALUES ($1, $2, 'schedule', $3)
+SELECT $1::uuid, $2::uuid, 'schedule', $3::timestamptz
+WHERE NOT EXISTS (
+    SELECT 1 FROM automation_runs o
+    WHERE o.automation_id = $2::uuid AND o.trigger = 'schedule'
+      AND o.period_start <> $3::timestamptz
+      AND o.status <> 'failed'
+      AND abs(extract(epoch FROM (o.period_start - $3::timestamptz))) < $4::float8
+)
 ON CONFLICT (automation_id, period_start) DO NOTHING
 RETURNING id, workspace_id, automation_id, trigger, period_start, status, output, error, started_at, finished_at
 `
 
 type ClaimScheduledAutomationRunParams struct {
-	WorkspaceID  string             `json:"workspace_id"`
-	AutomationID string             `json:"automation_id"`
-	PeriodStart  pgtype.Timestamptz `json:"period_start"`
+	WorkspaceID   string    `json:"workspace_id"`
+	AutomationID  string    `json:"automation_id"`
+	PeriodStart   time.Time `json:"period_start"`
+	MinGapSeconds float64   `json:"min_gap_seconds"`
 }
 
 // Returns a row only for the first caller of an (automation, period) slot.
+// Also refuses a slot within min_gap_seconds of another scheduled run, so
+// editing the run time can't make it run twice in one period.
 func (q *Queries) ClaimScheduledAutomationRun(ctx context.Context, arg ClaimScheduledAutomationRunParams) (AutomationRun, error) {
-	row := q.db.QueryRow(ctx, claimScheduledAutomationRun, arg.WorkspaceID, arg.AutomationID, arg.PeriodStart)
+	row := q.db.QueryRow(ctx, claimScheduledAutomationRun,
+		arg.WorkspaceID,
+		arg.AutomationID,
+		arg.PeriodStart,
+		arg.MinGapSeconds,
+	)
 	var i AutomationRun
 	err := row.Scan(
 		&i.ID,

@@ -96,6 +96,11 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	// Per-workspace caps on endpoints that spend the operator's LLM / treg budget.
 	llmQuota := middleware.NewQuota(30, time.Minute)
 	engagerQuota := middleware.NewQuota(20, 24*time.Hour) // each pull is up to 2 paid treg calls + enrichment
+	if redis != nil {
+		shared := auth.NewRedisCounter(redis)
+		llmQuota.Shared(shared, "llm")
+		engagerQuota.Shared(shared, "engagers")
+	}
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {

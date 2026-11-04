@@ -158,6 +158,7 @@ func (s *Service) RunDue(ctx context.Context) {
 func (s *Service) runOne(ctx context.Context, wsID string, sched Schedule, kind Kind, p Period) {
 	runID, err := s.q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{
 		WorkspaceID: wsID, Kind: string(kind), PeriodStart: p.Start, PeriodEnd: p.End,
+		MinGapSeconds: MinGap(kind).Seconds(),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return // already sent (or being sent) by someone else

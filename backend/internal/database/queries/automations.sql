@@ -38,8 +38,17 @@ WHERE id = @id AND workspace_id = @workspace_id;
 
 -- name: ClaimScheduledAutomationRun :one
 -- Returns a row only for the first caller of an (automation, period) slot.
+-- Also refuses a slot within min_gap_seconds of another scheduled run, so
+-- editing the run time can't make it run twice in one period.
 INSERT INTO automation_runs (workspace_id, automation_id, trigger, period_start)
-VALUES (@workspace_id, @automation_id, 'schedule', @period_start)
+SELECT @workspace_id::uuid, @automation_id::uuid, 'schedule', @period_start::timestamptz
+WHERE NOT EXISTS (
+    SELECT 1 FROM automation_runs o
+    WHERE o.automation_id = @automation_id::uuid AND o.trigger = 'schedule'
+      AND o.period_start <> @period_start::timestamptz
+      AND o.status <> 'failed'
+      AND abs(extract(epoch FROM (o.period_start - @period_start::timestamptz))) < @min_gap_seconds::float8
+)
 ON CONFLICT (automation_id, period_start) DO NOTHING
 RETURNING *;
 

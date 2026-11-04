@@ -72,6 +72,9 @@ func (s Schedule) Due(now time.Time) (time.Time, bool) {
 	return p.End, due
 }
 
+// MinGap is the least time between two scheduled runs (see digest.MinGap).
+func MinGap(s Schedule) time.Duration { return digest.MinGap(s.kind()) }
+
 // Lookback is the default window for a first run with no last_run_at.
 func (s Schedule) Lookback() time.Duration {
 	if s.Frequency == "weekly" {

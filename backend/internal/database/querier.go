@@ -20,8 +20,12 @@ type Querier interface {
 	// a fresh insert, a retry of a failed run (max 5 attempts, backoff of
 	// 10 min x attempts so a provider outage is ridden out inside the due window),
 	// or a run left 'pending' >15 min by a sender that crashed mid-send.
+	// Also refuses a new slot within min_gap_seconds of a run already sent or
+	// sending: editing the send time must not produce a second digest that day.
 	ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error)
 	// Returns a row only for the first caller of an (automation, period) slot.
+	// Also refuses a slot within min_gap_seconds of another scheduled run, so
+	// editing the run time can't make it run twice in one period.
 	ClaimScheduledAutomationRun(ctx context.Context, arg ClaimScheduledAutomationRunParams) (AutomationRun, error)
 	ConversionFunnel(ctx context.Context, workspaceID string) ([]ConversionFunnelRow, error)
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)

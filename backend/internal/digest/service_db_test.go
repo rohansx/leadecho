@@ -250,7 +250,7 @@ func TestDigestServiceDB(t *testing.T) {
 	})
 
 	claim := func(p Period) (string, error) {
-		return q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "weekly", PeriodStart: p.Start, PeriodEnd: p.End})
+		return q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "daily", PeriodStart: p.Start, PeriodEnd: p.End, MinGapSeconds: MinGap(KindDaily).Seconds()})
 	}
 	age := func(id string, d time.Duration) {
 		if _, err := pool.Exec(ctx, `UPDATE digest_runs SET updated_at = now() - $2::interval WHERE id = $1`, id, fmt.Sprintf("%d seconds", int(d.Seconds()))); err != nil {
@@ -286,6 +286,27 @@ func TestDigestServiceDB(t *testing.T) {
 		age(id, 20*time.Minute)
 		if _, err := claim(p); err != nil {
 			t.Fatalf("stale pending run should be reclaimable: %v", err)
+		}
+	})
+
+	t.Run("editing the send time does not send twice", func(t *testing.T) {
+		end := now.Add(-30 * 24 * time.Hour).Truncate(time.Hour)
+		claimDaily := func(e time.Time) error {
+			_, err := q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "daily",
+				PeriodStart: e.Add(-24 * time.Hour), PeriodEnd: e, MinGapSeconds: MinGap(KindDaily).Seconds()})
+			return err
+		}
+		if err := claimDaily(end); err != nil {
+			t.Fatal(err)
+		}
+		if err := claimDaily(end.Add(30 * time.Minute)); err == nil {
+			t.Fatal("moving the time later the same day must not re-send")
+		}
+		if err := claimDaily(end.Add(-90 * time.Minute)); err == nil {
+			t.Fatal("moving the time earlier the same day must not re-send")
+		}
+		if err := claimDaily(end.Add(24 * time.Hour)); err != nil {
+			t.Fatalf("next day must send: %v", err)
 		}
 	})
 }
