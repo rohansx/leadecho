@@ -426,6 +426,22 @@ type AuthToken struct {
 	CreatedAt time.Time          `json:"created_at"`
 }
 
+type BrandProfile struct {
+	WorkspaceID      string    `json:"workspace_id"`
+	Overview         string    `json:"overview"`
+	Product          string    `json:"product"`
+	Positioning      string    `json:"positioning"`
+	CustomerSegments []byte    `json:"customer_segments"`
+	Competitors      []string  `json:"competitors"`
+	PainPoints       []byte    `json:"pain_points"`
+	Keywords         []byte    `json:"keywords"`
+	Features         []string  `json:"features"`
+	TargetAudience   string    `json:"target_audience"`
+	SourceUrl        string    `json:"source_url"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 type ConsumerCheckpoint struct {
 	ID                 string      `json:"id"`
 	StreamName         string      `json:"stream_name"`
@@ -691,6 +707,18 @@ type OnboardingAnalysis struct {
 	Status       string      `json:"status"`
 	ErrorMessage pgtype.Text `json:"error_message"`
 	CreatedAt    time.Time   `json:"created_at"`
+}
+
+type OnboardingSampleFeedback struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	ProfileID   pgtype.UUID `json:"profile_id"`
+	Goal        string      `json:"goal"`
+	Platform    string      `json:"platform"`
+	Url         string      `json:"url"`
+	Text        string      `json:"text"`
+	Label       string      `json:"label"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type PainPointEmbedding struct {

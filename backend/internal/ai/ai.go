@@ -39,6 +39,13 @@ type ProductAnalysis struct {
 	SuggestedKeywords   []string   `json:"suggested_keywords"`
 	SuggestedSubreddits []string   `json:"suggested_subreddits"`
 	SuggestedPlatforms  []string   `json:"suggested_platforms"`
+
+	// onboarding: extended brand-profile fields. All optional so older model
+	// output (and stored analyses) still parse.
+	Positioning      string            `json:"positioning,omitempty"`
+	CustomerSegments []CustomerSegment `json:"customer_segments,omitempty"`
+	PainPointDetails []PainPointDetail `json:"pain_point_details,omitempty"`
+	KeywordGroups    KeywordGroups     `json:"keyword_groups"`
 }
 
 // flexString accepts either a JSON string or a JSON array of strings (joined with ", "),
@@ -372,6 +379,10 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "suggested_keywords": array of 5-15 monitoring keywords (product name, competitor names, pain-point phrases people would search for)
 - "suggested_subreddits": array of 3-8 relevant subreddit names (without r/ prefix) where the target audience hangs out
 - "suggested_platforms": array of platforms to monitor, from: "reddit", "hackernews", "twitter", "linkedin", "devto", "lobsters", "indiehackers"
+- "positioning": one sentence on how the product differs from alternatives
+- "customer_segments": array of 2-5 objects {"name": segment name, "why_they_buy": one sentence}
+- "pain_point_details": array of objects {"problem": short problem, "explanation": one sentence}, one per pain point
+- "keyword_groups": object with arrays "brand" (product/company names), "product" (product + feature phrases), "category" (category phrases like "crm for agencies"), "problem" (problem phrases people post)
 
 Be thorough with pain_points — think about what problems potential customers would post about on Reddit/HN. Focus on real frustrations, not marketing language.`
 
