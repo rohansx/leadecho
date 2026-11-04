@@ -628,9 +628,11 @@ export function classifyMention(id: string) {
   });
 }
 
-export function draftReply(id: string) {
+export function draftReply(id: string, responseProfileId?: string) {
   return request<DraftReplyResponse>(`/mentions/${id}/draft-reply`, {
     method: "POST",
+    // voice: optional response profile; omitted = workspace default
+    body: JSON.stringify(responseProfileId ? { response_profile_id: responseProfileId } : {}),
   });
 }
 
@@ -862,4 +864,56 @@ export function createUTMLink(data: {
 
 export function deleteUTMLink(id: string) {
   return request<{ status: string }>(`/utm-links/${id}`, { method: "DELETE" });
+}
+
+// ─── Response profiles (voice) ─────────────────────────
+export type ResponseGoal =
+  | "drive_conversion"
+  | "build_relationship"
+  | "ask_for_info"
+  | "handle_feedback"
+  | "support"
+  | "custom";
+export type ReplyLength = "short" | "medium" | "long";
+export type BrandPlug = "none" | "low" | "medium" | "high";
+export type ExamplePlatform = "reddit" | "x" | "linkedin" | "bluesky" | "hackernews";
+
+export interface ResponseProfileInput {
+  name: string;
+  goal: ResponseGoal;
+  special_instructions: string;
+  tone: number;
+  length: ReplyLength;
+  assertiveness: number;
+  brand_plug: BrandPlug;
+  cta_goal: string;
+  destination_url: string;
+  examples: Partial<Record<ExamplePlatform, string>>;
+}
+
+export interface ResponseProfile extends ResponseProfileInput {
+  id: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listResponseProfiles(): Promise<ResponseProfile[]> {
+  return request<ResponseProfile[]>("/response-profiles");
+}
+
+export function createResponseProfile(data: ResponseProfileInput): Promise<ResponseProfile> {
+  return request<ResponseProfile>("/response-profiles", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateResponseProfile(id: string, data: ResponseProfileInput): Promise<ResponseProfile> {
+  return request<ResponseProfile>(`/response-profiles/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteResponseProfile(id: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/response-profiles/${id}`, { method: "DELETE" });
+}
+
+export function setDefaultResponseProfile(id: string): Promise<ResponseProfile> {
+  return request<ResponseProfile>(`/response-profiles/${id}/default`, { method: "POST" });
 }

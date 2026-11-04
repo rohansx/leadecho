@@ -165,6 +165,7 @@ type ReplyDraftRequestedPayload struct {
 	WorkspaceID         string `json:"workspace_id"`
 	WorkflowExecutionID string `json:"workflow_execution_id,omitempty"`
 	Source              string `json:"source,omitempty"`
+	ResponseProfileID   string `json:"response_profile_id,omitempty"` // voice
 }
 
 type ReplyApprovedPayload struct {

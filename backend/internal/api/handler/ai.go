@@ -106,6 +106,19 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.WorkspaceID(ctx)
 	id := chi.URLParam(r, "id")
 
+	// voice: optional response_profile_id; unknown ids 404 before any work.
+	profileID, err := draftReplyProfileID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if profileID != "" {
+		if _, err := h.q.GetResponseProfile(ctx, database.GetResponseProfileParams{ID: profileID, WorkspaceID: wsID}); err != nil {
+			writeError(w, http.StatusNotFound, "response profile not found")
+			return
+		}
+	}
+
 	if h.replyDrafterAsync && h.publisher != nil {
 		// Drafting is an explicit, repeatable user action: asking again means
 		// "generate another draft", not "retry the same request". Keying on
@@ -124,6 +137,8 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 				MentionID:   id,
 				WorkspaceID: wsID,
 				Source:      "api",
+				// voice
+				ResponseProfileID: profileID,
 			},
 		)
 		if err != nil {
@@ -142,7 +157,11 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.drafter.DraftForMention(ctx, wsID, id)
+	result, err := h.drafter.DraftWithProfile(ctx, wsID, id, profileID)
+	if errors.Is(err, reply.ErrResponseProfileNotFound) {
+		writeError(w, http.StatusNotFound, "response profile not found")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "draft generation failed: "+err.Error())
 		return

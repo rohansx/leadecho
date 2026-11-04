@@ -70,6 +70,7 @@ export const QUERY_KEYS = {
   person360: "person360",
   scoringPrecision: "scoringPrecision",
   replyAttribution: "replyAttribution",
+  responseProfiles: "responseProfiles", // voice
 } as const;
 
 export const GITHUB_URL = "https://github.com/rohansx/leadecho";

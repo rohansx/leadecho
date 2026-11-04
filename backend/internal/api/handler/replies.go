@@ -72,6 +72,18 @@ func (h *ReplyHandler) replyToResponse(ctx context.Context, r database.Reply) Re
 	return resp
 }
 
+// draftLinkShortURL is the short URL of the link already on a reply, or "" (voice).
+func (h *ReplyHandler) draftLinkShortURL(ctx context.Context, r database.Reply) string {
+	if !r.UtmLinkID.Valid {
+		return ""
+	}
+	link, err := h.q.GetUTMLinkByID(ctx, database.GetUTMLinkByIDParams{ID: formatUUID(r.UtmLinkID), WorkspaceID: r.WorkspaceID})
+	if err != nil {
+		return ""
+	}
+	return h.shortURL(link.Code)
+}
+
 func (h *ReplyHandler) shortURL(code string) string {
 	if h.publicBase != "" {
 		return h.publicBase + "/r/" + code
@@ -262,7 +274,10 @@ func (h *ReplyHandler) approve(w http.ResponseWriter, r *http.Request, wsID, id,
 			if existing.EditedContent.Valid && existing.EditedContent.String != "" {
 				base = existing.EditedContent.String
 			}
-			if !strings.Contains(base, link.Code) {
+			// voice: a draft-time tracked link is swapped for the new one, not doubled.
+			if old := h.draftLinkShortURL(ctx, existing); old != "" && strings.Contains(base, old) {
+				edited = pgtype.Text{String: strings.ReplaceAll(base, old, h.shortURL(link.Code)), Valid: true}
+			} else if !strings.Contains(base, link.Code) {
 				if linked, ok := withTrackingLink(base, destinationURL, h.shortURL(link.Code)); ok {
 					edited = pgtype.Text{String: linked, Valid: true}
 				}
