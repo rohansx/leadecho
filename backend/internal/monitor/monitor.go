@@ -49,6 +49,9 @@ type Monitor struct {
 	// Google's feed terms limit it to personal, non-commercial use, so it must
 	// be a deliberate operator choice rather than a default in a shipped build.
 	googleNewsEnabled bool
+
+	// onboarding: public search endpoints (nil = production defaults; tests override).
+	public *PublicSources
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -199,7 +202,12 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 // ScanWorkspaceNow starts an immediate background scan of one workspace, e.g.
 // right after onboarding, so new users don't wait for the next tick (which can
 // be many minutes behind on a busy instance).
-func (m *Monitor) ScanWorkspaceNow(wsID string) {
+func (m *Monitor) ScanWorkspaceNow(wsID string) { m.ScanWorkspaceSince(wsID, 0) }
+
+// onboarding: ScanWorkspaceSince is ScanWorkspaceNow with a backfill window:
+// sources that support time filters (HN, Reddit, Dev.to) pull posts from the
+// last lookback instead of only the newest page. lookback 0 = normal scan.
+func (m *Monitor) ScanWorkspaceSince(wsID string, lookback time.Duration) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -208,6 +216,9 @@ func (m *Monitor) ScanWorkspaceNow(wsID string) {
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
+		if lookback > 0 {
+			ctx = WithSince(ctx, time.Now().Add(-lookback))
+		}
 		kws, err := m.q.ListActiveKeywords(ctx, wsID)
 		if err != nil {
 			m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("monitor: immediate scan: list keywords")
@@ -219,6 +230,12 @@ func (m *Monitor) ScanWorkspaceNow(wsID string) {
 		m.logger.Info().Str("workspace_id", wsID).Int("keywords", len(kws)).Msg("monitor: immediate workspace scan")
 		m.scanWorkspace(ctx, wsID, kws)
 	}()
+}
+
+// onboarding: IsScanning reports whether a scan of the workspace is running.
+func (m *Monitor) IsScanning(wsID string) bool {
+	_, busy := m.scanning.Load(wsID)
+	return busy
 }
 
 func (m *Monitor) redditBackedOff() bool { return time.Now().UnixNano() < m.redditBackoffNs.Load() }
