@@ -448,7 +448,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		alert      mentionAlert
 		similarity float64
 	}{a, similarity}
-	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform)
+	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform, m.scoringContextFor(ctx, wsID, c.alert.ID))
 	if err != nil {
 		// Record the failure. Without this the mention keeps null scoring
 		// metadata, which is indistinguishable from "never reached stage 3":
@@ -457,6 +457,9 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
 		return
 	}
+	// scoring: normalize whatever the scorer returned (idempotent for the router)
+	normalized := ai.NormalizeClassifyResult(*result, c.alert.Title)
+	result = &normalized
 
 	meta := map[string]any{
 		"stage":           "stage3_classified",
@@ -464,6 +467,11 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		"auto_scored":     true,
 		"reasoning":       result.Reasoning,
 		"awareness_level": result.AwarenessLevel,
+		// scoring: taxonomy context
+		"intent_tags":   result.IntentTags,
+		"sentiment":     result.Sentiment,
+		"post_type":     result.PostType,
+		"matches_skips": result.MatchesSkips,
 	}
 
 	// Update mention with classification + awareness level
@@ -479,6 +487,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
 	}
 
+	m.storeIntentTags(ctx, c.alert.WorkspaceID, c.alert.ID, result) // scoring
 	m.publishMentionScored(ctx, c.alert, result)
 
 	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)

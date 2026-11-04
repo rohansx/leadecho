@@ -49,6 +49,9 @@ type Monitor struct {
 	// Google's feed terms limit it to personal, non-commercial use, so it must
 	// be a deliberate operator choice rather than a default in a shipped build.
 	googleNewsEnabled bool
+
+	// scoring: extra few-shot example sources (e.g. onboarding calibration)
+	extraExamples []ExampleSource
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -325,6 +328,11 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 	// once here so every crawler stores readable text.
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
+	// scoring: drop bots and cross-link / near-duplicate posts before insert
+	keys, drop := m.dropBeforeInsert(ctx, p)
+	if drop {
+		return nil
+	}
 	mention, err := m.q.CreateMention(ctx, p)
 	if err != nil {
 		if isDuplicateError(err) {
@@ -333,6 +341,7 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 		m.logger.Error().Err(err).Str("platform_id", p.PlatformID).Msg("failed to insert mention")
 		return nil
 	}
+	m.recordDedupeKeys(ctx, p.WorkspaceID, mention.ID, keys)
 
 	title := ""
 	if p.Title.Valid {

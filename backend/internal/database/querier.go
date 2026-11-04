@@ -64,6 +64,10 @@ type Querier interface {
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
+	// scoring: dedupe, intent tags, human feedback, listener intent.
+	// Same canonical URL, or a simhash within max_distance bits (-1 disables the
+	// text check), in the same workspace within the lookback window.
+	FindRecentDuplicateMention(ctx context.Context, arg FindRecentDuplicateMentionParams) (bool, error)
 	FindSimilarDocumentChunks(ctx context.Context, arg FindSimilarDocumentChunksParams) ([]FindSimilarDocumentChunksRow, error)
 	// Only match pain points from ACTIVE monitoring profiles so deactivating a
 	// profile actually stops its phrases from scoring new mentions.
@@ -79,6 +83,8 @@ type Querier interface {
 	GetLead(ctx context.Context, arg GetLeadParams) (Lead, error)
 	GetLeadByMention(ctx context.Context, arg GetLeadByMentionParams) (Lead, error)
 	GetMention(ctx context.Context, arg GetMentionParams) (Mention, error)
+	// The listener (monitoring profile) a mention came from, via its keyword.
+	GetMentionScoringProfile(ctx context.Context, arg GetMentionScoringProfileParams) (GetMentionScoringProfileRow, error)
 	GetMonitoringProfile(ctx context.Context, arg GetMonitoringProfileParams) (MonitoringProfile, error)
 	GetPerson(ctx context.Context, arg GetPersonParams) (Person, error)
 	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
@@ -137,6 +143,9 @@ type Querier interface {
 	ListReplayableEvents(ctx context.Context, arg ListReplayableEventsParams) ([]EventLog, error)
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
 	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
+	// Latest labelled mentions for one listener; profile_id NULL = mentions with
+	// no listener (workspace-level examples).
+	ListScoringExamples(ctx context.Context, arg ListScoringExamplesParams) ([]ListScoringExamplesRow, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
 	// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
 	// re-sending them to the LLM every tick wastes tokens. Classification errors
@@ -157,6 +166,7 @@ type Querier interface {
 	ResolveDeadLetterEvent(ctx context.Context, arg ResolveDeadLetterEventParams) (DeadLetterEvent, error)
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
+	SetMentionDedupeKeys(ctx context.Context, arg SetMentionDedupeKeysParams) error
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchExtensionToken(ctx context.Context, token string) error
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
@@ -173,7 +183,9 @@ type Querier interface {
 	UpdateMentionScoring(ctx context.Context, arg UpdateMentionScoringParams) (Mention, error)
 	UpdateMentionStatus(ctx context.Context, arg UpdateMentionStatusParams) (Mention, error)
 	UpdateMentionStatusWithMetadata(ctx context.Context, arg UpdateMentionStatusWithMetadataParams) (Mention, error)
+	UpdateMentionTags(ctx context.Context, arg UpdateMentionTagsParams) error
 	UpdateMonitoringProfile(ctx context.Context, arg UpdateMonitoringProfileParams) (MonitoringProfile, error)
+	UpdateMonitoringProfileIntent(ctx context.Context, arg UpdateMonitoringProfileIntentParams) (MonitoringProfile, error)
 	UpdateOnboardingAnalysis(ctx context.Context, arg UpdateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 	UpdateReplyContent(ctx context.Context, arg UpdateReplyContentParams) (Reply, error)
@@ -183,6 +195,7 @@ type Querier interface {
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
+	UpsertMentionFeedback(ctx context.Context, arg UpsertMentionFeedbackParams) (MentionFeedback, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
 }

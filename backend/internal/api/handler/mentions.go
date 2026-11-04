@@ -79,6 +79,8 @@ type MentionResponse struct {
 	UpdatedAt             time.Time       `json:"updated_at"`
 	AwarenessLevel        *string         `json:"awareness_level"`
 	NextAction            *string         `json:"next_action,omitempty"`
+	IntentTags            []string        `json:"intent_tags"` // scoring
+	Sentiment             *string         `json:"sentiment"`   // scoring
 }
 
 func mentionToResponse(m database.Mention) MentionResponse {
@@ -94,6 +96,7 @@ func mentionToResponse(m database.Mention) MentionResponse {
 		EngagementMetrics: json.RawMessage(m.EngagementMetrics),
 		ScoringMetadata:   json.RawMessage(m.ScoringMetadata),
 		KeywordMatches:    m.KeywordMatches,
+		IntentTags:        nonNilTags(m.IntentTags),
 		CreatedAt:         m.CreatedAt,
 		UpdatedAt:         m.UpdatedAt,
 	}
@@ -135,6 +138,9 @@ func mentionToResponse(m database.Mention) MentionResponse {
 	}
 	if m.AwarenessLevel.Valid {
 		r.AwarenessLevel = &m.AwarenessLevel.String
+	}
+	if m.Sentiment.Valid {
+		r.Sentiment = &m.Sentiment.String
 	}
 	return r
 }
@@ -184,6 +190,8 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 		Platform:       r.URL.Query().Get("platform"),
 		Intent:         r.URL.Query().Get("intent"),
 		Search:         r.URL.Query().Get("search"),
+		Tag:            r.URL.Query().Get("tag"),       // scoring
+		Sentiment:      r.URL.Query().Get("sentiment"), // scoring
 		Lim:            limit,
 		Off:            offset,
 	}
@@ -205,6 +213,10 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if params.Queue != "" && !validMentionQueues[params.Queue] {
 		writeError(w, http.StatusBadRequest, "invalid queue")
+		return
+	}
+	if msg := validateTagFilters(params); msg != "" { // scoring
+		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 	if params.EscalationKind != "" {
@@ -482,9 +494,16 @@ func (h *MentionHandler) PlatformCounts(w http.ResponseWriter, r *http.Request) 
 		Platform: "",
 		Intent:   r.URL.Query().Get("intent"),
 		Search:   r.URL.Query().Get("search"),
+		// scoring: keep platform pills consistent with tag/sentiment filters
+		Tag:       r.URL.Query().Get("tag"),
+		Sentiment: r.URL.Query().Get("sentiment"),
 	}
 	if params.Queue != "" && !validMentionQueues[params.Queue] {
 		writeError(w, http.StatusBadRequest, "invalid queue")
+		return
+	}
+	if msg := validateTagFilters(params); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 	if params.ActionKind != "" {

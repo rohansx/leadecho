@@ -654,6 +654,22 @@ type Mention struct {
 	ContentEmbedding      *pgvector_go.Vector `json:"content_embedding"`
 	ScoringMetadata       []byte              `json:"scoring_metadata"`
 	AwarenessLevel        pgtype.Text         `json:"awareness_level"`
+	IntentTags            []string            `json:"intent_tags"`
+	Sentiment             pgtype.Text         `json:"sentiment"`
+	CanonicalUrl          pgtype.Text         `json:"canonical_url"`
+	ContentSimhash        pgtype.Int8         `json:"content_simhash"`
+}
+
+type MentionFeedback struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	MentionID   string      `json:"mention_id"`
+	ProfileID   pgtype.UUID `json:"profile_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	Label       string      `json:"label"`
+	Note        string      `json:"note"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
 type MonitoringProfile struct {

@@ -19,6 +19,8 @@ type ListMentionsComposedParams struct {
 	Platform       string
 	Intent         string
 	Search         string
+	Tag            string // scoring: one of the 13 intent tags
+	Sentiment      string // scoring: positive|neutral|negative
 	Lim            int32
 	Off            int32
 }
@@ -101,6 +103,13 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 	}
 	if p.Search != "" {
 		add("content_tsv @@ plainto_tsquery('english', $%d)", p.Search)
+	}
+	// scoring: tag + sentiment filters
+	if p.Tag != "" {
+		add("$%d = ANY(intent_tags)", p.Tag)
+	}
+	if p.Sentiment != "" {
+		add("sentiment = $%d", p.Sentiment)
 	}
 	return strings.Join(clauses, " AND "), args
 }
@@ -284,7 +293,7 @@ WHERE workspace_id = $1
 	return out, rows.Err()
 }
 
-const mentionColumns = `id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level`
+const mentionColumns = `id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash`
 
 // ListMentionsComposed applies all provided filters together (ANDed), with
 // pagination, ordered by recency (action queues) or score (browse-all).
@@ -319,6 +328,7 @@ func (q *Queries) ListMentionsComposed(ctx context.Context, p ListMentionsCompos
 			&i.ConversionProbability, &i.Status, &i.AssignedTo, &i.PlatformMetadata,
 			&i.EngagementMetrics, &i.KeywordMatches, &i.PlatformCreatedAt, &i.CreatedAt,
 			&i.UpdatedAt, &i.ContentEmbedding, &i.ScoringMetadata, &i.AwarenessLevel,
+			&i.IntentTags, &i.Sentiment, &i.CanonicalUrl, &i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}

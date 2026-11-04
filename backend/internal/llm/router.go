@@ -296,11 +296,13 @@ func (r *Router) DeleteProviderKey(ctx context.Context, workspaceID, provider st
 	return ProviderStatus{Provider: provider}, nil
 }
 
-func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string) (*ai.ClassifyResult, error) {
-	product := r.productContext(ctx, workspaceID)
+func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string, sc ai.ScoringContext) (*ai.ClassifyResult, error) {
+	if sc.Product == "" {
+		sc.Product = r.productContext(ctx, workspaceID)
+	}
 	var out *ai.ClassifyResult
 	err := r.withChatProvider(ctx, workspaceID, TaskClassify, func(p ai.Provider) error {
-		res, err := ai.ClassifyIntent(ctx, p, title, content, platform, product)
+		res, err := ai.ClassifyIntent(ctx, p, title, content, platform, sc)
 		out = res
 		return err
 	})
@@ -457,7 +459,7 @@ func (r *Router) VerifyProvider(ctx context.Context, workspaceID, provider strin
 		return err
 	}
 	p := providerForTarget(provider, key, ModelTarget{Provider: provider}, r.system)
-	_, err = ai.ClassifyIntent(ctx, p, "Verification", "I am looking for a simple project management tool for my team because our current workflow is too slow.", "internal", "")
+	_, err = ai.ClassifyIntent(ctx, p, "Verification", "I am looking for a simple project management tool for my team because our current workflow is too slow.", "internal", ai.ScoringContext{})
 	r.recordUsage(ctx, workspaceID, TaskFilter, p.Name, p.Model, source, 0, time.Since(start), err)
 	return err
 }

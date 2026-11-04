@@ -26,6 +26,12 @@ type ClassifyResult struct {
 	RelevanceScore        float64 `json:"relevance_score"`
 	Reasoning             string  `json:"reasoning"`
 	AwarenessLevel        string  `json:"awareness_level"`
+
+	// scoring: 13-tag taxonomy + sentiment (see taxonomy.go)
+	IntentTags   []string `json:"intent_tags"`
+	Sentiment    string   `json:"sentiment"`
+	PostType     string   `json:"post_type"`     // question|discussion|announcement|thought_leadership|other
+	MatchesSkips bool     `json:"matches_skips"` // post matches the listener's Skips
 }
 
 // ProductAnalysis holds the output from analyzing a product URL.
@@ -304,54 +310,6 @@ func sanitizeJSON(s string) string {
 		}
 	}
 	return string(buf)
-}
-
-// ClassifyIntent classifies a social mention into intent categories.
-// product describes the workspace's own product; when set, relevance_score
-// measures buyer fit for that product instead of generic B2B relevance.
-func ClassifyIntent(ctx context.Context, p Provider, title, content, platform, product string) (*ClassifyResult, error) {
-	systemPrompt := `You are an intent classifier for social media mentions. Analyze the post and classify it.
-
-Return ONLY valid JSON (no markdown, no code fences) with these fields:
-- "intent": one of "buy_signal", "complaint", "recommendation_ask", "comparison", "general"
-- "conversion_probability": float 0.0-1.0 (how likely this person will buy/convert)
-- "relevance_score": float 0.0-10.0 (how relevant this is for a B2B SaaS product)
-- "reasoning": brief one-sentence explanation
-- "awareness_level": one of "problem_aware", "solution_aware", "product_aware", "purchase_ready"
-
-Intent definitions:
-- buy_signal: User is actively looking to buy/switch to a product
-- complaint: User is complaining about a competitor or existing solution
-- recommendation_ask: User is asking for recommendations/suggestions
-- comparison: User is comparing multiple products or solutions
-- general: General discussion, not clearly actionable
-
-Awareness level definitions:
-- problem_aware: Knows they have a problem but hasn't started looking for solutions
-- solution_aware: Actively researching solution categories
-- product_aware: Comparing specific products by name
-- purchase_ready: Ready to buy, mentions budget/timeline/specific requirements`
-	if product != "" {
-		systemPrompt += productFitRules(product)
-	}
-
-	userPrompt := fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)
-
-	result, err := callChat(ctx, p, []chatMessage{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: userPrompt},
-	}, 0.1)
-	if err != nil {
-		return nil, err
-	}
-
-	result = stripCodeFences(result)
-
-	var cr ClassifyResult
-	if err := json.Unmarshal([]byte(result), &cr); err != nil {
-		return nil, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
-	}
-	return &cr, nil
 }
 
 // AnalyzeProductPage extracts product info from scraped page text.
