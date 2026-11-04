@@ -65,8 +65,8 @@ function FaqItem({ q, a, defaultOpen }: { q: string; a: string; defaultOpen?: bo
 export function FaqSection() {
   return (
     <section id="faq" className="py-24">
-      <div className="max-w-3xl mx-auto px-6">
-        <Reveal>
+      <div className="max-w-6xl mx-auto px-6 grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-16">
+        <Reveal className="lg:sticky lg:top-28 lg:self-start">
           <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground font-[family-name:var(--font-mono)]">
             FAQ
           </div>
@@ -75,7 +75,7 @@ export function FaqSection() {
           </h2>
         </Reveal>
 
-        <Reveal delay={0.1} className="mt-10">
+        <Reveal delay={0.1} className="border-t border-border">
           {faqs.map((f, i) => (
             <FaqItem key={f.q} q={f.q} a={f.a} defaultOpen={i === 0} />
           ))}

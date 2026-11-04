@@ -92,7 +92,7 @@ export function PricingSection() {
                 aria-checked={period === p}
                 onClick={() => setPeriod(p)}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium cursor-pointer transition-colors ${
-                  period === p ? "bg-primary text-primary-foreground" : "text-foreground-soft hover:text-foreground"
+                  period === p ? "bg-foreground text-background" : "text-foreground-soft hover:text-foreground"
                 }`}
               >
                 {p === "monthly" ? "Monthly" : "Yearly"}
@@ -145,7 +145,7 @@ export function PricingSection() {
                 to="/register"
                 className={`mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   p.featured
-                    ? "bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm"
+                    ? "bg-foreground text-background hover:bg-foreground/85 shadow-sm"
                     : "border border-border hover:bg-accent"
                 }`}
               >
@@ -183,7 +183,7 @@ export function PricingSection() {
 export function ComparisonSection() {
   return (
     <section className="py-24 border-t border-border bg-card">
-      <div className="max-w-5xl mx-auto px-6">
+      <div className="max-w-6xl mx-auto px-6">
         <Reveal>
           <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground font-[family-name:var(--font-mono)]">
             Comparison

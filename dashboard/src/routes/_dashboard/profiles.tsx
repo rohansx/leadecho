@@ -68,7 +68,7 @@ function ProfilesPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Text as="h2">Pain-Point Profiles</Text>
         <Text as="p" className="text-muted-foreground mt-1">
@@ -80,8 +80,8 @@ function ProfilesPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Plus className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Plus className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Add Profile</CardTitle>
@@ -113,7 +113,7 @@ function ProfilesPage() {
           <div className="space-y-1.5">
             <Text as="p" className="text-sm font-medium">Pain-Point Phrases</Text>
             <textarea
-              className="w-full min-h-[100px] rounded border-2 border-border bg-background px-3 py-2 text-sm font-[family-name:var(--font-sans)] shadow-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full min-h-[100px] rounded-lg border border-border bg-background px-3 py-2 text-sm font-[family-name:var(--font-sans)] shadow-xs focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder={"my builds take forever\nCI is so slow\ntired of waiting for deploys\none per line..."}
               value={painPoints}
               onChange={(e) => setPainPoints(e.target.value)}
@@ -137,8 +137,8 @@ function ProfilesPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Target className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Target className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Active Profiles</CardTitle>
@@ -165,7 +165,7 @@ function ProfilesPage() {
               {profiles.map((profile: MonitoringProfile) => (
                 <div
                   key={profile.id}
-                  className={`p-3 rounded border-2 border-border transition ${
+                  className={`p-3 rounded-lg border border-border transition ${
                     profile.is_active ? "bg-card" : "bg-muted opacity-60"
                   }`}
                 >

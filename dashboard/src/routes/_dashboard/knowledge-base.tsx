@@ -43,7 +43,7 @@ function KnowledgeBasePage() {
   });
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <Text as="h2">Knowledge Base</Text>
@@ -64,7 +64,7 @@ function KnowledgeBasePage() {
             <Input placeholder="Document title" value={title} onChange={(e) => setTitle(e.target.value)} />
             <Input placeholder="Source URL (optional)" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
             <textarea
-              className="px-4 py-2 w-full rounded border-2 border-border shadow-md transition focus:outline-hidden focus:shadow-xs font-[family-name:var(--font-sans)] bg-background text-foreground placeholder:text-muted-foreground min-h-[200px] resize-y"
+              className="px-4 py-2 w-full rounded-lg border border-border shadow-xs transition focus:outline-hidden focus:ring-3 focus:ring-ring/20 focus:border-ring font-[family-name:var(--font-sans)] bg-background text-foreground placeholder:text-muted-foreground min-h-[200px] resize-y"
               placeholder="Paste your document content here (markdown supported)..."
               value={content}
               onChange={(e) => setContent(e.target.value)}

@@ -87,7 +87,7 @@ export function MarketingNav() {
           <Link
             to="/register"
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover",
+              "inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background shadow-sm transition-colors hover:bg-foreground/85",
             )}
           >
             Get started

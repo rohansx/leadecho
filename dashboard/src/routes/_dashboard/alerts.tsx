@@ -84,7 +84,7 @@ function AlertsPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Text as="h2">Alerts</Text>
         <Text as="p" className="text-muted-foreground mt-1">
@@ -118,8 +118,8 @@ function AlertsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Hash className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Hash className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Slack</CardTitle>
@@ -154,8 +154,8 @@ function AlertsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <MessageSquare className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <MessageSquare className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Discord</CardTitle>
@@ -190,8 +190,8 @@ function AlertsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Mail className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Mail className="h-4 w-4 text-foreground-soft" />
             </div>
             <div className="flex items-center gap-2">
               <div>
@@ -242,8 +242,8 @@ function AlertsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary border-2 border-border shadow-xs flex items-center justify-center">
-              <Bell className="h-5 w-5 text-primary-foreground" />
+            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
+              <Bell className="h-4 w-4 text-foreground-soft" />
             </div>
             <div>
               <CardTitle>Event Triggers</CardTitle>
@@ -254,7 +254,7 @@ function AlertsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <label className="flex items-start gap-3 cursor-pointer p-3 rounded border-2 border-border hover:bg-accent transition">
+          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border hover:bg-accent transition">
             <input
               type="checkbox"
               checked={onNewMention}
@@ -268,7 +268,7 @@ function AlertsPage() {
               </Text>
             </div>
           </label>
-          <label className="flex items-start gap-3 cursor-pointer p-3 rounded border-2 border-border hover:bg-accent transition">
+          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border hover:bg-accent transition">
             <input
               type="checkbox"
               checked={onHighIntent}
@@ -282,7 +282,7 @@ function AlertsPage() {
               </Text>
             </div>
           </label>
-          <label className="flex items-start gap-3 cursor-pointer p-3 rounded border-2 border-border hover:bg-accent transition">
+          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border hover:bg-accent transition">
             <input
               type="checkbox"
               checked={onNewLead}

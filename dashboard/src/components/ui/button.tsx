@@ -5,26 +5,27 @@ import { forwardRef } from "react";
 import { Slot } from "@radix-ui/react-slot";
 
 const buttonVariants = cva(
-  "font-[family-name:var(--font-head)] transition-all duration-200 rounded-lg outline-hidden cursor-pointer font-medium flex justify-center items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed",
+  "font-[family-name:var(--font-head)] transition-[background-color,border-color,color,box-shadow,transform] duration-150 rounded-lg outline-hidden cursor-pointer font-medium inline-flex justify-center items-center gap-1.5 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:shadow active:shadow-xs",
+        // Ink primary (YC-style); amber is reserved for the brand "accent" variant.
+        default: "bg-foreground text-background shadow-xs hover:bg-foreground/85",
+        accent: "bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover",
         secondary:
-          "bg-secondary text-secondary-foreground border border-border hover:bg-accent",
+          "bg-secondary text-secondary-foreground hover:bg-accent",
         outline:
-          "bg-transparent border border-border text-foreground hover:bg-accent hover:border-foreground/20",
+          "bg-card border border-border text-foreground shadow-xs hover:bg-accent",
         ghost: "bg-transparent text-foreground hover:bg-accent",
         link: "bg-transparent text-primary-ink hover:underline underline-offset-4 p-0!",
         destructive:
           "bg-destructive text-destructive-foreground shadow-sm hover:opacity-90",
       },
       size: {
-        sm: "px-3 py-1.5 text-sm",
-        md: "px-4 py-2 text-sm",
-        lg: "px-6 lg:px-7 py-2.5 lg:py-3 text-base",
-        icon: "p-2",
+        sm: "h-8 px-3 text-[13px]",
+        md: "h-9 px-4 text-sm",
+        lg: "h-11 px-6 text-[15px]",
+        icon: "size-9",
       },
     },
     defaultVariants: {

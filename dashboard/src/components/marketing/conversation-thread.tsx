@@ -49,8 +49,8 @@ const kindStyles: Record<string, string> = {
 export function ConversationThreadSection() {
   return (
     <section className="py-24 border-y border-border bg-card">
-      <div className="max-w-4xl mx-auto px-6">
-        <div className="mb-12">
+      <div className="max-w-6xl mx-auto px-6 grid gap-12 lg:grid-cols-[1fr_1.6fr] lg:gap-16">
+        <div className="lg:sticky lg:top-28 lg:self-start">
           <Reveal>
             <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground font-[family-name:var(--font-mono)]">
               Conversation agent
@@ -63,13 +63,14 @@ export function ConversationThreadSection() {
             </h2>
           </Reveal>
           <Reveal delay={0.1}>
-            <p className="mt-4 text-lg text-foreground-soft leading-relaxed max-w-2xl">
+            <p className="mt-4 text-lg text-foreground-soft leading-relaxed max-w-md">
               The Conversation agent owns a thread from first draft to closed conversion. Every step is auditable;
               nothing posts without your click.
             </p>
           </Reveal>
         </div>
 
+        <div>
         <Reveal>
           <div className="flex items-center justify-between mb-4 text-sm">
             <div>
@@ -95,6 +96,7 @@ export function ConversationThreadSection() {
             </StaggerItem>
           ))}
         </StaggerGroup>
+        </div>
       </div>
     </section>
   );

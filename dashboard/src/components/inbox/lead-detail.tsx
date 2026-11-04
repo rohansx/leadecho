@@ -251,7 +251,7 @@ function OverviewTab({
                         value={manualReply}
                         onChange={(e) => setManualReply(e.target.value)}
                         placeholder="Type your reply..."
-                        className="flex-1 min-h-[80px] px-3 py-2 text-sm rounded-lg border-2 border-border bg-background text-foreground resize-y"
+                        className="flex-1 min-h-[80px] px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground resize-y"
                       />
                     </div>
                     <div className="flex gap-2 mt-2">

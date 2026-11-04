@@ -22,7 +22,7 @@ function PrivacyPage() {
       <nav className="border-b-2 border-border bg-card">
         <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-primary border-2 border-border rounded flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-xs font-bold">
+            <div className="w-7 h-7 bg-primary border border-border rounded-lg flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-xs font-bold">
               LE
             </div>
             <span className="font-[family-name:var(--font-head)] text-base">LeadEcho</span>
@@ -86,8 +86,8 @@ function PrivacyPage() {
         <Section title="Local storage">
           <p>The extension stores the following data in Chrome's local storage:</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li><code className="bg-muted px-1 rounded text-xs">apiUrl</code> — your backend URL (for connecting to your LeadEcho instance)</li>
-            <li><code className="bg-muted px-1 rounded text-xs">apiKey</code> — your extension token (for authenticating API requests)</li>
+            <li><code className="bg-muted px-1 rounded-lg text-xs">apiUrl</code> — your backend URL (for connecting to your LeadEcho instance)</li>
+            <li><code className="bg-muted px-1 rounded-lg text-xs">apiKey</code> — your extension token (for authenticating API requests)</li>
           </ul>
           <p>
             This data never leaves your browser except in requests to the backend URL you configured.
