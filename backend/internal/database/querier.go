@@ -60,6 +60,7 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
+	CreateWorkspaceAPIKey(ctx context.Context, arg CreateWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
 	DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
@@ -78,6 +79,7 @@ type Querier interface {
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	GetActiveWorkspaceAPIKeyByHash(ctx context.Context, keyHash string) (WorkspaceApiKey, error)
 	// ─── Brand profile (onboarding) ───────────────────────
 	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
 	GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error)
@@ -164,6 +166,7 @@ type Querier interface {
 	// stay eligible so transient provider outages are retried.
 	ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error)
 	ListUsersByExternalID(ctx context.Context, clerkUserID string) ([]User, error)
+	ListWorkspaceAPIKeys(ctx context.Context, workspaceID string) ([]WorkspaceApiKey, error)
 	MarkEventLogPublishFailed(ctx context.Context, arg MarkEventLogPublishFailedParams) (EventLog, error)
 	MarkEventLogPublished(ctx context.Context, arg MarkEventLogPublishedParams) (EventLog, error)
 	MarkReplyPosted(ctx context.Context, arg MarkReplyPostedParams) (Reply, error)
@@ -176,6 +179,7 @@ type Querier interface {
 	ReplyStats(ctx context.Context, workspaceID string) ([]ReplyStatsRow, error)
 	ReplyStyleAttribution(ctx context.Context, workspaceID string) ([]ReplyStyleAttributionRow, error)
 	ResolveDeadLetterEvent(ctx context.Context, arg ResolveDeadLetterEventParams) (DeadLetterEvent, error)
+	RevokeWorkspaceAPIKey(ctx context.Context, arg RevokeWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
 	// One statement flips the old default off and the new one on; no-op when the
@@ -185,8 +189,16 @@ type Querier interface {
 	// ─── Listener builder ─────────────────────────────────
 	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
 	SetReplyTrackingLink(ctx context.Context, arg SetReplyTrackingLinkParams) (Reply, error)
+	// Revenue and funnel per source platform for replies created in the window.
+	ToolsAttributionByPlatform(ctx context.Context, arg ToolsAttributionByPlatformParams) ([]ToolsAttributionByPlatformRow, error)
+	// Queries backing the agent tool layer (internal/tools), shared by the MCP
+	// server and the in-app AI chat.
+	ToolsUpdateListenerIntent(ctx context.Context, arg ToolsUpdateListenerIntentParams) (MonitoringProfile, error)
+	// Headline numbers for the last @days days.
+	ToolsWorkspaceSummary(ctx context.Context, arg ToolsWorkspaceSummaryParams) (ToolsWorkspaceSummaryRow, error)
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchExtensionToken(ctx context.Context, token string) error
+	TouchWorkspaceAPIKey(ctx context.Context, arg TouchWorkspaceAPIKeyParams) error
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDocumentChunkCount(ctx context.Context, arg UpdateDocumentChunkCountParams) error
 	UpdateEventReplayStatus(ctx context.Context, arg UpdateEventReplayStatusParams) (EventReplay, error)

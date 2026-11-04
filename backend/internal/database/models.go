@@ -971,3 +971,16 @@ type Workspace struct {
 	CreatedAt        time.Time   `json:"created_at"`
 	UpdatedAt        time.Time   `json:"updated_at"`
 }
+
+type WorkspaceApiKey struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Prefix      string             `json:"prefix"`
+	KeyHash     string             `json:"key_hash"`
+	Scopes      []string           `json:"scopes"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+}

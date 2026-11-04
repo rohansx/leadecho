@@ -834,6 +834,48 @@ export function revokeExtensionToken() {
   });
 }
 
+// ─── mcp: workspace API keys (MCP server + public REST) ─────
+
+export type APIKeyScope = "read" | "write";
+
+export interface WorkspaceAPIKey {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: APIKeyScope[];
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  revoked: boolean;
+}
+
+export interface AgentTool {
+  name: string;
+  description: string;
+  scope: APIKeyScope;
+}
+
+export function listWorkspaceAPIKeys() {
+  return request<{ data: WorkspaceAPIKey[] }>("/workspace-api-keys");
+}
+
+export function createWorkspaceAPIKey(name: string, scopes: APIKeyScope[]) {
+  return request<{ key: WorkspaceAPIKey; secret: string }>("/workspace-api-keys", {
+    method: "POST",
+    body: JSON.stringify({ name, scopes }),
+  });
+}
+
+export function revokeWorkspaceAPIKey(id: string) {
+  return request<WorkspaceAPIKey>(`/workspace-api-keys/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export function listAgentTools() {
+  return request<{ data: AgentTool[] }>("/workspace-api-keys/tools");
+}
+
 // ─── Onboarding ────────────────────────────────────────
 
 export function getOnboardingStatus() {

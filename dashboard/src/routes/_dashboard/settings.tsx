@@ -14,6 +14,7 @@ import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle,
 import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
 import { ReplyVoiceCard } from "@/components/settings/reply-voice-card"; // voice
+import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -644,6 +645,8 @@ function SettingsPage() {
 
       {/* voice: response profiles */}
       <ReplyVoiceCard />
+      {/* mcp: workspace API keys + MCP connect */}
+      <ApiMcpCard />
 
       <Card>
         <CardHeader>
