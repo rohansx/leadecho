@@ -469,6 +469,11 @@ func (r *Router) UsageSummary(ctx context.Context, workspaceID string) ([]databa
 }
 
 func (r *Router) withChatProvider(ctx context.Context, workspaceID string, task Task, fn func(ai.Provider) error) error {
+	return r.withChatProviderUsage(ctx, workspaceID, task, func(p ai.Provider) (ai.Usage, error) { return ai.Usage{}, fn(p) })
+}
+
+// withChatProviderUsage is withChatProvider for calls that report token usage (chat).
+func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, task Task, fn func(ai.Provider) (ai.Usage, error)) error {
 	cfg, legacy, err := r.loadConfig(ctx, workspaceID)
 	if err != nil {
 		return err
@@ -487,8 +492,8 @@ func (r *Router) withChatProvider(ctx context.Context, workspaceID string, task 
 		}
 		provider := providerForTarget(providerName, key, target, r.system)
 		start := time.Now()
-		err = fn(provider)
-		r.recordUsage(ctx, workspaceID, task, provider.Name, provider.Model, source, idx, time.Since(start), err)
+		u, err := fn(provider)
+		r.recordUsageTokens(ctx, workspaceID, task, provider.Name, provider.Model, source, idx, time.Since(start), u, err)
 		if err == nil {
 			return nil
 		}
@@ -613,6 +618,10 @@ func (r *Router) resolveKey(provider string, cfg Config, legacy map[string]strin
 }
 
 func (r *Router) recordUsage(ctx context.Context, workspaceID string, task Task, provider, model, source string, fallbackIndex int, latency time.Duration, callErr error) {
+	r.recordUsageTokens(ctx, workspaceID, task, provider, model, source, fallbackIndex, latency, ai.Usage{}, callErr)
+}
+
+func (r *Router) recordUsageTokens(ctx context.Context, workspaceID string, task Task, provider, model, source string, fallbackIndex int, latency time.Duration, u ai.Usage, callErr error) {
 	status := "success"
 	errText := pgtype.Text{}
 	if callErr != nil {
@@ -625,6 +634,7 @@ func (r *Router) recordUsage(ctx context.Context, workspaceID string, task Task,
 	}
 	if err := r.q.CreateLLMUsageEvent(ctx, database.CreateLLMUsageEventParams{
 		WorkspaceID: workspaceID, Task: string(task), Provider: provider, Model: model, Status: status,
+		PromptTokens: u.PromptTokens, CompletionTokens: u.CompletionTokens, TotalTokens: u.TotalTokens,
 		EstimatedCostUSD: "0", LatencyMs: int32(latency.Milliseconds()), ErrorMessage: errText,
 		FallbackFrom: fallbackFrom, KeySource: source,
 	}); err != nil {

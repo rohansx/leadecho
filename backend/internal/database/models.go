@@ -443,6 +443,25 @@ type BrandProfile struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+type ChatMessage struct {
+	ID          string    `json:"id"`
+	ThreadID    string    `json:"thread_id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Role        string    `json:"role"`
+	Content     string    `json:"content"`
+	ToolCalls   []byte    `json:"tool_calls"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type ChatThread struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	UserID      string    `json:"user_id"`
+	Title       string    `json:"title"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type ConsumerCheckpoint struct {
 	ID                 string      `json:"id"`
 	StreamName         string      `json:"stream_name"`

@@ -301,6 +301,15 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/workspace-api-keys", wsKeys.Create)
 			r.Delete("/workspace-api-keys/{id}", wsKeys.Revoke)
 			r.Get("/workspace-api-keys/tools", publicAPI.ToolCatalog)
+
+			// chat: "Ask LeadEcho" in-app assistant (P2 #15)
+			chatH := handler.NewChatHandler(queries, agentTools, llmRouter, logger)
+			r.Post("/chat", chatH.Send)
+			r.Get("/chat/threads", chatH.Threads)
+			r.Get("/chat/threads/{id}/messages", chatH.Messages)
+			r.Delete("/chat/threads/{id}", chatH.DeleteThread)
+			r.Post("/chat/messages/{id}/confirm", chatH.Confirm)
+			// end chat
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

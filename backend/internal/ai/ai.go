@@ -150,6 +150,7 @@ type chatResponse struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+	Usage Usage `json:"usage"` // chat: OpenAI-compatible token counts (may be absent)
 }
 
 // prependNemotronDirective inserts "detailed_thinking off" so Nemotron answers
@@ -216,6 +217,12 @@ func DefaultProvider(name, apiKey string) Provider {
 
 // callChat makes an OpenAI-compatible chat completion request.
 func callChat(ctx context.Context, p Provider, messages []chatMessage, temp float64) (string, error) {
+	out, _, err := callChatUsage(ctx, p, messages, temp)
+	return out, err
+}
+
+// callChatUsage is callChat plus the provider's token usage (chat).
+func callChatUsage(ctx context.Context, p Provider, messages []chatMessage, temp float64) (string, Usage, error) {
 	if p.Name == "anthropic" {
 		return callAnthropic(ctx, p, messages)
 	}
@@ -233,13 +240,13 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return "", Usage{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	url := p.BaseURL + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return "", Usage{}, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
@@ -247,27 +254,27 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("do request: %w", err)
+		return "", Usage{}, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
+		return "", Usage{}, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("LLM API returned %d: %s", resp.StatusCode, string(respBody))
+		return "", Usage{}, fmt.Errorf("LLM API returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var chatResp chatResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+		return "", Usage{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 	if len(chatResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
+		return "", Usage{}, fmt.Errorf("no choices in response")
 	}
-	return strings.TrimSpace(chatResp.Choices[0].Message.Content), nil
+	return strings.TrimSpace(chatResp.Choices[0].Message.Content), chatResp.Usage, nil
 }
 
 // stripCodeFences removes markdown code fences and the JSON-invalid artifacts
