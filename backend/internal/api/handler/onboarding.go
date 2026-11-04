@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,7 +22,14 @@ type OnboardingHandler struct {
 	scrapling *browser.ScraplingClient
 	llmRouter *llm.Router
 	logger    zerolog.Logger
+	scanner   WorkspaceScanner
 }
+
+// WorkspaceScanner starts an immediate crawl of one workspace (monitor.Monitor).
+type WorkspaceScanner interface{ ScanWorkspaceNow(workspaceID string) }
+
+// SetScanner enables the immediate first scan after onboarding. Optional.
+func (h *OnboardingHandler) SetScanner(s WorkspaceScanner) { h.scanner = s }
 
 func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClient, llmRouter *llm.Router, logger zerolog.Logger) *OnboardingHandler {
 	return &OnboardingHandler{q: q, scrapling: scrapling, llmRouter: llmRouter, logger: logger}
@@ -276,7 +284,11 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Embed and store pain points
 	if len(body.PainPoints) > 0 && h.llmRouter != nil {
-		embedAndStore(ctx, h.q, h.llmRouter, profile.ID, wsID, body.PainPoints)
+		if err := embedAndStore(ctx, h.q, h.llmRouter, profile.ID, wsID, body.PainPoints); err != nil {
+			// Non-fatal: keywords still work, but semantic matching is off until
+			// an embedding provider is configured and the profile is re-saved.
+			h.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("onboarding: pain-point embeddings not stored")
+		}
 	}
 
 	// 3. Create keywords — tolerate duplicates, but surface real failures so we
@@ -338,6 +350,11 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		Settings: newRaw,
 	})
 
+	// Kick off the first crawl now instead of waiting for the next monitor tick.
+	if h.scanner != nil && keywordsCreated > 0 {
+		h.scanner.ScanWorkspaceNow(wsID)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":           "completed",
 		"profile_id":       profile.ID,
@@ -346,20 +363,23 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 }
 
 // embedAndStore embeds and stores pain-point phrases for a profile.
-func embedAndStore(ctx context.Context, q *database.Queries, llmRouter *llm.Router, profileID, wsID string, phrases []string) {
+func embedAndStore(ctx context.Context, q *database.Queries, llmRouter *llm.Router, profileID, wsID string, phrases []string) error {
 	vectors, err := llmRouter.EmbedTexts(ctx, wsID, llm.TaskEmbedProfiles, phrases)
 	if err != nil {
-		return
+		return fmt.Errorf("embed pain points: %w", err)
 	}
 	for i, phrase := range phrases {
 		if i >= len(vectors) {
 			break
 		}
-		q.CreatePainPointEmbedding(ctx, database.CreatePainPointEmbeddingParams{
+		if _, err := q.CreatePainPointEmbedding(ctx, database.CreatePainPointEmbeddingParams{
 			ProfileID:   profileID,
 			WorkspaceID: wsID,
 			Phrase:      phrase,
 			Embedding:   &vectors[i],
-		})
+		}); err != nil {
+			return fmt.Errorf("store pain point embedding: %w", err)
+		}
 	}
+	return nil
 }

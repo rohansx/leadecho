@@ -73,7 +73,7 @@ WHERE workspace_id = @workspace_id AND is_active = true;
 -- name: ScoringPrecisionByBand :many
 SELECT
     CASE
-        WHEN relevance_score >= 7.0 THEN 'leads_ready'
+        WHEN relevance_score >= 6.0 THEN 'leads_ready'
         WHEN relevance_score >= 4.0 THEN 'worth_watching'
         ELSE 'filtered'
     END::text AS score_band,

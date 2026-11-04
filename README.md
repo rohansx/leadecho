@@ -18,6 +18,8 @@ LeadEcho monitors Reddit, Twitter/X, LinkedIn, Quora, Hacker News, Dev.to, Lobst
 - **UTM attribution** — unique short links per reply, track clicks → signups → revenue
 - **Knowledge base RAG** — AI replies grounded in your own docs, not hallucinated
 - **Webhook notifications** — Slack, Discord, email alerts for high-intent mentions
+- **CRM sync** — new leads, stage changes and conversions pushed to HubSpot, Attio, or any HMAC-signed webhook
+- **ICP fit score** — every enriched lead gets a 0–100% fit score from profile match, intent, and GitHub signals
 - **Multi-provider AI** — BYOK: NVIDIA Nemotron, DeepSeek, GLM (ZhipuAI), OpenAI, Anthropic, or any compatible API
 - **Authenticated crawling** — Reddit, Twitter, LinkedIn, Quora via browser session cookies
 - **Stealth browser fallback** — Scrapling anti-bot bypass as backup when Pinchtab/Camoufox unavailable
@@ -46,7 +48,7 @@ Open `.env` and set at minimum:
 ```env
 JWT_SECRET=<random 32+ char string>
 DEEPSEEK_API_KEY=sk-...          # or NVIDIA_API_KEY / GLM_API_KEY / OPENAI_API_KEY
-RESEND_API_KEY=re_...            # optional — for welcome emails
+RESEND_API_KEY=re_...            # optional — enables email verification, password reset, welcome emails
 ```
 
 ### 2. Start services
@@ -115,6 +117,23 @@ When Pinchtab and Camoufox are both unavailable, Scrapling provides a lightweigh
 ```bash
 docker compose --profile browser-scrapling up -d
 ```
+
+---
+
+## CRM & webhooks
+
+Configure in **Settings → CRM & Webhooks**. Events: `lead.created`, `lead.stage_changed`, `conversion.recorded`.
+
+- **HubSpot**: private app token with `crm.objects.contacts.write`. New leads become contacts; stages map to `lifecyclestage` (prospect→lead, qualified→SQL, engaged→opportunity, converted→customer).
+- **Attio**: workspace token with record + note read-write scopes. New leads become People; stage changes and conversions are added as notes.
+- **Signed webhook** (Zapier, Make, n8n, your own endpoint): HTTPS only. Verify each request:
+
+```text
+X-LeadEcho-Timestamp: 1700000000
+X-LeadEcho-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + "." + raw_body)>
+```
+
+Reject timestamps older than ~5 minutes. Delivery is best-effort (no retries yet).
 
 ---
 
@@ -194,20 +213,35 @@ Then in the extension Settings tab:
 | `OPENAI_API_KEY` | one of | OpenAI key for AI scoring (also used for Anthropic-compatible) |
 | `VOYAGE_API_KEY` | | Voyage AI for embeddings (falls back to keyword matching) |
 | `EXA_API_KEY` | | Exa web-wide discovery source (add `exa` to a keyword's platforms; skipped if unset) |
-| `RESEND_API_KEY` | | Resend for welcome + notification emails |
+| `RESEND_API_KEY` | | Resend for auth + notification emails. When set, password accounts must verify their email and password reset works; when unset, new accounts are auto-verified |
 | `PINCHTAB_TOKEN` | | Pinchtab browser sidecar token |
 | `PINCHTAB_URL` | | Pinchtab URL (default: http://localhost:9867) |
 | `CAMOUFOX_URL` | | Camoufox stealth browser URL (Pro LinkedIn) |
 | `CAMOUFOX_TOKEN` | | Camoufox auth token |
 | `SCRAPLING_URL` | | Scrapling anti-bot fallback URL |
 | `SCRAPLING_TOKEN` | | Scrapling auth token |
-| `GOOGLE_CLIENT_ID` | | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | | Google OAuth client secret |
-| `FRONTEND_URL` | | Frontend URL for OAuth redirects (default: http://localhost:3100) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | | Enables "Continue with Google" |
+| `GOOGLE_REDIRECT_URL` | | Default `FRONTEND_URL/api/v1/auth/google/callback` (register it in Google Cloud) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | | Enables "Continue with GitHub" |
+| `GITHUB_REDIRECT_URL` | | Default `FRONTEND_URL/api/v1/auth/github/callback` (register it in the GitHub OAuth app) |
+| `FRONTEND_URL` | | Public app URL, used for OAuth redirects and email links (default: http://localhost:3100) |
+| `TRUSTED_PROXY_HOPS` | | Number of reverse proxies in front of the API whose `X-Forwarded-For` is trusted for client IPs (rate limits, logs). Default `0` (never trust it). Count each proxy that appends the header: `1` for Traefik → API, `2` for Traefik → dashboard nginx → API |
 | `PORT` | | API port (default: 8090) |
 | `ENVIRONMENT` | | `development` or `production` |
 
 ---
+
+## Production checklist
+
+Before the first deploy (and after pulling a release that adds settings):
+
+1. `ENVIRONMENT=production`. The API then refuses to boot without a strong `JWT_SECRET` and a different `ENCRYPTION_KEY` (`openssl rand -hex 32` for each). Changing `ENCRYPTION_KEY` later makes stored BYOK keys and CRM tokens unreadable.
+2. `FRONTEND_URL` set to the public https URL. OAuth callbacks and tracked short links are built from it.
+3. `TRUSTED_PROXY_HOPS` matching your proxy chain (see the table above). Too low: everyone shares one rate-limit bucket. Too high: clients can spoof their IP.
+4. `RESEND_API_KEY`, with the sending domain verified in Resend, so verification and password-reset emails are sent.
+5. Google and/or GitHub OAuth apps, each with the callback `<FRONTEND_URL>/api/v1/auth/<provider>/callback`.
+6. An LLM key (`ANTHROPIC_API_KEY` or another provider) and an embeddings key (`VOYAGE_API_KEY`, or an OpenAI/GLM key in Settings), or the knowledge base and pain-point matching stay off.
+7. Migrations run automatically through the `migrate` service; the API waits for it, so a failed migration shows up as an API that never starts. Check the `migrate` logs first.
 
 ## Development
 

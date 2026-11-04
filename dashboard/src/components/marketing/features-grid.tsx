@@ -14,11 +14,11 @@ import { Reveal, StaggerGroup, StaggerItem } from "./reveal";
 const features = [
   { icon: ArrowRight, title: "Zero-config onboarding", desc: "Paste your product URL. The Discovery agent scrapes it, extracts pain points, sets up the pipeline." },
   { icon: Search, title: "Semantic pain matching", desc: "Voyage embeddings match by meaning, not keywords. Catches buyers describing problems in their own words." },
-  { icon: Users, title: "Person360 enrichment", desc: "Stitches Reddit + GitHub + LinkedIn + X into one Person record. Account-level ICP fit, automatically." },
-  { icon: MessageSquare, title: "Conversation agent", desc: "Drafts initial replies and follow-ups. Per-community playbooks. Escalates when intent crosses your threshold." },
+  { icon: Users, title: "Person360 enrichment", desc: "Links each lead to their GitHub profile and company, with an ICP fit score. LinkedIn + X stitching coming soon." },
+  { icon: MessageSquare, title: "Conversation agent", desc: "Drafts replies from your docs and the full thread. High-intent posts escalate to your review queue and Slack. Follow-ups coming soon." },
   { icon: Inbox, title: "Three-queue inbox", desc: "Auto-flowing drafts · Escalations · Proposals. Approve in one click; everything else stays out of your way." },
   { icon: MonitorSmartphone, title: "Side-panel reply coach", desc: "Chrome extension posts via your real browser session — your account, your click. No headless infra." },
-  { icon: Link2, title: "UTM → CRM attribution", desc: "Every reply gets a unique shortlink. Conversions flow into HubSpot or Attio, automatically." },
+  { icon: Link2, title: "UTM → CRM attribution", desc: "Every reply gets a unique shortlink. Conversions flow into HubSpot, Attio, or any signed webhook." },
   { icon: BookOpen, title: "Knowledge base RAG", desc: "Drop in your docs, FAQs, positioning. Drafts are grounded in your real product — not hallucinated specs." },
   { icon: Zap, title: "BYOK LLM router", desc: "Sonnet · Haiku · GPT · Voyage · Groq · any OpenAI-compatible endpoint. Our infra never sees AI spend." },
 ];

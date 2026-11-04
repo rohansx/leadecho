@@ -12,7 +12,8 @@ type contextKey string
 const claimsKey contextKey = "claims"
 
 // Auth validates the session JWT from the cookie and injects claims into context.
-func Auth(jwtSecret string) func(http.Handler) http.Handler {
+// versions rejects sessions revoked by a password reset (nil skips the check).
+func Auth(jwtSecret string, versions *auth.SessionVersions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("session")
@@ -22,7 +23,7 @@ func Auth(jwtSecret string) func(http.Handler) http.Handler {
 			}
 
 			claims, err := auth.ValidateToken(jwtSecret, cookie.Value)
-			if err != nil {
+			if err != nil || !versions.Valid(r.Context(), claims) {
 				http.Error(w, `{"error":"invalid session"}`, http.StatusUnauthorized)
 				return
 			}

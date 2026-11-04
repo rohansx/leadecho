@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
@@ -40,6 +40,7 @@ const DEPLOY_STEPS = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading } = useAuth();
   const [step, setStep] = useState(1);
 
@@ -545,7 +546,17 @@ function OnboardingPage() {
               ))}
             </div>
             {deployStep >= DEPLOY_STEPS.length - 1 && (
-              <Button onClick={() => navigate({ to: "/inbox" })} className="w-full">
+              <Button
+                onClick={() => {
+                  // The cached status still says "not completed" (we skip invalidating
+                  // it during the deploy animation); without this the dashboard
+                  // guard bounces the user straight back to /onboarding.
+                  queryClient.setQueryData(["onboarding"], { ...onboarding, completed: true });
+                  void queryClient.invalidateQueries({ queryKey: ["onboarding"] });
+                  navigate({ to: "/inbox" });
+                }}
+                className="w-full"
+              >
                 Open Inbox &rarr;
               </Button>
             )}

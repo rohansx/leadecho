@@ -14,9 +14,9 @@ func mergeScoringFeedback(existing []byte, label, reason, actorID string, previo
 	}
 
 	entry := map[string]any{
-		"label":      label,
-		"reason":     reason,
-		"actor_id":   actorID,
+		"label":       label,
+		"reason":      reason,
+		"actor_id":    actorID,
 		"recorded_at": time.Now().UTC().Format(time.RFC3339),
 	}
 	if previousScore != nil {

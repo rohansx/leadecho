@@ -39,17 +39,17 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
  * behavior under test, otherwise via the API). The seeded keywords are never mutated.
  */
 
-const KEYWORDS_URL = "/app/keywords";
+const KEYWORDS_URL = "/keywords";
 const SEEDED = ["product analytics", "funnel tracking", "user retention"];
 
 // Locate a keyword row (the per-keyword wrapper div) by its exact term text. The term
-// renders in a font-medium/truncate <span>; the closest ancestor with rounded border-2
+// renders in a font-medium/truncate <span>; the closest ancestor with rounded border-border
 // is the row that also holds the toggle + delete buttons.
 function keywordRow(page: Page, term: string): Locator {
   return page
     .getByText(term, { exact: true })
     .locator(
-      "xpath=ancestor::div[contains(@class,'rounded') and contains(@class,'border-2')][1]",
+      "xpath=ancestor::div[contains(@class,'rounded') and contains(@class,'border-border')][1]",
     );
 }
 
@@ -216,8 +216,9 @@ test.describe("keywords / keyword CRUD", () => {
       const created = afterList.find((k) => k.term === term);
       expect(created, "created keyword persisted in API").toBeTruthy();
       createdId = created!.id;
-      // UI default selects all 7 platforms; new keyword is active by default.
-      expect(created!.platforms.length).toBe(7);
+      // UI default selects every offered platform (the list has grown beyond the
+      // original 7); new keyword is active by default.
+      expect(created!.platforms.length).toBeGreaterThanOrEqual(7);
       expect(created!.is_active).toBe(true);
 
       // ── Now DELETE it through the UI (the behavior under test) ──

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // Validates the authenticated stack end-to-end through a real browser.
 test("authenticated dashboard shell loads at /app/inbox", async ({ page }) => {
-  const resp = await page.goto("/app/inbox");
+  const resp = await page.goto("/inbox");
   expect(resp?.status(), "inbox HTTP status").toBeLessThan(400);
 
   // Should NOT be bounced to login (storageState carries the session cookie).

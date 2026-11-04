@@ -6,12 +6,12 @@ import { execSync } from "node:child_process";
 // "filtered" bucket; before the fix it fell through all three tier LIST queries
 // and was unreachable from every inbox tab. Idempotent.
 function seedTierProbe(): string {
-  const platformId = "hn_tier_probe_regression";
+  const platformId = "hn_tier_probe_general";
   execSync(
     `docker exec leadecho-e2e-postgres psql -U leadecho -d leadecho_dev -c ` +
       `"INSERT INTO mentions (workspace_id, platform, platform_id, url, content, status, relevance_score, intent) ` +
       `SELECT u.workspace_id,'hackernews','${platformId}','https://news.ycombinator.com/item?id=probe',` +
-      `'comparing analytics tools','new',9.0,'comparison' FROM users u WHERE u.email='e2e-tester@leadecho.test' ` +
+      `'chatting about analytics tools','new',9.0,'general' FROM users u WHERE u.email='e2e-tester@leadecho.test' ` +
       `ON CONFLICT DO NOTHING;"`,
     { stdio: "pipe" },
   );
@@ -28,24 +28,29 @@ function seedTierProbe(): string {
 
 test.describe("backend regressions: error mapping & validation", () => {
   // ── mentions: tier list/count consistency + status validation ──
-  test("high-score non-lead mention is reachable via the 'filtered' tier (no vanishing)", async ({
+  test("high-score non-lead mention lands in exactly one tier (no vanishing)", async ({
     page,
   }) => {
     const probe = seedTierProbe();
+    // The API clamps `limit` (max 100), so page through the whole tier.
     const idsIn = async (tier: string) => {
-      const list = await (
-        await page.request.get(`/api/v1/mentions?tier=${tier}&limit=1000`)
-      ).json();
-      const items = Array.isArray(list) ? list : list.data ?? list.mentions;
-      return items.map((m: any) => m.platform_id);
+      const ids: string[] = [];
+      for (let offset = 0; ; offset += 100) {
+        const res = await page.request.get(
+          `/api/v1/mentions?tier=${tier}&limit=100&offset=${offset}`,
+        );
+        const body = await res.json();
+        const items: any[] = Array.isArray(body) ? body : body.data ?? body.mentions ?? [];
+        ids.push(...items.map((m) => m.platform_id));
+        if (items.length < 100 || (body.total != null && offset + 100 >= body.total)) break;
+      }
+      return ids;
     };
-    // Belongs to "filtered" (score>=7 but intent not a lead intent) — must be
-    // present there and absent from leads_ready / worth_watching.
-    expect(await idsIn("filtered"), "probe reachable in filtered tier").toContain(
-      probe,
-    );
+    // High score but a non-lead intent: worth_watching, and only there. (It used
+    // to fall through to "filtered" because worth_watching capped the score.)
+    expect(await idsIn("worth_watching"), "probe in worth_watching").toContain(probe);
     expect(await idsIn("leads_ready")).not.toContain(probe);
-    expect(await idsIn("worth_watching")).not.toContain(probe);
+    expect(await idsIn("filtered")).not.toContain(probe);
   });
 
   test("inbox filters compose (AND) and total is the real match count, not page size", async ({

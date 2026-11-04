@@ -19,10 +19,10 @@ export function LogoMark({ className }: { className?: string }) {
   );
 }
 
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className, to = "/" }: { className?: string; to?: "/" | "/inbox" }) {
   return (
     <Link
-      to="/"
+      to={to}
       aria-label="LeadEcho home"
       className={cn(
         "flex items-center gap-2 font-[family-name:var(--font-head)] text-lg",

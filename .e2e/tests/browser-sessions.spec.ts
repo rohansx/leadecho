@@ -55,7 +55,7 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
  * the live backend is never mutated by them.
  */
 
-const SESSIONS_URL = "/app/browser-sessions";
+const SESSIONS_URL = "/browser-sessions";
 
 const PLATFORMS = ["reddit", "twitter", "linkedin"] as const;
 type PlatformName = (typeof PLATFORMS)[number];
@@ -86,12 +86,12 @@ interface PlatformSession {
 }
 
 // Locate a platform's <Card> by its CardTitle (<h3>) label; climb to the nearest
-// Card root (div.border-2). Each card is self-contained so this scopes every
+// Card root (div.glass-card). Each card is self-contained so this scopes every
 // per-platform assertion (inputs, badges, buttons) to one platform.
 function platformCard(page: Page, platform: PlatformName): Locator {
   return page
     .getByRole("heading", { name: PLATFORM_LABEL[platform], exact: true })
-    .locator("xpath=ancestor::div[contains(@class,'border-2')][1]");
+    .locator("xpath=ancestor::div[contains(@class,'glass-card')][1]");
 }
 
 test.describe("browser-sessions / per-platform session management", () => {
@@ -284,7 +284,8 @@ test.describe("browser-sessions / per-platform session management", () => {
     // The exact message returned by the backend appears in the card. Graceful
     // handling: the click never throws and never requires a live session.
     await expect(
-      card.getByText(body.message, { exact: true }),
+      // UI prefixes a status glyph ("✗ " / "✓ "), so match as a substring.
+      card.getByText(body.message),
       "test result message rendered inline",
     ).toBeVisible({ timeout: 15_000 });
   });

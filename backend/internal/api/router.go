@@ -13,9 +13,9 @@ import (
 	"leadecho/internal/api/handler"
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/attribution"
-	"leadecho/internal/auth"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
@@ -30,9 +30,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	r := chi.NewRouter()
 
 	// Global middleware
-	r.Use(chimiddleware.RealIP)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger(logger))
+	r.Use(middleware.Logger(logger, cfg.TrustedProxyHops))
 	r.Use(chimiddleware.Recoverer)
 	r.Use(cors.Handler(middleware.CORSOptions(cfg.FrontendURL)))
 
@@ -43,7 +42,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 	// sqlc queries instance
 	queries := database.New(db)
-	attrib := attribution.NewService(queries, logger)
+	crm := crmsync.NewDispatcher(queries, crypto.DeriveKey(cfg.EncryptionKeyOrDefault()), logger)
+	attrib := attribution.NewService(queries, logger, crm)
 
 	// Public UTM redirect — outside /api/v1, no auth
 	utmPublic := handler.NewUTMHandler(queries, attrib)
@@ -60,37 +60,17 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			w.Write([]byte(`{"message":"pong"}`))
 		})
 
-		// Email auth routes (always available)
-		email := auth.NewEmailHandler(cfg.JWTSecret, cfg.ResendAPIKey, queries, logger)
-		r.Post("/auth/register", email.Register)
-		r.Post("/auth/login", email.Login)
-		r.Get("/auth/me", email.Me)
-		r.Post("/auth/logout", email.Logout)
-
-		// Google OAuth routes (only when configured)
-		if cfg.GoogleClientID != "" {
-			google := auth.NewGoogleHandler(
-				cfg.GoogleClientID,
-				cfg.GoogleClientSecret,
-				cfg.GoogleRedirectURL,
-				cfg.JWTSecret,
-				cfg.FrontendURL,
-				queries,
-				logger,
-			)
-			r.Get("/auth/google", google.Login)
-			r.Get("/auth/google/callback", google.Callback)
-		}
+		sessionVersions := registerAuthRoutes(r, cfg, queries, redis, logger)
 
 		// Encryption key for BYOK API keys
 		encKey := crypto.DeriveKey(cfg.EncryptionKeyOrDefault())
 
 		// Extension handler (used in both JWT group and extension-key group below)
-		ext := handler.NewExtensionHandler(queries, mon)
+		ext := handler.NewExtensionHandler(queries, mon, crm)
 
 		// Protected API routes
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.Auth(cfg.JWTSecret))
+			r.Use(middleware.Auth(cfg.JWTSecret, sessionVersions))
 
 			// Mentions
 			mentions := handler.NewMentionHandler(queries, rs)
@@ -117,7 +97,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
 
 			// Leads
-			leads := handler.NewLeadHandler(queries)
+			leads := handler.NewLeadHandler(queries, crm)
 			r.Get("/leads", leads.List)
 			r.Get("/leads/counts", leads.Counts)
 			r.Get("/leads/{id}", leads.Get)
@@ -177,6 +157,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Put("/settings/api-keys", settings.SaveAPIKey)
 			r.Delete("/settings/api-keys", settings.DeleteAPIKey)
 
+			// Outbound integrations (signed webhook, HubSpot, Attio)
+			integrations := handler.NewIntegrationsHandler(queries, encKey)
+			r.Get("/settings/integrations", integrations.Get)
+			r.Put("/settings/integrations", integrations.Save)
+			r.Post("/settings/integrations/test-webhook", integrations.TestWebhook)
+
 			// LLM Router (BYOK provider keys, model routing, usage)
 			llmHandler := handler.NewLLMHandler(llmRouter)
 			r.Get("/llm/config", llmHandler.GetConfig)
@@ -212,6 +198,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// Onboarding wizard
 			onboarding := handler.NewOnboardingHandler(queries, scrapling, llmRouter, logger)
+			if mon != nil && cfg.ShouldRunMonitor() {
+				onboarding.SetScanner(mon) // immediate first crawl; split deployments leave it to the worker tick
+			}
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
 			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)

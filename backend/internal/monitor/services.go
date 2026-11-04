@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"leadecho/internal/ai"
-	"leadecho/internal/database"
 	"leadecho/internal/events"
 )
 
@@ -42,13 +41,7 @@ func (m *Monitor) NotifyMentions(ctx context.Context, wsID string, alerts []Sign
 
 // QualifyMentionFromScore runs lead qualification from a mention.scored event payload.
 func (m *Monitor) QualifyMentionFromScore(ctx context.Context, payload events.MentionScoredPayload) {
-	if payload.RelevanceScore < 7.0 {
-		return
-	}
-	intent := database.IntentType(payload.Intent)
-	if intent != database.IntentTypeBuySignal &&
-		intent != database.IntentTypeRecommendationAsk &&
-		intent != database.IntentTypeComplaint {
+	if !qualifiesAsLead(float64(payload.RelevanceScore), payload.Intent) {
 		return
 	}
 

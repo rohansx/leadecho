@@ -3,13 +3,17 @@ package monitor
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"runtime/debug"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"leadecho/internal/browser"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
@@ -22,10 +26,12 @@ type LeadEnricher interface {
 
 // Monitor polls social platforms for keyword matches and inserts new mentions.
 type Monitor struct {
+	crm              *crmsync.Dispatcher
 	q                *database.Queries
 	logger           zerolog.Logger
 	resendAPIKey     string
-	redditBackoff    time.Time                // skip Reddit crawls until this time (set on 429)
+	redditBackoffNs  atomic.Int64             // unix-nano; skip Reddit crawls until then (set on 429/403). Atomic: scans run concurrently.
+	scanning         sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
 	llmRouter        llm.MentionScorer        // workspace-aware LLM/embedding router
 	pinchtab         *browser.PinchtabClient  // browser sidecar (nil if not configured)
 	camoufox         *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
@@ -48,6 +54,9 @@ type Monitor struct {
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
 // rather than another positional argument on an already 14-parameter New().
 func (m *Monitor) SetGoogleNewsEnabled(v bool) { m.googleNewsEnabled = v }
+
+// SetCRMSync wires outbound lead events (webhooks/HubSpot/Attio). Optional.
+func (m *Monitor) SetCRMSync(d *crmsync.Dispatcher) { m.crm = d }
 
 func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool, enricher LeadEnricher) *Monitor {
 	return &Monitor{
@@ -136,11 +145,10 @@ func (m *Monitor) tick(ctx context.Context) {
 
 	for _, wsID := range order {
 		g := groups[wsID]
-		var alerts []mentionAlert
-
-		for i, kw := range g.keywords {
+		kws := make([]database.ListActiveKeywordsRow, 0, len(g.keywords))
+		for _, kw := range g.keywords {
 			// Convert to ListActiveKeywordsRow (same shape) for crawl functions
-			akw := database.ListActiveKeywordsRow{
+			kws = append(kws, database.ListActiveKeywordsRow{
 				ID:            kw.ID,
 				WorkspaceID:   kw.WorkspaceID,
 				Term:          kw.Term,
@@ -151,22 +159,72 @@ func (m *Monitor) tick(ctx context.Context) {
 				Subreddits:    kw.Subreddits,
 				CreatedAt:     kw.CreatedAt,
 				UpdatedAt:     kw.UpdatedAt,
-			}
+			})
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		m.scanWorkspace(ctx, wsID, kws)
+	}
+}
 
-			alerts = append(alerts, m.crawlKeyword(ctx, wsID, akw)...)
+// scanWorkspace crawls one workspace's keywords and processes the new mentions.
+// Skips (returns false) if that workspace is already being scanned.
+//
+// ponytail: the periodic tick still walks workspaces serially, so one large
+// workspace delays the rest. Upgrade path: a bounded worker pool over
+// workspaces (the shared state is already concurrency-safe).
+func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database.ListActiveKeywordsRow) bool {
+	if _, busy := m.scanning.LoadOrStore(wsID, struct{}{}); busy {
+		return false
+	}
+	defer m.scanning.Delete(wsID)
 
-			// Pause between keywords to avoid hammering APIs
-			if i < len(g.keywords)-1 {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(3 * time.Second):
-				}
+	var alerts []mentionAlert
+	for i, kw := range kws {
+		alerts = append(alerts, m.crawlKeyword(ctx, wsID, kw)...)
+		// Pause between keywords to avoid hammering APIs
+		if i < len(kws)-1 {
+			select {
+			case <-ctx.Done():
+				return true
+			case <-time.After(3 * time.Second):
 			}
 		}
-
-		m.handleNewMentionBatch(ctx, wsID, alerts, "monitor")
 	}
+	m.handleNewMentionBatch(ctx, wsID, alerts, "monitor")
+	return true
+}
+
+// ScanWorkspaceNow starts an immediate background scan of one workspace, e.g.
+// right after onboarding, so new users don't wait for the next tick (which can
+// be many minutes behind on a busy instance).
+func (m *Monitor) ScanWorkspaceNow(wsID string) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logger.Error().Interface("panic", r).Str("workspace_id", wsID).Msg("monitor: recovered from panic in immediate scan")
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		kws, err := m.q.ListActiveKeywords(ctx, wsID)
+		if err != nil {
+			m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("monitor: immediate scan: list keywords")
+			return
+		}
+		if len(kws) == 0 {
+			return
+		}
+		m.logger.Info().Str("workspace_id", wsID).Int("keywords", len(kws)).Msg("monitor: immediate workspace scan")
+		m.scanWorkspace(ctx, wsID, kws)
+	}()
+}
+
+func (m *Monitor) redditBackedOff() bool { return time.Now().UnixNano() < m.redditBackoffNs.Load() }
+
+func (m *Monitor) setRedditBackoff(d time.Duration) {
+	m.redditBackoffNs.Store(time.Now().Add(d).UnixNano())
 }
 
 // crawlKeyword runs every configured platform crawler for a single keyword.
@@ -201,7 +259,7 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				}
 			}
 			// Fallback: existing unauthenticated crawler
-			if time.Now().Before(m.redditBackoff) {
+			if m.redditBackedOff() {
 				continue
 			}
 			results := m.crawlReddit(ctx, wsID, akw)
@@ -263,6 +321,10 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 	if p.Status == "" {
 		p.Status = database.MentionStatusNew
 	}
+	// Platform APIs (dev.to, Reddit, HN) return entity-escaped text; decode
+	// once here so every crawler stores readable text.
+	p.Content = html.UnescapeString(p.Content)
+	p.Title.String = html.UnescapeString(p.Title.String)
 	mention, err := m.q.CreateMention(ctx, p)
 	if err != nil {
 		if isDuplicateError(err) {

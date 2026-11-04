@@ -29,7 +29,7 @@ const actionBadge: Record<string, { label: string; className: string }> = {
 
 function scoreClass(score: number | null) {
   if (score == null) return "bg-muted text-muted-foreground";
-  if (score >= 7) return "bg-primary/15 text-primary-ink";
+  if (score >= 6) return "bg-primary/15 text-primary-ink";
   if (score >= 4) return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
   return "bg-muted text-muted-foreground";
 }

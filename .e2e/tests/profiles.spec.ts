@@ -44,7 +44,7 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
  * finally block.
  */
 
-const PROFILES_URL = "/app/profiles";
+const PROFILES_URL = "/profiles";
 const SEED_NAME = "Acme Analytics";
 
 interface ProfileDTO {
@@ -56,14 +56,14 @@ interface ProfileDTO {
 }
 
 // Locate a profile row (the per-profile wrapper div) by its exact name text. The name
-// renders in a font-medium/truncate <span>; the closest ancestor with rounded border-2
+// renders in a font-medium/truncate <span>; the closest ancestor with rounded border-border
 // is the row that also holds the toggle + delete buttons. Scoped to a UNIQUE name so it
 // resolves to a single row (the seed name may repeat — never use this for the seed).
 function profileRow(page: Page, name: string): Locator {
   return page
     .getByText(name, { exact: true })
     .locator(
-      "xpath=ancestor::div[contains(@class,'rounded') and contains(@class,'border-2')][1]",
+      "xpath=ancestor::div[contains(@class,'rounded') and contains(@class,'border-border')][1]",
     );
 }
 

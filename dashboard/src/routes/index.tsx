@@ -8,7 +8,6 @@ import { ConversationThreadSection } from "@/components/marketing/conversation-t
 import { AttributionSection, PipelineFlowSection } from "@/components/marketing/attribution-and-pipeline";
 import { FeaturesGrid } from "@/components/marketing/features-grid";
 import { TerminalInstall } from "@/components/marketing/terminal-install";
-import { Testimonials } from "@/components/marketing/testimonials";
 import { PricingSection, ComparisonSection } from "@/components/marketing/pricing-and-comparison";
 import { FaqSection } from "@/components/marketing/faq";
 import { CommunitySection, FinalCta, MarketingFooter } from "@/components/marketing/closing";
@@ -32,7 +31,6 @@ function LandingPage() {
       <PipelineFlowSection />
       <FeaturesGrid />
       <TerminalInstall />
-      <Testimonials />
       <PricingSection />
       <ComparisonSection />
       <FaqSection />

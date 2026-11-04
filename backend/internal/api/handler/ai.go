@@ -20,10 +20,10 @@ import (
 )
 
 type AIHandler struct {
-	q         *database.Queries
-	llmRouter *llm.Router
-	scrapling *browser.ScraplingClient
-	drafter   *reply.Drafter
+	q                 *database.Queries
+	llmRouter         *llm.Router
+	scrapling         *browser.ScraplingClient
+	drafter           *reply.Drafter
 	publisher         *publishers.Publisher
 	replyDrafterAsync bool
 }
@@ -62,8 +62,8 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	meta := map[string]any{
-		"source":     "manual_classify",
-		"reasoning":  result.Reasoning,
+		"source":        "manual_classify",
+		"reasoning":     result.Reasoning,
 		"classified_at": time.Now().UTC().Format(time.RFC3339),
 	}
 	if len(mention.ScoringMetadata) > 0 {

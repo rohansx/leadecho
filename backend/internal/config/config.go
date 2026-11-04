@@ -42,10 +42,18 @@ type Config struct {
 	DatabaseURL string `env:"DATABASE_URL,required"`
 	RedisURL    string `env:"REDIS_URL,required"`
 
-	// Google OAuth
+	// OAuth sign-in. Each provider is enabled when its client ID + secret are
+	// set. Redirect URLs default to FRONTEND_URL + /api/v1/auth/<provider>/callback.
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID,default="`
 	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET,default="`
-	GoogleRedirectURL  string `env:"GOOGLE_REDIRECT_URL,default=http://localhost:8090/api/v1/auth/google/callback"`
+	GoogleRedirectURL  string `env:"GOOGLE_REDIRECT_URL,default="`
+	GitHubClientID     string `env:"GITHUB_CLIENT_ID,default="`
+	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET,default="`
+	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL,default="`
+
+	// TrustedProxyHops is how many reverse proxies we control sit in front of
+	// the API (1 behind Traefik/nginx). 0 = never trust X-Forwarded-For.
+	TrustedProxyHops int `env:"TRUSTED_PROXY_HOPS,default=0"`
 
 	// JWT
 	JWTSecret string `env:"JWT_SECRET,default=leadecho-dev-secret-change-in-prod"`
@@ -63,6 +71,9 @@ type Config struct {
 	DeepSeekAPIKey string `env:"DEEPSEEK_API_KEY,default="`
 	GLMAPIKey      string `env:"GLM_API_KEY,default="`
 	OpenAIAPIKey   string `env:"OPENAI_API_KEY,default="`
+
+	// Anthropic Claude (native Messages API)
+	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY,default="`
 
 	// Ollama Cloud (OpenAI-compatible; https://ollama.com/v1)
 	OllamaAPIKey string `env:"OLLAMA_API_KEY,default="`
@@ -98,21 +109,21 @@ type Config struct {
 	ScraplingToken string `env:"SCRAPLING_TOKEN,default="`
 
 	// Redis Streams backbone
-	StreamsEnabled                  bool   `env:"STREAMS_ENABLED,default=false"`
-	StreamsDualWriteEnabled         bool   `env:"STREAMS_DUAL_WRITE_ENABLED,default=false"`
-	StreamsScorerConsumerEnabled    bool   `env:"STREAMS_SCORER_CONSUMER_ENABLED,default=false"`
-	StreamsNotifierConsumerEnabled  bool   `env:"STREAMS_NOTIFIER_CONSUMER_ENABLED,default=false"`
-	StreamsQualifierConsumerEnabled bool   `env:"STREAMS_QUALIFIER_CONSUMER_ENABLED,default=false"`
-	StreamsReplyDrafterConsumerEnabled bool `env:"STREAMS_REPLY_DRAFTER_CONSUMER_ENABLED,default=false"`
-	StreamsWorkflowConsumerEnabled  bool   `env:"STREAMS_WORKFLOW_CONSUMER_ENABLED,default=false"`
-	StreamsRetryConsumerEnabled     bool   `env:"STREAMS_RETRY_CONSUMER_ENABLED,default=false"`
-	StreamsInlineFallbackEnabled    bool   `env:"STREAMS_INLINE_FALLBACK_ENABLED,default=true"`
-	StreamsConsumerName             string `env:"STREAMS_CONSUMER_NAME,default=api-main"`
-	StreamsBatchSize                int64  `env:"STREAMS_BATCH_SIZE,default=50"`
-	StreamsBlockMS                  int64  `env:"STREAMS_BLOCK_MS,default=5000"`
-	StreamsClaimIdleMS              int64  `env:"STREAMS_CLAIM_IDLE_MS,default=120000"`
-	StreamsMaxAttempts              int64  `env:"STREAMS_MAX_ATTEMPTS,default=8"`
-	StreamsWorkersInAPI             bool   `env:"STREAMS_WORKERS_IN_API,default=true"`
+	StreamsEnabled                     bool   `env:"STREAMS_ENABLED,default=false"`
+	StreamsDualWriteEnabled            bool   `env:"STREAMS_DUAL_WRITE_ENABLED,default=false"`
+	StreamsScorerConsumerEnabled       bool   `env:"STREAMS_SCORER_CONSUMER_ENABLED,default=false"`
+	StreamsNotifierConsumerEnabled     bool   `env:"STREAMS_NOTIFIER_CONSUMER_ENABLED,default=false"`
+	StreamsQualifierConsumerEnabled    bool   `env:"STREAMS_QUALIFIER_CONSUMER_ENABLED,default=false"`
+	StreamsReplyDrafterConsumerEnabled bool   `env:"STREAMS_REPLY_DRAFTER_CONSUMER_ENABLED,default=false"`
+	StreamsWorkflowConsumerEnabled     bool   `env:"STREAMS_WORKFLOW_CONSUMER_ENABLED,default=false"`
+	StreamsRetryConsumerEnabled        bool   `env:"STREAMS_RETRY_CONSUMER_ENABLED,default=false"`
+	StreamsInlineFallbackEnabled       bool   `env:"STREAMS_INLINE_FALLBACK_ENABLED,default=true"`
+	StreamsConsumerName                string `env:"STREAMS_CONSUMER_NAME,default=api-main"`
+	StreamsBatchSize                   int64  `env:"STREAMS_BATCH_SIZE,default=50"`
+	StreamsBlockMS                     int64  `env:"STREAMS_BLOCK_MS,default=5000"`
+	StreamsClaimIdleMS                 int64  `env:"STREAMS_CLAIM_IDLE_MS,default=120000"`
+	StreamsMaxAttempts                 int64  `env:"STREAMS_MAX_ATTEMPTS,default=8"`
+	StreamsWorkersInAPI                bool   `env:"STREAMS_WORKERS_IN_API,default=true"`
 
 	// Process role: api (HTTP + optional workers) or worker (monitor + stream consumers).
 	ProcessRole string `env:"PROCESS_ROLE,default=api"`
@@ -156,6 +167,13 @@ func (c *Config) MetricsCollectInterval() time.Duration {
 }
 
 // EncryptionKeyOrDefault returns the encryption key, falling back to JWT secret.
+// RequireEmailVerification is true when an email provider is configured.
+// Without one, password accounts are auto-verified (self-host convenience).
+func (c *Config) RequireEmailVerification() bool { return c.ResendAPIKey != "" }
+
+// SecureCookies is true outside local development (cookies sent over HTTPS only).
+func (c *Config) SecureCookies() bool { return c.Environment != "development" }
+
 func (c *Config) EncryptionKeyOrDefault() string {
 	if c.EncryptionKey != "" {
 		return c.EncryptionKey
