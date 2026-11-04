@@ -56,6 +56,8 @@ export function listMentions(params?: {
   queue?: string;
   action_kind?: string;
   escalation_kind?: string;
+  tag?: string;
+  sentiment?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -68,6 +70,8 @@ export function listMentions(params?: {
   if (params?.queue) q.set("queue", params.queue);
   if (params?.action_kind) q.set("action_kind", params.action_kind);
   if (params?.escalation_kind) q.set("escalation_kind", params.escalation_kind);
+  if (params?.tag) q.set("tag", params.tag);
+  if (params?.sentiment) q.set("sentiment", params.sentiment);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.toString();
@@ -83,6 +87,14 @@ export function updateMentionStatus(id: string, status: string, reason?: string)
     method: "PATCH",
     body: JSON.stringify({ status, reason: reason || undefined }),
   });
+}
+
+// scoring: 👍/👎 on a mention — becomes a few-shot scoring example for its listener
+export function sendMentionFeedback(id: string, label: "up" | "down", note?: string) {
+  return request<{ feedback: { label: string; note: string; profile_id: string | null }; mention: Mention }>(
+    `/mentions/${id}/feedback`,
+    { method: "POST", body: JSON.stringify({ label, note: note || undefined }) },
+  );
 }
 
 export function mentionCounts() {
@@ -200,9 +212,13 @@ export async function mentionPlatformCounts(params?: {
   status?: string;
   intent?: string;
   search?: string;
+  tag?: string;
+  sentiment?: string;
 }) {
   const q = new URLSearchParams();
   if (params?.queue) q.set("queue", params.queue);
+  if (params?.tag) q.set("tag", params.tag);
+  if (params?.sentiment) q.set("sentiment", params.sentiment);
   if (params?.action_kind) q.set("action_kind", params.action_kind);
   if (params?.status) q.set("status", params.status);
   if (params?.intent) q.set("intent", params.intent);
@@ -249,6 +265,8 @@ export function createProfile(data: {
   name: string;
   description?: string;
   pain_points?: string[];
+  looks_for?: string;
+  skips?: string;
 }) {
   return request<MonitoringProfile>("/profiles", {
     method: "POST",
@@ -258,7 +276,14 @@ export function createProfile(data: {
 
 export function updateProfile(
   id: string,
-  data: { name?: string; description?: string; pain_points?: string[]; is_active?: boolean },
+  data: {
+    name?: string;
+    description?: string;
+    pain_points?: string[];
+    is_active?: boolean;
+    looks_for?: string;
+    skips?: string;
+  },
 ) {
   return request<MonitoringProfile>(`/profiles/${id}`, {
     method: "PUT",

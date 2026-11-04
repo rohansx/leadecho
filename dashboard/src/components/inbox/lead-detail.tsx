@@ -31,6 +31,7 @@ import {
 } from "@/lib/api";
 import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
+import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -165,7 +166,12 @@ function OverviewTab({
           <h3 className="font-[family-name:var(--font-head)] text-lg font-medium mb-2">{mention.title}</h3>
         )}
         <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>
+        <div className="mt-3">
+          <TagChips tags={mention.intent_tags} sentiment={mention.sentiment} max={13} />
+        </div>
       </article>
+
+      <FeedbackButtons key={mention.id} mention={mention} />
 
       <div className="flex flex-wrap gap-2">
         {!mention.intent && (
