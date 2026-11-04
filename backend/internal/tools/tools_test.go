@@ -253,7 +253,7 @@ func TestTuneListener(t *testing.T) {
 
 func TestMute(t *testing.T) {
 	r, _, _, mutes := newTestRegistry()
-	out, err := call(t, r, "mute", `{"kind":"author","value":" spammer ","platform":"reddit"}`)
+	out, err := call(t, r, "mute", `{"kind":"author","value":" @Spammer "}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestMute(t *testing.T) {
 	for _, tt := range []struct{ args, want string }{
 		{`{"kind":"user","value":"x"}`, "kind"},
 		{`{"kind":"author","value":""}`, "value"},
-		{`{"kind":"author","value":"x","platform":"myspace"}`, "platform"},
+		{`{"kind":"author","value":"x","platform":"reddit"}`, "platform"},
 	} {
 		_, err := call(t, r, "mute", tt.args)
 		wantUserErr(t, err, tt.want)
@@ -271,7 +271,11 @@ func TestMute(t *testing.T) {
 	if _, err := call(t, r, "mute", `{"kind":"domain","value":"boom"}`); err == nil || errors.As(err, new(*Error)) {
 		t.Fatalf("store failure must be an internal error, got %v", err)
 	}
-	// Default store (mute lists not built yet) is a safe no-op.
+	// "topic" is an alias for the keyword kind.
+	if _, err := call(t, r, "mute", `{"kind":"topic","value":"Jobs"}`); err != nil || mutes.got[1] != (Mute{Kind: "keyword", Value: "jobs"}) {
+		t.Fatalf("topic alias: %v %+v", err, mutes.got)
+	}
+	// Without a store the tool is a safe no-op.
 	noop := New(Deps{Q: &fakeQ{}})
 	out2, err := noop.Call(context.Background(), ws, allScopes, "mute", json.RawMessage(`{"kind":"topic","value":"jobs"}`))
 	if err != nil || out2.(map[string]any)["muted"] != false {

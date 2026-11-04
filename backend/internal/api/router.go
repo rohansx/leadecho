@@ -64,7 +64,12 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
 
 	// mcp: agent tools behind workspace API keys — MCP server + public REST.
-	toolDeps := tools.Deps{Q: queries, CRM: crm}
+	// sources: one mute store shared by the API, MCP tools and the insert path.
+	muteStore := mutes.NewStore(queries)
+	if mon != nil && mon.Mutes() != nil {
+		muteStore = mon.Mutes()
+	}
+	toolDeps := tools.Deps{Q: queries, CRM: crm, Mutes: muteStore}
 	if replyDrafter != nil { // avoid a typed-nil interface
 		toolDeps.Drafter = replyDrafter
 	}
@@ -272,10 +277,6 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/onboarding/complete", onboarding.Complete)
 			r.Get("/onboarding/first-value", onboarding.FirstValue)
 			// sources: mute lists, CSV export, keyword cadence + cost preview
-			muteStore := mutes.NewStore(queries)
-			if mon != nil {
-				muteStore = mon.Mutes() // share the insert-path cache
-			}
 			muteH := handler.NewMuteHandler(muteStore)
 			r.Get("/mutes", muteH.List)
 			r.Post("/mutes", muteH.Create)

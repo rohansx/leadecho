@@ -216,7 +216,8 @@ func (c *fakeCRM) Emit(_ string, ev crmsync.Event) { c.events = append(c.events,
 
 type fakeMutes struct{ got []Mute }
 
-func (m *fakeMutes) Mute(_ context.Context, _ string, mu Mute) error {
+func (m *fakeMutes) Add(_ context.Context, _ string, kind, value string) error {
+	mu := Mute{Kind: kind, Value: value}
 	if mu.Value == "boom" {
 		return errors.New("db down")
 	}

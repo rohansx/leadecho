@@ -50,15 +50,13 @@ type CRMEmitter interface {
 
 // Mute is one mute-list entry.
 type Mute struct {
-	Kind     string `json:"kind"` // author | domain | topic
-	Value    string `json:"value"`
-	Platform string `json:"platform,omitempty"`
+	Kind  string `json:"kind"` // author | domain | keyword | subreddit ("topic" = keyword)
+	Value string `json:"value"`
 }
 
-// MuteStore persists mute-list entries.
-// TODO(mute-lists): wire the real store once migration 00032 (mute lists) lands.
+// MuteStore persists mute-list entries; *mutes.Store satisfies it.
 type MuteStore interface {
-	Mute(ctx context.Context, workspaceID string, m Mute) error
+	Add(ctx context.Context, workspaceID, kind, value string) error
 }
 
 // Deps are the services tools are built on. Drafter, CRM and Mutes may be nil:

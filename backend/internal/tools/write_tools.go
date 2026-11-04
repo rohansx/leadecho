@@ -11,6 +11,7 @@ import (
 	"leadecho/internal/apikey"
 	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
+	"leadecho/internal/mutes"
 )
 
 const (
@@ -53,12 +54,11 @@ func writeTools(d Deps) []Tool {
 		},
 		{
 			Name:        "mute",
-			Description: "Mute an author, domain or topic so future mentions from it are hidden.",
+			Description: "Mute an author, domain, keyword (topic) or subreddit so future mentions matching it are not stored.",
 			Scope:       apikey.ScopeWrite,
 			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["kind","value"],"properties":{
-"kind":{"type":"string","enum":["author","domain","topic"]},
-"value":{"type":"string","minLength":1,"maxLength":200},
-"platform":` + platformEnum + `}}`),
+"kind":{"type":"string","enum":["author","domain","keyword","subreddit","topic"]},
+"value":{"type":"string","minLength":1,"maxLength":200}}}`),
 			Handler: d.mute,
 		},
 		{
@@ -299,22 +299,21 @@ func (d Deps) mute(ctx context.Context, ws string, raw json.RawMessage) (any, er
 	if err := decode(raw, &m); err != nil {
 		return nil, err
 	}
-	m.Value = strings.TrimSpace(m.Value)
-	switch {
-	case m.Kind != "author" && m.Kind != "domain" && m.Kind != "topic":
-		return nil, userErr("kind must be author, domain or topic")
-	case m.Value == "":
-		return nil, userErr("value is required")
-	case m.Platform != "" && !platforms[m.Platform]:
-		return nil, userErr("invalid platform %q", m.Platform)
+	if m.Kind == "topic" {
+		m.Kind = mutes.KindKeyword
 	}
 	if err := checkLen("value", m.Value, maxNameLen); err != nil {
 		return nil, err
 	}
-	if d.Mutes == nil {
-		return map[string]any{"muted": false, "mute": m, "note": "mute lists are not enabled on this server yet; nothing was stored"}, nil
+	v, err := mutes.Normalize(m.Kind, m.Value)
+	if err != nil {
+		return nil, userErr("%s", err.Error())
 	}
-	if err := d.Mutes.Mute(ctx, ws, m); err != nil {
+	m.Value = v
+	if d.Mutes == nil {
+		return map[string]any{"muted": false, "mute": m, "note": "mute lists are not enabled on this server; nothing was stored"}, nil
+	}
+	if err := d.Mutes.Add(ctx, ws, m.Kind, m.Value); err != nil {
 		return nil, fmt.Errorf("mute: %w", err)
 	}
 	return map[string]any{"muted": true, "mute": m}, nil
