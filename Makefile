@@ -128,7 +128,7 @@ install: ## Install all dependencies
 	cd dashboard && $(PNPM) install
 	cd backend && $(GO) mod tidy
 	@echo "Installing Go tools (goose, sqlc, golangci-lint)..."
-	$(GO) install github.com/pressly/goose/v3/cmd/goose@latest
+	$(GO) install github.com/pressly/goose/v3/cmd/goose@v3.24.1
 	$(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 

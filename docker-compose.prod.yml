@@ -15,7 +15,7 @@ services:
     image: golang:1.25-alpine
     working_dir: /migrations
     command: >
-      sh -c "GOPATH=/tmp/go go install github.com/pressly/goose/v3/cmd/goose@latest &&
+      sh -c "GOPATH=/tmp/go go install github.com/pressly/goose/v3/cmd/goose@v3.24.1 &&
              /tmp/go/bin/goose -dir /migrations postgres '${DATABASE_URL}' up"
     volumes:
       - ./backend/migrations:/migrations:ro
