@@ -38,14 +38,15 @@ const (
 )
 
 type SystemKeys struct {
-	NVIDIAAPIKey   string
-	NVIDIAModel    string
-	DeepSeekAPIKey string
-	GLMAPIKey      string
-	OpenAIAPIKey   string
-	OllamaAPIKey   string
-	OllamaModel    string
-	VoyageAPIKey   string
+	NVIDIAAPIKey    string
+	NVIDIAModel     string
+	DeepSeekAPIKey  string
+	GLMAPIKey       string
+	OpenAIAPIKey    string
+	OllamaAPIKey    string
+	AnthropicAPIKey string
+	OllamaModel     string
+	VoyageAPIKey    string
 }
 
 type ProviderSettings struct {
@@ -76,11 +77,11 @@ type ProviderStatus struct {
 	// EmbeddingModels lists models valid for the embedding tier, which differ
 	// from the chat models on dual-capability providers.
 	EmbeddingModels []string `json:"embedding_models,omitempty"`
-	IsSet             bool     `json:"is_set"`
-	MaskedKey         string   `json:"masked_key,omitempty"`
-	KeySource         string   `json:"key_source,omitempty"`
-	BaseURL           string   `json:"base_url,omitempty"`
-	Enabled           bool     `json:"enabled"`
+	IsSet           bool     `json:"is_set"`
+	MaskedKey       string   `json:"masked_key,omitempty"`
+	KeySource       string   `json:"key_source,omitempty"`
+	BaseURL         string   `json:"base_url,omitempty"`
+	Enabled         bool     `json:"enabled"`
 }
 
 type PublicConfig struct {
@@ -115,6 +116,7 @@ var providerRegistry = []ProviderStatus{
 	{Provider: "deepseek", DisplayName: "DeepSeek", Capabilities: []string{"chat"}, DefaultModel: "deepseek-chat", RecommendedModels: []string{"deepseek-chat", "deepseek-reasoner"}, Enabled: true},
 	{Provider: "glm", DisplayName: "GLM / ZhipuAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "glm-4.5-flash", RecommendedModels: []string{"glm-4.5-flash", "glm-4-plus", "glm-4-air"}, EmbeddingModels: []string{"embedding-3"}, Enabled: true},
 	{Provider: "openai", DisplayName: "OpenAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "gpt-4o-mini", RecommendedModels: []string{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}, EmbeddingModels: []string{"text-embedding-3-small", "text-embedding-3-large"}, Enabled: true},
+	{Provider: "anthropic", DisplayName: "Anthropic Claude", Capabilities: []string{"chat"}, DefaultModel: "claude-haiku-5-5", RecommendedModels: []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}, Enabled: true},
 	{Provider: "openrouter", DisplayName: "OpenRouter", Capabilities: []string{"chat"}, DefaultModel: "openai/gpt-4o-mini", RecommendedModels: []string{"openai/gpt-4o-mini", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"}, Enabled: true},
 	{Provider: "ollama", DisplayName: "Ollama Cloud", Capabilities: []string{"chat"}, DefaultModel: "gpt-oss:120b", RecommendedModels: []string{"gpt-oss:120b", "gpt-oss:20b", "deepseek-v3.1:671b", "qwen3-coder:480b"}, Enabled: true},
 	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, EmbeddingModels: []string{"voyage-3"}, Enabled: true},
@@ -295,9 +297,10 @@ func (r *Router) DeleteProviderKey(ctx context.Context, workspaceID, provider st
 }
 
 func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string) (*ai.ClassifyResult, error) {
+	product := r.productContext(ctx, workspaceID)
 	var out *ai.ClassifyResult
 	err := r.withChatProvider(ctx, workspaceID, TaskClassify, func(p ai.Provider) error {
-		res, err := ai.ClassifyIntent(ctx, p, title, content, platform)
+		res, err := ai.ClassifyIntent(ctx, p, title, content, platform, product)
 		out = res
 		return err
 	})
@@ -454,7 +457,7 @@ func (r *Router) VerifyProvider(ctx context.Context, workspaceID, provider strin
 		return err
 	}
 	p := providerForTarget(provider, key, ModelTarget{Provider: provider}, r.system)
-	_, err = ai.ClassifyIntent(ctx, p, "Verification", "I am looking for a simple project management tool for my team because our current workflow is too slow.", "internal")
+	_, err = ai.ClassifyIntent(ctx, p, "Verification", "I am looking for a simple project management tool for my team because our current workflow is too slow.", "internal", "")
 	r.recordUsage(ctx, workspaceID, TaskFilter, p.Name, p.Model, source, 0, time.Since(start), err)
 	return err
 }
@@ -523,6 +526,10 @@ func (r *Router) targetsForTask(task Task, cfg Config, legacy map[string]string)
 	if primary.Provider == "" {
 		return nil
 	}
+	// Auto-chosen strong slot: don't fall back to the provider's cheap default.
+	if tier == TierStrong && primary.Model == "" {
+		primary.Model = strongDefaultModel[primary.Provider]
+	}
 	targets := []ModelTarget{withProviderDefaults(primary, cfg)}
 	for _, fb := range cfg.Fallbacks[tier] {
 		if fb.Provider != "" {
@@ -530,6 +537,13 @@ func (r *Router) targetsForTask(task Task, cfg Config, legacy map[string]string)
 		}
 	}
 	return targets
+}
+
+// strongDefaultModel is used for the strong tier (reply drafting, product
+// analysis) when it is auto-selected and no model is pinned. Providers not
+// listed keep their single default model.
+var strongDefaultModel = map[string]string{
+	"anthropic": "claude-opus-5-5",
 }
 
 func withProviderDefaults(target ModelTarget, cfg Config) ModelTarget {
@@ -542,7 +556,7 @@ func withProviderDefaults(target ModelTarget, cfg Config) ModelTarget {
 }
 
 func (r *Router) defaultChatTarget(cfg Config, legacy map[string]string) ModelTarget {
-	for _, provider := range []string{"nvidia", "deepseek", "glm", "openai", "openrouter", "ollama"} {
+	for _, provider := range []string{"nvidia", "deepseek", "glm", "openai", "anthropic", "openrouter", "ollama"} {
 		if hasConfiguredKey(provider, cfg, legacy) || r.hasSystemKey(provider) {
 			// Leave Model empty so providerForTarget applies the operator's
 			// system-model override (e.g. OLLAMA_MODEL) before the built-in default.
@@ -782,6 +796,8 @@ func (r *Router) systemKey(provider string) string {
 		return r.system.OpenAIAPIKey
 	case "ollama":
 		return r.system.OllamaAPIKey
+	case "anthropic":
+		return r.system.AnthropicAPIKey
 	case "voyage":
 		return r.system.VoyageAPIKey
 	default:
@@ -829,4 +845,36 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// productContext describes the workspace's product (its active monitoring
+// profiles) for intent scoring. Empty on error, so scoring degrades to the
+// generic prompt rather than failing.
+//
+// ponytail: one small query per classification. Cache per workspace if
+// scoring volume makes it show up in DB load.
+func (r *Router) productContext(ctx context.Context, workspaceID string) string {
+	if r.q == nil {
+		return ""
+	}
+	profiles, err := r.q.ListActiveMonitoringProfiles(ctx, workspaceID)
+	if err != nil {
+		r.logger.Warn().Err(err).Str("workspace_id", workspaceID).Msg("llm: load product context")
+		return ""
+	}
+	var b strings.Builder
+	for i, p := range profiles {
+		if i == 3 {
+			break
+		}
+		fmt.Fprintf(&b, "- %s: %s\n", p.Name, p.Description)
+	}
+	return truncateString(strings.TrimSpace(b.String()), 1500)
+}
+
+func truncateString(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
 }
