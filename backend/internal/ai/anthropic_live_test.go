@@ -21,7 +21,7 @@ func TestAnthropicLiveClassifyAndFilter(t *testing.T) {
 	res, err := ClassifyIntent(ctx, p,
 		"Looking for a tool to find leads on Reddit",
 		"We're a 3-person B2B SaaS. Any recommendations for monitoring Reddit/HN for people asking about our category? Budget ~$100/mo.",
-		"reddit", "")
+		"reddit", ScoringContext{})
 	if err != nil {
 		t.Fatalf("classify: %v", err)
 	}

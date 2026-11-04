@@ -24,17 +24,23 @@ func (s *Stub) FilterMention(ctx context.Context, workspaceID, title, content, p
 	return &ai.FilterResult{Pass: true, Reason: "stub: passed filter"}, nil
 }
 
-func (s *Stub) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string) (*ai.ClassifyResult, error) {
+// ClassifyIntent is deterministic: the configured (or default buying-intent)
+// result, run through the same normalization as real model output so the
+// announcement guard and tag/intent mapping behave identically in keyless dev.
+func (s *Stub) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string, sc ai.ScoringContext) (*ai.ClassifyResult, error) {
 	if s.ClassifyResult != nil {
 		return s.ClassifyResult, nil
 	}
-	return &ai.ClassifyResult{
+	res := ai.NormalizeClassifyResult(ai.ClassifyResult{
 		Intent:                "buy_signal",
+		IntentTags:            []string{"buying_intent"},
+		Sentiment:             "neutral",
 		ConversionProbability: 0.85,
 		RelevanceScore:        9.0,
 		Reasoning:             "stub: high purchase intent",
 		AwarenessLevel:        "solution_aware",
-	}, nil
+	}, title)
+	return &res, nil
 }
 
 func (s *Stub) EmbedTexts(ctx context.Context, workspaceID string, task Task, texts []string) ([]pgvector.Vector, error) {

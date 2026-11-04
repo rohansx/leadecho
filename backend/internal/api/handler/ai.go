@@ -16,6 +16,7 @@ import (
 	"leadecho/internal/events"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
+	"leadecho/internal/monitor"
 	"leadecho/internal/reply"
 )
 
@@ -55,7 +56,9 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Classify
-	result, err := h.llmRouter.ClassifyIntent(ctx, wsID, title, mention.Content, string(mention.Platform))
+	// scoring: same listener context (Looks for / Skips / few-shot) as the monitor
+	sc := monitor.ScoringContextFor(ctx, h.q, nil, wsID, id, func(error) {})
+	result, err := h.llmRouter.ClassifyIntent(ctx, wsID, title, mention.Content, string(mention.Platform), sc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "classification failed: "+err.Error())
 		return
@@ -65,6 +68,8 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 		"source":        "manual_classify",
 		"reasoning":     result.Reasoning,
 		"classified_at": time.Now().UTC().Format(time.RFC3339),
+		"intent_tags":   result.IntentTags,
+		"sentiment":     result.Sentiment,
 	}
 	if len(mention.ScoringMetadata) > 0 {
 		existing := map[string]any{}
@@ -91,6 +96,16 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to save classification")
 		return
 	}
+	// scoring: persist taxonomy tags + sentiment
+	if err := h.q.UpdateMentionTags(ctx, database.UpdateMentionTagsParams{
+		IntentTags: nonNilTags(result.IntentTags), Sentiment: pgtype.Text{String: result.Sentiment, Valid: result.Sentiment != ""},
+		ID: id, WorkspaceID: wsID,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save intent tags")
+		return
+	}
+	updated.IntentTags = nonNilTags(result.IntentTags)
+	updated.Sentiment = pgtype.Text{String: result.Sentiment, Valid: result.Sentiment != ""}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mention":   mentionToResponse(updated),

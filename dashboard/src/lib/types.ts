@@ -30,6 +30,9 @@ export interface Mention {
   engagement_metrics: Record<string, unknown>;
   scoring_metadata: Record<string, unknown>;
   keyword_matches: string[];
+  /** scoring: 13-tag taxonomy + sentiment (absent on older API builds) */
+  intent_tags?: string[];
+  sentiment?: "positive" | "neutral" | "negative" | null;
   platform_created_at: string | null;
   created_at: string;
   updated_at: string;
@@ -186,6 +189,9 @@ export interface MonitoringProfile {
   description: string;
   pain_points: string[];
   is_active: boolean;
+  /** scoring: plain-English listener intent fed to the scorer */
+  looks_for?: string;
+  skips?: string;
   created_at: string;
   updated_at: string;
 }

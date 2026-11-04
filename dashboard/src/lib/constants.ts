@@ -33,6 +33,27 @@ export const INTENT_TYPES = [
 ] as const;
 export type IntentType = (typeof INTENT_TYPES)[number];
 
+// scoring: 13-tag intent taxonomy + sentiment (mirrors backend ai.IntentTags)
+export const INTENT_TAGS = [
+  "buying_intent",
+  "recommendation_request",
+  "comparison",
+  "seeking_alternative",
+  "competitor_complaint",
+  "competitor_mention",
+  "brand_mention",
+  "praise",
+  "pain_point",
+  "feature_request",
+  "content_opportunity",
+  "hiring",
+  "promotional",
+] as const;
+export type IntentTag = (typeof INTENT_TAGS)[number];
+
+export const SENTIMENTS = ["positive", "neutral", "negative"] as const;
+export type Sentiment = (typeof SENTIMENTS)[number];
+
 export const MENTION_TIERS = {
   LEADS_READY: "leads_ready",
   WORTH_WATCHING: "worth_watching",

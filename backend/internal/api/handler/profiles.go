@@ -44,6 +44,8 @@ type ProfileResponse struct {
 	Description string   `json:"description"`
 	PainPoints  []string `json:"pain_points"`
 	IsActive    bool     `json:"is_active"`
+	LooksFor    string   `json:"looks_for"` // scoring
+	Skips       string   `json:"skips"`     // scoring
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
 }
@@ -59,6 +61,8 @@ func toProfileResponse(p database.MonitoringProfile, phrases []string) ProfileRe
 		Description: p.Description,
 		PainPoints:  phrases,
 		IsActive:    p.IsActive,
+		LooksFor:    p.LooksFor,
+		Skips:       p.Skips,
 		CreatedAt:   p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   p.UpdatedAt.Format(time.RFC3339),
 	}
@@ -109,6 +113,8 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Name        string   `json:"name"`
 		Description string   `json:"description"`
 		PainPoints  []string `json:"pain_points"`
+		LooksFor    *string  `json:"looks_for"` // scoring
+		Skips       *string  `json:"skips"`     // scoring
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -122,6 +128,10 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if body.PainPoints == nil {
 		body.PainPoints = []string{}
 	}
+	if _, _, _, err := mergeListenerIntent(database.MonitoringProfile{}, body.LooksFor, body.Skips); err != nil { // scoring
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	profile, err := h.q.CreateMonitoringProfile(r.Context(), database.CreateMonitoringProfileParams{
 		WorkspaceID: wsID,
@@ -131,6 +141,10 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create profile")
+		return
+	}
+	if profile, err = h.saveListenerIntent(r.Context(), profile, body.LooksFor, body.Skips); err != nil { // scoring
+		writeError(w, http.StatusInternalServerError, "failed to save looks for / skips")
 		return
 	}
 
@@ -153,6 +167,8 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Description string   `json:"description"`
 		PainPoints  []string `json:"pain_points"`
 		IsActive    *bool    `json:"is_active"`
+		LooksFor    *string  `json:"looks_for"` // scoring
+		Skips       *string  `json:"skips"`     // scoring
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -162,6 +178,10 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	existing, err := h.q.GetMonitoringProfile(r.Context(), database.GetMonitoringProfileParams{ID: id, WorkspaceID: wsID})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "profile not found")
+		return
+	}
+	if _, _, _, err := mergeListenerIntent(existing, body.LooksFor, body.Skips); err != nil { // scoring
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -187,6 +207,10 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update profile")
+		return
+	}
+	if profile, err = h.saveListenerIntent(r.Context(), profile, body.LooksFor, body.Skips); err != nil { // scoring
+		writeError(w, http.StatusInternalServerError, "failed to save looks for / skips")
 		return
 	}
 
