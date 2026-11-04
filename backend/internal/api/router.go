@@ -71,7 +71,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	r.Get("/api/public/v1/probe", publicAPI.Probe)
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.APIKeyAuth(queries, keyLimiter, cfg.APIKeyRateLimitPerMin))
-		r.Handle("/mcp", &mcp.Server{Registry: agentTools, Version: cfg.AppVersion, Logger: logger, Auth: middleware.APIKeyPrincipal})
+		mcpServer := &mcp.Server{Registry: agentTools, Version: cfg.AppVersion, Logger: logger, Auth: middleware.APIKeyPrincipal}
+		r.Handle("/mcp", mcpServer)
+		r.Handle("/api/mcp", mcpServer) // same server via the dashboard's existing /api/ proxy
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/mentions", publicAPI.Mentions)
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/leads", publicAPI.Leads)
 	})
@@ -242,6 +244,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/workspace-api-keys", wsKeys.List)
 			r.Post("/workspace-api-keys", wsKeys.Create)
 			r.Delete("/workspace-api-keys/{id}", wsKeys.Revoke)
+			r.Get("/workspace-api-keys/tools", publicAPI.ToolCatalog)
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

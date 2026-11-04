@@ -72,6 +72,16 @@ func TestPublicAPI(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
+	h.ToolCatalog(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	var cat struct {
+		Data []struct{ Name, Scope string } `json:"data"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cat)
+	if len(cat.Data) != 12 || cat.Data[0].Name == "" || cat.Data[0].Scope == "" {
+		t.Fatalf("catalog: %s", rec.Body)
+	}
+
+	rec = httptest.NewRecorder()
 	h.Probe(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	var probe map[string]any
 	json.Unmarshal(rec.Body.Bytes(), &probe)

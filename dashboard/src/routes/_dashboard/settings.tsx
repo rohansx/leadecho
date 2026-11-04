@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
+import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -640,6 +641,9 @@ function SettingsPage() {
       <ChromeExtensionCard />
 
       <IntegrationsCard />
+
+      {/* mcp: workspace API keys + MCP connect */}
+      <ApiMcpCard />
 
       <Card>
         <CardHeader>

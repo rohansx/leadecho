@@ -35,6 +35,20 @@ func (h *PublicAPIHandler) Probe(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+// ToolCatalog lists the agent tools for the dashboard (session auth).
+func (h *PublicAPIHandler) ToolCatalog(w http.ResponseWriter, _ *http.Request) {
+	type item struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Scope       string `json:"scope"`
+	}
+	out := []item{}
+	for _, t := range h.tools.List() {
+		out = append(out, item{t.Name, t.Description, t.Scope})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": out})
+}
+
 func (h *PublicAPIHandler) Mentions(w http.ResponseWriter, r *http.Request) {
 	h.run(w, r, "search_mentions", map[string]string{"q": "query", "status": "status", "intent": "intent", "platform": "platform", "tier": "tier"})
 }
