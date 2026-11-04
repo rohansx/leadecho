@@ -7,9 +7,17 @@ const SETTINGS_KEY = "leadecho_settings";
 const DAILY_COUNT_KEY = "leadecho_daily_count";
 export const CAPTURE_KEY = "leadecho_capture_enabled";
 
+// Local-dev convenience: a build made with WXT_DEV_API_URL / WXT_DEV_API_KEY in
+// extension/.env.local (gitignored) starts pre-configured. Saved settings
+// always win; release builds have no such env, so defaults stay empty.
+const DEV_DEFAULTS: ExtensionSettings = {
+  apiKey: import.meta.env.WXT_DEV_API_KEY ?? "",
+  apiUrl: import.meta.env.WXT_DEV_API_URL ?? "",
+};
+
 export async function getSettings(): Promise<ExtensionSettings> {
   const result = await chrome.storage.local.get(SETTINGS_KEY);
-  return (result[SETTINGS_KEY] as ExtensionSettings | undefined) ?? { apiKey: "", apiUrl: "" };
+  return (result[SETTINGS_KEY] as ExtensionSettings | undefined) ?? DEV_DEFAULTS;
 }
 
 export async function saveSettings(settings: ExtensionSettings): Promise<void> {

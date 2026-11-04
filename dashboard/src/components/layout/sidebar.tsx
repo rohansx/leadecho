@@ -59,7 +59,7 @@ export function Sidebar() {
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-border bg-card/60">
       <div className="flex h-[var(--header-height)] items-center px-5">
-        <Logo />
+        <Logo to="/inbox" />
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2">

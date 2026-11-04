@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import path from "path";
 
+// Override with API_URL=http://localhost:PORT when 8090 is taken.
+const API_URL = process.env.API_URL ?? "http://localhost:8090";
+
 export default defineConfig({
   base: "/",
   plugins: [TanStackRouterVite({ quoteStyle: "double" }), react(), tailwindcss()],
@@ -16,11 +19,12 @@ export default defineConfig({
     port: 3100,
     proxy: {
       "/api": {
-        target: "http://localhost:8090",
+        target: API_URL,
         changeOrigin: true,
       },
-      "/r": {
-        target: "http://localhost:8090",
+      // Trailing slash matters: "/r" alone would also proxy /register to the API.
+      "/r/": {
+        target: API_URL,
         changeOrigin: true,
       },
     },
