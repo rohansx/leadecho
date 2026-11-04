@@ -90,6 +90,8 @@ function ChatPage() {
       if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : "Chat failed");
     } finally {
       setStreaming(false);
+      // Unmounted/aborted mid-stream: don't refetch or navigate (would yank the user back to /chat).
+      if (ctrl.signal.aborted) return;
       if (threadId) {
         await qc.invalidateQueries({ queryKey: messagesKey(threadId) });
         await qc.refetchQueries({ queryKey: messagesKey(threadId) });

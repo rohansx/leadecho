@@ -35,8 +35,10 @@ func NewExportHandler(q exportQuerier) *ExportHandler { return &ExportHandler{q:
 
 // csvSafe neutralises spreadsheet formula injection (OWASP): cells starting
 // with = + - @ (or tab / CR) are prefixed with a single quote.
+// Leading whitespace is skipped first: spreadsheets evaluate " \n=1+1" too.
 func csvSafe(s string) string {
-	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+	t := strings.TrimLeft(s, " \n")
+	if s != "" && (strings.ContainsRune("=+-@\t\r", rune(s[0])) || (t != "" && strings.ContainsRune("=+-@\t\r", rune(t[0])))) {
 		return "'" + s
 	}
 	return s
@@ -112,6 +114,8 @@ func fmtF32(v float32, ok bool) string {
 
 // Mentions handles GET /mentions/export.csv (same filters as GET /mentions).
 func (h *ExportHandler) Mentions(w http.ResponseWriter, r *http.Request) {
+	// Up to 50k rows outlasts the server's 30s WriteTimeout; don't cut the file mid-stream.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Minute))
 	ctx := r.Context()
 	params, errMsg := mentionFilters(r, middleware.WorkspaceID(ctx))
 	if errMsg != "" {
@@ -157,6 +161,8 @@ func (h *ExportHandler) Mentions(w http.ResponseWriter, r *http.Request) {
 
 // Leads handles GET /leads/export.csv (same ?stage= filter as GET /leads).
 func (h *ExportHandler) Leads(w http.ResponseWriter, r *http.Request) {
+	// Up to 50k rows outlasts the server's 30s WriteTimeout; don't cut the file mid-stream.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Minute))
 	ctx := r.Context()
 	ws := middleware.WorkspaceID(ctx)
 	stage := r.URL.Query().Get("stage")

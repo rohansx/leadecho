@@ -4,7 +4,7 @@ export type SSEHandler = (event: string, data: unknown) => void;
 
 /** Parses complete "event:/data:" blocks out of buf; returns the unparsed rest. */
 export function parseSSE(buf: string, onEvent: SSEHandler): string {
-  const blocks = buf.split("\n\n");
+  const blocks = buf.replace(/\r\n?/g, "\n").split("\n\n");
   const rest = blocks.pop() ?? "";
   for (const block of blocks) {
     let event = "message";

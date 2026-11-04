@@ -16,8 +16,8 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
-	"leadecho/internal/reply"
 	"leadecho/internal/onboarding"
+	"leadecho/internal/reply"
 )
 
 // OnboardingHandler manages workspace onboarding state stored in settings JSONB.

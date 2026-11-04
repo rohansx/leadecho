@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -70,6 +71,7 @@ func TestEngagersPull(t *testing.T) {
 		{"not linkedin", &fakePuller{enabled: true}, `{"post_url":"https://example.com/x"}`, http.StatusBadRequest, "post_url"},
 		{"bad kind", &fakePuller{enabled: true}, `{"post_url":` + okURL + `,"kinds":["likes"]}`, http.StatusBadRequest, "kind"},
 		{"treg miss", &fakePuller{enabled: true, err: engagers.ErrNoData}, `{"post_url":` + okURL + `}`, http.StatusBadGateway, "could not load"},
+		{"timeout returns partial rows flagged truncated", &fakePuller{enabled: true, rows: []engagers.Row{{LeadID: "l1"}}, err: fmt.Errorf("%w: imported 1 of 5", engagers.ErrTruncated)}, `{"post_url":` + okURL + `}`, http.StatusOK, `"truncated":true`},
 		{"ok", &fakePuller{enabled: true, rows: []engagers.Row{{Engager: engagers.Engager{Name: "Ann"}, LeadID: "l1"}}}, `{"post_url":` + okURL + `,"kinds":["comments"],"enrich":true}`, http.StatusOK, ""},
 	}
 	for _, tc := range cases {
@@ -94,6 +96,9 @@ func TestEngagersPull(t *testing.T) {
 				t.Fatalf("resp %s", rec.Body)
 			}
 			g := tc.puller.got
+			if tc.name != "ok" {
+				return
+			}
 			if g.Ref.ID != "7508596155145043968" || len(g.Kinds) != 1 || g.Kinds[0] != "comments" || !g.Enrich {
 				t.Fatalf("request = %+v", g)
 			}

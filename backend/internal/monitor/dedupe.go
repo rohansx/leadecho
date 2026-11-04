@@ -121,14 +121,11 @@ func SimHash(normalized string) uint64 {
 func HammingDistance(a, b uint64) int { return bits.OnesCount64(a ^ b) }
 
 // nearDupMaxDistance is the simhash distance to use for this text: -1 = no
-// text check (empty), 0 = exact only (short), nearDupBits otherwise.
+// text check, nearDupBits otherwise. Short texts get no text check: the same
+// short question from two different people is two leads, not a duplicate.
 func nearDupMaxDistance(normalized string) int {
-	n := len(strings.Fields(normalized))
-	switch {
-	case n == 0:
+	if len(strings.Fields(normalized)) < minFuzzyTokens {
 		return -1
-	case n < minFuzzyTokens:
-		return 0
 	}
 	return nearDupBits
 }

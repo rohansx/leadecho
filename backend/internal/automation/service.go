@@ -139,10 +139,14 @@ func (s *Service) execute(ctx context.Context, a database.Automation, run databa
 		run.Status, run.Output, run.Error = status, raw, errMsg
 		done = run
 	}
-	if err := s.q.SetAutomationLastRun(ctx, database.SetAutomationLastRunParams{
-		ID: a.ID, WorkspaceID: a.WorkspaceID, LastRunAt: pgtype.Timestamptz{Time: started, Valid: true},
-	}); err != nil {
-		s.logger.Warn().Err(err).Str("automation_id", a.ID).Msg("automations: last_run update failed")
+	// last_run_at is the next scheduled run's "since": only a successful
+	// scheduled run may advance it, or failed/manual runs would hide mentions.
+	if status == "succeeded" && run.Trigger != "manual" {
+		if err := s.q.SetAutomationLastRun(ctx, database.SetAutomationLastRunParams{
+			ID: a.ID, WorkspaceID: a.WorkspaceID, LastRunAt: pgtype.Timestamptz{Time: started, Valid: true},
+		}); err != nil {
+			s.logger.Warn().Err(err).Str("automation_id", a.ID).Msg("automations: last_run update failed")
+		}
 	}
 	s.logger.Info().Str("automation_id", a.ID).Str("kind", a.Kind).Str("status", status).Msg("automation run")
 	return done

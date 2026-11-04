@@ -11,19 +11,24 @@ interface ListenerBuilderProps {
   creating: boolean;
   createError?: string;
   onCreate: (listeners: Proposal[]) => void;
+  onBack?: () => void;
 }
 
 const initial = (goals: Goal[]): Record<string, ListenerState> =>
   Object.fromEntries(goals.map((g) => [g, { goal: g, steps: [], tests: [], samples: [], feedback: {}, included: true }]));
 
 /** Step 3: consumes the listener-builder SSE stream, one card per goal. */
-export function ListenerBuilder({ goals, platforms, creating, createError, onCreate }: ListenerBuilderProps) {
+export function ListenerBuilder({ goals, platforms, creating, createError, onCreate, onBack }: ListenerBuilderProps) {
   const [states, setStates] = useState<Record<string, ListenerState>>(() => initial(goals));
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const ctrl = new AbortController();
+    setStates(initial(goals));
+    setDone(false);
+    setError("");
     const patch = (goal: string, fn: (s: ListenerState) => ListenerState) =>
       setStates((prev) => (prev[goal] ? { ...prev, [goal]: fn(prev[goal]) } : prev));
 
@@ -37,6 +42,7 @@ export function ListenerBuilder({ goals, platforms, creating, createError, onCre
         if (event === "query_tested") patch(goal, (s) => ({ ...s, tests: [...s.tests, data as QueryTested] }));
         if (event === "samples") patch(goal, (s) => ({ ...s, samples: (d.posts as Sample[]) ?? [] }));
         if (event === "listener_proposal") patch(goal, (s) => ({ ...s, proposal: data as Proposal }));
+        if (event === "error") setError(String(d.error ?? d.message ?? "Listener builder failed"));
         if (event === "done") setDone(true);
       },
       ctrl.signal,
@@ -48,7 +54,7 @@ export function ListenerBuilder({ goals, platforms, creating, createError, onCre
         if (!ctrl.signal.aborted) setDone(true);
       });
     return () => ctrl.abort();
-  }, [goals, platforms]);
+  }, [goals, platforms, attempt]);
 
   function feedback(goal: Goal, s: Sample, label: "up" | "down") {
     setStates((prev) => ({ ...prev, [goal]: { ...prev[goal], feedback: { ...prev[goal].feedback, [s.url]: label } } }));
@@ -80,6 +86,12 @@ export function ListenerBuilder({ goals, platforms, creating, createError, onCre
         ))}
       </div>
       {error && <p className="text-destructive text-sm mb-3">{error}</p>}
+      {done && chosen.length === 0 && (
+        <div className="flex gap-2 mb-3">
+          {onBack && <Button variant="outline" onClick={onBack}>Back</Button>}
+          <Button variant="outline" className="flex-1" onClick={() => setAttempt((a) => a + 1)}>Retry</Button>
+        </div>
+      )}
       {createError && <p className="text-destructive text-sm mb-3">{createError}</p>}
       <Button className="w-full" disabled={!done || creating || chosen.length === 0} onClick={() => onCreate(chosen)}>
         {!done ? "Testing keywords..." : creating ? "Creating..." : `Create ${chosen.length} listener${chosen.length === 1 ? "" : "s"} & scan last 7 days`}

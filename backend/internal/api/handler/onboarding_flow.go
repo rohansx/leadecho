@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"leadecho/internal/netsafe"
 	"net/http"
 	"time"
 
@@ -94,7 +95,8 @@ func (h *OnboardingHandler) runAnalysis(ctx context.Context, wsID, rawURL string
 		return nil, fmt.Errorf("create analysis record: %w", err)
 	}
 	fail := func(msg string, cause error) error {
-		_, _ = h.q.UpdateOnboardingAnalysis(ctx, database.UpdateOnboardingAnalysisParams{
+		// WithoutCancel: a disconnected client must not leave the row 'pending'.
+		_, _ = h.q.UpdateOnboardingAnalysis(context.WithoutCancel(ctx), database.UpdateOnboardingAnalysisParams{
 			ID: rec.ID, Analysis: []byte("{}"), Status: "failed",
 			ErrorMessage: pgtype.Text{String: msg + ": " + cause.Error(), Valid: true},
 		})
@@ -143,7 +145,8 @@ func (h *OnboardingHandler) crawlSite(ctx context.Context, pageURL string, step 
 	if err == nil && len(pages) > 0 && len(pages[0].Text) > 200 {
 		return pages, nil
 	}
-	if h.scrapling != nil {
+	// The sidecar does its own networking, so guard the URL before it loads it.
+	if h.scrapling != nil && netsafe.ValidatePublicURL(ctx, pageURL) == nil {
 		if nerr := h.scrapling.Navigate(ctx, pageURL); nerr == nil {
 			if text, terr := h.scrapling.GetText(ctx); terr == nil && text != "" {
 				return append([]onboarding.Page{{URL: pageURL, Text: text}}, tail(pages)...), nil
@@ -237,7 +240,7 @@ func (h *OnboardingHandler) AnalyzeStream(w http.ResponseWriter, r *http.Request
 	var body struct {
 		URL string `json:"url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}

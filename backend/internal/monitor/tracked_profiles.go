@@ -55,7 +55,10 @@ func (m *Monitor) pollTrackedProfiles(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		alerts := m.pollTrackedProfile(ctx, p)
+		alerts, ok := m.pollTrackedProfile(ctx, p)
+		if !ok { // fetch failed (treg paused/outage): retry next tick, don't skip a whole interval
+			continue
+		}
 		if err := m.q.MarkTrackedProfilePolled(ctx, database.MarkTrackedProfilePolledParams{ID: p.ID, WorkspaceID: p.WorkspaceID}); err != nil {
 			m.logger.Warn().Err(err).Str("tracked_profile_id", p.ID).Msg("tracked profiles: mark polled")
 		}
@@ -71,11 +74,11 @@ func (m *Monitor) pollTrackedProfiles(ctx context.Context) {
 	}
 }
 
-func (m *Monitor) pollTrackedProfile(ctx context.Context, p database.TrackedProfile) []mentionAlert {
+func (m *Monitor) pollTrackedProfile(ctx context.Context, p database.TrackedProfile) ([]mentionAlert, bool) {
 	tool, body := trackedRequest(p)
 	posts, ok := m.tregSearch(ctx, p.WorkspaceID, tool, body)
 	if !ok {
-		return nil
+		return nil, false
 	}
 	var alerts []mentionAlert
 	for _, post := range posts {
@@ -87,7 +90,7 @@ func (m *Monitor) pollTrackedProfile(ctx context.Context, p database.TrackedProf
 			alerts = append(alerts, *a)
 		}
 	}
-	return alerts
+	return alerts, true
 }
 
 func trackedRequest(p database.TrackedProfile) (string, map[string]any) {

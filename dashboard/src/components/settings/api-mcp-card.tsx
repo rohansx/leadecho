@@ -28,7 +28,7 @@ function CopyButton({ text }: { text: string }) {
         navigator.clipboard.writeText(text).then(() => {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
-        })
+        }).catch(() => window.prompt("Copy this value:", text))
       }
     >
       {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
@@ -197,6 +197,11 @@ export function ApiMcpCard() {
                 </Button>
               </div>
             ))
+          )}
+          {revoke.isError && (
+            <Text as="p" className="text-sm text-destructive">
+              Revoke failed: {revoke.error instanceof Error ? revoke.error.message : "unknown error"}. The key is still active.
+            </Text>
           )}
         </div>
 

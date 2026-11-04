@@ -155,7 +155,7 @@ func TestOnboardingFlowDB(t *testing.T) {
 		}
 		code, body := call("PUT", "/brand-profile", map[string]any{
 			"product": "Acme", "competitors": []string{"HubSpot"},
-			"keywords":   map[string][]string{"category": {"crm for agencies"}, "problem": {"lost deals"}},
+			"keywords":    map[string][]string{"category": {"crm for agencies"}, "problem": {"lost deals"}},
 			"pain_points": []map[string]string{{"problem": "lost deals", "explanation": "x"}},
 		})
 		if code != 200 || !strings.Contains(body, "HubSpot") {
@@ -192,6 +192,10 @@ func TestOnboardingFlowDB(t *testing.T) {
 			t.Fatalf("listener without keywords must 400, got %d", code)
 		}
 
+		// A previous attempt failed after creating the first listener: the retry must reuse it.
+		if _, err := q.CreateMonitoringProfile(ctx, database.CreateMonitoringProfileParams{WorkspaceID: ws.ID, Name: "Buyers", IsActive: true}); err != nil {
+			t.Fatal(err)
+		}
 		code, body := call("POST", "/onboarding/complete", map[string]any{
 			"brand_profile": map[string]any{"product": "Acme", "competitors": []string{"HubSpot", "Pipedrive"}},
 			"listeners": []map[string]any{
@@ -212,6 +216,11 @@ func TestOnboardingFlowDB(t *testing.T) {
 		p, err := q.GetMonitoringProfile(ctx, database.GetMonitoringProfileParams{ID: res.ProfileIDs[0], WorkspaceID: ws.ID})
 		if err != nil || p.LooksFor != "shoppers" || p.Skips != "vendors" || p.Goal != "find_buyers" {
 			t.Fatalf("profile intent not stored: %+v %v", p, err)
+		}
+		var buyers int
+		_ = pool.QueryRow(ctx, `SELECT count(*) FROM monitoring_profiles WHERE workspace_id = $1 AND name = 'Buyers'`, ws.ID).Scan(&buyers)
+		if buyers != 1 {
+			t.Fatalf("retry duplicated the listener: %d 'Buyers' profiles", buyers)
 		}
 		bp, _ := q.GetBrandProfile(ctx, ws.ID)
 		if len(bp.Competitors) != 2 {

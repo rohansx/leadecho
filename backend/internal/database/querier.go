@@ -17,7 +17,9 @@ type Querier interface {
 	// replies and the clicks/signups/revenue of those replies' tracked links.
 	AutomationKeywordValue(ctx context.Context, arg AutomationKeywordValueParams) ([]AutomationKeywordValueRow, error)
 	// Returns a row only when this caller owns the (workspace, kind, period) slot:
-	// a fresh insert, or a retry of a failed run (max 3 attempts).
+	// a fresh insert, a retry of a failed run (max 5 attempts, backoff of
+	// 10 min x attempts so a provider outage is ridden out inside the due window),
+	// or a run left 'pending' >15 min by a sender that crashed mid-send.
 	ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error)
 	// Returns a row only for the first caller of an (automation, period) slot.
 	ClaimScheduledAutomationRun(ctx context.Context, arg ClaimScheduledAutomationRunParams) (AutomationRun, error)

@@ -61,7 +61,10 @@ func TestNearDupMaxDistance(t *testing.T) {
 		want int
 	}{
 		{"", -1},
-		{"too short to compare", 0},
+		// Short posts ("Looking for a good CRM?") repeat across different
+		// buyers; only the URL can dedupe them.
+		{"too short to compare", -1},
+		{"Looking for a good CRM?", -1},
 		{"this sentence has enough words in it to use the fuzzy simhash comparison", nearDupBits},
 	}
 	for _, tt := range tests {

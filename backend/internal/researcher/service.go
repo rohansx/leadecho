@@ -89,8 +89,14 @@ func NewService(q *database.Queries, logger zerolog.Logger) *Service {
 }
 
 // EnrichLeadAsync runs enrichment in the background; safe to call from hot paths.
+// enrichSlots bounds concurrent background enrichments (an engagers pull can
+// queue ~200 at once); excess callers wait for a slot.
+var enrichSlots = make(chan struct{}, 4)
+
 func (s *Service) EnrichLeadAsync(leadID, workspaceID string) {
 	go func() {
+		enrichSlots <- struct{}{}
+		defer func() { <-enrichSlots }()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := s.EnrichLead(ctx, leadID, workspaceID); err != nil {

@@ -63,11 +63,11 @@ func TestTrackedProfilesPollDB(t *testing.T) {
 	if !due() {
 		t.Fatal("new profile should be due")
 	}
-	alerts := m.pollTrackedProfile(ctx, p)
+	alerts, _ := m.pollTrackedProfile(ctx, p)
 	if len(alerts) != 1 || alerts[0].Platform != "linkedin" || tools[0] != tregLinkedInUserPostsTool {
 		t.Fatalf("alerts=%+v tools=%v", alerts, tools)
 	}
-	if again := m.pollTrackedProfile(ctx, p); len(again) != 0 {
+	if again, _ := m.pollTrackedProfile(ctx, p); len(again) != 0 {
 		t.Fatalf("same post inserted twice: %+v", again)
 	}
 	if err := q.MarkTrackedProfilePolled(ctx, database.MarkTrackedProfilePolledParams{ID: p.ID, WorkspaceID: ws}); err != nil {

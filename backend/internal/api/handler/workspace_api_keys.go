@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -88,6 +89,14 @@ func (h *WorkspaceAPIKeyHandler) Create(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	// A write key outlives its creator's membership and can queue replies and
+	// push to the CRM, so only admins may mint one.
+	if slices.Contains(scopes, "write") {
+		if c := middleware.ClaimsFromContext(r.Context()); c == nil || c.Role != "admin" {
+			writeError(w, http.StatusForbidden, "only workspace admins can create write keys")
+			return
+		}
 	}
 	key, err := apikey.Generate()
 	if err != nil {

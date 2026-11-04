@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -77,7 +78,8 @@ func (h *ChatHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Approve {
 		// Finish even if the client disconnects: the tool may already have run.
-		pctx := context.WithoutCancel(ctx)
+		pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), confirmTimeout)
+		defer cancel()
 		done := chat.Execute(pctx, h.tools, ws, calls[i])
 		if _, err = h.swapCall(pctx, ws, id, old, calls, i, func(chat.ToolCall) chat.ToolCall { return done }); err != nil {
 			h.confirmFailed(w, err)
@@ -87,6 +89,9 @@ func (h *ChatHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 	msg.ToolCalls, _ = json.Marshal(calls)
 	writeJSON(w, http.StatusOK, map[string]any{"call": calls[i], "message": toChatView(msg)})
 }
+
+// confirmTimeout bounds a confirmed write tool (LLM draft, CRM push).
+const confirmTimeout = 60 * time.Second
 
 // swapCall applies fn to calls[i] (in place) and CAS-writes the list; it
 // returns the newly stored bytes.

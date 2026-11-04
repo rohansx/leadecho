@@ -50,7 +50,9 @@ func APIKeyAuth(store APIKeyStore, limiter auth.Counter, perMinute int) func(htt
 			}
 
 			go func() { // ponytail: one UPDATE per request; batch if this table gets hot
-				_ = store.TouchWorkspaceAPIKey(context.Background(), database.TouchWorkspaceAPIKeyParams{ID: key.ID, WorkspaceID: key.WorkspaceID})
+				tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = store.TouchWorkspaceAPIKey(tctx, database.TouchWorkspaceAPIKeyParams{ID: key.ID, WorkspaceID: key.WorkspaceID})
 			}()
 
 			claims := &auth.Claims{WorkspaceID: key.WorkspaceID, UserID: uuidString(key.CreatedBy), Name: key.Name, Role: "api_key"}

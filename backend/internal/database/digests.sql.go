@@ -17,7 +17,9 @@ INSERT INTO digest_runs (workspace_id, kind, period_start, period_end)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (workspace_id, kind, period_start) DO UPDATE
     SET status = 'pending', attempts = digest_runs.attempts + 1, updated_at = now()
-    WHERE digest_runs.status = 'failed' AND digest_runs.attempts < 3
+    WHERE (digest_runs.status = 'failed' AND digest_runs.attempts < 5
+           AND digest_runs.updated_at < now() - make_interval(mins => 10 * digest_runs.attempts))
+       OR (digest_runs.status = 'pending' AND digest_runs.updated_at < now() - interval '15 minutes')
 RETURNING id
 `
 
@@ -29,7 +31,9 @@ type ClaimDigestRunParams struct {
 }
 
 // Returns a row only when this caller owns the (workspace, kind, period) slot:
-// a fresh insert, or a retry of a failed run (max 3 attempts).
+// a fresh insert, a retry of a failed run (max 5 attempts, backoff of
+// 10 min x attempts so a provider outage is ridden out inside the due window),
+// or a run left 'pending' >15 min by a sender that crashed mid-send.
 func (q *Queries) ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error) {
 	row := q.db.QueryRow(ctx, claimDigestRun,
 		arg.WorkspaceID,

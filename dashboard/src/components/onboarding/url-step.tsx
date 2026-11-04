@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ export function UrlStep({ goals, onGoalsChange, platforms, onPlatformsChange, on
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
 
   async function analyze() {
     if (!url.trim() || running) return;
@@ -79,7 +80,10 @@ export function UrlStep({ goals, onGoalsChange, platforms, onPlatformsChange, on
         <Input
           placeholder="https://yourproduct.com"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setResult(null);
+          }}
           onKeyDown={(e) => e.key === "Enter" && analyze()}
           className="flex-1"
         />

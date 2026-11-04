@@ -26,10 +26,12 @@ type fakeTreg struct {
 	fail    map[string]int    // tool -> HTTP status to fail with
 	sent    map[string]map[string]any
 	calls   []string
+	delay   time.Duration
 }
 
 func (f *fakeTreg) handler(w http.ResponseWriter, r *http.Request) {
 	tool := strings.TrimPrefix(r.URL.Path, "/call/")
+	time.Sleep(f.delay)
 	b, _ := io.ReadAll(r.Body)
 	var body map[string]any
 	_ = json.Unmarshal(b, &body)
@@ -261,6 +263,32 @@ func TestEnricherDailyCapAndBudget(t *testing.T) {
 				t.Errorf("budget calls=%d micro=%d", b.calls, b.micro)
 			}
 		})
+	}
+}
+
+// Concurrent enrichments of one workspace must not all pass the cap check
+// before any of them is stored (an engagers pull fans out ~200 at once).
+func TestEnricherCapHoldsUnderConcurrency(t *testing.T) {
+	f, c := newFake(t, fullAnswers)
+	f.delay = 30 * time.Millisecond
+	e := New(c, fakeCounter{0}, 3, 0, zerolog.Nop())
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	ran := 0
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := e.Enrich(context.Background(), ws, Subject{ProfileURL: "https://linkedin.com/in/jd"}); err == nil {
+				mu.Lock()
+				ran++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if ran > 3 {
+		t.Fatalf("%d enrichments ran past a cap of 3", ran)
 	}
 }
 

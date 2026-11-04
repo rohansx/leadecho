@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"leadecho/internal/api/middleware"
+	"leadecho/internal/auth"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,13 +52,21 @@ func TestWorkspaceAPIKeyCreate(t *testing.T) {
 		{"long name", `{"name":"` + strings.Repeat("n", 101) + `"}`, 400, nil},
 		{"bad scope", `{"name":"x","scopes":["admin"]}`, 400, nil},
 		{"bad json", `{`, 400, nil},
+		{"viewer:write key needs admin", `{"name":"x","scopes":["write"]}`, 403, nil},
+		{"viewer:read key allowed", `{"name":"x"}`, 201, []string{"read"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeAPIKeyStore{}
 			h := NewWorkspaceAPIKeyHandler(store)
 			rec := httptest.NewRecorder()
-			h.Create(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body)))
+			role := "admin"
+			if strings.HasPrefix(tt.name, "viewer:") {
+				role = "viewer"
+			}
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
+			req = req.WithContext(middleware.WithClaims(req.Context(), &auth.Claims{WorkspaceID: "ws", Role: role}))
+			h.Create(rec, req)
 			if rec.Code != tt.want {
 				t.Fatalf("status %d want %d: %s", rec.Code, tt.want, rec.Body)
 			}

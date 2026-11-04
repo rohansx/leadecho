@@ -63,6 +63,9 @@ func (i *Importer) Pull(ctx context.Context, ws string, req Request) ([]Row, err
 	}
 	rows := make([]Row, 0, len(list))
 	for _, e := range list {
+		if ctx.Err() != nil {
+			return rows, fmt.Errorf("%w: imported %d of %d", ErrTruncated, len(rows), len(list))
+		}
 		row, err := i.importOne(ctx, ws, req, e)
 		if err != nil {
 			i.logger.Warn().Err(err).Str("workspace_id", ws).Str("profile", e.ProfileURL).Msg("engagers: import failed")

@@ -58,7 +58,7 @@ function EngagersCard() {
     mutationFn: () => pullEngagers({ post_url: postURL.trim(), kinds, enrich }),
     onSuccess: (res) => {
       setRows(res.data);
-      setNotice(`${res.total} engagers imported as leads${enrich ? " — enrichment running in the background" : ""}.`);
+      setNotice(`${res.total} engagers imported as leads${res.truncated ? " (stopped early on a large post — run it again to import the rest)" : ""}${enrich ? " — enrichment running in the background" : ""}.`);
     },
     onError: (e: Error) => setNotice(e.message),
   });

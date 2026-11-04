@@ -295,6 +295,12 @@ type Enricher struct {
 	budgetMicro int64
 	budgeted    sync.Map // workspaceID -> struct{}
 	logger      zerolog.Logger
+
+	// inflight counts enrichments that passed the cap but are not stored yet,
+	// so concurrent calls can't all read the same stored count and overrun it.
+	// ponytail: per process; replicas can still each spend up to the cap.
+	mu       sync.Mutex
+	inflight map[string]int
 }
 
 // New returns nil when treg is off or dailyCap <= 0 (feature off).
@@ -314,16 +320,36 @@ func (e *Enricher) Enrich(ctx context.Context, ws string, s Subject) (*Result, e
 	if !e.Enabled() {
 		return nil, ErrDisabled
 	}
+	release, err := e.reserve(ctx, ws)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	e.ensureBudget(ctx, ws)
+	return e.pipeline.Run(ctx, ws, s)
+}
+
+// reserve atomically checks stored + in-flight enrichments against the cap.
+func (e *Enricher) reserve(ctx context.Context, ws string) (func(), error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	day := time.Now().UTC().Truncate(24 * time.Hour)
 	n, err := e.counter.CountEnrichedLeadsSince(ctx, database.CountEnrichedLeadsSinceParams{WorkspaceID: ws, Since: day})
 	if err != nil {
 		return nil, err
 	}
-	if n >= int64(e.dailyCap) {
+	if e.inflight == nil {
+		e.inflight = map[string]int{}
+	}
+	if n+int64(e.inflight[ws]) >= int64(e.dailyCap) {
 		return nil, ErrDailyCap
 	}
-	e.ensureBudget(ctx, ws)
-	return e.pipeline.Run(ctx, ws, s)
+	e.inflight[ws]++
+	return func() {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		e.inflight[ws]--
+	}, nil
 }
 
 func (e *Enricher) ensureBudget(ctx context.Context, ws string) {

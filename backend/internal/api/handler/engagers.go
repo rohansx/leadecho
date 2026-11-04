@@ -45,7 +45,7 @@ func NewEngagersHandler(p *engagers.Importer, q *database.Queries, crm *crmsync.
 const (
 	maxPushLeads = 200
 	// Under the API server's 30s WriteTimeout.
-	engagersTimeout = 25 * time.Second
+	engagersTimeout = 90 * time.Second
 )
 
 // Pull handles POST /api/v1/linkedin/engagers {post_url, kinds, enrich}.
@@ -73,9 +73,16 @@ func (h *EngagersHandler) Pull(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// Importing ~200 engagers (upserts + ICP scoring) outlasts the server's
+	// default 30s write timeout, so extend it to cover our own deadline.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(engagersTimeout + 5*time.Second))
 	ctx, cancel := context.WithTimeout(r.Context(), engagersTimeout)
 	defer cancel()
 	rows, err := h.puller.Pull(ctx, middleware.WorkspaceID(ctx), engagers.Request{PostURL: body.PostURL, Ref: ref, Kinds: kinds, Enrich: body.Enrich})
+	truncated := errors.Is(err, engagers.ErrTruncated)
+	if truncated {
+		err = nil
+	}
 	switch {
 	case errors.Is(err, engagers.ErrNoData):
 		writeError(w, http.StatusBadGateway, "could not load engagers for this post, try again later")
@@ -87,7 +94,7 @@ func (h *EngagersHandler) Pull(w http.ResponseWriter, r *http.Request) {
 	if rows == nil {
 		rows = []engagers.Row{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": rows, "total": len(rows)})
+	writeJSON(w, http.StatusOK, map[string]any{"data": rows, "total": len(rows), "truncated": truncated})
 }
 
 // Push handles POST /api/v1/linkedin/engagers/push {lead_ids}: queue a CRM

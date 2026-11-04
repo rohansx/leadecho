@@ -25,6 +25,9 @@ func TestCSVSafe(t *testing.T) {
 		{"\r=x", "'\r=x"},
 		{"", ""},
 		{"a=b", "a=b"},
+		{"\n=HYPERLINK(\"x\")", "'\n=HYPERLINK(\"x\")"},
+		{"  =1+1", "'  =1+1"},
+		{" hello", " hello"},
 	}
 	for _, tt := range tests {
 		if got := csvSafe(tt.in); got != tt.want {

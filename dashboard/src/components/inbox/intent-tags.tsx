@@ -80,7 +80,9 @@ export function FeedbackButtons({ mention }: FeedbackButtonsProps) {
     onSuccess: (_, label) => {
       setVote(label);
       setError(null);
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.mentions] });
+      // Feedback can move a mention between queues: refresh the badges too.
+      for (const key of [QUERY_KEYS.mentions, QUERY_KEYS.mentionCounts, QUERY_KEYS.mentionQueueCounts, QUERY_KEYS.scoringPrecision])
+        queryClient.invalidateQueries({ queryKey: [key] });
     },
     onError: (err) => setError(err instanceof Error ? err.message : "Failed to save feedback"),
   });

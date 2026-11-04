@@ -26,6 +26,8 @@ const (
 var (
 	ErrDisabled = errors.New("engagers: treg not configured")
 	ErrNoData   = errors.New("engagers: treg returned nothing for this post")
+	// ErrTruncated: the deadline hit mid-import; the returned rows are partial.
+	ErrTruncated = errors.New("engagers: import stopped early")
 )
 
 // PostRef identifies a LinkedIn post the way treg's routed tools accept it.

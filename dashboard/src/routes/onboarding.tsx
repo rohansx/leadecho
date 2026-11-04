@@ -146,6 +146,7 @@ function OnboardingPage() {
             creating={complete.isPending}
             createError={complete.isError ? complete.error.message : undefined}
             onCreate={(listeners) => complete.mutate(listeners)}
+            onBack={() => setStep("profile")}
           />
         )}
 

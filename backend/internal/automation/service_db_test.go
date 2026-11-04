@@ -93,6 +93,18 @@ func TestAutomationsDB(t *testing.T) {
 		}
 	})
 
+	t.Run("manual run does not advance the schedule's since-marker", func(t *testing.T) {
+		a := create(KindDailyTriage, `{}`)
+		if _, err := svc.RunNow(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		var valid bool
+		_ = pool.QueryRow(ctx, `SELECT last_run_at IS NOT NULL FROM automations WHERE id = $1`, a.ID).Scan(&valid)
+		if valid {
+			t.Fatal("a manual run must leave last_run_at for the scheduled triage window")
+		}
+	})
+
 	t.Run("triage archives noise when allowed; scheduled claim is once per period", func(t *testing.T) {
 		a := create(KindDailyTriage, `{"mark_noise":true}`)
 		slot, _ := ScheduleOf(a).Due(time.Now())

@@ -30,7 +30,7 @@ export interface TrackedProfile {
 }
 
 export function pullEngagers(body: { post_url: string; kinds: EngagerKind[]; enrich: boolean }) {
-  return request<{ data: EngagerRow[]; total: number }>("/linkedin/engagers", {
+  return request<{ data: EngagerRow[]; total: number; truncated?: boolean }>("/linkedin/engagers", {
     method: "POST",
     body: JSON.stringify(body),
   });

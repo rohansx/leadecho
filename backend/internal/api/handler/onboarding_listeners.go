@@ -75,7 +75,7 @@ func (h *OnboardingHandler) BuildListeners(w http.ResponseWriter, r *http.Reques
 		Goals     []string `json:"goals"`
 		Platforms []string `json:"platforms"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
@@ -201,13 +201,26 @@ func (h *OnboardingHandler) completeListeners(ctx context.Context, wsID string, 
 	}
 	created := 0
 	var profileIDs []string
+	// A retry after a partial failure reuses listeners created by the earlier
+	// attempt (matched by name) instead of duplicating them.
+	// ponytail: name match, not a transaction; wrap in a tx if the handler gets a pool.
+	existing := map[string]database.MonitoringProfile{}
+	if list, err := h.q.ListMonitoringProfiles(ctx, wsID); err == nil {
+		for _, p := range list {
+			existing[p.Name] = p
+		}
+	}
 	for i, raw := range body.Listeners {
 		l, _ := raw.validate() // validated up front in Complete
-		profile, err := h.q.CreateMonitoringProfile(ctx, database.CreateMonitoringProfileParams{
-			WorkspaceID: wsID, Name: l.Name, Description: l.LooksFor, IsActive: true,
-		})
-		if err != nil {
-			return created, profileIDs, fmt.Errorf("create profile: %w", err)
+		profile, ok := existing[l.Name]
+		if !ok {
+			var err error
+			profile, err = h.q.CreateMonitoringProfile(ctx, database.CreateMonitoringProfileParams{
+				WorkspaceID: wsID, Name: l.Name, Description: l.LooksFor, IsActive: true,
+			})
+			if err != nil {
+				return created, profileIDs, fmt.Errorf("create profile: %w", err)
+			}
 		}
 		profileIDs = append(profileIDs, profile.ID)
 		if err := h.q.SetMonitoringProfileIntent(ctx, database.SetMonitoringProfileIntentParams{

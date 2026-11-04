@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -91,6 +92,10 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/leads", publicAPI.Leads)
 	})
 	// end mcp
+
+	// Per-workspace caps on endpoints that spend the operator's LLM / treg budget.
+	llmQuota := middleware.NewQuota(30, time.Minute)
+	engagerQuota := middleware.NewQuota(20, 24*time.Hour) // each pull is up to 2 paid treg calls + enrichment
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -237,7 +242,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				engScorer = rs
 			}
 			engH := handler.NewEngagersHandler(engagers.NewImporter(queries, mon.Treg(), engScorer, logger), queries, crm)
-			r.Post("/linkedin/engagers", engH.Pull)
+			r.With(middleware.WorkspaceQuota(engagerQuota)).Post("/linkedin/engagers", engH.Pull)
 			r.Post("/linkedin/engagers/push", engH.Push)
 			trackedH := handler.NewTrackedProfilesHandler(queries)
 			r.Get("/tracked-profiles", trackedH.List)
@@ -279,7 +284,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			}
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
-			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
 			r.Post("/settings/onboarding/complete", onboarding.Complete)
 
 			// onboarding v2: brand profile, streamed analysis, listener builder, first value
@@ -287,8 +292,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			onboarding.SetCompetitorFinder(onboardingflow.NewCompetitorFinder(cfg.ExaAPIKey))
 			r.Get("/brand-profile", onboarding.GetBrandProfile)
 			r.Put("/brand-profile", onboarding.PutBrandProfile)
-			r.Post("/onboarding/analyze", onboarding.AnalyzeStream)
-			r.Post("/onboarding/listeners/build", onboarding.BuildListeners)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/onboarding/analyze", onboarding.AnalyzeStream)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/onboarding/listeners/build", onboarding.BuildListeners)
 			r.Post("/onboarding/listeners/feedback", onboarding.SampleFeedback)
 			r.Post("/onboarding/complete", onboarding.Complete)
 			r.Get("/onboarding/first-value", onboarding.FirstValue)
@@ -320,7 +325,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// chat: "Ask LeadEcho" in-app assistant (P2 #15)
 			chatH := handler.NewChatHandler(queries, agentTools, llmRouter, logger)
-			r.Post("/chat", chatH.Send)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/chat", chatH.Send)
 			r.Get("/chat/threads", chatH.Threads)
 			r.Get("/chat/threads/{id}/messages", chatH.Messages)
 			r.Delete("/chat/threads/{id}", chatH.DeleteThread)
@@ -334,7 +339,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/automations/{id}", autoH.Get)
 			r.Put("/automations/{id}", autoH.Update)
 			r.Delete("/automations/{id}", autoH.Delete)
-			r.Post("/automations/{id}/run", autoH.Run)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/automations/{id}/run", autoH.Run)
 			r.Get("/automations/{id}/runs", autoH.Runs)
 			r.Get("/skills", handler.ListSkills)
 			// end automations

@@ -249,18 +249,43 @@ func TestDigestServiceDB(t *testing.T) {
 		}
 	})
 
-	t.Run("failed run is retried", func(t *testing.T) {
+	claim := func(p Period) (string, error) {
+		return q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "weekly", PeriodStart: p.Start, PeriodEnd: p.End})
+	}
+	age := func(id string, d time.Duration) {
+		if _, err := pool.Exec(ctx, `UPDATE digest_runs SET updated_at = now() - $2::interval WHERE id = $1`, id, fmt.Sprintf("%d seconds", int(d.Seconds()))); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("failed run is retried after backoff", func(t *testing.T) {
 		p := Period{Start: now.Add(-48 * time.Hour), End: now.Add(-24 * time.Hour)}
-		id, err := q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "weekly", PeriodStart: p.Start, PeriodEnd: p.End})
+		id, err := claim(p)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_ = q.FinishDigestRun(ctx, database.FinishDigestRunParams{ID: id, WorkspaceID: wsID, Status: "failed", Error: "x"})
-		if _, err := q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "weekly", PeriodStart: p.Start, PeriodEnd: p.End}); err != nil {
-			t.Fatalf("failed run should be reclaimable: %v", err)
+		if _, err := claim(p); err == nil {
+			t.Fatal("failed run must wait for backoff before retry")
 		}
-		if _, err := q.ClaimDigestRun(ctx, database.ClaimDigestRunParams{WorkspaceID: wsID, Kind: "weekly", PeriodStart: p.Start, PeriodEnd: p.End}); err == nil {
-			t.Fatal("pending run must not be reclaimable")
+		age(id, 11*time.Minute)
+		if _, err := claim(p); err != nil {
+			t.Fatalf("failed run should be reclaimable after backoff: %v", err)
+		}
+		if _, err := claim(p); err == nil {
+			t.Fatal("fresh pending run must not be reclaimable")
+		}
+	})
+
+	t.Run("stale pending run (crashed sender) is reclaimed", func(t *testing.T) {
+		p := Period{Start: now.Add(-72 * time.Hour), End: now.Add(-48 * time.Hour)}
+		id, err := claim(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		age(id, 20*time.Minute)
+		if _, err := claim(p); err != nil {
+			t.Fatalf("stale pending run should be reclaimable: %v", err)
 		}
 	})
 }
