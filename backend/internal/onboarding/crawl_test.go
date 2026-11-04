@@ -42,6 +42,23 @@ func TestExtractPage(t *testing.T) {
 	}
 }
 
+// Keyless onboarding used the first sentence of the page text as the product
+// description, which on real sites (cloakpipe.co) was header chrome: "Skip to
+// content Docs Blog ... Sign up Get started → The gate between...".
+func TestExtractPageLeadsWithMetaDescription(t *testing.T) {
+	page := `<html><head><title>CloakPipe</title>
+<meta name="description" content="Policy enforcement for AI agents. Self-hosted."></head>
+<body><header><a href="#main">Skip to content</a> Docs Blog Sign in</header><h1>The gate</h1></body></html>`
+	_, text, _ := extractPage(page, mustURL(t, "https://cloakpipe.test/"))
+	if !strings.HasPrefix(text, "Policy enforcement for AI agents.") {
+		t.Fatalf("text %q", text)
+	}
+	pa := HeuristicAnalysis([]Page{{URL: "https://cloakpipe.test/", Title: "CloakPipe", Text: text}})
+	if pa.Description != "Policy enforcement for AI agents." {
+		t.Fatalf("description %q", pa.Description)
+	}
+}
+
 func TestPickLinks(t *testing.T) {
 	base := mustURL(t, "https://acme.test/")
 	links := []string{

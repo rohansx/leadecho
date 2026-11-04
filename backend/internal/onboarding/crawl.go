@@ -194,6 +194,7 @@ func extractPage(body string, base *url.URL) (title, text string, links []string
 		return "", "", nil
 	}
 	var sb strings.Builder
+	desc := "" // meta/og description: the site's own one-line pitch, ahead of header chrome
 	var walk func(n *html.Node, inSkip bool)
 	walk = func(n *html.Node, inSkip bool) {
 		if n.Type == html.ElementNode {
@@ -201,6 +202,10 @@ func extractPage(body string, base *url.URL) (title, text string, links []string
 			case "title":
 				if n.FirstChild != nil && title == "" {
 					title = strings.TrimSpace(n.FirstChild.Data)
+				}
+			case "meta":
+				if desc == "" {
+					desc = metaDescription(n.Attr)
 				}
 			case "a":
 				for _, a := range n.Attr {
@@ -224,5 +229,26 @@ func extractPage(body string, base *url.URL) (title, text string, links []string
 		}
 	}
 	walk(doc, false)
-	return title, strings.TrimSpace(sb.String()), links
+	text = strings.TrimSpace(sb.String())
+	if desc != "" {
+		text = desc + " " + text
+	}
+	return title, text, links
+}
+
+// metaDescription returns content of <meta name="description"> or og:description.
+func metaDescription(attrs []html.Attribute) string {
+	var key, content string
+	for _, a := range attrs {
+		switch a.Key {
+		case "name", "property":
+			key = strings.ToLower(a.Val)
+		case "content":
+			content = strings.TrimSpace(a.Val)
+		}
+	}
+	if key == "description" || key == "og:description" {
+		return content
+	}
+	return ""
 }
