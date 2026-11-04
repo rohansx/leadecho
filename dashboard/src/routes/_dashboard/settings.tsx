@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { IntegrationsCard } from "@/components/settings/integrations-card";
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -92,7 +93,7 @@ function LLMRouterCard() {
       await verifyLLMProvider(provider);
       return provider;
     },
-    onSuccess: (_, provider) => {
+    onSuccess: (provider) => {
       setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
       setMessage(`${provider} key saved and verified`);
       queryClient.invalidateQueries({ queryKey: ["llm-config"] });
@@ -637,6 +638,8 @@ function SettingsPage() {
       </ErrorBoundary>
 
       <ChromeExtensionCard />
+
+      <IntegrationsCard />
 
       <Card>
         <CardHeader>

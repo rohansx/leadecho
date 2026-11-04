@@ -16,6 +16,7 @@ import (
 	"leadecho/internal/api/handler"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
@@ -70,14 +71,15 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	encKey := crypto.DeriveKey(cfg.EncryptionKeyOrDefault())
 
 	llmRouter := llm.NewRouter(queries, encKey, llm.SystemKeys{
-		NVIDIAAPIKey:   cfg.NVIDIAAPIKey,
-		NVIDIAModel:    cfg.NVIDIAModel,
-		DeepSeekAPIKey: cfg.DeepSeekAPIKey,
-		GLMAPIKey:      cfg.GLMAPIKey,
-		OpenAIAPIKey:   cfg.OpenAIAPIKey,
-		OllamaAPIKey:   cfg.OllamaAPIKey,
-		OllamaModel:    cfg.OllamaModel,
-		VoyageAPIKey:   cfg.VoyageAPIKey,
+		NVIDIAAPIKey:    cfg.NVIDIAAPIKey,
+		NVIDIAModel:     cfg.NVIDIAModel,
+		DeepSeekAPIKey:  cfg.DeepSeekAPIKey,
+		GLMAPIKey:       cfg.GLMAPIKey,
+		OpenAIAPIKey:    cfg.OpenAIAPIKey,
+		OllamaAPIKey:    cfg.OllamaAPIKey,
+		AnthropicAPIKey: cfg.AnthropicAPIKey,
+		OllamaModel:     cfg.OllamaModel,
+		VoyageAPIKey:    cfg.VoyageAPIKey,
 	}, logger)
 
 	streamClient := streamredis.NewClient(redis, logger)
@@ -119,6 +121,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		researcherSvc,
 	)
 	mon.SetGoogleNewsEnabled(cfg.GoogleNewsEnabled)
+	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
 	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)

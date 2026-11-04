@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 )
 
@@ -15,10 +16,12 @@ import (
 type Service struct {
 	q      *database.Queries
 	logger zerolog.Logger
+	crm    *crmsync.Dispatcher
 }
 
-func NewService(q *database.Queries, logger zerolog.Logger) *Service {
+func NewService(q *database.Queries, logger zerolog.Logger, crm *crmsync.Dispatcher) *Service {
 	return &Service{
+		crm:    crm,
 		q:      q,
 		logger: logger.With().Str("component", "attribution").Logger(),
 	}
@@ -78,11 +81,11 @@ func (s *Service) RecordConversion(ctx context.Context, workspaceID string, req 
 		Metadata:     meta,
 	})
 
-	s.advanceLeadFromUTM(ctx, workspaceID, link, req.EventType)
+	s.advanceLeadFromUTM(ctx, workspaceID, link, req.EventType, req.RevenueCents)
 	return updated, nil
 }
 
-func (s *Service) advanceLeadFromUTM(ctx context.Context, workspaceID string, link database.UtmLink, eventType string) {
+func (s *Service) advanceLeadFromUTM(ctx context.Context, workspaceID string, link database.UtmLink, eventType string, revenueCents int32) {
 	if !link.UtmContent.Valid {
 		return
 	}
@@ -117,6 +120,12 @@ func (s *Service) advanceLeadFromUTM(ctx context.Context, workspaceID string, li
 	})
 	if err != nil {
 		return
+	}
+	if eventType != "click" {
+		defer s.crm.Emit(workspaceID, crmsync.Event{
+			Type: crmsync.EventConversion, LeadID: lead.ID, PrevStage: string(lead.Stage),
+			ConvType: eventType, RevenueCents: revenueCents,
+		})
 	}
 	if lead.Stage == database.LeadStageConverted || lead.Stage == database.LeadStageLost {
 		return

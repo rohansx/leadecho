@@ -505,7 +505,39 @@ export function testWebhook(channel: string, webhookUrl: string) {
   });
 }
 
-// ─── Auth (Email/Password) ────────────────────────────
+// ─── Outbound integrations (signed webhook, HubSpot, Attio) ───
+
+export interface IntegrationsStatus {
+  webhook_url: string;
+  webhook_secret_set: boolean;
+  hubspot_connected: boolean;
+  attio_connected: boolean;
+}
+
+/** Omitted field = unchanged; empty string = remove. */
+export interface IntegrationsUpdate {
+  webhook_url?: string;
+  webhook_secret?: string;
+  hubspot_token?: string;
+  attio_token?: string;
+}
+
+export function getIntegrations() {
+  return request<IntegrationsStatus>("/settings/integrations");
+}
+
+export function saveIntegrations(update: IntegrationsUpdate) {
+  return request<IntegrationsStatus>("/settings/integrations", {
+    method: "PUT",
+    body: JSON.stringify(update),
+  });
+}
+
+export function testIntegrationWebhook() {
+  return request<{ ok: boolean }>("/settings/integrations/test-webhook", { method: "POST" });
+}
+
+// ─── Auth (built-in: email/password + Google/GitHub OAuth) ───
 
 export interface AuthResponse {
   user_id: string;
@@ -515,19 +547,58 @@ export interface AuthResponse {
   role: string;
 }
 
-export function registerWithEmail(email: string, password: string, name: string) {
-  return request<AuthResponse>("/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ email, password, name }),
-  });
+/** Register returns the user, or `verification_required` when email must be confirmed first. */
+export type RegisterResponse = AuthResponse | { verification_required: true; email: string };
+
+/** Which sign-in methods this server offers. */
+export interface AuthProviders {
+  google: boolean;
+  github: boolean;
+  password: boolean;
+  email_verification: boolean;
 }
 
-export function loginWithEmail(email: string, password: string) {
-  return request<AuthResponse>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+/** Auth error that keeps the API's machine-readable `code` (e.g. "email_unverified"). */
+export class AuthError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
 }
+
+async function authRequest<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data: { error?: string; code?: string } = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new AuthError(data.error ?? `Request failed (${res.status})`, res.status, data.code);
+  }
+  return data as T;
+}
+
+export const getAuthProviders = () => authRequest<AuthProviders>("/auth/providers");
+
+export const registerWithEmail = (email: string, password: string, name: string) =>
+  authRequest<RegisterResponse>("/auth/register", { email, password, name });
+
+export const loginWithEmail = (email: string, password: string) =>
+  authRequest<AuthResponse>("/auth/login", { email, password });
+
+export const resendVerification = (email: string) =>
+  authRequest<{ status: string }>("/auth/resend-verification", { email });
+
+export const forgotPassword = (email: string) =>
+  authRequest<{ status: string }>("/auth/forgot-password", { email });
+
+export const resetPassword = (token: string, password: string) =>
+  authRequest<{ status: string }>("/auth/reset-password", { token, password });
 
 // ─── AI (Intent Classification + Reply Drafting) ──────
 
