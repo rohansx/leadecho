@@ -22,6 +22,7 @@ import (
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
+	onboardingflow "leadecho/internal/onboarding" // onboarding v2
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
 )
@@ -205,6 +206,17 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
 			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
 			r.Post("/settings/onboarding/complete", onboarding.Complete)
+
+			// onboarding v2: brand profile, streamed analysis, listener builder, first value
+			onboarding.SetKnowledge(kb)
+			onboarding.SetCompetitorFinder(onboardingflow.NewCompetitorFinder(cfg.ExaAPIKey))
+			r.Get("/brand-profile", onboarding.GetBrandProfile)
+			r.Put("/brand-profile", onboarding.PutBrandProfile)
+			r.Post("/onboarding/analyze", onboarding.AnalyzeStream)
+			r.Post("/onboarding/listeners/build", onboarding.BuildListeners)
+			r.Post("/onboarding/listeners/feedback", onboarding.SampleFeedback)
+			r.Post("/onboarding/complete", onboarding.Complete)
+			r.Get("/onboarding/first-value", onboarding.FirstValue)
 
 			// UTM tracking links
 			utm := handler.NewUTMHandler(queries, attrib)

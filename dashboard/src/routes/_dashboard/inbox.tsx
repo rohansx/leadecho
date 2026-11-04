@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { useEffect } from "react";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail } from "@/components/inbox/lead-detail";
+import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
 import {
   listMentions,
   listProposals,
@@ -26,6 +27,7 @@ interface InboxSearch {
   platform?: string;
   status?: string;
   id?: string;
+  loosened?: string; // onboarding: set when first value fell back below high fit
 }
 
 function pickDefaultQueue(counts: InboxQueueCountsResponse | undefined): string {
@@ -43,6 +45,7 @@ export const Route = createFileRoute("/_dashboard/inbox")({
     platform: typeof search.platform === "string" ? search.platform : undefined,
     status: typeof search.status === "string" ? search.status : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
+    loosened: typeof search.loosened === "string" ? search.loosened : undefined, // onboarding
   }),
   component: InboxPage,
 });
@@ -252,6 +255,7 @@ function InboxPage() {
 
   return (
     <div className="flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
+      {search.loosened && <LoosenedBanner /> /* onboarding */}
       <LeadList
         mentions={mentions}
         listTotal={listTotal}

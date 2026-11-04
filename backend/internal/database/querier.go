@@ -17,6 +17,8 @@ type Querier interface {
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountConvertedLeads(ctx context.Context, workspaceID string) (int32, error)
 	CountDocuments(ctx context.Context, workspaceID string) (int32, error)
+	// ─── KB seed ──────────────────────────────────────────
+	CountDocumentsBySourceURL(ctx context.Context, arg CountDocumentsBySourceURLParams) (int32, error)
 	CountHumanProposalsByStatus(ctx context.Context, workspaceID string) ([]CountHumanProposalsByStatusRow, error)
 	CountKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountLeadsByStage(ctx context.Context, workspaceID string) ([]CountLeadsByStageRow, error)
@@ -69,6 +71,8 @@ type Querier interface {
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	// ─── Brand profile (onboarding) ───────────────────────
+	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
 	GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error)
 	GetEventLogByEventID(ctx context.Context, eventID string) (EventLog, error)
 	GetExtensionTokenByToken(ctx context.Context, token string) (ExtensionToken, error)
@@ -98,6 +102,7 @@ type Querier interface {
 	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
 	InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error)
 	LinkLeadToPerson(ctx context.Context, arg LinkLeadToPersonParams) error
+	LinkSampleFeedbackToProfile(ctx context.Context, arg LinkSampleFeedbackToProfileParams) error
 	ListActiveKeywords(ctx context.Context, workspaceID string) ([]ListActiveKeywordsRow, error)
 	ListActiveMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
 	ListActiveWorkflowsByWorkspace(ctx context.Context, workspaceID string) ([]Workflow, error)
@@ -137,6 +142,7 @@ type Querier interface {
 	ListReplayableEvents(ctx context.Context, arg ListReplayableEventsParams) ([]EventLog, error)
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
 	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
+	ListSampleFeedbackForProfile(ctx context.Context, arg ListSampleFeedbackForProfileParams) ([]OnboardingSampleFeedback, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
 	// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
 	// re-sending them to the LLM every tick wastes tokens. Classification errors
@@ -157,6 +163,8 @@ type Querier interface {
 	ResolveDeadLetterEvent(ctx context.Context, arg ResolveDeadLetterEventParams) (DeadLetterEvent, error)
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
+	// ─── Listener builder ─────────────────────────────────
+	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchExtensionToken(ctx context.Context, token string) error
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
@@ -182,9 +190,11 @@ type Querier interface {
 	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
+	UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error)
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
+	UpsertSampleFeedback(ctx context.Context, arg UpsertSampleFeedbackParams) (OnboardingSampleFeedback, error)
 }
 
 var _ Querier = (*Queries)(nil)

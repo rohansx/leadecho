@@ -33,6 +33,7 @@ var exaSearchURL = "https://api.exa.ai/search"
 type exaSearchRequest struct {
 	Query              string          `json:"query"`
 	Type               string          `json:"type"`
+	Category           string          `json:"category,omitempty"`
 	NumResults         int             `json:"numResults"`
 	StartPublishedDate string          `json:"startPublishedDate,omitempty"`
 	Contents           exaContentsOpts `json:"contents"`
@@ -135,17 +136,29 @@ func (m *Monitor) fetchExa(ctx context.Context, term string) ([]exaResult, error
 		StartPublishedDate: time.Now().AddDate(0, 0, -exaLookbackDays).Format(time.RFC3339),
 		Contents:           exaContentsOpts{Text: true, Highlights: true},
 	}
+	results, err := exaSearch(ctx, exaSearchURL, m.exaAPIKey, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	result := exaSearchResponse{Results: results}
+	if len(result.Results) == 0 {
+		m.logger.Info().Str("keyword", term).Msg("exa: no results found")
+	}
+	return result.Results, nil
+}
+
+func exaSearch(ctx context.Context, endpoint, apiKey string, reqBody exaSearchRequest) ([]exaResult, error) {
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", exaSearchURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", m.exaAPIKey)
+	req.Header.Set("x-api-key", apiKey)
 
 	resp, err := exaHTTPClient.Do(req)
 	if err != nil {
@@ -161,10 +174,35 @@ func (m *Monitor) fetchExa(ctx context.Context, term string) ([]exaResult, error
 	if err := json.NewDecoder(io.LimitReader(resp.Body, exaMaxRespBytes)).Decode(&result); err != nil {
 		return nil, err
 	}
-	if len(result.Results) == 0 {
-		m.logger.Info().Str("keyword", term).Msg("exa: no results found")
-	}
 	return result.Results, nil
+}
+
+// ExaWebResult is a trimmed Exa hit for callers outside the crawler.
+type ExaWebResult struct {
+	Title string
+	URL   string
+	Text  string
+}
+
+// onboarding: ExaWebSearch runs one Exa search with no date filter (used by the
+// competitor finder). category is an Exa category such as "company"; endpoint
+// "" means the production API.
+func ExaWebSearch(ctx context.Context, endpoint, apiKey, query, category string, n int) ([]ExaWebResult, error) {
+	if endpoint == "" {
+		endpoint = exaSearchURL
+	}
+	results, err := exaSearch(ctx, endpoint, apiKey, exaSearchRequest{
+		Query: query, Type: "auto", Category: category, NumResults: n,
+		Contents: exaContentsOpts{Highlights: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ExaWebResult, 0, len(results))
+	for _, r := range results {
+		out = append(out, ExaWebResult{Title: r.Title, URL: exaResultLink(r), Text: strings.Join(r.Highlights, " ")})
+	}
+	return out, nil
 }
 
 // exaResultLink returns the canonical URL for a result (Exa's id is the
