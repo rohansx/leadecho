@@ -42,7 +42,7 @@ import type { Page } from "@playwright/test";
  * never mutated.
  */
 
-const KB_URL = "/app/knowledge-base";
+const KB_URL = "/knowledge-base";
 
 interface DocumentDTO {
   id: string;

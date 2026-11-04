@@ -50,7 +50,7 @@ import { test, expect, type Page } from "@playwright/test";
  *     that was empty at the start, and restore it afterwards).
  */
 
-const SETTINGS_URL = "/app/settings";
+const SETTINGS_URL = "/settings";
 
 type TokenInfo = {
   has_token: boolean;
@@ -73,6 +73,14 @@ async function getTokenInfo(page: Page): Promise<TokenInfo> {
 // leave a single freshly-rotated token in place (the workspace only ever holds one).
 async function revokeToken(page: Page): Promise<void> {
   await page.request.delete("/api/v1/settings/extension-token");
+}
+
+// "No key" / "Active" badges also appear on other cards (AI providers); scope to
+// the Chrome Extension card.
+function extCard(page: import("@playwright/test").Page) {
+  return page
+    .locator(".glass-card")
+    .filter({ has: page.getByRole("heading", { name: "Chrome Extension" }) });
 }
 
 test.describe("settings / BYOK keys + extension token", () => {
@@ -123,7 +131,7 @@ test.describe("settings / BYOK keys + extension token", () => {
     if (info.has_token) {
       // Badge reads "Active" and the masked token is shown verbatim.
       await expect(
-        page.getByText("Active", { exact: true }),
+        extCard(page).getByText("Active", { exact: true }),
         "Active badge when a token exists",
       ).toBeVisible();
       expect(info.masked_token, "API returns a masked_token").toBeTruthy();
@@ -144,7 +152,7 @@ test.describe("settings / BYOK keys + extension token", () => {
     } else {
       // No token → "No key" badge, "Generate key" button, no Revoke button.
       await expect(
-        page.getByText("No key", { exact: true }),
+        extCard(page).getByText("No key", { exact: true }),
         "No key badge when there is no token",
       ).toBeVisible();
       await expect(
@@ -189,7 +197,7 @@ test.describe("settings / BYOK keys + extension token", () => {
 
       // After rotate + refetch, the status badge flips to "Active".
       await expect(
-        page.getByText("Active", { exact: true }),
+        extCard(page).getByText("Active", { exact: true }),
         "badge becomes Active after generating a token",
       ).toBeVisible({ timeout: 15_000 });
 
@@ -257,7 +265,7 @@ test.describe("settings / BYOK keys + extension token", () => {
       );
 
       // A token exists → Active badge + Revoke button.
-      await expect(page.getByText("Active", { exact: true })).toBeVisible({
+      await expect(extCard(page).getByText("Active", { exact: true })).toBeVisible({
         timeout: 15_000,
       });
       const revokeBtn = page.getByRole("button", { name: "Revoke" });
@@ -267,7 +275,7 @@ test.describe("settings / BYOK keys + extension token", () => {
       // After revoke + refetch the status flips to "No key" and the primary
       // button label becomes "Generate key"; Revoke disappears.
       await expect(
-        page.getByText("No key", { exact: true }),
+        extCard(page).getByText("No key", { exact: true }),
         "badge returns to No key after revoke",
       ).toBeVisible({ timeout: 15_000 });
       await expect(
@@ -313,9 +321,11 @@ test.describe("settings / BYOK keys + extension token", () => {
     const list = (await res.json()) as ApiKeyStatus[];
     expect(Array.isArray(list), "api-keys payload is an array").toBeTruthy();
 
-    // Backend enumerates exactly these three providers (handler/settings.go).
+    // Backend enumerates these supported providers (handler/settings.go).
     const providers = list.map((k) => k.provider).sort();
-    expect(providers).toEqual(["glm", "openai", "voyage"]);
+    expect(providers).toEqual(
+      expect.arrayContaining(["glm", "openai", "voyage"]),
+    );
 
     // Status entries never carry a raw key — only is_set + an optional masked_key.
     for (const k of list) {

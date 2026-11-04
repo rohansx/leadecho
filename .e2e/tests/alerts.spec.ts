@@ -43,7 +43,7 @@ import { test, expect, type Page } from "@playwright/test";
  * we can positively assert *our* write persisted.
  */
 
-const ALERTS_URL = "/app/alerts";
+const ALERTS_URL = "/alerts";
 
 interface WebhookConfig {
   slack_url?: string;

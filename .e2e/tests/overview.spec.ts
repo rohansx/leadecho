@@ -15,7 +15,7 @@ import { test, expect } from "@playwright/test";
  * are expected to be populated (non-zero) for the keyword-driven values.
  */
 
-const OVERVIEW_URL = "/app/analytics";
+const OVERVIEW_URL = "/analytics";
 
 // The six KPI stat-card labels exactly as rendered in analytics.tsx.
 const STAT_LABELS = [
