@@ -947,6 +947,16 @@ type Thread struct {
 	CreatedAt           time.Time   `json:"created_at"`
 }
 
+type TrackedProfile struct {
+	ID           string             `json:"id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	Platform     string             `json:"platform"`
+	Handle       string             `json:"handle"`
+	Url          string             `json:"url"`
+	LastPolledAt pgtype.Timestamptz `json:"last_polled_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
 type TregCall struct {
 	ID          string    `json:"id"`
 	WorkspaceID string    `json:"workspace_id"`

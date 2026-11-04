@@ -19,6 +19,7 @@ import (
 	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/enrich" // enrich feature
 	"leadecho/internal/events/publishers"
 	streamredis "leadecho/internal/events/redis"
 	"leadecho/internal/knowledge"
@@ -124,10 +125,16 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	)
 	mon.SetGoogleNewsEnabled(cfg.GoogleNewsEnabled)
 	// treg feature: hosted X/LinkedIn sources + Reddit comment search.
-	mon.SetTreg(treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger))
+	tregClient := treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger)
+	mon.SetTreg(tregClient)
 	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
 	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources
-	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
+	crm := crmsync.NewDispatcher(queries, encKey, logger)
+	mon.SetCRMSync(crm)
+	// enrich: treg enrichment of qualified leads + tracked profile polling.
+	researcherSvc.SetEnricher(enrich.New(tregClient, queries, cfg.EnrichDailyCap, cfg.TregCustomerDailyCapMicro, logger))
+	researcherSvc.SetCRM(crm)
+	mon.SetTrackedProfilesInterval(time.Duration(cfg.TrackedProfilesPollHours) * time.Hour)
 	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)

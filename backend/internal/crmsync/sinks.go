@@ -112,6 +112,7 @@ func (d *Dispatcher) syncHubSpot(ctx context.Context, wsID, token string, ev Eve
 		if p.ProfileURL != "" {
 			props["website"] = p.ProfileURL
 		}
+		hubspotEnriched(props, p, false) // enrich
 		var out struct {
 			ID string `json:"id"`
 		}
@@ -132,6 +133,9 @@ func (d *Dispatcher) syncHubSpot(ctx context.Context, wsID, token string, ev Eve
 		return d.saveLeadMeta(ctx, wsID, lead.ID, hubspotIDKey, out.ID)
 	}
 
+	if ev.Type == EventLeadEnriched { // enrich: fill the existing contact
+		hubspotEnriched(props, p, true)
+	}
 	if len(props) == 0 {
 		return nil // e.g. moved to "lost": nothing to map
 	}
@@ -152,6 +156,9 @@ func (d *Dispatcher) syncAttio(ctx context.Context, wsID, token string, ev Event
 		if p.ContactEmail != "" {
 			values["email_addresses"] = []string{p.ContactEmail}
 		}
+		if p.JobTitle != "" { // enrich
+			values["job_title"] = p.JobTitle
+		}
 		var out struct {
 			Data struct {
 				ID struct {
@@ -168,6 +175,10 @@ func (d *Dispatcher) syncAttio(ctx context.Context, wsID, token string, ev Event
 		}
 		if err := d.saveLeadMeta(ctx, wsID, lead.ID, attioIDKey, id); err != nil {
 			return fmt.Errorf("save attio id: %w", err)
+		}
+	} else if v := attioEnriched(p); ev.Type == EventLeadEnriched && len(v) > 0 { // enrich
+		if err := d.vendorJSON(ctx, http.MethodPatch, d.attio+"/v2/objects/people/records/"+url.PathEscape(id), token, map[string]any{"data": map[string]any{"values": v}}, nil); err != nil {
+			return fmt.Errorf("update person: %w", err)
 		}
 	}
 
@@ -200,6 +211,7 @@ func noteContent(ev Event, p LeadPayload) string {
 	if p.ProfileURL != "" {
 		fmt.Fprintf(&b, "\nProfile: %s", p.ProfileURL)
 	}
+	enrichmentNote(&b, p) // enrich
 	return b.String()
 }
 
