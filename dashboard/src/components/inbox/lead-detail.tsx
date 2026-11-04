@@ -18,6 +18,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { MuteAuthorButton } from "@/components/sources/mute-author-button"; // sources
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -602,6 +603,7 @@ export function LeadDetail({
           >
             <ArchiveIcon className="h-3.5 w-3.5" />
           </button>
+          <MuteAuthorButton key={mention.id} mention={mention} />
         </div>
       </div>
 

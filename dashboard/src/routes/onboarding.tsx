@@ -21,6 +21,7 @@ const PLATFORMS = [
   { value: "devto", label: "Dev.to" },
   { value: "googlenews", label: "Google News" },
   { value: "lobsters", label: "Lobsters" },
+  { value: "bluesky", label: "Bluesky" }, // sources
   { value: "reddit", label: "Reddit", note: "may be rate limited without a browser sidecar" },
   { value: "twitter", label: "Twitter / X", note: "needs browser sidecar" },
   { value: "linkedin", label: "LinkedIn", note: "needs browser sidecar" },

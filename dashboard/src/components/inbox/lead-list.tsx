@@ -3,6 +3,7 @@ import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
 import { ACTION_KINDS, INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
+import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 
 const intentColors: Record<string, string> = {
   buy_signal: "text-primary-ink",
@@ -210,6 +211,17 @@ export function LeadList({
               <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
+          {/* sources: CSV export of the current view */}
+          {queueFilter !== INBOX_QUEUES.PROPOSALS && (
+            <ExportCsvButton
+              kind="mentions"
+              params={
+                queueFilter === INBOX_QUEUES.ALL
+                  ? { queue: queueFilter, platform: platformFilter, status: statusFilter, search }
+                  : { queue: queueFilter, action_kind: queueFilter === INBOX_QUEUES.ACTION_REQUIRED ? actionKind : undefined }
+              }
+            />
+          )}
           <button
             type="button"
             onClick={onRefresh}

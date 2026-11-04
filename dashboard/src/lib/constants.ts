@@ -12,6 +12,7 @@ export const PLATFORMS = [
   "linkedin",
   "quora",
   "exa",
+  "bluesky", // sources
 ] as const;
 export type Platform = (typeof PLATFORMS)[number];
 

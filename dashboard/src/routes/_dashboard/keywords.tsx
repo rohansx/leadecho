@@ -13,13 +13,16 @@ import {
   deleteKeyword,
 } from "@/lib/api";
 import type { Keyword } from "@/lib/types";
+// sources: cadence + cost preview, mute list
+import { KeywordCadence, MonthlyCostSummary } from "@/components/sources/keyword-cadence";
+import { MuteListCard } from "@/components/sources/mute-list-card";
 import { Plus, Trash2, Power, PowerOff, Search, X } from "lucide-react";
 
 export const Route = createFileRoute("/_dashboard/keywords")({
   component: KeywordsPage,
 });
 
-const platformOptions = ["reddit", "hackernews", "devto", "googlenews", "lobsters", "indiehackers", "twitter", "linkedin", "quora", "exa"] as const;
+const platformOptions = ["reddit", "hackernews", "devto", "googlenews", "lobsters", "indiehackers", "twitter", "linkedin", "quora", "exa", "bluesky"] as const;
 const matchTypes = ["broad", "exact", "phrase"] as const;
 
 function KeywordsPage() {
@@ -211,6 +214,8 @@ function KeywordsPage() {
               <CardTitle>Active Keywords</CardTitle>
               <CardDescription>
                 {keywords?.length ?? 0} keyword{(keywords?.length ?? 0) !== 1 ? "s" : ""} configured
+                {" · "}
+                <MonthlyCostSummary />
               </CardDescription>
             </div>
           </div>
@@ -297,12 +302,15 @@ function KeywordsPage() {
                       </div>
                     )}
                   </div>
+                  <KeywordCadence keyword={kw} />
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <MuteListCard />
     </div>
   );
 }
