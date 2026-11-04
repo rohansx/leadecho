@@ -15,7 +15,7 @@ import (
 //
 // A refusal is returned as an error so the LLM router's existing fallback
 // targets (other providers) take over.
-func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (string, error) {
+func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (string, Usage, error) {
 	client := anthropic.NewClient(option.WithAPIKey(p.APIKey))
 
 	var system []anthropic.TextBlockParam
@@ -38,10 +38,10 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		Messages:  msgs,
 	})
 	if err != nil {
-		return "", fmt.Errorf("anthropic: %w", err)
+		return "", Usage{}, fmt.Errorf("anthropic: %w", err)
 	}
 	if resp.StopReason == anthropic.StopReasonRefusal {
-		return "", fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
+		return "", Usage{}, fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
 	}
 
 	var out strings.Builder
@@ -51,7 +51,8 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		}
 	}
 	if out.Len() == 0 {
-		return "", fmt.Errorf("anthropic: empty response (stop_reason=%s)", resp.StopReason)
+		return "", Usage{}, fmt.Errorf("anthropic: empty response (stop_reason=%s)", resp.StopReason)
 	}
-	return strings.TrimSpace(out.String()), nil
+	in, outTok := int32(resp.Usage.InputTokens), int32(resp.Usage.OutputTokens)
+	return strings.TrimSpace(out.String()), Usage{PromptTokens: in, CompletionTokens: outTok, TotalTokens: in + outTok}, nil
 }

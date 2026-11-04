@@ -17,6 +17,7 @@ import {
   Bell,
   Settings,
 } from "lucide-react";
+import { Sparkles } from "lucide-react"; // chat (P2 #15)
 
 const navGroups = [
   {
@@ -25,6 +26,7 @@ const navGroups = [
       { to: "/inbox", label: "Inbox", icon: Inbox },
       { to: "/pipeline", label: "Pipeline", icon: GitBranch },
       { to: "/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/chat", label: "Ask LeadEcho", icon: Sparkles }, // chat (P2 #15)
     ],
   },
   {

@@ -36,6 +36,9 @@ type Querier interface {
 	CountRepliesByStatus(ctx context.Context, workspaceID string) ([]CountRepliesByStatusRow, error)
 	CountRepliesPosted30d(ctx context.Context, workspaceID string) (int32, error)
 	CountTotalLeads(ctx context.Context, workspaceID string) (int32, error)
+	CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error)
+	// chat (P2 #15). Every query is scoped by workspace_id and, for threads, user_id.
+	CreateChatThread(ctx context.Context, arg CreateChatThreadParams) (ChatThread, error)
 	CreateConsumerProcessedEvent(ctx context.Context, arg CreateConsumerProcessedEventParams) (ConsumerProcessedEvent, error)
 	CreateDeadLetterEvent(ctx context.Context, arg CreateDeadLetterEventParams) (DeadLetterEvent, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
@@ -66,6 +69,7 @@ type Querier interface {
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	CreateWorkspaceAPIKey(ctx context.Context, arg CreateWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
+	DeleteChatThread(ctx context.Context, arg DeleteChatThreadParams) (int64, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
 	DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
@@ -95,6 +99,8 @@ type Querier interface {
 	GetActiveWorkspaceAPIKeyByHash(ctx context.Context, keyHash string) (WorkspaceApiKey, error)
 	// ─── Brand profile (onboarding) ───────────────────────
 	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
+	GetChatMessageForUser(ctx context.Context, arg GetChatMessageForUserParams) (ChatMessage, error)
+	GetChatThread(ctx context.Context, arg GetChatThreadParams) (ChatThread, error)
 	// Digests (P1 #13)
 	GetDigestSettings(ctx context.Context, workspaceID string) (DigestSetting, error)
 	GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error)
@@ -138,6 +144,8 @@ type Querier interface {
 	ListAllActiveKeywords(ctx context.Context) ([]ListAllActiveKeywordsRow, error)
 	ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfile, error)
 	ListApprovedRepliesByWorkspace(ctx context.Context, workspaceID string) ([]ListApprovedRepliesByWorkspaceRow, error)
+	ListChatMessages(ctx context.Context, arg ListChatMessagesParams) ([]ChatMessage, error)
+	ListChatThreads(ctx context.Context, arg ListChatThreadsParams) ([]ChatThread, error)
 	ListConsumerCheckpoints(ctx context.Context) ([]ConsumerCheckpoint, error)
 	// Every workspace with its digest schedule; workspaces without a row get the defaults.
 	ListDigestSchedules(ctx context.Context) ([]ListDigestSchedulesRow, error)
@@ -211,6 +219,8 @@ type Querier interface {
 	// ─── Listener builder ─────────────────────────────────
 	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
 	SetReplyTrackingLink(ctx context.Context, arg SetReplyTrackingLinkParams) (Reply, error)
+	// Compare-and-swap so a confirm runs a write tool at most once.
+	SwapChatMessageToolCalls(ctx context.Context, arg SwapChatMessageToolCallsParams) (int64, error)
 	// Revenue and funnel per source platform for replies created in the window.
 	ToolsAttributionByPlatform(ctx context.Context, arg ToolsAttributionByPlatformParams) ([]ToolsAttributionByPlatformRow, error)
 	// Queries backing the agent tool layer (internal/tools), shared by the MCP
@@ -219,6 +229,7 @@ type Querier interface {
 	// Headline numbers for the last @days days.
 	ToolsWorkspaceSummary(ctx context.Context, arg ToolsWorkspaceSummaryParams) (ToolsWorkspaceSummaryRow, error)
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
+	TouchChatThread(ctx context.Context, arg TouchChatThreadParams) error
 	TouchExtensionToken(ctx context.Context, token string) error
 	TouchWorkspaceAPIKey(ctx context.Context, arg TouchWorkspaceAPIKeyParams) error
 	TregSpendByTool(ctx context.Context, arg TregSpendByToolParams) ([]TregSpendByToolRow, error)
