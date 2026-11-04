@@ -16,6 +16,7 @@ import {
   Globe,
   Bell,
   Settings,
+  CalendarClock, // automations (P2 #17)
 } from "lucide-react";
 
 const navGroups = [
@@ -34,6 +35,7 @@ const navGroups = [
       { to: "/profiles", label: "Profiles", icon: Target },
       { to: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
       { to: "/workflows", label: "Workflows", icon: Zap },
+      { to: "/automations", label: "Automations", icon: CalendarClock }, // automations (P2 #17)
     ],
   },
   {

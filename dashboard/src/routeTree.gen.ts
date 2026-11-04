@@ -22,6 +22,7 @@ import { Route as DashboardKnowledgeBaseRouteImport } from "./routes/_dashboard/
 import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywords"
 import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
 import { Route as DashboardBrowserSessionsRouteImport } from "./routes/_dashboard/browser-sessions"
+import { Route as DashboardAutomationsRouteImport } from "./routes/_dashboard/automations"
 import { Route as DashboardAnalyticsRouteImport } from "./routes/_dashboard/analytics"
 import { Route as DashboardAlertsRouteImport } from "./routes/_dashboard/alerts"
 import { Route as AuthResetPasswordRouteImport } from "./routes/_auth/reset-password"
@@ -93,6 +94,11 @@ const DashboardBrowserSessionsRoute =
     path: "/browser-sessions",
     getParentRoute: () => DashboardRoute,
   } as any)
+const DashboardAutomationsRoute = DashboardAutomationsRouteImport.update({
+  id: "/automations",
+  path: "/automations",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: "/analytics",
   path: "/analytics",
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   "/reset-password": typeof AuthResetPasswordRoute
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
+  "/automations": typeof DashboardAutomationsRoute
   "/browser-sessions": typeof DashboardBrowserSessionsRoute
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   "/reset-password": typeof AuthResetPasswordRoute
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
+  "/automations": typeof DashboardAutomationsRoute
   "/browser-sessions": typeof DashboardBrowserSessionsRoute
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   "/_auth/reset-password": typeof AuthResetPasswordRoute
   "/_dashboard/alerts": typeof DashboardAlertsRoute
   "/_dashboard/analytics": typeof DashboardAnalyticsRoute
+  "/_dashboard/automations": typeof DashboardAutomationsRoute
   "/_dashboard/browser-sessions": typeof DashboardBrowserSessionsRoute
   "/_dashboard/inbox": typeof DashboardInboxRoute
   "/_dashboard/keywords": typeof DashboardKeywordsRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | "/reset-password"
     | "/alerts"
     | "/analytics"
+    | "/automations"
     | "/browser-sessions"
     | "/inbox"
     | "/keywords"
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | "/reset-password"
     | "/alerts"
     | "/analytics"
+    | "/automations"
     | "/browser-sessions"
     | "/inbox"
     | "/keywords"
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | "/_auth/reset-password"
     | "/_dashboard/alerts"
     | "/_dashboard/analytics"
+    | "/_dashboard/automations"
     | "/_dashboard/browser-sessions"
     | "/_dashboard/inbox"
     | "/_dashboard/keywords"
@@ -347,6 +359,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardBrowserSessionsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/automations": {
+      id: "/_dashboard/automations"
+      path: "/automations"
+      fullPath: "/automations"
+      preLoaderRoute: typeof DashboardAutomationsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/analytics": {
       id: "/_dashboard/analytics"
       path: "/analytics"
@@ -411,6 +430,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 interface DashboardRouteChildren {
   DashboardAlertsRoute: typeof DashboardAlertsRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardAutomationsRoute: typeof DashboardAutomationsRoute
   DashboardBrowserSessionsRoute: typeof DashboardBrowserSessionsRoute
   DashboardInboxRoute: typeof DashboardInboxRoute
   DashboardKeywordsRoute: typeof DashboardKeywordsRoute
@@ -424,6 +444,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAlertsRoute: DashboardAlertsRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardAutomationsRoute: DashboardAutomationsRoute,
   DashboardBrowserSessionsRoute: DashboardBrowserSessionsRoute,
   DashboardInboxRoute: DashboardInboxRoute,
   DashboardKeywordsRoute: DashboardKeywordsRoute,
