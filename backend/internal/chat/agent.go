@@ -43,13 +43,14 @@ type ToolSet interface {
 
 // ToolCall is one tool invocation recorded on an assistant message.
 type ToolCall struct {
-	ID     string          `json:"id"`
-	Tool   string          `json:"tool"`
-	Args   json.RawMessage `json:"args"`
-	Status string          `json:"status"`
-	Error  string          `json:"error,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"` // confirmed write tools only
-	Cards  *Cards          `json:"cards,omitempty"`
+	ID      string          `json:"id"`
+	Tool    string          `json:"tool"`
+	Args    json.RawMessage `json:"args"`
+	Status  string          `json:"status"`
+	Confirm bool            `json:"confirm,omitempty"` // write tool gated on the user's confirm
+	Error   string          `json:"error,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"` // confirmed write tools only
+	Cards   *Cards          `json:"cards,omitempty"`
 }
 
 // Turn is the outcome of one user message.
@@ -109,7 +110,7 @@ func (a *Agent) Run(ctx context.Context, ws string, history []ai.ChatMessage, em
 		}
 		call := ToolCall{ID: fmt.Sprintf("c%d", len(turn.Calls)+1), Tool: st.Tool, Args: st.Args}
 		if NeedsConfirm(byName[st.Tool]) {
-			call.Status = StatusPending
+			call.Status, call.Confirm = StatusPending, true
 			turn.Calls = append(turn.Calls, call)
 			emit("confirm", call)
 			turn.Answer = fmt.Sprintf("I'd like to run **%s**. Please confirm or cancel it below.", st.Tool)

@@ -162,6 +162,9 @@ func TestAgentRun(t *testing.T) {
 			cards := 0
 			for _, c := range turn.Calls {
 				statuses = append(statuses, c.Status)
+				if c.Confirm != (c.Status == StatusPending) {
+					t.Errorf("call %s: confirm=%v with status %s", c.Tool, c.Confirm, c.Status)
+				}
 				if c.Cards != nil {
 					cards += len(c.Cards.Mentions) + len(c.Cards.Leads)
 				}
