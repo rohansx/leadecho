@@ -3,6 +3,7 @@ package consumers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -53,7 +54,11 @@ func (w *ReplyWorkers) handleDraftRequested(ctx context.Context, stream, group s
 		return err
 	}
 
-	result, err := w.drafter.DraftForMention(ctx, payload.WorkspaceID, payload.MentionID)
+	// voice: a profile deleted after enqueue falls back to the workspace default.
+	result, err := w.drafter.DraftWithProfile(ctx, payload.WorkspaceID, payload.MentionID, payload.ResponseProfileID)
+	if errors.Is(err, reply.ErrResponseProfileNotFound) {
+		result, err = w.drafter.DraftForMention(ctx, payload.WorkspaceID, payload.MentionID)
+	}
 	if err != nil {
 		return err
 	}

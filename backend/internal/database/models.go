@@ -826,6 +826,24 @@ type ReplyEngagement struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type ResponseProfile struct {
+	ID                  string    `json:"id"`
+	WorkspaceID         string    `json:"workspace_id"`
+	Name                string    `json:"name"`
+	Goal                string    `json:"goal"`
+	SpecialInstructions string    `json:"special_instructions"`
+	Tone                int32     `json:"tone"`
+	Length              string    `json:"length"`
+	Assertiveness       int32     `json:"assertiveness"`
+	BrandPlug           string    `json:"brand_plug"`
+	CtaGoal             string    `json:"cta_goal"`
+	DestinationUrl      string    `json:"destination_url"`
+	Examples            []byte    `json:"examples"`
+	IsDefault           bool      `json:"is_default"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
 type Subscription struct {
 	ID                   string             `json:"id"`
 	WorkspaceID          string             `json:"workspace_id"`

@@ -27,6 +27,7 @@ import {
   draftReply,
   getMentionPerson360,
   listReplies,
+  listResponseProfiles,
   updateMentionStatus,
 } from "@/lib/api";
 import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
@@ -86,8 +87,15 @@ function OverviewTab({
     onSuccess: invalidate,
   });
 
+  // voice: optional response profile; "" = workspace default
+  const [profileId, setProfileId] = useState("");
+  const { data: voices = [] } = useQuery({
+    queryKey: [QUERY_KEYS.responseProfiles],
+    queryFn: listResponseProfiles,
+  });
+
   const draftMutation = useMutation({
-    mutationFn: () => draftReply(mention.id),
+    mutationFn: () => draftReply(mention.id, profileId || undefined),
     onSuccess: (data) => {
       setDraft(data);
       invalidate();
@@ -192,6 +200,19 @@ function OverviewTab({
           )}
           Draft reply
         </Button>
+        {voices.length > 1 && (
+          <select
+            aria-label="Reply voice"
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground shadow-xs"
+          >
+            <option value="">Default voice</option>
+            {voices.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        )}
         {mention.status !== "replied" && (
           <Button
             size="sm"

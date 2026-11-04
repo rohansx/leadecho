@@ -124,6 +124,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
+	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
 	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
 
 	return &Shared{

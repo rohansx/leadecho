@@ -100,6 +100,22 @@ type DraftReplyOptions struct {
 	KBContext      string
 	ProductName    string
 	TemplateStyle  string
+	// voice: response-profile instructions (reply.VoiceInstructions) and the
+	// platform-matched example reply used as a style sample.
+	Voice        string
+	StyleExample string
+}
+
+// voicePromptSection renders the response-profile block of the system prompt.
+func voicePromptSection(opts DraftReplyOptions) string {
+	if opts.Voice == "" {
+		return ""
+	}
+	s := "\n\nVOICE PROFILE (takes precedence over STYLE and the rules above where they conflict):\n" + opts.Voice
+	if opts.StyleExample != "" {
+		s += "\n\nSTYLE SAMPLE (match its voice and rhythm; do not copy its content):\n" + opts.StyleExample
+	}
+	return s
 }
 
 // EnhancedDraftResult holds the output from enhanced reply drafting.
@@ -489,7 +505,7 @@ RULES (apply to ALL styles):
 Return ONLY valid JSON (no markdown, no code fences) with:
 - "reply": the drafted reply text
 - "tone": one of "helpful", "empathetic", "technical", "casual"
-- "template_style": "%s"`, templateGuide, opts.TemplateStyle)
+- "template_style": "%s"`, templateGuide, opts.TemplateStyle) + voicePromptSection(opts)
 
 	userMsg := fmt.Sprintf("Platform: %s\nIntent: %s\nAwareness: %s\nTitle: %s\nContent: %s",
 		opts.Platform, opts.Intent, opts.AwarenessLevel, opts.Title, opts.Content)

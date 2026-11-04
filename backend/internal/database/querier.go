@@ -52,6 +52,8 @@ type Querier interface {
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	CreateReply(ctx context.Context, arg CreateReplyParams) (Reply, error)
 	CreateReplyEngagement(ctx context.Context, arg CreateReplyEngagementParams) (ReplyEngagement, error)
+	// The first profile in a workspace becomes its default.
+	CreateResponseProfile(ctx context.Context, arg CreateResponseProfileParams) (ResponseProfile, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
 	CreateUTMEvent(ctx context.Context, arg CreateUTMEventParams) (UtmEvent, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
@@ -65,6 +67,7 @@ type Querier interface {
 	DeleteMonitoringProfile(ctx context.Context, arg DeleteMonitoringProfileParams) error
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
+	DeleteResponseProfile(ctx context.Context, arg DeleteResponseProfileParams) (int64, error)
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
 	// scoring: dedupe, intent tags, human feedback, listener intent.
 	// Same canonical URL, or a simhash within max_distance bits (-1 disables the
@@ -94,7 +97,9 @@ type Querier interface {
 	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
 	GetPersonIdentity(ctx context.Context, arg GetPersonIdentityParams) (PersonIdentity, error)
 	GetPlatformSession(ctx context.Context, arg GetPlatformSessionParams) (PlatformAccount, error)
+	GetPreferredResponseProfile(ctx context.Context, workspaceID string) (ResponseProfile, error)
 	GetReply(ctx context.Context, arg GetReplyParams) (Reply, error)
+	GetResponseProfile(ctx context.Context, arg GetResponseProfileParams) (ResponseProfile, error)
 	GetThreadByMention(ctx context.Context, mentionID string) (Thread, error)
 	GetUTMLinkByCode(ctx context.Context, code string) (UtmLink, error)
 	GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error)
@@ -148,6 +153,7 @@ type Querier interface {
 	ListReplayableEvents(ctx context.Context, arg ListReplayableEventsParams) ([]EventLog, error)
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
 	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
+	ListResponseProfiles(ctx context.Context, workspaceID string) ([]ResponseProfile, error)
 	ListSampleFeedbackForProfile(ctx context.Context, arg ListSampleFeedbackForProfileParams) ([]OnboardingSampleFeedback, error)
 	// Latest labelled mentions for one listener; profile_id NULL = mentions with
 	// no listener (workspace-level examples).
@@ -172,9 +178,13 @@ type Querier interface {
 	ResolveDeadLetterEvent(ctx context.Context, arg ResolveDeadLetterEventParams) (DeadLetterEvent, error)
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
+	// One statement flips the old default off and the new one on; no-op when the
+	// id is not in this workspace.
+	SetDefaultResponseProfile(ctx context.Context, arg SetDefaultResponseProfileParams) (int64, error)
 	SetMentionDedupeKeys(ctx context.Context, arg SetMentionDedupeKeysParams) error
 	// ─── Listener builder ─────────────────────────────────
 	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
+	SetReplyTrackingLink(ctx context.Context, arg SetReplyTrackingLinkParams) (Reply, error)
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchExtensionToken(ctx context.Context, token string) error
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
@@ -199,6 +209,7 @@ type Querier interface {
 	UpdateReplyContent(ctx context.Context, arg UpdateReplyContentParams) (Reply, error)
 	UpdateReplyMetadata(ctx context.Context, arg UpdateReplyMetadataParams) (Reply, error)
 	UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusParams) (Reply, error)
+	UpdateResponseProfile(ctx context.Context, arg UpdateResponseProfileParams) (ResponseProfile, error)
 	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error

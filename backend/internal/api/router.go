@@ -99,6 +99,14 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/mentions/{id}/classify", aiHandler.Classify)
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
 
+			// voice: response profiles (reply voice)
+			responseProfiles := handler.NewResponseProfileHandler(queries)
+			r.Get("/response-profiles", responseProfiles.List)
+			r.Post("/response-profiles", responseProfiles.Create)
+			r.Put("/response-profiles/{id}", responseProfiles.Update)
+			r.Delete("/response-profiles/{id}", responseProfiles.Delete)
+			r.Post("/response-profiles/{id}/default", responseProfiles.SetDefault)
+
 			// Leads
 			leads := handler.NewLeadHandler(queries, crm)
 			r.Get("/leads", leads.List)
