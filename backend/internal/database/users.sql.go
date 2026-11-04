@@ -14,7 +14,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (clerk_user_id, workspace_id, email, name, avatar_url, role, password_hash)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash
+RETURNING id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash, email_verified, session_version
 `
 
 type CreateUserParams struct {
@@ -51,12 +51,14 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.SessionVersion,
 	)
 	return i, err
 }
 
 const findUserByEmail = `-- name: FindUserByEmail :one
-SELECT id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash FROM users WHERE email = $1 LIMIT 1
+SELECT id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash, email_verified, session_version FROM users WHERE email = $1 LIMIT 1
 `
 
 func (q *Queries) FindUserByEmail(ctx context.Context, email string) (User, error) {
@@ -75,12 +77,14 @@ func (q *Queries) FindUserByEmail(ctx context.Context, email string) (User, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.SessionVersion,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash FROM users WHERE id = $1
+SELECT id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash, email_verified, session_version FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
@@ -99,12 +103,14 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.SessionVersion,
 	)
 	return i, err
 }
 
 const listUsersByExternalID = `-- name: ListUsersByExternalID :many
-SELECT id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash FROM users
+SELECT id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active, last_active_at, created_at, updated_at, password_hash, email_verified, session_version FROM users
 WHERE clerk_user_id = $1
 `
 
@@ -130,6 +136,8 @@ func (q *Queries) ListUsersByExternalID(ctx context.Context, clerkUserID string)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PasswordHash,
+			&i.EmailVerified,
+			&i.SessionVersion,
 		); err != nil {
 			return nil, err
 		}

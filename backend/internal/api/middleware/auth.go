@@ -40,6 +40,11 @@ func ClaimsFromContext(ctx context.Context) *auth.Claims {
 	return claims
 }
 
+// WithClaims returns ctx carrying claims (used by handler tests).
+func WithClaims(ctx context.Context, c *auth.Claims) context.Context {
+	return context.WithValue(ctx, claimsKey, c)
+}
+
 // WorkspaceID extracts the workspace ID from the request context.
 // Falls back to the dev workspace ID if no auth is present.
 func WorkspaceID(ctx context.Context) string {

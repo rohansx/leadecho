@@ -249,6 +249,7 @@ const (
 	PlatformTypeQuora        PlatformType = "quora"
 	PlatformTypeExa          PlatformType = "exa"
 	PlatformTypeGooglenews   PlatformType = "googlenews"
+	PlatformTypeBluesky      PlatformType = "bluesky"
 )
 
 func (e *PlatformType) Scan(src interface{}) error {
@@ -416,6 +417,16 @@ func (ns NullWorkflowStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowStatus), nil
 }
 
+type AuthToken struct {
+	ID        string             `json:"id"`
+	UserID    string             `json:"user_id"`
+	Kind      string             `json:"kind"`
+	TokenHash string             `json:"token_hash"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
 type ConsumerCheckpoint struct {
 	ID                 string      `json:"id"`
 	StreamName         string      `json:"stream_name"`
@@ -566,6 +577,14 @@ type Keyword struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 	Subreddits    []string  `json:"subreddits"`
 	ProfileID     string    `json:"profile_id"`
+	Cadence       []byte    `json:"cadence"`
+}
+
+type KeywordPlatformScan struct {
+	KeywordID     string    `json:"keyword_id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	Platform      string    `json:"platform"`
+	LastScannedAt time.Time `json:"last_scanned_at"`
 }
 
 type Lead struct {
@@ -654,6 +673,15 @@ type MonitoringProfile struct {
 	IsActive    bool      `json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Mute struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	Kind        string      `json:"kind"`
+	Value       string      `json:"value"`
+	CreatedBy   pgtype.UUID `json:"created_by"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type Notification struct {
@@ -810,18 +838,20 @@ type Thread struct {
 }
 
 type User struct {
-	ID           string             `json:"id"`
-	ClerkUserID  string             `json:"clerk_user_id"`
-	WorkspaceID  string             `json:"workspace_id"`
-	Email        string             `json:"email"`
-	Name         string             `json:"name"`
-	AvatarUrl    pgtype.Text        `json:"avatar_url"`
-	Role         UserRole           `json:"role"`
-	IsActive     bool               `json:"is_active"`
-	LastActiveAt pgtype.Timestamptz `json:"last_active_at"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	PasswordHash pgtype.Text        `json:"password_hash"`
+	ID             string             `json:"id"`
+	ClerkUserID    string             `json:"clerk_user_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Email          string             `json:"email"`
+	Name           string             `json:"name"`
+	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	Role           UserRole           `json:"role"`
+	IsActive       bool               `json:"is_active"`
+	LastActiveAt   pgtype.Timestamptz `json:"last_active_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	PasswordHash   pgtype.Text        `json:"password_hash"`
+	EmailVerified  bool               `json:"email_verified"`
+	SessionVersion int32              `json:"session_version"`
 }
 
 type UtmEvent struct {

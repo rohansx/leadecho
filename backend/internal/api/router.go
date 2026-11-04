@@ -22,6 +22,7 @@ import (
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
+	"leadecho/internal/mutes" // sources
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
 )
@@ -205,6 +206,22 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
 			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
 			r.Post("/settings/onboarding/complete", onboarding.Complete)
+
+			// sources: mute lists, CSV export, keyword cadence + cost preview
+			muteStore := mutes.NewStore(queries)
+			if mon != nil {
+				muteStore = mon.Mutes() // share the insert-path cache
+			}
+			muteH := handler.NewMuteHandler(muteStore)
+			r.Get("/mutes", muteH.List)
+			r.Post("/mutes", muteH.Create)
+			r.Delete("/mutes/{id}", muteH.Delete)
+			exportH := handler.NewExportHandler(queries)
+			r.Get("/mentions/export.csv", exportH.Mentions)
+			r.Get("/leads/export.csv", exportH.Leads)
+			cadenceH := handler.NewKeywordCadenceHandler(queries)
+			r.Get("/keywords/cost-preview", cadenceH.CostPreview)
+			r.Put("/keywords/{id}/cadence", cadenceH.Update)
 
 			// UTM tracking links
 			utm := handler.NewUTMHandler(queries, attrib)

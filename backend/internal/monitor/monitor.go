@@ -17,6 +17,7 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
+	"leadecho/internal/mutes"
 )
 
 // LeadEnricher runs Person360 enrichment after lead qualification.
@@ -49,6 +50,12 @@ type Monitor struct {
 	// Google's feed terms limit it to personal, non-commercial use, so it must
 	// be a deliberate operator choice rather than a default in a shipped build.
 	googleNewsEnabled bool
+
+	// sources: workspace mute lists applied before insert (nil = none).
+	mutes *mutes.Store
+
+	// sources: optional Bluesky session (BLUESKY_HANDLE/BLUESKY_APP_PASSWORD).
+	bluesky blueskyAuth
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -75,6 +82,7 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRou
 		streamsDualWrite: streamsDualWrite,
 		inlineFallback:   inlineFallback,
 		qualifierAsync:   qualifierAsync,
+		mutes:            mutes.NewStore(q), // sources
 	}
 }
 
@@ -180,9 +188,11 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	}
 	defer m.scanning.Delete(wsID)
 
+	kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
 	var alerts []mentionAlert
 	for i, kw := range kws {
 		alerts = append(alerts, m.crawlKeyword(ctx, wsID, kw)...)
+		m.recordScans(ctx, wsID, kw) // sources
 		// Pause between keywords to avoid hammering APIs
 		if i < len(kws)-1 {
 			select {
@@ -305,6 +315,8 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlIndieHackers(ctx, wsID, akw)...)
 			case "googlenews":
 				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
+			case "bluesky": // sources
+				alerts = append(alerts, m.crawlBluesky(ctx, wsID, akw)...)
 			}
 		}
 	}
@@ -325,6 +337,9 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 	// once here so every crawler stores readable text.
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
+	if m.isMuted(ctx, p) { // sources: mute lists
+		return nil
+	}
 	mention, err := m.q.CreateMention(ctx, p)
 	if err != nil {
 		if isDuplicateError(err) {

@@ -121,6 +121,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		researcherSvc,
 	)
 	mon.SetGoogleNewsEnabled(cfg.GoogleNewsEnabled)
+	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources
 	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
