@@ -44,7 +44,7 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
  * finally block.
  */
 
-const PROFILES_URL = "/app/profiles";
+const PROFILES_URL = "/profiles";
 const SEED_NAME = "Acme Analytics";
 
 interface ProfileDTO {

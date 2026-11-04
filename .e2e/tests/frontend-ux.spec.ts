@@ -12,7 +12,7 @@ test("duplicate keyword surfaces a clean error toast (no raw status/JSON leak)",
   page,
 }) => {
   const term = `e2e-ux-dup-${Date.now()}`;
-  await page.goto("/app/keywords");
+  await page.goto("/keywords");
   await expect(page.getByText("Loading...", { exact: true })).toHaveCount(0, {
     timeout: 15_000,
   });
@@ -48,12 +48,12 @@ test("duplicate keyword surfaces a clean error toast (no raw status/JSON leak)",
 test("sidebar has no duplicate nav entry and the logo links into the app", async ({
   page,
 }) => {
-  await page.goto("/app/inbox");
+  await page.goto("/inbox");
   // Exactly one nav link to /app/analytics (the duplicate 'Tracking' is gone).
-  const analyticsLinks = page.locator('a[href="/app/analytics"]');
+  const analyticsLinks = page.locator('a[href="/analytics"]');
   await expect(analyticsLinks).toHaveCount(1);
 
   // The logo links to the app inbox, not the marketing root.
   const logo = page.getByRole("link", { name: /LeadEcho/i }).first();
-  await expect(logo).toHaveAttribute("href", "/app/inbox");
+  await expect(logo).toHaveAttribute("href", "/inbox");
 });

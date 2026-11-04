@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { execSync } from "node:child_process";
 
 /**
  * LeadEcho "pipeline" feature — the leads kanban board.
@@ -30,7 +31,29 @@ import { test, expect } from "@playwright/test";
  * deterministic. The shared seeded leads are never mutated.
  */
 
-const PIPELINE_URL = "/app/pipeline";
+const PIPELINE_URL = "/pipeline";
+
+// The environment no longer ships fixture leads; insert the three the specs rely
+// on (idempotent via NOT EXISTS) for the e2e test user's workspace.
+function seedLeads(): void {
+  const rows: Array<[string, string, string, number]> = [
+    ["Dana Prospect", "prospect", "Acme Prospect Co", 5000],
+    ["Quinn Qualified", "qualified", "Quill Inc", 8000],
+    ["Evan Engaged", "engaged", "GreenLeaf", 12000],
+  ];
+  for (const [name, stage, company, value] of rows) {
+    execSync(
+      `docker exec leadecho-e2e-postgres psql -U leadecho -d leadecho_dev -c ` +
+        `"INSERT INTO leads (workspace_id, stage, contact_name, company, platform, estimated_value) ` +
+        `SELECT u.workspace_id,'${stage}','${name}','${company}','hackernews',${value} FROM users u ` +
+        `WHERE u.email='e2e-tester@leadecho.test' AND NOT EXISTS ` +
+        `(SELECT 1 FROM leads l WHERE l.workspace_id=u.workspace_id AND l.contact_name='${name}');"`,
+      { stdio: "pipe" },
+    );
+  }
+}
+
+test.beforeAll(() => seedLeads());
 
 // Column labels exactly as rendered by `stages` in pipeline.tsx.
 const STAGE_LABELS = ["Prospect", "Qualified", "Engaged", "Converted", "Lost"];

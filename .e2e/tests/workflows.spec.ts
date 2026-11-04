@@ -22,7 +22,7 @@ import { test, expect } from "@playwright/test";
  * complete user), so the spec starts logged in — just page.goto.
  */
 
-const WORKFLOWS_URL = "/app/workflows";
+const WORKFLOWS_URL = "/workflows";
 
 // The exact placeholder copy rendered in workflows.tsx. The JSX wraps the line,
 // so the live DOM normalizes the whitespace to a single space — match loosely
@@ -40,7 +40,7 @@ test.describe("workflows page", () => {
     // storageState carries the session → no bounce to login or onboarding.
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page).not.toHaveURL(/\/onboarding/);
-    await expect(page).toHaveURL(/\/app\/workflows/);
+    await expect(page).toHaveURL(/\/workflows/);
 
     // Primary UI: the <h2>Workflows</h2> heading (Text as="h2").
     await expect(
@@ -93,8 +93,8 @@ test.describe("workflows page", () => {
   test("reachable from the sidebar 'Workflows' nav link", async ({ page }) => {
     // Start from a different dashboard route, then navigate via the sidebar so
     // we exercise the in-app router (not just a direct goto).
-    await page.goto("/app/inbox");
-    await expect(page).toHaveURL(/\/app\/inbox/);
+    await page.goto("/inbox");
+    await expect(page).toHaveURL(/\/inbox/);
 
     const nav = page.locator("aside");
     const workflowsLink = nav.getByRole("link", { name: "Workflows" });
@@ -103,7 +103,7 @@ test.describe("workflows page", () => {
     await workflowsLink.click();
 
     // Client-side navigation lands on the workflows route and paints its UI.
-    await expect(page).toHaveURL(/\/app\/workflows/);
+    await expect(page).toHaveURL(/\/workflows/);
     await expect(
       page.getByRole("heading", { name: "Workflows", exact: true }),
     ).toBeVisible();

@@ -49,7 +49,7 @@ import { test, expect, type Page } from "@playwright/test";
  *   the chip editors use an epoch-ms suffix so nothing we type could ever collide on reruns.
  */
 
-const ONBOARDING_URL = "/app/onboarding";
+const ONBOARDING_URL = "/onboarding";
 
 interface OnboardingStatusDTO {
   completed: boolean;
@@ -62,9 +62,38 @@ async function fetchStatus(page: Page): Promise<OnboardingStatusDTO> {
   return (await res.json()) as OnboardingStatusDTO;
 }
 
+// The wizard redirects already-completed users to /inbox, and the shared test
+// user is completed. Present the status endpoint as "not completed" (GET only)
+// so the wizard UI renders. Returns a switch to restore the real status.
+async function mockIncompleteOnboarding(page: Page): Promise<() => void> {
+  let incomplete = true;
+  await page.route("**/api/v1/settings/onboarding", async (route) => {
+    if (incomplete && route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ completed: false, step: 1 }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  return () => {
+    incomplete = false;
+  };
+}
+
+async function aiConfigured(page: Page): Promise<boolean> {
+  const r = await page.request.get("/api/v1/llm/config");
+  if (!r.ok()) return false;
+  const body = (await r.json()) as { health?: { chat_ok?: boolean } };
+  return body.health?.chat_ok === true;
+}
+
 // Reach Step 2 deterministically from a fresh Step-1 render via the "Skip — set up
 // manually" link (no API call, no AI needed). Returns once the Step 2 heading is visible.
-async function gotoStep2(page: Page): Promise<void> {
+async function gotoStep2(page: Page): Promise<() => void> {
+  const restore = await mockIncompleteOnboarding(page);
   await page.goto(ONBOARDING_URL);
   await expect(
     page.getByRole("heading", { name: "Enter your product URL" }),
@@ -73,41 +102,35 @@ async function gotoStep2(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Review & customize" }),
   ).toBeVisible({ timeout: 15_000 });
+  return restore;
 }
 
 test.describe("onboarding / setup wizard", () => {
-  test("authenticated visit renders Step 1 (no redirect away, even though onboarding is already complete)", async ({
-    page,
-  }) => {
-    // Sanity: the seeded user's onboarding really IS complete per the API.
+  test("a completed user is redirected from /onboarding to the inbox", async ({ page }) => {
     const status = await fetchStatus(page);
     expect(status.completed, "seeded user has completed onboarding").toBe(true);
 
+    await page.goto(ONBOARDING_URL);
+    await expect(page).toHaveURL(/\/inbox/, { timeout: 15_000 });
+  });
+
+  test("an incomplete user sees Step 1 of the wizard", async ({ page }) => {
+    await mockIncompleteOnboarding(page);
     const resp = await page.goto(ONBOARDING_URL);
     expect(resp?.status(), "onboarding HTTP status").toBeLessThan(400);
-
-    // storageState carries the session → no bounce to /login. And because the
-    // onboarding route has NO "already complete" guard, we also stay on /onboarding
-    // (it does NOT redirect to /inbox).
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page).toHaveURL(/\/onboarding/);
 
-    // Step 1 chrome.
     await expect(page.getByText("Step 1 of 3", { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Enter your product URL" }),
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder("https://yourproduct.com"),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Skip — set up manually" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Enter your product URL" })).toBeVisible();
+    await expect(page.getByPlaceholder("https://yourproduct.com")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Skip — set up manually" })).toBeVisible();
   });
 
   test("the 'Analyze & Set Up' button is disabled until a URL is entered", async ({
     page,
   }) => {
+    await mockIncompleteOnboarding(page);
     await page.goto(ONBOARDING_URL);
     const analyze = page.getByRole("button", { name: "Analyze & Set Up" });
 
@@ -131,6 +154,11 @@ test.describe("onboarding / setup wizard", () => {
   test("analyze-url with NO AI provider configured fails gracefully and surfaces the error (no AI output required)", async ({
     page,
   }) => {
+    test.skip(
+      await aiConfigured(page),
+      "an AI provider is configured in this environment; the no-AI failure path is not reachable",
+    );
+    await mockIncompleteOnboarding(page);
     // First confirm the backend contract directly: with no GLM/OpenAI key the endpoint
     // returns 400 with the "no AI provider configured" message — i.e. analysis output is
     // not expected in this environment.
@@ -189,13 +217,14 @@ test.describe("onboarding / setup wizard", () => {
     await expect(page.getByPlaceholder("Add pain point...")).toBeVisible();
     await expect(page.getByPlaceholder("Add keyword...")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Deploy Agents" }),
+      page.getByRole("button", { name: /Deploy Agents|Add at least one keyword/ }),
     ).toBeVisible();
 
-    // Default platform selection: reddit + hackernews are preselected (font-semibold
-    // styling on selected buttons). Reddit being selected also reveals the Subreddits
-    // editor (rendered only when platforms includes "reddit").
-    await expect(page.getByPlaceholder("Add subreddit...")).toBeVisible();
+    // Default platforms are hackernews + devto, so the Subreddits editor (shown
+    // only when reddit is selected) starts hidden. With no keyword the CTA is
+    // disabled and says why.
+    await expect(page.getByPlaceholder("Add subreddit...")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add at least one keyword" })).toBeDisabled();
   });
 
   test("Step 2 is fully editable client-side: chips add/remove, platform toggle, and Deploy gating", async ({
@@ -204,15 +233,15 @@ test.describe("onboarding / setup wizard", () => {
     const sfx = Date.now();
     await gotoStep2(page);
 
-    // ── Deploy gating: disabled until product name is non-blank ──
-    const deploy = page.getByRole("button", { name: "Deploy Agents" });
+    // ── Deploy gating: needs a non-blank product name AND >= 1 keyword ──
+    const deploy = page.getByRole("button", { name: /Deploy Agents|Add at least one keyword/ });
     await expect(deploy, "deploy disabled with empty product name").toBeDisabled();
 
     const productName = page.locator("input").first();
     await productName.fill("   "); // whitespace only
     await expect(deploy, "deploy still disabled for whitespace name").toBeDisabled();
     await productName.fill(`Acme ${sfx}`);
-    await expect(deploy, "deploy enabled once product name has content").toBeEnabled();
+    await expect(deploy, "deploy still disabled without a keyword").toBeDisabled();
 
     // ── Keyword chip: add via the "Add" button, then remove via the × ──
     const kw = `kw-${sfx}`;
@@ -227,6 +256,10 @@ test.describe("onboarding / setup wizard", () => {
       .click();
     const kwChip = page.locator("span").filter({ hasText: kw });
     await expect(kwChip, "keyword chip added").toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Deploy Agents" }),
+      "deploy enabled once name + keyword present",
+    ).toBeEnabled();
 
     // Remove the chip via its × button (the only button inside the chip span).
     await kwChip.getByRole("button").click();
@@ -234,6 +267,7 @@ test.describe("onboarding / setup wizard", () => {
       page.locator("span").filter({ hasText: kw }),
       "keyword chip removed",
     ).toHaveCount(0);
+    await expect(deploy, "deploy disabled again with no keyword").toBeDisabled();
 
     // ── Pain-point chip: add via Enter key on its input ──
     const pp = `pain-${sfx}`;
@@ -245,22 +279,21 @@ test.describe("onboarding / setup wizard", () => {
     // Input clears after add (addChip resets the input).
     await expect(ppInput, "pain-point input cleared after add").toHaveValue("");
 
-    // ── Platform toggle: turning Reddit OFF hides the Subreddits editor ──
+    // ── Platform toggle: reddit is off by default; turning it ON reveals Subreddits ──
     await expect(
       page.getByPlaceholder("Add subreddit..."),
-      "subreddit editor visible while reddit selected",
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Reddit", exact: true }).click();
-    await expect(
-      page.getByPlaceholder("Add subreddit..."),
-      "subreddit editor hidden once reddit deselected",
+      "subreddit editor hidden while reddit unselected",
     ).toHaveCount(0);
-    // Toggle Reddit back on → editor returns.
-    await page.getByRole("button", { name: "Reddit", exact: true }).click();
+    await page.getByRole("button", { name: /^Reddit/ }).click();
     await expect(
       page.getByPlaceholder("Add subreddit..."),
-      "subreddit editor returns when reddit reselected",
+      "subreddit editor visible once reddit selected",
     ).toBeVisible();
+    await page.getByRole("button", { name: /^Reddit/ }).click();
+    await expect(
+      page.getByPlaceholder("Add subreddit..."),
+      "subreddit editor hidden again",
+    ).toHaveCount(0);
   });
 
   test("Deploy runs the agent-deployment animation and lands on an 'Open Inbox' CTA (complete stubbed — no shared state mutated)", async ({
@@ -286,11 +319,13 @@ test.describe("onboarding / setup wizard", () => {
     );
 
     try {
-      await gotoStep2(page);
+      const restoreStatus = await gotoStep2(page);
 
       // Give it a product name so Deploy is enabled, then click.
       await page.locator("input").first().fill(`Acme Deploy ${Date.now()}`);
-      const deploy = page.getByRole("button", { name: "Deploy Agents" });
+      await page.getByPlaceholder("Add keyword...").fill("e2e-keyword");
+      await page.getByPlaceholder("Add keyword...").press("Enter");
+      const deploy = page.getByRole("button", { name: /Deploy Agents|Add at least one keyword/ });
       await expect(deploy).toBeEnabled();
       await deploy.click();
 
@@ -318,6 +353,8 @@ test.describe("onboarding / setup wizard", () => {
       });
 
       // Clicking it navigates into the dashboard inbox.
+      // Real status (completed) applies again so the dashboard guard lets us in.
+      restoreStatus();
       await openInbox.click();
       await expect(page, "navigated to /app/inbox").toHaveURL(/\/inbox/, {
         timeout: 15_000,

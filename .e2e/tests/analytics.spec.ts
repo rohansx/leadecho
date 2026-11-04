@@ -47,7 +47,7 @@ import { test, expect, type Page } from "@playwright/test";
  * route interception (page.route) so no seeded data is ever destroyed.
  */
 
-const ANALYTICS_URL = "/app/analytics";
+const ANALYTICS_URL = "/analytics";
 
 const FUNNEL_STAGES = ["prospect", "qualified", "engaged", "converted", "lost"];
 
@@ -219,7 +219,7 @@ test.describe("analytics / charts & breakdown sections", () => {
     // Scope to the platform card by its heading's nearest Card ancestor.
     const card = page
       .getByRole("heading", { name: "Mentions by Platform", exact: true })
-      .locator("xpath=ancestor::div[contains(@class,'border-2')][1]");
+      .locator("xpath=ancestor::div[contains(@class,'glass-card')][1]");
     await expect(card).toBeVisible();
 
     // Empty-state must NOT be shown when we have data.
@@ -266,7 +266,7 @@ test.describe("analytics / charts & breakdown sections", () => {
     await page.goto(ANALYTICS_URL);
     const card = page
       .getByRole("heading", { name: "Mentions by Intent", exact: true })
-      .locator("xpath=ancestor::div[contains(@class,'border-2')][1]");
+      .locator("xpath=ancestor::div[contains(@class,'glass-card')][1]");
     await expect(card).toBeVisible();
     await expect(card.getByText("No data yet.", { exact: true })).toHaveCount(0);
 
@@ -290,7 +290,7 @@ test.describe("analytics / charts & breakdown sections", () => {
     await page.goto(ANALYTICS_URL);
     const card = page
       .getByRole("heading", { name: /Conversion Funnel/ })
-      .locator("xpath=ancestor::div[contains(@class,'border-2')][1]");
+      .locator("xpath=ancestor::div[contains(@class,'glass-card')][1]");
     await expect(card).toBeVisible();
 
     // The "<rate>% rate" badge in the heading reflects converted/total. When
@@ -325,7 +325,7 @@ test.describe("analytics / charts & breakdown sections", () => {
     await page.goto(ANALYTICS_URL);
     const card = page
       .getByRole("heading", { name: "Top Keywords", exact: true })
-      .locator("xpath=ancestor::div[contains(@class,'border-2')][1]");
+      .locator("xpath=ancestor::div[contains(@class,'glass-card')][1]");
     await expect(card).toBeVisible();
 
     if (keywords.length === 0) {
@@ -423,7 +423,7 @@ test.describe("analytics / charts & breakdown sections", () => {
     // The funnel STILL renders all five fixed stage rows even with no data.
     const card = page
       .getByRole("heading", { name: /Conversion Funnel/ })
-      .locator("xpath=ancestor::div[contains(@class,'border-2')][1]");
+      .locator("xpath=ancestor::div[contains(@class,'glass-card')][1]");
     for (const stage of FUNNEL_STAGES) {
       await expect(
         card.getByText(stage, { exact: true }).first(),
