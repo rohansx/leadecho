@@ -18,6 +18,9 @@ type Provider struct {
 	BaseURL string // e.g. "https://open.bigmodel.cn/api/paas/v4", "https://api.deepseek.com/v1", or "https://api.openai.com/v1"
 	Model   string // e.g. "glm-4-flash", "deepseek-chat", or "gpt-4o-mini"
 	Effort  string // Anthropic output_config.effort ("low".."max"); "" = model default
+	// UsageSink, when set, accumulates the token usage of every call made
+	// with this provider, so callers can record it (llm_usage_events).
+	UsageSink *Usage
 }
 
 // ClassifyResult holds the output from intent classification.
@@ -223,7 +226,10 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 }
 
 // callChatUsage is callChat plus the provider's token usage (chat).
-func callChatUsage(ctx context.Context, p Provider, messages []chatMessage, temp float64) (string, Usage, error) {
+func callChatUsage(ctx context.Context, p Provider, messages []chatMessage, temp float64) (_ string, u Usage, _ error) {
+	if p.UsageSink != nil {
+		defer func() { p.UsageSink.Add(u) }()
+	}
 	if p.Name == "anthropic" {
 		return callAnthropic(ctx, p, messages)
 	}

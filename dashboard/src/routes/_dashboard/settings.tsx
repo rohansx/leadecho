@@ -59,7 +59,7 @@ function cloneModels(config?: LLMConfigResponse): Record<string, LLMModelTarget>
   return {
     cheap: { provider: config?.models?.cheap?.provider ?? "", model: config?.models?.cheap?.model ?? "" },
     strong: { provider: config?.models?.strong?.provider ?? "", model: config?.models?.strong?.model ?? "" },
-    embedding: { provider: config?.models?.embedding?.provider ?? "voyage", model: config?.models?.embedding?.model ?? "voyage-3" },
+    embedding: { provider: config?.models?.embedding?.provider ?? "voyage", model: config?.models?.embedding?.model ?? "voyage-4-large" },
   };
 }
 

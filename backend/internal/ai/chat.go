@@ -12,6 +12,18 @@ type Usage struct {
 	PromptTokens     int32 `json:"prompt_tokens"`
 	CompletionTokens int32 `json:"completion_tokens"`
 	TotalTokens      int32 `json:"total_tokens"`
+	// Prompt caching (Anthropic): PromptTokens is the uncached input only.
+	CacheReadTokens  int32 `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int32 `json:"cache_write_tokens,omitempty"`
+}
+
+// Add accumulates another call's usage.
+func (u *Usage) Add(o Usage) {
+	u.PromptTokens += o.PromptTokens
+	u.CompletionTokens += o.CompletionTokens
+	u.TotalTokens += o.TotalTokens
+	u.CacheReadTokens += o.CacheReadTokens
+	u.CacheWriteTokens += o.CacheWriteTokens
 }
 
 // Chat sends msgs and returns the reply with its token usage. When the provider

@@ -31,6 +31,12 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		}
 	}
 
+	// Cache the instructions: they repeat on every filter/classify call for a
+	// workspace, and the post (the part that varies) comes after them.
+	// Silently a no-op below the model's minimum prefix (512 on Sonnet 5.5).
+	if len(system) > 0 {
+		system[len(system)-1].CacheControl = anthropic.NewCacheControlEphemeralParam()
+	}
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(p.Model),
 		MaxTokens: 16000,
@@ -58,5 +64,9 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		return "", Usage{}, fmt.Errorf("anthropic: empty response (stop_reason=%s)", resp.StopReason)
 	}
 	in, outTok := int32(resp.Usage.InputTokens), int32(resp.Usage.OutputTokens)
-	return strings.TrimSpace(out.String()), Usage{PromptTokens: in, CompletionTokens: outTok, TotalTokens: in + outTok}, nil
+	read, write := int32(resp.Usage.CacheReadInputTokens), int32(resp.Usage.CacheCreationInputTokens)
+	return strings.TrimSpace(out.String()), Usage{
+		PromptTokens: in, CompletionTokens: outTok, TotalTokens: in + read + write + outTok,
+		CacheReadTokens: read, CacheWriteTokens: write,
+	}, nil
 }

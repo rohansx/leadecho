@@ -121,7 +121,7 @@ var providerRegistry = []ProviderStatus{
 	{Provider: "anthropic", DisplayName: "Anthropic Claude", Capabilities: []string{"chat"}, DefaultModel: "claude-sonnet-5-5", RecommendedModels: []string{"claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"}, Enabled: true},
 	{Provider: "openrouter", DisplayName: "OpenRouter", Capabilities: []string{"chat"}, DefaultModel: "openai/gpt-4o-mini", RecommendedModels: []string{"openai/gpt-4o-mini", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"}, Enabled: true},
 	{Provider: "ollama", DisplayName: "Ollama Cloud", Capabilities: []string{"chat"}, DefaultModel: "gpt-oss:120b", RecommendedModels: []string{"gpt-oss:120b", "gpt-oss:20b", "deepseek-v3.1:671b", "qwen3-coder:480b"}, Enabled: true},
-	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, EmbeddingModels: []string{"voyage-3"}, Enabled: true},
+	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-4-large", RecommendedModels: []string{"voyage-4-large", "voyage-4", "voyage-4-lite"}, EmbeddingModels: []string{"voyage-4-large", "voyage-4", "voyage-4-lite"}, Enabled: true},
 }
 
 func DefaultConfig() Config {
@@ -130,7 +130,7 @@ func DefaultConfig() Config {
 		Models: map[string]ModelTarget{
 			TierCheap:     {Provider: "", Model: ""},
 			TierStrong:    {Provider: "", Model: ""},
-			TierEmbedding: {Provider: "voyage", Model: "voyage-3"},
+			TierEmbedding: {Provider: "voyage", Model: "voyage-4-large"},
 		},
 		Routing: map[string]string{
 			string(TaskFilter):         TierCheap,
@@ -416,7 +416,7 @@ func (r *Router) EmbedTexts(ctx context.Context, workspaceID string, task Task, 
 		start := time.Now()
 		var client embeddingClient
 		if provider == "voyage" {
-			client = embedding.New(key)
+			client = embedding.New(key).WithModel(target.Model)
 		} else {
 			model := target.Model
 			if model == "" {
@@ -493,8 +493,13 @@ func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, 
 			continue
 		}
 		provider := providerForTarget(providerName, key, target, r.system)
+		var sink ai.Usage
+		provider.UsageSink = &sink
 		start := time.Now()
 		u, err := fn(provider)
+		if u == (ai.Usage{}) {
+			u = sink // task helpers report usage through the sink
+		}
 		r.recordUsageTokens(ctx, workspaceID, task, provider.Name, provider.Model, source, idx, time.Since(start), u, err)
 		if err == nil {
 			return nil
@@ -637,7 +642,7 @@ func (r *Router) recordUsageTokens(ctx context.Context, workspaceID string, task
 	if err := r.q.CreateLLMUsageEvent(ctx, database.CreateLLMUsageEventParams{
 		WorkspaceID: workspaceID, Task: string(task), Provider: provider, Model: model, Status: status,
 		PromptTokens: u.PromptTokens, CompletionTokens: u.CompletionTokens, TotalTokens: u.TotalTokens,
-		EstimatedCostUSD: "0", LatencyMs: int32(latency.Milliseconds()), ErrorMessage: errText,
+		EstimatedCostUSD: estimateCostUSD(model, u), LatencyMs: int32(latency.Milliseconds()), ErrorMessage: errText,
 		FallbackFrom: fallbackFrom, KeySource: source,
 	}); err != nil {
 		r.logger.Warn().Err(err).Str("task", string(task)).Msg("llm: failed to record usage")

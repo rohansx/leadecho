@@ -38,4 +38,27 @@ func TestAnthropicLive(t *testing.T) {
 		t.Fatalf("classify: %v", err)
 	}
 	t.Logf("classify intent=%s conversion=%.2f (%s)", cr.Intent, cr.ConversionProbability, time.Since(start).Round(time.Millisecond))
+
+	// Token tracking + prompt caching: two filters on different posts; the
+	// shared instructions should be read from cache on the second.
+	for i, post := range []string{"Any good alternative to Lakera Guard for agent tool calls?", "Just shipped my portfolio site, feedback welcome!"} {
+		var u Usage
+		p.UsageSink = &u
+		if _, err := FilterMention(ctx, p, "", post, "reddit"); err != nil {
+			t.Fatalf("filter %d: %v", i, err)
+		}
+		t.Logf("filter %d usage: in=%d cache_write=%d cache_read=%d out=%d", i, u.PromptTokens, u.CacheWriteTokens, u.CacheReadTokens, u.CompletionTokens)
+		if u.TotalTokens == 0 {
+			t.Errorf("filter %d recorded 0 tokens", i)
+		}
+	}
+	sc := ScoringContext{Product: "CloakPipe: a policy proxy for AI agent tool calls (MCP). Allowlists, least-privilege, audit logs, idempotent retries."}
+	for i, post := range []string{"Any good alternative to Lakera Guard for agent tool calls?", "How do you audit what an AI agent actually did in prod?"} {
+		var u Usage
+		p.UsageSink = &u
+		if _, err := ClassifyIntent(ctx, p, "", post, "reddit", sc); err != nil {
+			t.Fatalf("classify %d: %v", i, err)
+		}
+		t.Logf("classify %d usage: in=%d cache_write=%d cache_read=%d out=%d", i, u.PromptTokens, u.CacheWriteTokens, u.CacheReadTokens, u.CompletionTokens)
+	}
 }
