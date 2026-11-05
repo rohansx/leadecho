@@ -32,6 +32,8 @@ type Config struct {
 	SecureCookie        bool
 	// TrustedProxyHops: see clientip.From. 0 = use the TCP peer address.
 	TrustedProxyHops int
+	// FromEmail is the Resend-verified sender for auth mail; "" = default.
+	FromEmail string
 }
 
 // EmailHandler serves email/password auth and the shared session endpoints.
@@ -50,13 +52,17 @@ type EmailHandler struct {
 
 func NewEmailHandler(cfg Config, q *database.Queries, counter Counter, versions *SessionVersions, logger zerolog.Logger) *EmailHandler {
 	front := strings.TrimRight(cfg.FrontendURL, "/")
+	from := cfg.FromEmail
+	if from == "" {
+		from = "LeadEcho <hello@leadecho.io>"
+	}
 	return &EmailHandler{
 		queries:      q,
 		jwtSecret:    cfg.JWTSecret,
 		frontendURL:  front,
 		secure:       cfg.SecureCookie,
 		requireVerif: cfg.RequireVerification && cfg.ResendAPIKey != "",
-		mail:         mailer{apiKey: cfg.ResendAPIKey, frontendURL: front, from: "LeadEcho <hello@leadecho.io>"},
+		mail:         mailer{apiKey: cfg.ResendAPIKey, frontendURL: front, from: from},
 		counter:      counter,
 		versions:     versions,
 		proxyHops:    cfg.TrustedProxyHops,

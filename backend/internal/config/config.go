@@ -118,7 +118,9 @@ type Config struct {
 	ResendAPIKey string `env:"RESEND_API_KEY,default="`
 
 	// Digests (P1 #13): daily/weekly digest scheduler, runs wherever the monitor runs.
-	DigestsEnabled  bool   `env:"DIGESTS_ENABLED,default=true"`
+	DigestsEnabled bool `env:"DIGESTS_ENABLED,default=true"`
+	// DigestFromEmail is the sender for all LeadEcho email (digests, sign-up
+	// verification, password reset); its domain must be verified in Resend.
 	DigestFromEmail string `env:"DIGEST_FROM_EMAIL,default=LeadEcho <hello@leadecho.io>"`
 
 	// automations (P2 #17): scheduler for user-enabled automations, runs wherever the monitor runs.
