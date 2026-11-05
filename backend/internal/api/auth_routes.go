@@ -30,6 +30,7 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 		RequireVerification: cfg.RequireEmailVerification(),
 		SecureCookie:        cfg.SecureCookies(),
 		TrustedProxyHops:    cfg.TrustedProxyHops,
+		FromEmail:           cfg.DigestFromEmail, // one verified sender for all mail
 	}, q, counter, versions, logger)
 	if !email.RequiresVerification() {
 		logger.Warn().Msg("RESEND_API_KEY not set: email verification and password-reset emails are disabled; new password accounts are auto-verified")
