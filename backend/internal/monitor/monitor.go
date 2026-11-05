@@ -28,24 +28,25 @@ type LeadEnricher interface {
 
 // Monitor polls social platforms for keyword matches and inserts new mentions.
 type Monitor struct {
-	crm              *crmsync.Dispatcher
-	q                *database.Queries
-	logger           zerolog.Logger
-	resendAPIKey     string
-	redditBackoffNs  atomic.Int64             // unix-nano; skip Reddit crawls until then (set on 429/403). Atomic: scans run concurrently.
-	scanning         sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
-	llmRouter        llm.MentionScorer        // workspace-aware LLM/embedding router
-	pinchtab         *browser.PinchtabClient  // browser sidecar (nil if not configured)
-	camoufox         *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
-	scrapling        *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
-	encKey           []byte                   // AES key for decrypting session cookies
-	exaAPIKey        string                   // Exa web-search API key (empty disables the exa source)
-	eventPublisher   *publishers.Publisher
-	enricher         LeadEnricher
-	streamsEnabled   bool
-	streamsDualWrite bool
-	inlineFallback   bool
-	qualifierAsync   bool
+	crm               *crmsync.Dispatcher
+	q                 *database.Queries
+	logger            zerolog.Logger
+	resendAPIKey      string
+	redditBackoffNs   atomic.Int64             // unix-nano; skip Reddit crawls until then (set on 429/403). Atomic: scans run concurrently.
+	scanning          sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
+	painPointsChecked sync.Map                 // workspaceID -> struct{}; pain-point embedding backfill done
+	llmRouter         llm.MentionScorer        // workspace-aware LLM/embedding router
+	pinchtab          *browser.PinchtabClient  // browser sidecar (nil if not configured)
+	camoufox          *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
+	scrapling         *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
+	encKey            []byte                   // AES key for decrypting session cookies
+	exaAPIKey         string                   // Exa web-search API key (empty disables the exa source)
+	eventPublisher    *publishers.Publisher
+	enricher          LeadEnricher
+	streamsEnabled    bool
+	streamsDualWrite  bool
+	inlineFallback    bool
+	qualifierAsync    bool
 
 	// googleNewsEnabled opts in to the Google News RSS source. Off by default:
 	// Google's feed terms limit it to personal, non-commercial use, so it must
