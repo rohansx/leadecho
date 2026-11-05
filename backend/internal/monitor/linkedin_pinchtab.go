@@ -51,7 +51,7 @@ func (m *Monitor) crawlLinkedInPinchtab(ctx context.Context, wsID string, kw dat
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".linkedin.com")
+	cookies := ParseCookieString(cookieStr, ".linkedin.com")
 
 	// Navigate to linkedin.com first so IDPI allows cookie injection on the right domain.
 	if err := m.pinchtab.Navigate(ctx, "https://www.linkedin.com"); err != nil {

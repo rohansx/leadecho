@@ -2,12 +2,9 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/database"
 )
@@ -36,8 +33,13 @@ type redditPost struct {
 
 // crawlReddit fetches new posts from each configured subreddit and filters
 // them locally by keyword. This avoids Reddit's aggressive search API rate limits.
+//
+// During a backfill (since set on ctx) a keyword without subreddits falls back
+// to one site-wide search, so a freshly onboarded listener is not empty on
+// Reddit. Regular ticks keep skipping it.
 func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) []mentionAlert {
-	if len(kw.Subreddits) == 0 {
+	since := sinceFrom(ctx)
+	if len(kw.Subreddits) == 0 && since.IsZero() {
 		return nil // no subreddits configured — skip
 	}
 
@@ -46,6 +48,14 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 	// hammering Reddit and generating a wall of 403 logs every tick.
 	if m.redditBackedOff() {
 		return nil
+	}
+
+	if len(kw.Subreddits) == 0 {
+		posts, err := m.sources().SearchReddit(ctx, kw.Term, since)
+		if m.handleRedditErr(err, "search") {
+			return nil
+		}
+		return m.insertPosts(ctx, wsID, kw, posts)
 	}
 
 	var alerts []mentionAlert
@@ -73,87 +83,34 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 }
 
 func (m *Monitor) fetchSubreddit(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow, subreddit string) []mentionAlert {
-	url := fmt.Sprintf("https://www.reddit.com/r/%s/new.json?limit=25", subreddit)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		m.logger.Error().Err(err).Str("subreddit", subreddit).Msg("reddit: failed to create request")
+	posts, err := m.sources().SubredditNew(ctx, subreddit, sinceFrom(ctx))
+	if m.handleRedditErr(err, subreddit) {
 		return nil
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; LeadEcho/1.0)")
+	return m.insertPosts(ctx, wsID, kw, posts)
+}
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		m.logger.Error().Err(err).Str("subreddit", subreddit).Msg("reddit: request failed")
-		return nil
+// handleRedditErr logs a Reddit failure and sets the backoff on 429/403.
+// Returns true when err is non-nil.
+func (m *Monitor) handleRedditErr(err error, target string) bool {
+	if err == nil {
+		return false
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == 429 {
+	var se *StatusError
+	switch {
+	case errors.As(err, &se) && se.Code == http.StatusTooManyRequests:
 		m.setRedditBackoff(10 * time.Minute)
-		m.logger.Warn().Str("subreddit", subreddit).Dur("backoff", 10*time.Minute).Msg("reddit: rate limited, backing off 10m")
-		return nil
-	}
-
-	if resp.StatusCode == 403 {
+		m.logger.Warn().Str("subreddit", target).Dur("backoff", 10*time.Minute).Msg("reddit: rate limited, backing off 10m")
+	case errors.As(err, &se) && se.Code == http.StatusUnauthorized:
+		m.setRedditBackoff(30 * time.Minute)
+		m.logger.Warn().Str("subreddit", target).Msg("reddit: OAuth credentials rejected (401), backing off 30m — check REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET")
+	case errors.As(err, &se) && se.Code == http.StatusForbidden:
 		// Reddit now blocks unauthenticated JSON API access entirely.
 		// Back off for 30 minutes to avoid spamming 403s every tick.
 		m.setRedditBackoff(30 * time.Minute)
-		m.logger.Warn().Str("subreddit", subreddit).Dur("backoff", 30*time.Minute).Msg("reddit: blocked (403), backing off 30m — configure authenticated crawl via Pinchtab or Reddit OAuth2")
-		return nil
+		m.logger.Warn().Str("subreddit", target).Dur("backoff", 30*time.Minute).Msg("reddit: blocked (403), backing off 30m — configure authenticated crawl via Pinchtab or Reddit OAuth2")
+	default:
+		m.logger.Warn().Err(err).Str("subreddit", target).Msg("reddit: request failed")
 	}
-
-	if resp.StatusCode != 200 {
-		m.logger.Warn().Int("status", resp.StatusCode).Str("subreddit", subreddit).Msg("reddit: non-200 response")
-		return nil
-	}
-
-	var listing redditListing
-	if err := json.NewDecoder(resp.Body).Decode(&listing); err != nil {
-		m.logger.Error().Err(err).Str("subreddit", subreddit).Msg("reddit: failed to decode response")
-		return nil
-	}
-
-	var alerts []mentionAlert
-	for _, child := range listing.Data.Children {
-		post := child.Data
-		if post.Author == "[deleted]" || post.Author == "AutoModerator" {
-			continue
-		}
-
-		content := post.Title
-		if post.Selftext != "" {
-			content = post.Title + "\n\n" + post.Selftext
-		}
-
-		// Filter: keyword must appear in the post content
-		if !filterContent(content, kw) {
-			continue
-		}
-
-		createdAt := time.Unix(int64(post.CreatedUTC), 0)
-
-		alert := m.insertMention(ctx, database.CreateMentionParams{
-			WorkspaceID:       wsID,
-			KeywordID:         pgUUID(kw.ID),
-			Platform:          string(database.PlatformTypeReddit),
-			PlatformID:        "reddit_" + post.ID,
-			Url:               "https://reddit.com" + post.Permalink,
-			Title:             pgtextPtr(post.Title),
-			Content:           content,
-			AuthorUsername:    pgtextPtr(post.Author),
-			AuthorProfileUrl:  pgtextPtr("https://reddit.com/u/" + post.Author),
-			Status:            database.MentionStatusNew,
-			PlatformMetadata:  jsonBytes(map[string]any{"subreddit": post.Subreddit, "score": post.Score}),
-			EngagementMetrics: jsonBytes(map[string]any{"score": post.Score, "num_comments": post.NumComments}),
-			KeywordMatches:    []string{kw.Term},
-			PlatformCreatedAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
-		}, kw.Term)
-
-		if alert != nil {
-			alerts = append(alerts, *alert)
-		}
-	}
-
-	return alerts
+	return true
 }

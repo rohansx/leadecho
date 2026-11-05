@@ -17,6 +17,10 @@ type Provider struct {
 	APIKey  string
 	BaseURL string // e.g. "https://open.bigmodel.cn/api/paas/v4", "https://api.deepseek.com/v1", or "https://api.openai.com/v1"
 	Model   string // e.g. "glm-4-flash", "deepseek-chat", or "gpt-4o-mini"
+	Effort  string // Anthropic output_config.effort ("low".."max"); "" = model default
+	// UsageSink, when set, accumulates the token usage of every call made
+	// with this provider, so callers can record it (llm_usage_events).
+	UsageSink *Usage
 }
 
 // ClassifyResult holds the output from intent classification.
@@ -26,6 +30,12 @@ type ClassifyResult struct {
 	RelevanceScore        float64 `json:"relevance_score"`
 	Reasoning             string  `json:"reasoning"`
 	AwarenessLevel        string  `json:"awareness_level"`
+
+	// scoring: 13-tag taxonomy + sentiment (see taxonomy.go)
+	IntentTags   []string `json:"intent_tags"`
+	Sentiment    string   `json:"sentiment"`
+	PostType     string   `json:"post_type"`     // question|discussion|announcement|thought_leadership|other
+	MatchesSkips bool     `json:"matches_skips"` // post matches the listener's Skips
 }
 
 // ProductAnalysis holds the output from analyzing a product URL.
@@ -39,6 +49,13 @@ type ProductAnalysis struct {
 	SuggestedKeywords   []string   `json:"suggested_keywords"`
 	SuggestedSubreddits []string   `json:"suggested_subreddits"`
 	SuggestedPlatforms  []string   `json:"suggested_platforms"`
+
+	// onboarding: extended brand-profile fields. All optional so older model
+	// output (and stored analyses) still parse.
+	Positioning      string            `json:"positioning,omitempty"`
+	CustomerSegments []CustomerSegment `json:"customer_segments,omitempty"`
+	PainPointDetails []PainPointDetail `json:"pain_point_details,omitempty"`
+	KeywordGroups    KeywordGroups     `json:"keyword_groups"`
 }
 
 // flexString accepts either a JSON string or a JSON array of strings (joined with ", "),
@@ -87,6 +104,22 @@ type DraftReplyOptions struct {
 	KBContext      string
 	ProductName    string
 	TemplateStyle  string
+	// voice: response-profile instructions (reply.VoiceInstructions) and the
+	// platform-matched example reply used as a style sample.
+	Voice        string
+	StyleExample string
+}
+
+// voicePromptSection renders the response-profile block of the system prompt.
+func voicePromptSection(opts DraftReplyOptions) string {
+	if opts.Voice == "" {
+		return ""
+	}
+	s := "\n\nVOICE PROFILE (takes precedence over STYLE and the rules above where they conflict):\n" + opts.Voice
+	if opts.StyleExample != "" {
+		s += "\n\nSTYLE SAMPLE (match its voice and rhythm; do not copy its content):\n" + opts.StyleExample
+	}
+	return s
 }
 
 // EnhancedDraftResult holds the output from enhanced reply drafting.
@@ -121,6 +154,7 @@ type chatResponse struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+	Usage Usage `json:"usage"` // chat: OpenAI-compatible token counts (may be absent)
 }
 
 // prependNemotronDirective inserts "detailed_thinking off" so Nemotron answers
@@ -165,7 +199,7 @@ func DefaultProvider(name, apiKey string) Provider {
 		return Provider{
 			Name:   "anthropic",
 			APIKey: apiKey,
-			Model:  "claude-haiku-5-5",
+			Model:  "claude-sonnet-5-5",
 		}
 	case "ollama":
 		// Ollama Cloud — OpenAI-compatible endpoint, Bearer API key.
@@ -187,6 +221,15 @@ func DefaultProvider(name, apiKey string) Provider {
 
 // callChat makes an OpenAI-compatible chat completion request.
 func callChat(ctx context.Context, p Provider, messages []chatMessage, temp float64) (string, error) {
+	out, _, err := callChatUsage(ctx, p, messages, temp)
+	return out, err
+}
+
+// callChatUsage is callChat plus the provider's token usage (chat).
+func callChatUsage(ctx context.Context, p Provider, messages []chatMessage, temp float64) (_ string, u Usage, _ error) {
+	if p.UsageSink != nil {
+		defer func() { p.UsageSink.Add(u) }()
+	}
 	if p.Name == "anthropic" {
 		return callAnthropic(ctx, p, messages)
 	}
@@ -204,13 +247,13 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return "", Usage{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	url := p.BaseURL + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return "", Usage{}, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
@@ -218,27 +261,27 @@ func callChat(ctx context.Context, p Provider, messages []chatMessage, temp floa
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("do request: %w", err)
+		return "", Usage{}, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
+		return "", Usage{}, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("LLM API returned %d: %s", resp.StatusCode, string(respBody))
+		return "", Usage{}, fmt.Errorf("LLM API returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var chatResp chatResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+		return "", Usage{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 	if len(chatResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
+		return "", Usage{}, fmt.Errorf("no choices in response")
 	}
-	return strings.TrimSpace(chatResp.Choices[0].Message.Content), nil
+	return strings.TrimSpace(chatResp.Choices[0].Message.Content), chatResp.Usage, nil
 }
 
 // stripCodeFences removes markdown code fences and the JSON-invalid artifacts
@@ -249,7 +292,23 @@ func stripCodeFences(s string) string {
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
-	return sanitizeJSON(strings.TrimSpace(s))
+	return firstJSONValue(sanitizeJSON(strings.TrimSpace(s)))
+}
+
+// firstJSONValue keeps only the first complete JSON object/array, dropping
+// prose around it (Claude sometimes adds "Note: ..." after the JSON).
+// Returns s unchanged when no valid value is found, so callers' errors stay
+// as informative as before.
+func firstJSONValue(s string) string {
+	start := strings.IndexAny(s, "{[")
+	if start < 0 {
+		return s
+	}
+	var raw json.RawMessage
+	if err := json.NewDecoder(strings.NewReader(s[start:])).Decode(&raw); err != nil {
+		return s
+	}
+	return string(raw)
 }
 
 // sanitizeJSON strips JS-style comments and trailing commas that fall outside
@@ -306,54 +365,6 @@ func sanitizeJSON(s string) string {
 	return string(buf)
 }
 
-// ClassifyIntent classifies a social mention into intent categories.
-// product describes the workspace's own product; when set, relevance_score
-// measures buyer fit for that product instead of generic B2B relevance.
-func ClassifyIntent(ctx context.Context, p Provider, title, content, platform, product string) (*ClassifyResult, error) {
-	systemPrompt := `You are an intent classifier for social media mentions. Analyze the post and classify it.
-
-Return ONLY valid JSON (no markdown, no code fences) with these fields:
-- "intent": one of "buy_signal", "complaint", "recommendation_ask", "comparison", "general"
-- "conversion_probability": float 0.0-1.0 (how likely this person will buy/convert)
-- "relevance_score": float 0.0-10.0 (how relevant this is for a B2B SaaS product)
-- "reasoning": brief one-sentence explanation
-- "awareness_level": one of "problem_aware", "solution_aware", "product_aware", "purchase_ready"
-
-Intent definitions:
-- buy_signal: User is actively looking to buy/switch to a product
-- complaint: User is complaining about a competitor or existing solution
-- recommendation_ask: User is asking for recommendations/suggestions
-- comparison: User is comparing multiple products or solutions
-- general: General discussion, not clearly actionable
-
-Awareness level definitions:
-- problem_aware: Knows they have a problem but hasn't started looking for solutions
-- solution_aware: Actively researching solution categories
-- product_aware: Comparing specific products by name
-- purchase_ready: Ready to buy, mentions budget/timeline/specific requirements`
-	if product != "" {
-		systemPrompt += productFitRules(product)
-	}
-
-	userPrompt := fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)
-
-	result, err := callChat(ctx, p, []chatMessage{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: userPrompt},
-	}, 0.1)
-	if err != nil {
-		return nil, err
-	}
-
-	result = stripCodeFences(result)
-
-	var cr ClassifyResult
-	if err := json.Unmarshal([]byte(result), &cr); err != nil {
-		return nil, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
-	}
-	return &cr, nil
-}
-
 // AnalyzeProductPage extracts product info from scraped page text.
 func AnalyzeProductPage(ctx context.Context, p Provider, pageText string) (*ProductAnalysis, error) {
 	if len(pageText) > 8000 {
@@ -372,6 +383,10 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "suggested_keywords": array of 5-15 monitoring keywords (product name, competitor names, pain-point phrases people would search for)
 - "suggested_subreddits": array of 3-8 relevant subreddit names (without r/ prefix) where the target audience hangs out
 - "suggested_platforms": array of platforms to monitor, from: "reddit", "hackernews", "twitter", "linkedin", "devto", "lobsters", "indiehackers"
+- "positioning": one sentence on how the product differs from alternatives
+- "customer_segments": array of 2-5 objects {"name": segment name, "why_they_buy": one sentence}
+- "pain_point_details": array of objects {"problem": short problem, "explanation": one sentence}, one per pain point
+- "keyword_groups": object with arrays "brand" (product/company names), "product" (product + feature phrases), "category" (category phrases like "crm for agencies"), "problem" (problem phrases people post)
 
 Be thorough with pain_points — think about what problems potential customers would post about on Reddit/HN. Focus on real frustrations, not marketing language.`
 
@@ -520,7 +535,7 @@ RULES (apply to ALL styles):
 Return ONLY valid JSON (no markdown, no code fences) with:
 - "reply": the drafted reply text
 - "tone": one of "helpful", "empathetic", "technical", "casual"
-- "template_style": "%s"`, templateGuide, opts.TemplateStyle)
+- "template_style": "%s"`, templateGuide, opts.TemplateStyle) + voicePromptSection(opts)
 
 	userMsg := fmt.Sprintf("Platform: %s\nIntent: %s\nAwareness: %s\nTitle: %s\nContent: %s",
 		opts.Platform, opts.Intent, opts.AwarenessLevel, opts.Title, opts.Content)

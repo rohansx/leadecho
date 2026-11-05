@@ -74,6 +74,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	var candidates []scored
 
 	if m.llmRouter != nil {
+		m.ensurePainPointEmbeddings(ctx, wsID)
 		// Batch embed all scoreable content
 		texts := make([]string, len(scoreable))
 		for i, a := range scoreable {
@@ -97,13 +98,6 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 				candidates = append(candidates, scored{alert: a, similarity: 0})
 			}
 		} else {
-			// Profile count is workspace-wide and constant for this batch — read it
-			// once rather than issuing an identical query per mention.
-			profileCount, err := m.q.CountMonitoringProfiles(ctx, wsID)
-			if err != nil {
-				m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("scorer: failed to count monitoring profiles")
-			}
-
 			// Store embeddings and find similar pain points
 			for i, a := range scoreable {
 				// The embedder returned fewer vectors than inputs (shouldn't
@@ -136,9 +130,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 					bestSim = similar[0].Similarity
 				}
 
-				// If profiles exist, only pass mentions with similarity > 0.40
-				// If no profiles configured, pass everything (just classify)
-				if profileCount > 0 && bestSim < 0.40 {
+				if lowPainPointSimilarity(len(similar), bestSim) {
 					// Low similarity, update metadata and skip
 					if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 						ID:              a.ID,
@@ -346,6 +338,17 @@ func (m *Monitor) IngestSignals(ctx context.Context, wsID string, alerts []Signa
 }
 
 // scoreStage1Rules is a zero-cost rules pre-filter (Stage 0). Returns true if the mention should proceed.
+// minPainPointSimilarity is the cosine similarity a post needs to the nearest
+// embedded pain point to reach classification.
+const minPainPointSimilarity = 0.40
+
+// lowPainPointSimilarity: skip only when the workspace has embedded pain
+// points to compare against and the nearest is too far. No embedded pain
+// points (or a failed lookup) means classify everything, never drop it all.
+func lowPainPointSimilarity(matches int, best float64) bool {
+	return matches > 0 && best < minPainPointSimilarity
+}
+
 func scoreStage1Rules(content string) bool {
 	if len(content) < 50 {
 		return false
@@ -448,7 +451,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		alert      mentionAlert
 		similarity float64
 	}{a, similarity}
-	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform)
+	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform, m.scoringContextFor(ctx, wsID, c.alert.ID))
 	if err != nil {
 		// Record the failure. Without this the mention keeps null scoring
 		// metadata, which is indistinguishable from "never reached stage 3":
@@ -457,6 +460,9 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
 		return
 	}
+	// scoring: normalize whatever the scorer returned (idempotent for the router)
+	normalized := ai.NormalizeClassifyResult(*result, c.alert.Title)
+	result = &normalized
 
 	meta := map[string]any{
 		"stage":           "stage3_classified",
@@ -464,6 +470,11 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		"auto_scored":     true,
 		"reasoning":       result.Reasoning,
 		"awareness_level": result.AwarenessLevel,
+		// scoring: taxonomy context
+		"intent_tags":   result.IntentTags,
+		"sentiment":     result.Sentiment,
+		"post_type":     result.PostType,
+		"matches_skips": result.MatchesSkips,
 	}
 
 	// Update mention with classification + awareness level
@@ -479,6 +490,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
 	}
 
+	m.storeIntentTags(ctx, c.alert.WorkspaceID, c.alert.ID, result) // scoring
 	m.publishMentionScored(ctx, c.alert, result)
 
 	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)

@@ -26,7 +26,7 @@ func (q *Queries) CountMonitoringProfiles(ctx context.Context, workspaceID strin
 const createMonitoringProfile = `-- name: CreateMonitoringProfile :one
 INSERT INTO monitoring_profiles (workspace_id, name, description, is_active)
 VALUES ($1, $2, $3, $4)
-RETURNING id, workspace_id, name, description, is_active, created_at, updated_at
+RETURNING id, workspace_id, name, description, is_active, created_at, updated_at, looks_for, skips, goal
 `
 
 type CreateMonitoringProfileParams struct {
@@ -52,6 +52,9 @@ func (q *Queries) CreateMonitoringProfile(ctx context.Context, arg CreateMonitor
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LooksFor,
+		&i.Skips,
+		&i.Goal,
 	)
 	return i, err
 }
@@ -168,7 +171,7 @@ func (q *Queries) FindSimilarPainPoints(ctx context.Context, arg FindSimilarPain
 }
 
 const getMonitoringProfile = `-- name: GetMonitoringProfile :one
-SELECT id, workspace_id, name, description, is_active, created_at, updated_at FROM monitoring_profiles
+SELECT id, workspace_id, name, description, is_active, created_at, updated_at, looks_for, skips, goal FROM monitoring_profiles
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -188,12 +191,15 @@ func (q *Queries) GetMonitoringProfile(ctx context.Context, arg GetMonitoringPro
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LooksFor,
+		&i.Skips,
+		&i.Goal,
 	)
 	return i, err
 }
 
 const listActiveMonitoringProfiles = `-- name: ListActiveMonitoringProfiles :many
-SELECT id, workspace_id, name, description, is_active, created_at, updated_at FROM monitoring_profiles
+SELECT id, workspace_id, name, description, is_active, created_at, updated_at, looks_for, skips, goal FROM monitoring_profiles
 WHERE workspace_id = $1 AND is_active = true
 ORDER BY created_at DESC
 `
@@ -215,6 +221,9 @@ func (q *Queries) ListActiveMonitoringProfiles(ctx context.Context, workspaceID 
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LooksFor,
+			&i.Skips,
+			&i.Goal,
 		); err != nil {
 			return nil, err
 		}
@@ -227,7 +236,7 @@ func (q *Queries) ListActiveMonitoringProfiles(ctx context.Context, workspaceID 
 }
 
 const listAllActiveProfiles = `-- name: ListAllActiveProfiles :many
-SELECT id, workspace_id, name, description, is_active, created_at, updated_at FROM monitoring_profiles
+SELECT id, workspace_id, name, description, is_active, created_at, updated_at, looks_for, skips, goal FROM monitoring_profiles
 WHERE is_active = true
 ORDER BY workspace_id, created_at DESC
 `
@@ -249,6 +258,9 @@ func (q *Queries) ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfil
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LooksFor,
+			&i.Skips,
+			&i.Goal,
 		); err != nil {
 			return nil, err
 		}
@@ -261,7 +273,7 @@ func (q *Queries) ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfil
 }
 
 const listMonitoringProfiles = `-- name: ListMonitoringProfiles :many
-SELECT id, workspace_id, name, description, is_active, created_at, updated_at FROM monitoring_profiles
+SELECT id, workspace_id, name, description, is_active, created_at, updated_at, looks_for, skips, goal FROM monitoring_profiles
 WHERE workspace_id = $1
 ORDER BY created_at DESC
 `
@@ -283,6 +295,9 @@ func (q *Queries) ListMonitoringProfiles(ctx context.Context, workspaceID string
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LooksFor,
+			&i.Skips,
+			&i.Goal,
 		); err != nil {
 			return nil, err
 		}
@@ -364,7 +379,7 @@ const updateMonitoringProfile = `-- name: UpdateMonitoringProfile :one
 UPDATE monitoring_profiles
 SET name = $1, description = $2, is_active = $3
 WHERE id = $4 AND workspace_id = $5
-RETURNING id, workspace_id, name, description, is_active, created_at, updated_at
+RETURNING id, workspace_id, name, description, is_active, created_at, updated_at, looks_for, skips, goal
 `
 
 type UpdateMonitoringProfileParams struct {
@@ -392,6 +407,9 @@ func (q *Queries) UpdateMonitoringProfile(ctx context.Context, arg UpdateMonitor
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LooksFor,
+		&i.Skips,
+		&i.Goal,
 	)
 	return i, err
 }

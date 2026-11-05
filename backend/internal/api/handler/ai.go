@@ -16,6 +16,8 @@ import (
 	"leadecho/internal/events"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
+	"leadecho/internal/monitor"
+	"leadecho/internal/onboarding"
 	"leadecho/internal/reply"
 )
 
@@ -55,7 +57,9 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Classify
-	result, err := h.llmRouter.ClassifyIntent(ctx, wsID, title, mention.Content, string(mention.Platform))
+	// scoring: same listener context (Looks for / Skips / few-shot) as the monitor
+	sc := monitor.ScoringContextFor(ctx, h.q, []monitor.ExampleSource{onboarding.CalibrationSource{Store: h.q}}, wsID, id, func(error) {})
+	result, err := h.llmRouter.ClassifyIntent(ctx, wsID, title, mention.Content, string(mention.Platform), sc)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "classification failed: "+err.Error())
 		return
@@ -65,6 +69,8 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 		"source":        "manual_classify",
 		"reasoning":     result.Reasoning,
 		"classified_at": time.Now().UTC().Format(time.RFC3339),
+		"intent_tags":   result.IntentTags,
+		"sentiment":     result.Sentiment,
 	}
 	if len(mention.ScoringMetadata) > 0 {
 		existing := map[string]any{}
@@ -91,6 +97,16 @@ func (h *AIHandler) Classify(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to save classification")
 		return
 	}
+	// scoring: persist taxonomy tags + sentiment
+	if err := h.q.UpdateMentionTags(ctx, database.UpdateMentionTagsParams{
+		IntentTags: nonNilTags(result.IntentTags), Sentiment: pgtype.Text{String: result.Sentiment, Valid: result.Sentiment != ""},
+		ID: id, WorkspaceID: wsID,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save intent tags")
+		return
+	}
+	updated.IntentTags = nonNilTags(result.IntentTags)
+	updated.Sentiment = pgtype.Text{String: result.Sentiment, Valid: result.Sentiment != ""}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mention":   mentionToResponse(updated),
@@ -105,6 +121,19 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID := middleware.WorkspaceID(ctx)
 	id := chi.URLParam(r, "id")
+
+	// voice: optional response_profile_id; unknown ids 404 before any work.
+	profileID, err := draftReplyProfileID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if profileID != "" {
+		if _, err := h.q.GetResponseProfile(ctx, database.GetResponseProfileParams{ID: profileID, WorkspaceID: wsID}); err != nil {
+			writeError(w, http.StatusNotFound, "response profile not found")
+			return
+		}
+	}
 
 	if h.replyDrafterAsync && h.publisher != nil {
 		// Drafting is an explicit, repeatable user action: asking again means
@@ -124,6 +153,8 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 				MentionID:   id,
 				WorkspaceID: wsID,
 				Source:      "api",
+				// voice
+				ResponseProfileID: profileID,
 			},
 		)
 		if err != nil {
@@ -142,7 +173,11 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.drafter.DraftForMention(ctx, wsID, id)
+	result, err := h.drafter.DraftWithProfile(ctx, wsID, id, profileID)
+	if errors.Is(err, reply.ErrResponseProfileNotFound) {
+		writeError(w, http.StatusNotFound, "response profile not found")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "draft generation failed: "+err.Error())
 		return

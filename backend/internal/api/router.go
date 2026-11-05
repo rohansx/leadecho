@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -12,18 +13,27 @@ import (
 
 	"leadecho/internal/api/handler"
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/apikey"
 	"leadecho/internal/attribution"
+	"leadecho/internal/auth"
+	"leadecho/internal/automation" // automations (P2 #17)
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/digest" // digests (P1 #13)
+	"leadecho/internal/engagers"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
+	"leadecho/internal/mcp"
 	"leadecho/internal/monitor"
+	"leadecho/internal/mutes"                     // sources
+	onboardingflow "leadecho/internal/onboarding" // onboarding v2
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
+	"leadecho/internal/tools"
 )
 
 func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter, kb *knowledge.Service, rs *researcher.Service) *chi.Mux {
@@ -40,6 +50,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	r.Get("/healthz", health.Healthz)
 	r.Get("/readyz", health.Readyz)
 
+	// growth: agent index (no auth)
+	r.Get("/llms.txt", handler.LLMSTxt)
+
 	// sqlc queries instance
 	queries := database.New(db)
 	crm := crmsync.NewDispatcher(queries, crypto.DeriveKey(cfg.EncryptionKeyOrDefault()), logger)
@@ -52,6 +65,42 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	// Public conversion webhook (secret auth in body)
 	convHook := handler.NewConversionWebhookHandler(queries, attrib)
 	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
+
+	// mcp: agent tools behind workspace API keys — MCP server + public REST.
+	// sources: one mute store shared by the API, MCP tools and the insert path.
+	muteStore := mutes.NewStore(queries)
+	if mon != nil && mon.Mutes() != nil {
+		muteStore = mon.Mutes()
+	}
+	toolDeps := tools.Deps{Q: queries, CRM: crm, Mutes: muteStore}
+	if replyDrafter != nil { // avoid a typed-nil interface
+		toolDeps.Drafter = replyDrafter
+	}
+	agentTools := tools.New(toolDeps)
+	var keyLimiter auth.Counter
+	if redis != nil {
+		keyLimiter = auth.NewRedisCounter(redis)
+	}
+	publicAPI := handler.NewPublicAPIHandler(agentTools, cfg.AppVersion)
+	r.Get("/api/public/v1/probe", publicAPI.Probe)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.APIKeyAuth(queries, keyLimiter, cfg.APIKeyRateLimitPerMin))
+		mcpServer := &mcp.Server{Registry: agentTools, Version: cfg.AppVersion, Logger: logger, Auth: middleware.APIKeyPrincipal}
+		r.Handle("/mcp", mcpServer)
+		r.Handle("/api/mcp", mcpServer) // same server via the dashboard's existing /api/ proxy
+		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/mentions", publicAPI.Mentions)
+		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/leads", publicAPI.Leads)
+	})
+	// end mcp
+
+	// Per-workspace caps on endpoints that spend the operator's LLM / treg budget.
+	llmQuota := middleware.NewQuota(30, time.Minute)
+	engagerQuota := middleware.NewQuota(20, 24*time.Hour) // each pull is up to 2 paid treg calls + enrichment
+	if redis != nil {
+		shared := auth.NewRedisCounter(redis)
+		llmQuota.Shared(shared, "llm")
+		engagerQuota.Shared(shared, "engagers")
+	}
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -82,6 +131,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/mentions/{id}", mentions.Get)
 			r.Get("/mentions/{id}/person360", mentions.Person360)
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)
+			// scoring: 👍/👎 feedback → few-shot examples
+			r.Post("/mentions/{id}/feedback", mentions.Feedback)
 
 			// Profiles (Pain-Point Monitoring)
 			profiles := handler.NewProfileHandler(queries, llmRouter)
@@ -95,6 +146,14 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			aiHandler := handler.NewAIHandler(queries, llmRouter, scrapling, replyDrafter, eventPublisher, cfg.StreamsEnabled && cfg.StreamsReplyDrafterConsumerEnabled)
 			r.Post("/mentions/{id}/classify", aiHandler.Classify)
 			r.Post("/mentions/{id}/draft-reply", aiHandler.DraftReply)
+
+			// voice: response profiles (reply voice)
+			responseProfiles := handler.NewResponseProfileHandler(queries)
+			r.Get("/response-profiles", responseProfiles.List)
+			r.Post("/response-profiles", responseProfiles.Create)
+			r.Put("/response-profiles/{id}", responseProfiles.Update)
+			r.Delete("/response-profiles/{id}", responseProfiles.Delete)
+			r.Post("/response-profiles/{id}/default", responseProfiles.SetDefault)
 
 			// Leads
 			leads := handler.NewLeadHandler(queries, crm)
@@ -157,6 +216,13 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Put("/settings/api-keys", settings.SaveAPIKey)
 			r.Delete("/settings/api-keys", settings.DeleteAPIKey)
 
+			// digests (P1 #13): daily/weekly digest settings + HTML preview
+			digests := handler.NewDigestHandler(digest.NewService(queries, llmRouter,
+				cfg.ResendAPIKey, cfg.DigestFromEmail, cfg.FrontendURL, logger))
+			r.Get("/settings/digests", digests.Get)
+			r.Put("/settings/digests", digests.Put)
+			r.Post("/settings/digests/preview", digests.Preview)
+
 			// Outbound integrations (signed webhook, HubSpot, Attio)
 			integrations := handler.NewIntegrationsHandler(queries, encKey)
 			r.Get("/settings/integrations", integrations.Get)
@@ -172,8 +238,28 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/llm/providers/{provider}/verify", llmHandler.VerifyProvider)
 			r.Get("/llm/usage", llmHandler.Usage)
 
+			// treg feature: workspace data (treg) spend this month
+			r.Get("/usage/data-spend", handler.NewDataSpendHandler(queries).Get)
+
+			// enrich: LinkedIn engagers -> leads, tracked LinkedIn/X profiles
+			var engScorer engagers.Scorer
+			if rs != nil { // avoid a typed-nil interface
+				engScorer = rs
+			}
+			engH := handler.NewEngagersHandler(engagers.NewImporter(queries, mon.Treg(), engScorer, logger), queries, crm)
+			r.With(middleware.WorkspaceQuota(engagerQuota)).Post("/linkedin/engagers", engH.Pull)
+			r.Post("/linkedin/engagers/push", engH.Push)
+			trackedH := handler.NewTrackedProfilesHandler(queries)
+			r.Get("/tracked-profiles", trackedH.List)
+			r.Post("/tracked-profiles", trackedH.Create)
+			r.Delete("/tracked-profiles/{id}", trackedH.Delete)
+			// end enrich
+
 			// Browser sessions (Pinchtab)
 			sessions := handler.NewSessionHandler(queries, encKey, pinchtab)
+			if cfg.TregToken != "" { // treg feature: X/LinkedIn need no cookies
+				sessions.SetManaged(handler.TregManagedPlatforms...)
+			}
 			r.Get("/settings/sessions", sessions.List)
 			r.Put("/settings/sessions/{platform}", sessions.Save)
 			r.Delete("/settings/sessions/{platform}", sessions.Delete)
@@ -203,8 +289,30 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			}
 			r.Get("/settings/onboarding", onboarding.GetOnboardingStatus)
 			r.Patch("/settings/onboarding", onboarding.UpdateOnboarding)
-			r.Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/settings/onboarding/analyze-url", onboarding.AnalyzeURL)
 			r.Post("/settings/onboarding/complete", onboarding.Complete)
+
+			// onboarding v2: brand profile, streamed analysis, listener builder, first value
+			onboarding.SetKnowledge(kb)
+			onboarding.SetCompetitorFinder(onboardingflow.NewCompetitorFinder(cfg.ExaAPIKey))
+			r.Get("/brand-profile", onboarding.GetBrandProfile)
+			r.Put("/brand-profile", onboarding.PutBrandProfile)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/onboarding/analyze", onboarding.AnalyzeStream)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/onboarding/listeners/build", onboarding.BuildListeners)
+			r.Post("/onboarding/listeners/feedback", onboarding.SampleFeedback)
+			r.Post("/onboarding/complete", onboarding.Complete)
+			r.Get("/onboarding/first-value", onboarding.FirstValue)
+			// sources: mute lists, CSV export, keyword cadence + cost preview
+			muteH := handler.NewMuteHandler(muteStore)
+			r.Get("/mutes", muteH.List)
+			r.Post("/mutes", muteH.Create)
+			r.Delete("/mutes/{id}", muteH.Delete)
+			exportH := handler.NewExportHandler(queries)
+			r.Get("/mentions/export.csv", exportH.Mentions)
+			r.Get("/leads/export.csv", exportH.Leads)
+			cadenceH := handler.NewKeywordCadenceHandler(queries)
+			r.Get("/keywords/cost-preview", cadenceH.CostPreview)
+			r.Put("/keywords/{id}/cadence", cadenceH.Update)
 
 			// UTM tracking links
 			utm := handler.NewUTMHandler(queries, attrib)
@@ -212,6 +320,34 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/utm-links", utm.Create)
 			r.Delete("/utm-links/{id}", utm.Delete)
 			r.Post("/utm-links/{code}/conversion", utm.RecordConversion)
+
+			// mcp: workspace API keys for MCP / public REST (not the BYOK /settings/api-keys)
+			wsKeys := handler.NewWorkspaceAPIKeyHandler(queries)
+			r.Get("/workspace-api-keys", wsKeys.List)
+			r.Post("/workspace-api-keys", wsKeys.Create)
+			r.Delete("/workspace-api-keys/{id}", wsKeys.Revoke)
+			r.Get("/workspace-api-keys/tools", publicAPI.ToolCatalog)
+
+			// chat: "Ask LeadEcho" in-app assistant (P2 #15)
+			chatH := handler.NewChatHandler(queries, agentTools, llmRouter, logger)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/chat", chatH.Send)
+			r.Get("/chat/threads", chatH.Threads)
+			r.Get("/chat/threads/{id}/messages", chatH.Messages)
+			r.Delete("/chat/threads/{id}", chatH.DeleteThread)
+			r.Post("/chat/messages/{id}/confirm", chatH.Confirm)
+			// end chat
+			// automations (P2 #17): scheduled playbooks + prompt library
+			autoH := handler.NewAutomationHandler(queries, automation.NewService(queries, agentTools,
+				cfg.ResendAPIKey, cfg.DigestFromEmail, cfg.FrontendURL, logger))
+			r.Get("/automations", autoH.List)
+			r.Post("/automations", autoH.Create)
+			r.Get("/automations/{id}", autoH.Get)
+			r.Put("/automations/{id}", autoH.Update)
+			r.Delete("/automations/{id}", autoH.Delete)
+			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/automations/{id}/run", autoH.Run)
+			r.Get("/automations/{id}/runs", autoH.Runs)
+			r.Get("/skills", handler.ListSkills)
+			// end automations
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

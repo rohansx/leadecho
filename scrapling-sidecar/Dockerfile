@@ -23,17 +23,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Written as sed rather than a heredoc: this image builds with the classic
 # builder, where Dockerfile heredocs are not interpreted and the patch would
 # silently no-op. Drop this once browserforge ships newer Chrome fingerprints.
+# scrapling 0.5 no longer has these constants (and imports cleanly), so the
+# clamp only applies when they exist.
 RUN FP=$(python -c "import scrapling.engines.toolbelt.fingerprints as f; print(f.__file__)") \
-    && sed -i -E 's/^chromium_version[[:space:]]*=[[:space:]]*[0-9]+/chromium_version = 141/' "$FP" \
-    && sed -i -E 's/^chrome_version[[:space:]]*=[[:space:]]*[0-9]+/chrome_version = 141/' "$FP" \
-    && grep -E '^(chromium_version|chrome_version)' "$FP"
+    && if grep -qE '^(chromium_version|chrome_version)[[:space:]]*=' "$FP"; then \
+         sed -i -E 's/^chromium_version[[:space:]]*=[[:space:]]*[0-9]+/chromium_version = 141/' "$FP" \
+         && sed -i -E 's/^chrome_version[[:space:]]*=[[:space:]]*[0-9]+/chrome_version = 141/' "$FP"; \
+       fi
 
-RUN python -c "import scrapling.engines._browsers._config_tools; print('scrapling imports cleanly')"
+RUN python -c "from scrapling import StealthyFetcher; print('scrapling imports cleanly')"
 
 # Install Scrapling's browser dependencies (Camoufox stealth browser + Playwright)
 RUN scrapling install
 
 WORKDIR /app
-COPY server.py .
+COPY server.py netguard.py ./
 
 CMD ["python", "server.py"]

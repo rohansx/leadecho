@@ -15,7 +15,7 @@ import (
 //
 // A refusal is returned as an error so the LLM router's existing fallback
 // targets (other providers) take over.
-func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (string, error) {
+func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (string, Usage, error) {
 	client := anthropic.NewClient(option.WithAPIKey(p.APIKey))
 
 	var system []anthropic.TextBlockParam
@@ -31,17 +31,27 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		}
 	}
 
-	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
+	// Cache the instructions: they repeat on every filter/classify call for a
+	// workspace, and the post (the part that varies) comes after them.
+	// Silently a no-op below the model's minimum prefix (512 on Sonnet 5.5).
+	if len(system) > 0 {
+		system[len(system)-1].CacheControl = anthropic.NewCacheControlEphemeralParam()
+	}
+	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(p.Model),
 		MaxTokens: 16000,
 		System:    system,
 		Messages:  msgs,
-	})
+	}
+	if p.Effort != "" {
+		params.OutputConfig = anthropic.OutputConfigParam{Effort: anthropic.OutputConfigEffort(p.Effort)}
+	}
+	resp, err := client.Messages.New(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("anthropic: %w", err)
+		return "", Usage{}, fmt.Errorf("anthropic: %w", err)
 	}
 	if resp.StopReason == anthropic.StopReasonRefusal {
-		return "", fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
+		return "", Usage{}, fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
 	}
 
 	var out strings.Builder
@@ -51,7 +61,12 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		}
 	}
 	if out.Len() == 0 {
-		return "", fmt.Errorf("anthropic: empty response (stop_reason=%s)", resp.StopReason)
+		return "", Usage{}, fmt.Errorf("anthropic: empty response (stop_reason=%s)", resp.StopReason)
 	}
-	return strings.TrimSpace(out.String()), nil
+	in, outTok := int32(resp.Usage.InputTokens), int32(resp.Usage.OutputTokens)
+	read, write := int32(resp.Usage.CacheReadInputTokens), int32(resp.Usage.CacheCreationInputTokens)
+	return strings.TrimSpace(out.String()), Usage{
+		PromptTokens: in, CompletionTokens: outTok, TotalTokens: in + read + write + outTok,
+		CacheReadTokens: read, CacheWriteTokens: write,
+	}, nil
 }

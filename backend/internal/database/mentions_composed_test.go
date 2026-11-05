@@ -91,3 +91,20 @@ func TestListMentionsComposedParams_buildWhere_actionRequired(t *testing.T) {
 		t.Fatalf("action_required should include reply predicates: %s", where)
 	}
 }
+
+// scoring: tag + sentiment filters
+func TestListMentionsComposedParams_buildWhere_tagAndSentiment(t *testing.T) {
+	where, args := (ListMentionsComposedParams{
+		WorkspaceID: "ws-1",
+		Tag:         "hiring",
+		Sentiment:   "negative",
+	}).buildWhere()
+	for _, want := range []string{"$2 = ANY(intent_tags)", "sentiment = $3"} {
+		if !strings.Contains(where, want) {
+			t.Fatalf("where missing %q: %s", want, where)
+		}
+	}
+	if len(args) != 3 || args[1] != "hiring" || args[2] != "negative" {
+		t.Fatalf("args = %v", args)
+	}
+}

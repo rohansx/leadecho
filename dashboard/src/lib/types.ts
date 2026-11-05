@@ -1,4 +1,4 @@
-export type Platform = "reddit" | "hackernews" | "twitter" | "linkedin" | "devto" | "lobsters" | "indiehackers" | "googlenews" | "quora" | "exa";
+export type Platform = "reddit" | "hackernews" | "twitter" | "linkedin" | "devto" | "lobsters" | "indiehackers" | "googlenews" | "quora" | "exa" | "bluesky";
 export type MentionStatus = "new" | "reviewed" | "replied" | "archived" | "spam";
 export type IntentType = "buy_signal" | "complaint" | "recommendation_ask" | "comparison" | "general";
 export type AwarenessLevel = "problem_aware" | "solution_aware" | "product_aware" | "purchase_ready";
@@ -30,6 +30,9 @@ export interface Mention {
   engagement_metrics: Record<string, unknown>;
   scoring_metadata: Record<string, unknown>;
   keyword_matches: string[];
+  /** scoring: 13-tag taxonomy + sentiment (absent on older API builds) */
+  intent_tags?: string[];
+  sentiment?: "positive" | "neutral" | "negative" | null;
   platform_created_at: string | null;
   created_at: string;
   updated_at: string;
@@ -186,15 +189,20 @@ export interface MonitoringProfile {
   description: string;
   pain_points: string[];
   is_active: boolean;
+  /** scoring: plain-English listener intent fed to the scorer */
+  looks_for?: string;
+  skips?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface PlatformSession {
-  platform: "reddit" | "twitter" | "linkedin";
+  platform: "reddit" | "twitter" | "linkedin" | "quora";
   username: string | null;
   is_configured: boolean;
   is_pinchtab_online: boolean;
+  /** treg feature: crawled via treg, no browser cookie needed */
+  is_managed?: boolean;
 }
 
 export interface ExtensionTokenInfo {

@@ -34,7 +34,7 @@ func (m *Monitor) crawlLinkedInScrapling(ctx context.Context, wsID string, kw da
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".linkedin.com")
+	cookies := ParseCookieString(cookieStr, ".linkedin.com")
 	if err := m.scrapling.InjectCookies(ctx, cookies); err != nil {
 		m.logger.Warn().Err(err).Msg("linkedin-scrapling: failed to inject cookies")
 		return nil
@@ -90,11 +90,11 @@ func (m *Monitor) crawlLinkedInScrapling(ctx context.Context, wsID string, kw da
 		author := strings.TrimSpace(post.Author)
 
 		alert := m.insertMention(ctx, database.CreateMentionParams{
-			WorkspaceID:   wsID,
-			Platform:      string(database.PlatformTypeLinkedin),
-			PlatformID:    platformID,
-			Url:           post.URL,
-			Content:       post.Text,
+			WorkspaceID:    wsID,
+			Platform:       string(database.PlatformTypeLinkedin),
+			PlatformID:     platformID,
+			Url:            post.URL,
+			Content:        post.Text,
 			AuthorUsername: pgtype.Text{String: author, Valid: author != ""},
 			PlatformMetadata: jsonBytes(map[string]any{
 				"source": "scrapling_search",

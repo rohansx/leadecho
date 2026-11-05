@@ -34,7 +34,7 @@ func (m *Monitor) crawlLinkedInCamoufox(ctx context.Context, wsID string, kw dat
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".linkedin.com")
+	cookies := ParseCookieString(cookieStr, ".linkedin.com")
 	if err := m.camoufox.InjectCookies(ctx, cookies); err != nil {
 		m.logger.Warn().Err(err).Msg("linkedin-camoufox: failed to inject cookies")
 		return nil
@@ -115,4 +115,3 @@ func (m *Monitor) crawlLinkedInCamoufox(ctx context.Context, wsID string, kw dat
 	}
 	return alerts
 }
-

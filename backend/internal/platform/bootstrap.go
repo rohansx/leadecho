@@ -19,15 +19,18 @@ import (
 	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/enrich" // enrich feature
 	"leadecho/internal/events/publishers"
 	streamredis "leadecho/internal/events/redis"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/metrics"
 	"leadecho/internal/monitor"
+	"leadecho/internal/onboarding"
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
 	"leadecho/internal/streamworkers"
+	"leadecho/internal/treg" // treg feature
 	"leadecho/internal/workflow"
 )
 
@@ -71,15 +74,17 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	encKey := crypto.DeriveKey(cfg.EncryptionKeyOrDefault())
 
 	llmRouter := llm.NewRouter(queries, encKey, llm.SystemKeys{
-		NVIDIAAPIKey:    cfg.NVIDIAAPIKey,
-		NVIDIAModel:     cfg.NVIDIAModel,
-		DeepSeekAPIKey:  cfg.DeepSeekAPIKey,
-		GLMAPIKey:       cfg.GLMAPIKey,
-		OpenAIAPIKey:    cfg.OpenAIAPIKey,
-		OllamaAPIKey:    cfg.OllamaAPIKey,
-		AnthropicAPIKey: cfg.AnthropicAPIKey,
-		OllamaModel:     cfg.OllamaModel,
-		VoyageAPIKey:    cfg.VoyageAPIKey,
+		NVIDIAAPIKey:     cfg.NVIDIAAPIKey,
+		NVIDIAModel:      cfg.NVIDIAModel,
+		DeepSeekAPIKey:   cfg.DeepSeekAPIKey,
+		GLMAPIKey:        cfg.GLMAPIKey,
+		OpenAIAPIKey:     cfg.OpenAIAPIKey,
+		OllamaAPIKey:     cfg.OllamaAPIKey,
+		AnthropicAPIKey:  cfg.AnthropicAPIKey,
+		OllamaModel:      cfg.OllamaModel,
+		VoyageAPIKey:     cfg.VoyageAPIKey,
+		OpenRouterAPIKey: cfg.OpenRouterAPIKey,
+		OpenRouterModel:  cfg.OpenRouterModel,
 	}, logger)
 
 	streamClient := streamredis.NewClient(redis, logger)
@@ -121,9 +126,21 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		researcherSvc,
 	)
 	mon.SetGoogleNewsEnabled(cfg.GoogleNewsEnabled)
-	mon.SetCRMSync(crmsync.NewDispatcher(queries, encKey, logger))
+	// treg feature: hosted X/LinkedIn sources + Reddit comment search.
+	tregClient := treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger)
+	mon.SetTreg(tregClient)
+	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
+	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources
+	crm := crmsync.NewDispatcher(queries, encKey, logger)
+	mon.SetCRMSync(crm)
+	// enrich: treg enrichment of qualified leads + tracked profile polling.
+	researcherSvc.SetEnricher(enrich.New(tregClient, queries, cfg.EnrichDailyCap, cfg.TregCustomerDailyCapMicro, logger))
+	researcherSvc.SetCRM(crm)
+	mon.SetTrackedProfilesInterval(time.Duration(cfg.TrackedProfilesPollHours) * time.Hour)
+	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
+	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
 	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
 
 	return &Shared{

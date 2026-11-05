@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { useEffect } from "react";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail } from "@/components/inbox/lead-detail";
+import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
 import {
   listMentions,
   listProposals,
@@ -25,7 +26,10 @@ interface InboxSearch {
   action_kind?: string;
   platform?: string;
   status?: string;
+  tag?: string; // scoring
+  sentiment?: string; // scoring
   id?: string;
+  loosened?: string; // onboarding: set when first value fell back below high fit
 }
 
 function pickDefaultQueue(counts: InboxQueueCountsResponse | undefined): string {
@@ -42,14 +46,17 @@ export const Route = createFileRoute("/_dashboard/inbox")({
     action_kind: typeof search.action_kind === "string" ? search.action_kind : undefined,
     platform: typeof search.platform === "string" ? search.platform : undefined,
     status: typeof search.status === "string" ? search.status : undefined,
+    tag: typeof search.tag === "string" ? search.tag : undefined,
+    sentiment: typeof search.sentiment === "string" ? search.sentiment : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
+    loosened: typeof search.loosened === "string" ? search.loosened : undefined, // onboarding
   }),
   component: InboxPage,
 });
 
 function InboxPage() {
   const search = Route.useSearch();
-  const { q = "", platform = "", status = "", id } = search;
+  const { q = "", platform = "", status = "", tag = "", sentiment = "", id } = search;
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
 
@@ -112,6 +119,8 @@ function InboxPage() {
       isBrowseView ? platform : "",
       isBrowseView ? status : "",
       isBrowseView ? q : "",
+      isBrowseView ? tag : "",
+      isBrowseView ? sentiment : "",
     ],
     queryFn: ({ pageParam }) =>
       listMentions({
@@ -120,6 +129,8 @@ function InboxPage() {
         platform: isBrowseView && platform ? platform : undefined,
         status: isBrowseView && status ? status : undefined,
         search: isBrowseView && q ? q : undefined,
+        tag: isBrowseView && tag ? tag : undefined,
+        sentiment: isBrowseView && sentiment ? sentiment : undefined,
         limit: PAGE_SIZE,
         offset: pageParam,
       }),
@@ -144,12 +155,14 @@ function InboxPage() {
   });
 
   const { data: platformCounts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, status, q],
+    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, status, q, tag, sentiment],
     queryFn: () =>
       mentionPlatformCounts({
         queue,
         status: status || undefined,
         search: q || undefined,
+        tag: tag || undefined,
+        sentiment: sentiment || undefined,
       }),
     enabled: isBrowseView,
   });
@@ -246,12 +259,15 @@ function InboxPage() {
       action_kind: undefined,
       platform: undefined,
       status: undefined,
+      tag: undefined,
+      sentiment: undefined,
       q: browse ? q : undefined,
     });
   };
 
   return (
     <div className="flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
+      {search.loosened && <LoosenedBanner /> /* onboarding */}
       <LeadList
         mentions={mentions}
         listTotal={listTotal}
@@ -277,6 +293,10 @@ function InboxPage() {
         platformOptions={platformCounts ?? []}
         statusFilter={status}
         onStatusChange={(s) => setSearch({ status: s || undefined })}
+        tagFilter={tag}
+        onTagChange={(t) => setSearch({ tag: t || undefined })}
+        sentimentFilter={sentiment}
+        onSentimentChange={(s) => setSearch({ sentiment: s || undefined })}
         search={q}
         onSearchChange={(v) => setSearch({ q: v || undefined })}
         onRefresh={handleRefresh}

@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import type { MonitoringProfile } from "@/lib/types";
 import { Plus, Trash2, Power, PowerOff, Target } from "lucide-react";
+import { ListenerIntent } from "@/components/profiles/listener-intent";
 
 export const Route = createFileRoute("/_dashboard/profiles")({
   component: ProfilesPage,
@@ -217,6 +218,7 @@ function ProfilesPage() {
                       ))}
                     </div>
                   )}
+                  <ListenerIntent profile={profile} />
                 </div>
               ))}
             </div>

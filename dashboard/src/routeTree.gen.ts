@@ -21,7 +21,10 @@ import { Route as DashboardPipelineRouteImport } from "./routes/_dashboard/pipel
 import { Route as DashboardKnowledgeBaseRouteImport } from "./routes/_dashboard/knowledge-base"
 import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywords"
 import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
+import { Route as DashboardEngagersRouteImport } from "./routes/_dashboard/engagers"
+import { Route as DashboardChatRouteImport } from "./routes/_dashboard/chat"
 import { Route as DashboardBrowserSessionsRouteImport } from "./routes/_dashboard/browser-sessions"
+import { Route as DashboardAutomationsRouteImport } from "./routes/_dashboard/automations"
 import { Route as DashboardAnalyticsRouteImport } from "./routes/_dashboard/analytics"
 import { Route as DashboardAlertsRouteImport } from "./routes/_dashboard/alerts"
 import { Route as AuthResetPasswordRouteImport } from "./routes/_auth/reset-password"
@@ -87,12 +90,27 @@ const DashboardInboxRoute = DashboardInboxRouteImport.update({
   path: "/inbox",
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardEngagersRoute = DashboardEngagersRouteImport.update({
+  id: "/engagers",
+  path: "/engagers",
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardChatRoute = DashboardChatRouteImport.update({
+  id: "/chat",
+  path: "/chat",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardBrowserSessionsRoute =
   DashboardBrowserSessionsRouteImport.update({
     id: "/browser-sessions",
     path: "/browser-sessions",
     getParentRoute: () => DashboardRoute,
   } as any)
+const DashboardAutomationsRoute = DashboardAutomationsRouteImport.update({
+  id: "/automations",
+  path: "/automations",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: "/analytics",
   path: "/analytics",
@@ -134,7 +152,10 @@ export interface FileRoutesByFullPath {
   "/reset-password": typeof AuthResetPasswordRoute
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
+  "/automations": typeof DashboardAutomationsRoute
   "/browser-sessions": typeof DashboardBrowserSessionsRoute
+  "/chat": typeof DashboardChatRoute
+  "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
   "/knowledge-base": typeof DashboardKnowledgeBaseRoute
@@ -153,7 +174,10 @@ export interface FileRoutesByTo {
   "/reset-password": typeof AuthResetPasswordRoute
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
+  "/automations": typeof DashboardAutomationsRoute
   "/browser-sessions": typeof DashboardBrowserSessionsRoute
+  "/chat": typeof DashboardChatRoute
+  "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
   "/knowledge-base": typeof DashboardKnowledgeBaseRoute
@@ -175,7 +199,10 @@ export interface FileRoutesById {
   "/_auth/reset-password": typeof AuthResetPasswordRoute
   "/_dashboard/alerts": typeof DashboardAlertsRoute
   "/_dashboard/analytics": typeof DashboardAnalyticsRoute
+  "/_dashboard/automations": typeof DashboardAutomationsRoute
   "/_dashboard/browser-sessions": typeof DashboardBrowserSessionsRoute
+  "/_dashboard/chat": typeof DashboardChatRoute
+  "/_dashboard/engagers": typeof DashboardEngagersRoute
   "/_dashboard/inbox": typeof DashboardInboxRoute
   "/_dashboard/keywords": typeof DashboardKeywordsRoute
   "/_dashboard/knowledge-base": typeof DashboardKnowledgeBaseRoute
@@ -196,7 +223,10 @@ export interface FileRouteTypes {
     | "/reset-password"
     | "/alerts"
     | "/analytics"
+    | "/automations"
     | "/browser-sessions"
+    | "/chat"
+    | "/engagers"
     | "/inbox"
     | "/keywords"
     | "/knowledge-base"
@@ -215,7 +245,10 @@ export interface FileRouteTypes {
     | "/reset-password"
     | "/alerts"
     | "/analytics"
+    | "/automations"
     | "/browser-sessions"
+    | "/chat"
+    | "/engagers"
     | "/inbox"
     | "/keywords"
     | "/knowledge-base"
@@ -236,7 +269,10 @@ export interface FileRouteTypes {
     | "/_auth/reset-password"
     | "/_dashboard/alerts"
     | "/_dashboard/analytics"
+    | "/_dashboard/automations"
     | "/_dashboard/browser-sessions"
+    | "/_dashboard/chat"
+    | "/_dashboard/engagers"
     | "/_dashboard/inbox"
     | "/_dashboard/keywords"
     | "/_dashboard/knowledge-base"
@@ -340,11 +376,32 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardInboxRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/engagers": {
+      id: "/_dashboard/engagers"
+      path: "/engagers"
+      fullPath: "/engagers"
+      preLoaderRoute: typeof DashboardEngagersRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/chat": {
+      id: "/_dashboard/chat"
+      path: "/chat"
+      fullPath: "/chat"
+      preLoaderRoute: typeof DashboardChatRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/browser-sessions": {
       id: "/_dashboard/browser-sessions"
       path: "/browser-sessions"
       fullPath: "/browser-sessions"
       preLoaderRoute: typeof DashboardBrowserSessionsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/automations": {
+      id: "/_dashboard/automations"
+      path: "/automations"
+      fullPath: "/automations"
+      preLoaderRoute: typeof DashboardAutomationsRouteImport
       parentRoute: typeof DashboardRoute
     }
     "/_dashboard/analytics": {
@@ -411,7 +468,10 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 interface DashboardRouteChildren {
   DashboardAlertsRoute: typeof DashboardAlertsRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardAutomationsRoute: typeof DashboardAutomationsRoute
   DashboardBrowserSessionsRoute: typeof DashboardBrowserSessionsRoute
+  DashboardChatRoute: typeof DashboardChatRoute
+  DashboardEngagersRoute: typeof DashboardEngagersRoute
   DashboardInboxRoute: typeof DashboardInboxRoute
   DashboardKeywordsRoute: typeof DashboardKeywordsRoute
   DashboardKnowledgeBaseRoute: typeof DashboardKnowledgeBaseRoute
@@ -424,7 +484,10 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAlertsRoute: DashboardAlertsRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardAutomationsRoute: DashboardAutomationsRoute,
   DashboardBrowserSessionsRoute: DashboardBrowserSessionsRoute,
+  DashboardChatRoute: DashboardChatRoute,
+  DashboardEngagersRoute: DashboardEngagersRoute,
   DashboardInboxRoute: DashboardInboxRoute,
   DashboardKeywordsRoute: DashboardKeywordsRoute,
   DashboardKnowledgeBaseRoute: DashboardKnowledgeBaseRoute,

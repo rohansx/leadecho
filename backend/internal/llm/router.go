@@ -38,15 +38,17 @@ const (
 )
 
 type SystemKeys struct {
-	NVIDIAAPIKey    string
-	NVIDIAModel     string
-	DeepSeekAPIKey  string
-	GLMAPIKey       string
-	OpenAIAPIKey    string
-	OllamaAPIKey    string
-	AnthropicAPIKey string
-	OllamaModel     string
-	VoyageAPIKey    string
+	NVIDIAAPIKey     string
+	NVIDIAModel      string
+	DeepSeekAPIKey   string
+	GLMAPIKey        string
+	OpenAIAPIKey     string
+	OllamaAPIKey     string
+	AnthropicAPIKey  string
+	OllamaModel      string
+	VoyageAPIKey     string
+	OpenRouterAPIKey string
+	OpenRouterModel  string
 }
 
 type ProviderSettings struct {
@@ -116,10 +118,10 @@ var providerRegistry = []ProviderStatus{
 	{Provider: "deepseek", DisplayName: "DeepSeek", Capabilities: []string{"chat"}, DefaultModel: "deepseek-chat", RecommendedModels: []string{"deepseek-chat", "deepseek-reasoner"}, Enabled: true},
 	{Provider: "glm", DisplayName: "GLM / ZhipuAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "glm-4.5-flash", RecommendedModels: []string{"glm-4.5-flash", "glm-4-plus", "glm-4-air"}, EmbeddingModels: []string{"embedding-3"}, Enabled: true},
 	{Provider: "openai", DisplayName: "OpenAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "gpt-4o-mini", RecommendedModels: []string{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}, EmbeddingModels: []string{"text-embedding-3-small", "text-embedding-3-large"}, Enabled: true},
-	{Provider: "anthropic", DisplayName: "Anthropic Claude", Capabilities: []string{"chat"}, DefaultModel: "claude-haiku-5-5", RecommendedModels: []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}, Enabled: true},
+	{Provider: "anthropic", DisplayName: "Anthropic Claude", Capabilities: []string{"chat"}, DefaultModel: "claude-sonnet-5-5", RecommendedModels: []string{"claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"}, Enabled: true},
 	{Provider: "openrouter", DisplayName: "OpenRouter", Capabilities: []string{"chat"}, DefaultModel: "openai/gpt-4o-mini", RecommendedModels: []string{"openai/gpt-4o-mini", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"}, Enabled: true},
 	{Provider: "ollama", DisplayName: "Ollama Cloud", Capabilities: []string{"chat"}, DefaultModel: "gpt-oss:120b", RecommendedModels: []string{"gpt-oss:120b", "gpt-oss:20b", "deepseek-v3.1:671b", "qwen3-coder:480b"}, Enabled: true},
-	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, EmbeddingModels: []string{"voyage-3"}, Enabled: true},
+	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-4-large", RecommendedModels: []string{"voyage-4-large", "voyage-4", "voyage-4-lite"}, EmbeddingModels: []string{"voyage-4-large", "voyage-4", "voyage-4-lite"}, Enabled: true},
 }
 
 func DefaultConfig() Config {
@@ -128,7 +130,7 @@ func DefaultConfig() Config {
 		Models: map[string]ModelTarget{
 			TierCheap:     {Provider: "", Model: ""},
 			TierStrong:    {Provider: "", Model: ""},
-			TierEmbedding: {Provider: "voyage", Model: "voyage-3"},
+			TierEmbedding: {Provider: "voyage", Model: "voyage-4-large"},
 		},
 		Routing: map[string]string{
 			string(TaskFilter):         TierCheap,
@@ -296,11 +298,13 @@ func (r *Router) DeleteProviderKey(ctx context.Context, workspaceID, provider st
 	return ProviderStatus{Provider: provider}, nil
 }
 
-func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string) (*ai.ClassifyResult, error) {
-	product := r.productContext(ctx, workspaceID)
+func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string, sc ai.ScoringContext) (*ai.ClassifyResult, error) {
+	if sc.Product == "" {
+		sc.Product = r.productContext(ctx, workspaceID)
+	}
 	var out *ai.ClassifyResult
 	err := r.withChatProvider(ctx, workspaceID, TaskClassify, func(p ai.Provider) error {
-		res, err := ai.ClassifyIntent(ctx, p, title, content, platform, product)
+		res, err := ai.ClassifyIntent(ctx, p, title, content, platform, sc)
 		out = res
 		return err
 	})
@@ -412,7 +416,7 @@ func (r *Router) EmbedTexts(ctx context.Context, workspaceID string, task Task, 
 		start := time.Now()
 		var client embeddingClient
 		if provider == "voyage" {
-			client = embedding.New(key)
+			client = embedding.New(key).WithModel(target.Model)
 		} else {
 			model := target.Model
 			if model == "" {
@@ -457,7 +461,7 @@ func (r *Router) VerifyProvider(ctx context.Context, workspaceID, provider strin
 		return err
 	}
 	p := providerForTarget(provider, key, ModelTarget{Provider: provider}, r.system)
-	_, err = ai.ClassifyIntent(ctx, p, "Verification", "I am looking for a simple project management tool for my team because our current workflow is too slow.", "internal", "")
+	_, err = ai.ClassifyIntent(ctx, p, "Verification", "I am looking for a simple project management tool for my team because our current workflow is too slow.", "internal", ai.ScoringContext{})
 	r.recordUsage(ctx, workspaceID, TaskFilter, p.Name, p.Model, source, 0, time.Since(start), err)
 	return err
 }
@@ -467,6 +471,11 @@ func (r *Router) UsageSummary(ctx context.Context, workspaceID string) ([]databa
 }
 
 func (r *Router) withChatProvider(ctx context.Context, workspaceID string, task Task, fn func(ai.Provider) error) error {
+	return r.withChatProviderUsage(ctx, workspaceID, task, func(p ai.Provider) (ai.Usage, error) { return ai.Usage{}, fn(p) })
+}
+
+// withChatProviderUsage is withChatProvider for calls that report token usage (chat).
+func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, task Task, fn func(ai.Provider) (ai.Usage, error)) error {
 	cfg, legacy, err := r.loadConfig(ctx, workspaceID)
 	if err != nil {
 		return err
@@ -484,9 +493,14 @@ func (r *Router) withChatProvider(ctx context.Context, workspaceID string, task 
 			continue
 		}
 		provider := providerForTarget(providerName, key, target, r.system)
+		var sink ai.Usage
+		provider.UsageSink = &sink
 		start := time.Now()
-		err = fn(provider)
-		r.recordUsage(ctx, workspaceID, task, provider.Name, provider.Model, source, idx, time.Since(start), err)
+		u, err := fn(provider)
+		if u == (ai.Usage{}) {
+			u = sink // task helpers report usage through the sink
+		}
+		r.recordUsageTokens(ctx, workspaceID, task, provider.Name, provider.Model, source, idx, time.Since(start), u, err)
 		if err == nil {
 			return nil
 		}
@@ -611,6 +625,10 @@ func (r *Router) resolveKey(provider string, cfg Config, legacy map[string]strin
 }
 
 func (r *Router) recordUsage(ctx context.Context, workspaceID string, task Task, provider, model, source string, fallbackIndex int, latency time.Duration, callErr error) {
+	r.recordUsageTokens(ctx, workspaceID, task, provider, model, source, fallbackIndex, latency, ai.Usage{}, callErr)
+}
+
+func (r *Router) recordUsageTokens(ctx context.Context, workspaceID string, task Task, provider, model, source string, fallbackIndex int, latency time.Duration, u ai.Usage, callErr error) {
 	status := "success"
 	errText := pgtype.Text{}
 	if callErr != nil {
@@ -623,7 +641,8 @@ func (r *Router) recordUsage(ctx context.Context, workspaceID string, task Task,
 	}
 	if err := r.q.CreateLLMUsageEvent(ctx, database.CreateLLMUsageEventParams{
 		WorkspaceID: workspaceID, Task: string(task), Provider: provider, Model: model, Status: status,
-		EstimatedCostUSD: "0", LatencyMs: int32(latency.Milliseconds()), ErrorMessage: errText,
+		PromptTokens: u.PromptTokens, CompletionTokens: u.CompletionTokens, TotalTokens: u.TotalTokens,
+		EstimatedCostUSD: estimateCostUSD(model, u), LatencyMs: int32(latency.Milliseconds()), ErrorMessage: errText,
 		FallbackFrom: fallbackFrom, KeySource: source,
 	}); err != nil {
 		r.logger.Warn().Err(err).Str("task", string(task)).Msg("llm: failed to record usage")
@@ -764,6 +783,14 @@ func providerForTarget(name, key string, target ModelTarget, sys SystemKeys) ai.
 	if name == "ollama" && sys.OllamaModel != "" {
 		p.Model = sys.OllamaModel
 	}
+	// Cheap tier on Claude: Sonnet 5.5 (quality over cost) at low effort,
+	// which suits filtering/classification; pinned models keep their default.
+	if name == "anthropic" && target.Model == "" {
+		p.Effort = "low"
+	}
+	if name == "openrouter" && sys.OpenRouterModel != "" {
+		p.Model = sys.OpenRouterModel
+	}
 	if target.Model != "" {
 		p.Model = target.Model
 	}
@@ -800,6 +827,8 @@ func (r *Router) systemKey(provider string) string {
 		return r.system.AnthropicAPIKey
 	case "voyage":
 		return r.system.VoyageAPIKey
+	case "openrouter":
+		return r.system.OpenRouterAPIKey
 	default:
 		return ""
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand/v2"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -39,7 +40,11 @@ type Drafter struct {
 	llmRouter llm.ReplyGenerator
 	scrapling *browser.ScraplingClient
 	kb        KBRetriever
+	shortBase string // voice: public base for /r/{code} tracking links
 }
+
+// SetShortLinkBase sets the public base URL used for tracked short links (voice).
+func (d *Drafter) SetShortLinkBase(base string) { d.shortBase = strings.TrimRight(base, "/") }
 
 func NewDrafter(q *database.Queries, llmRouter llm.ReplyGenerator, scrapling *browser.ScraplingClient, kb KBRetriever) *Drafter {
 	return &Drafter{q: q, llmRouter: llmRouter, scrapling: scrapling, kb: kb}
@@ -56,6 +61,12 @@ type DraftResult struct {
 }
 
 func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (*DraftResult, error) {
+	return d.DraftWithProfile(ctx, wsID, mentionID, "")
+}
+
+// DraftWithProfile drafts using the given response profile ("" = workspace
+// default, or a derived voice when the workspace has none).
+func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profileID string) (*DraftResult, error) {
 	mention, err := d.q.GetMention(ctx, database.GetMentionParams{
 		ID:          mentionID,
 		WorkspaceID: wsID,
@@ -71,6 +82,12 @@ func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (
 	intent := "general"
 	if mention.Intent.Valid {
 		intent = string(mention.Intent.IntentType)
+	}
+
+	productName, brandDesc := brandOf(ctx, d.q, wsID)
+	voice, err := d.resolveVoice(ctx, wsID, profileID, brandDesc)
+	if err != nil {
+		return nil, err
 	}
 
 	preFilter, err := d.llmRouter.PreFilterForReply(ctx, wsID, title, mention.Content, string(mention.Platform), intent)
@@ -119,6 +136,9 @@ func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (
 		ThreadContext:  threadCtx,
 		KBContext:      kbContext,
 		TemplateStyle:  templateStyle,
+		ProductName:    productName,
+		Voice:          VoiceInstructions(voice),
+		StyleExample:   ExampleForPlatform(voice.Examples, string(mention.Platform)),
 	})
 	if err != nil {
 		return nil, err
@@ -135,6 +155,7 @@ func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (
 	if err != nil {
 		return nil, err
 	}
+	reply = d.attachTrackingLink(ctx, reply, voice)
 
 	return &DraftResult{
 		Reply:             reply,

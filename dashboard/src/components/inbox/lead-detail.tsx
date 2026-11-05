@@ -18,6 +18,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { MuteAuthorButton } from "@/components/sources/mute-author-button"; // sources
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,10 +28,13 @@ import {
   draftReply,
   getMentionPerson360,
   listReplies,
+  listResponseProfiles,
   updateMentionStatus,
 } from "@/lib/api";
 import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
+import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
+import { EnrichmentCard } from "./enrichment-card"; // enrich
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -85,8 +89,15 @@ function OverviewTab({
     onSuccess: invalidate,
   });
 
+  // voice: optional response profile; "" = workspace default
+  const [profileId, setProfileId] = useState("");
+  const { data: voices = [] } = useQuery({
+    queryKey: [QUERY_KEYS.responseProfiles],
+    queryFn: listResponseProfiles,
+  });
+
   const draftMutation = useMutation({
-    mutationFn: () => draftReply(mention.id),
+    mutationFn: () => draftReply(mention.id, profileId || undefined),
     onSuccess: (data) => {
       setDraft(data);
       invalidate();
@@ -165,7 +176,12 @@ function OverviewTab({
           <h3 className="font-[family-name:var(--font-head)] text-lg font-medium mb-2">{mention.title}</h3>
         )}
         <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>
+        <div className="mt-3">
+          <TagChips tags={mention.intent_tags} sentiment={mention.sentiment} max={13} />
+        </div>
       </article>
+
+      <FeedbackButtons key={mention.id} mention={mention} />
 
       <div className="flex flex-wrap gap-2">
         {!mention.intent && (
@@ -186,6 +202,19 @@ function OverviewTab({
           )}
           Draft reply
         </Button>
+        {voices.length > 1 && (
+          <select
+            aria-label="Reply voice"
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground shadow-xs"
+          >
+            <option value="">Default voice</option>
+            {voices.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        )}
         {mention.status !== "replied" && (
           <Button
             size="sm"
@@ -416,6 +445,8 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
         {person.bio && <p className="text-sm mt-3 leading-relaxed text-foreground-soft">{person.bio}</p>}
       </div>
 
+      <EnrichmentCard metadata={person.metadata} />
+
       <div>
         <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
           Linked identities
@@ -602,6 +633,7 @@ export function LeadDetail({
           >
             <ArchiveIcon className="h-3.5 w-3.5" />
           </button>
+          <MuteAuthorButton key={mention.id} mention={mention} />
         </div>
       </div>
 

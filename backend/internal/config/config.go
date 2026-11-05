@@ -75,6 +75,10 @@ type Config struct {
 	// Anthropic Claude (native Messages API)
 	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY,default="`
 
+	// OpenRouter (OpenAI-compatible gateway; model ids like "anthropic/claude-...")
+	OpenRouterAPIKey string `env:"OPENROUTER_API_KEY,default="`
+	OpenRouterModel  string `env:"OPENROUTER_MODEL,default="`
+
 	// Ollama Cloud (OpenAI-compatible; https://ollama.com/v1)
 	OllamaAPIKey string `env:"OLLAMA_API_KEY,default="`
 	OllamaModel  string `env:"OLLAMA_MODEL,default=gpt-oss:120b"`
@@ -89,12 +93,36 @@ type Config struct {
 	// Google's feed terms restrict it to personal, non-commercial use.
 	GoogleNewsEnabled bool `env:"GOOGLE_NEWS_ENABLED,default=false"`
 
+	// treg feature: hosted data tools (X/LinkedIn search). Empty token keeps
+	// the Pinchtab/Camoufox/Scrapling paths. See docs/treg-integration.md.
+	TregToken        string `env:"TREG_TOKEN,default="`
+	TregOrgID        string `env:"TREG_ORG_ID,default="`
+	TregBaseURL      string `env:"TREG_BASE_URL,default=https://treg.to"`
+	TregMaxCostMicro int64  `env:"TREG_MAX_COST_MICRO,default=20000"`
+	// enrich: treg lead enrichment (qualified leads only) + tracked profiles.
+	EnrichDailyCap            int   `env:"ENRICH_DAILY_CAP,default=25"`
+	TregCustomerDailyCapMicro int64 `env:"TREG_CUSTOMER_DAILY_CAP_MICRO,default=0"`
+	TrackedProfilesPollHours  int   `env:"TRACKED_PROFILES_POLL_HOURS,default=6"`
+	// RedditCommentsEnabled searches subreddit comments (free public JSON).
+	RedditCommentsEnabled bool `env:"REDDIT_COMMENTS_ENABLED,default=true"`
+	// sources: optional Bluesky session for authenticated search. Unset =
+	// anonymous search via the public AppView (still works).
+	BlueskyHandle      string `env:"BLUESKY_HANDLE,default="`
+	BlueskyAppPassword string `env:"BLUESKY_APP_PASSWORD,default="`
+
 	// ExtensionDistDir holds packaged Chrome extension builds, served from
 	// Settings so self-hosters can install it without a Web Store listing.
 	ExtensionDistDir string `env:"EXTENSION_DIST_DIR,default=../extension/.output"`
 
 	// Resend (email notifications)
 	ResendAPIKey string `env:"RESEND_API_KEY,default="`
+
+	// Digests (P1 #13): daily/weekly digest scheduler, runs wherever the monitor runs.
+	DigestsEnabled  bool   `env:"DIGESTS_ENABLED,default=true"`
+	DigestFromEmail string `env:"DIGEST_FROM_EMAIL,default=LeadEcho <hello@leadecho.io>"`
+
+	// automations (P2 #17): scheduler for user-enabled automations, runs wherever the monitor runs.
+	AutomationsEnabled bool `env:"AUTOMATIONS_ENABLED,default=true"`
 
 	// Pinchtab (browser automation sidecar for Reddit + Twitter)
 	PinchtabURL   string `env:"PINCHTAB_URL,default=http://localhost:9867"`
@@ -136,6 +164,10 @@ type Config struct {
 	MetricsPort               int  `env:"METRICS_PORT,default=9090"`
 	MetricsCollectIntervalSec int  `env:"METRICS_COLLECT_INTERVAL_SEC,default=30"`
 	WorkerHealthPort          int  `env:"WORKER_HEALTH_PORT,default=8091"`
+
+	// mcp: workspace API keys (MCP server + public REST). 0 disables the per-key limit.
+	APIKeyRateLimitPerMin int    `env:"API_KEY_RATE_LIMIT_PER_MIN,default=120"`
+	AppVersion            string `env:"APP_VERSION,default=dev"` // reported by /api/public/v1/probe and MCP serverInfo
 }
 
 func (c *Config) IsWorker() bool {

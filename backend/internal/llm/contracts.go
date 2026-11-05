@@ -12,7 +12,10 @@ import (
 type MentionScorer interface {
 	FilterMention(ctx context.Context, workspaceID, title, content, platform string) (*ai.FilterResult, error)
 	EmbedTexts(ctx context.Context, workspaceID string, task Task, texts []string) ([]pgvector.Vector, error)
-	ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string) (*ai.ClassifyResult, error)
+	// ClassifyIntent scores one mention. sc carries the listener's Looks for /
+	// Skips and few-shot examples (scoring); an empty sc.Product is filled
+	// from the workspace's active profiles.
+	ClassifyIntent(ctx context.Context, workspaceID, title, content, platform string, sc ai.ScoringContext) (*ai.ClassifyResult, error)
 }
 
 // ReplyGenerator covers LLM calls used by reply drafting.

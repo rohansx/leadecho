@@ -15,6 +15,7 @@ import (
 	"leadecho/internal/browser"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/monitor"
 )
 
 var supportedSessionPlatforms = map[string]bool{
@@ -30,13 +31,39 @@ type SessionResponse struct {
 	Username         *string `json:"username"`
 	IsConfigured     bool    `json:"is_configured"`
 	IsPinchtabOnline bool    `json:"is_pinchtab_online"`
+	// treg feature: crawled via treg, no browser cookie needed.
+	IsManaged bool `json:"is_managed"`
 }
+
+// TregManagedPlatforms are searched through treg when TREG_TOKEN is set.
+var TregManagedPlatforms = []string{"twitter", "linkedin", "reddit"}
 
 // SessionHandler manages browser session cookies for Reddit and Twitter.
 type SessionHandler struct {
 	q        *database.Queries
 	encKey   []byte
 	pinchtab *browser.PinchtabClient
+	managed  map[string]bool // treg feature
+}
+
+// SetManaged marks platforms that need no browser session (treg feature).
+func (h *SessionHandler) SetManaged(platforms ...string) {
+	h.managed = make(map[string]bool, len(platforms))
+	for _, p := range platforms {
+		h.managed[p] = true
+	}
+}
+
+func (h *SessionHandler) sessionResponse(platform string, acc *database.PlatformAccount, pinchtabOnline bool) SessionResponse {
+	resp := SessionResponse{Platform: platform, IsPinchtabOnline: pinchtabOnline, IsManaged: h.managed[platform]}
+	if acc != nil && acc.AccessTokenEnc.Valid && acc.AccessTokenEnc.String != "" {
+		resp.IsConfigured = true
+		if acc.Username.Valid && acc.Username.String != "" {
+			u := acc.Username.String
+			resp.Username = &u
+		}
+	}
+	return resp
 }
 
 func NewSessionHandler(q *database.Queries, encKey []byte, pinchtab *browser.PinchtabClient) *SessionHandler {
@@ -61,18 +88,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]SessionResponse, 0, len(supportedSessionPlatforms))
 	for platform := range supportedSessionPlatforms {
-		resp := SessionResponse{
-			Platform:         platform,
-			IsPinchtabOnline: pinchtabOnline,
-		}
-		if acc, ok := configured[platform]; ok && acc.AccessTokenEnc.Valid && acc.AccessTokenEnc.String != "" {
-			resp.IsConfigured = true
-			if acc.Username.Valid && acc.Username.String != "" {
-				u := acc.Username.String
-				resp.Username = &u
-			}
-		}
-		result = append(result, resp)
+		result = append(result, h.sessionResponse(platform, configured[platform], pinchtabOnline))
 	}
 
 	writeJSON(w, http.StatusOK, result)
@@ -143,6 +159,7 @@ func (h *SessionHandler) Save(w http.ResponseWriter, r *http.Request) {
 		Username:         usernamePtr,
 		IsConfigured:     true,
 		IsPinchtabOnline: pinchtabOnline,
+		IsManaged:        h.managed[platform],
 	})
 }
 
@@ -174,6 +191,7 @@ func (h *SessionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Platform:         platform,
 		IsConfigured:     false,
 		IsPinchtabOnline: pinchtabOnline,
+		IsManaged:        h.managed[platform],
 	})
 }
 
@@ -299,7 +317,7 @@ func (h *SessionHandler) validateSessionCookie(ctx context.Context, wsID, platfo
 	}
 
 	// Parse cookies
-	cookies := parseCookieStringForHandler(cookieStr, check.cookieDom)
+	cookies := monitor.ParseCookieString(cookieStr, check.cookieDom)
 
 	// Navigate to domain first (IDPI requires being on the right domain)
 	if err := h.pinchtab.Navigate(ctx, check.domain); err != nil {
@@ -355,31 +373,4 @@ func (h *SessionHandler) validateSessionCookie(ctx context.Context, wsID, platfo
 		}
 		return false, fmt.Sprintf("? Could not verify session for %s [url=%s] page: %s", platform, diagURL, diagText)
 	}
-}
-
-// parseCookieStringForHandler parses a cookie header string into browser.Cookie structs.
-func parseCookieStringForHandler(cookieStr, domain string) []browser.Cookie {
-	var cookies []browser.Cookie
-	for _, part := range strings.Split(cookieStr, ";") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		idx := strings.IndexByte(part, '=')
-		if idx < 0 {
-			continue
-		}
-		name := strings.TrimSpace(part[:idx])
-		value := strings.TrimSpace(part[idx+1:])
-		if name == "" {
-			continue
-		}
-		cookies = append(cookies, browser.Cookie{
-			Name:   name,
-			Value:  value,
-			Domain: domain,
-			Path:   "/",
-		})
-	}
-	return cookies
 }

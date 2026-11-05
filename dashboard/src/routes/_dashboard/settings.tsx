@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
+import { ReplyVoiceCard } from "@/components/settings/reply-voice-card"; // voice
+import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -57,7 +59,7 @@ function cloneModels(config?: LLMConfigResponse): Record<string, LLMModelTarget>
   return {
     cheap: { provider: config?.models?.cheap?.provider ?? "", model: config?.models?.cheap?.model ?? "" },
     strong: { provider: config?.models?.strong?.provider ?? "", model: config?.models?.strong?.model ?? "" },
-    embedding: { provider: config?.models?.embedding?.provider ?? "voyage", model: config?.models?.embedding?.model ?? "voyage-3" },
+    embedding: { provider: config?.models?.embedding?.provider ?? "voyage", model: config?.models?.embedding?.model ?? "voyage-4-large" },
   };
 }
 
@@ -640,6 +642,11 @@ function SettingsPage() {
       <ChromeExtensionCard />
 
       <IntegrationsCard />
+
+      {/* voice: response profiles */}
+      <ReplyVoiceCard />
+      {/* mcp: workspace API keys + MCP connect */}
+      <ApiMcpCard />
 
       <Card>
         <CardHeader>

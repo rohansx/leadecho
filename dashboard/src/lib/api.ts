@@ -24,7 +24,7 @@ import type {
 
 const BASE = "/api/v1";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
@@ -56,6 +56,8 @@ export function listMentions(params?: {
   queue?: string;
   action_kind?: string;
   escalation_kind?: string;
+  tag?: string;
+  sentiment?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -68,6 +70,8 @@ export function listMentions(params?: {
   if (params?.queue) q.set("queue", params.queue);
   if (params?.action_kind) q.set("action_kind", params.action_kind);
   if (params?.escalation_kind) q.set("escalation_kind", params.escalation_kind);
+  if (params?.tag) q.set("tag", params.tag);
+  if (params?.sentiment) q.set("sentiment", params.sentiment);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
   const qs = q.toString();
@@ -83,6 +87,14 @@ export function updateMentionStatus(id: string, status: string, reason?: string)
     method: "PATCH",
     body: JSON.stringify({ status, reason: reason || undefined }),
   });
+}
+
+// scoring: 👍/👎 on a mention — becomes a few-shot scoring example for its listener
+export function sendMentionFeedback(id: string, label: "up" | "down", note?: string) {
+  return request<{ feedback: { label: string; note: string; profile_id: string | null }; mention: Mention }>(
+    `/mentions/${id}/feedback`,
+    { method: "POST", body: JSON.stringify({ label, note: note || undefined }) },
+  );
 }
 
 export function mentionCounts() {
@@ -200,9 +212,13 @@ export async function mentionPlatformCounts(params?: {
   status?: string;
   intent?: string;
   search?: string;
+  tag?: string;
+  sentiment?: string;
 }) {
   const q = new URLSearchParams();
   if (params?.queue) q.set("queue", params.queue);
+  if (params?.tag) q.set("tag", params.tag);
+  if (params?.sentiment) q.set("sentiment", params.sentiment);
   if (params?.action_kind) q.set("action_kind", params.action_kind);
   if (params?.status) q.set("status", params.status);
   if (params?.intent) q.set("intent", params.intent);
@@ -249,6 +265,8 @@ export function createProfile(data: {
   name: string;
   description?: string;
   pain_points?: string[];
+  looks_for?: string;
+  skips?: string;
 }) {
   return request<MonitoringProfile>("/profiles", {
     method: "POST",
@@ -258,7 +276,14 @@ export function createProfile(data: {
 
 export function updateProfile(
   id: string,
-  data: { name?: string; description?: string; pain_points?: string[]; is_active?: boolean },
+  data: {
+    name?: string;
+    description?: string;
+    pain_points?: string[];
+    is_active?: boolean;
+    looks_for?: string;
+    skips?: string;
+  },
 ) {
   return request<MonitoringProfile>(`/profiles/${id}`, {
     method: "PUT",
@@ -628,9 +653,11 @@ export function classifyMention(id: string) {
   });
 }
 
-export function draftReply(id: string) {
+export function draftReply(id: string, responseProfileId?: string) {
   return request<DraftReplyResponse>(`/mentions/${id}/draft-reply`, {
     method: "POST",
+    // voice: optional response profile; omitted = workspace default
+    body: JSON.stringify(responseProfileId ? { response_profile_id: responseProfileId } : {}),
   });
 }
 
@@ -807,6 +834,48 @@ export function revokeExtensionToken() {
   });
 }
 
+// ─── mcp: workspace API keys (MCP server + public REST) ─────
+
+export type APIKeyScope = "read" | "write";
+
+export interface WorkspaceAPIKey {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: APIKeyScope[];
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  revoked: boolean;
+}
+
+export interface AgentTool {
+  name: string;
+  description: string;
+  scope: APIKeyScope;
+}
+
+export function listWorkspaceAPIKeys() {
+  return request<{ data: WorkspaceAPIKey[] }>("/workspace-api-keys");
+}
+
+export function createWorkspaceAPIKey(name: string, scopes: APIKeyScope[]) {
+  return request<{ key: WorkspaceAPIKey; secret: string }>("/workspace-api-keys", {
+    method: "POST",
+    body: JSON.stringify({ name, scopes }),
+  });
+}
+
+export function revokeWorkspaceAPIKey(id: string) {
+  return request<WorkspaceAPIKey>(`/workspace-api-keys/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export function listAgentTools() {
+  return request<{ data: AgentTool[] }>("/workspace-api-keys/tools");
+}
+
 // ─── Onboarding ────────────────────────────────────────
 
 export function getOnboardingStatus() {
@@ -841,6 +910,47 @@ export function completeOnboarding(data: {
   });
 }
 
+// ─── Onboarding v2 (brand profile, listener builder, first value) ──
+
+export function getBrandProfile() {
+  return request<import("@/components/onboarding/types").BrandProfile>("/brand-profile");
+}
+
+export function saveBrandProfile(bp: import("@/components/onboarding/types").BrandProfile) {
+  return request<import("@/components/onboarding/types").BrandProfile>("/brand-profile", {
+    method: "PUT",
+    body: JSON.stringify(bp),
+  });
+}
+
+export function sendSampleFeedback(data: {
+  goal: string;
+  url: string;
+  text: string;
+  platform: string;
+  label: "up" | "down";
+}) {
+  return request<{ id: string }>("/onboarding/listeners/feedback", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function completeOnboardingWithListeners(data: {
+  brand_profile: import("@/components/onboarding/types").BrandProfile;
+  listeners: import("@/components/onboarding/types").Proposal[];
+  subreddits: string[];
+}) {
+  return request<{ status: string; profile_ids?: string[]; keywords_created?: number; already_completed?: boolean }>(
+    "/onboarding/complete",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function getFirstValue() {
+  return request<import("@/components/onboarding/types").FirstValue>("/onboarding/first-value");
+}
+
 // ─── UTM Tracking Links ────────────────────────────────
 
 export function listUTMLinks() {
@@ -862,4 +972,86 @@ export function createUTMLink(data: {
 
 export function deleteUTMLink(id: string) {
   return request<{ status: string }>(`/utm-links/${id}`, { method: "DELETE" });
+}
+
+// ─── Response profiles (voice) ─────────────────────────
+export type ResponseGoal =
+  | "drive_conversion"
+  | "build_relationship"
+  | "ask_for_info"
+  | "handle_feedback"
+  | "support"
+  | "custom";
+export type ReplyLength = "short" | "medium" | "long";
+export type BrandPlug = "none" | "low" | "medium" | "high";
+export type ExamplePlatform = "reddit" | "x" | "linkedin" | "bluesky" | "hackernews";
+
+export interface ResponseProfileInput {
+  name: string;
+  goal: ResponseGoal;
+  special_instructions: string;
+  tone: number;
+  length: ReplyLength;
+  assertiveness: number;
+  brand_plug: BrandPlug;
+  cta_goal: string;
+  destination_url: string;
+  examples: Partial<Record<ExamplePlatform, string>>;
+}
+
+export interface ResponseProfile extends ResponseProfileInput {
+  id: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listResponseProfiles(): Promise<ResponseProfile[]> {
+  return request<ResponseProfile[]>("/response-profiles");
+}
+
+export function createResponseProfile(data: ResponseProfileInput): Promise<ResponseProfile> {
+  return request<ResponseProfile>("/response-profiles", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateResponseProfile(id: string, data: ResponseProfileInput): Promise<ResponseProfile> {
+  return request<ResponseProfile>(`/response-profiles/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteResponseProfile(id: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/response-profiles/${id}`, { method: "DELETE" });
+}
+
+export function setDefaultResponseProfile(id: string): Promise<ResponseProfile> {
+  return request<ResponseProfile>(`/response-profiles/${id}/default`, { method: "POST" });
+}
+
+// ─── Digests (P1 #13) ──────────────────────────────────
+
+export interface DigestSettings {
+  daily_enabled: boolean;
+  daily_time: string;
+  weekly_enabled: boolean;
+  weekly_day: string;
+  timezone: string;
+  recipients: string[];
+  channels: ("email" | "slack")[];
+}
+
+export function getDigestSettings() {
+  return request<DigestSettings>("/settings/digests");
+}
+
+export function saveDigestSettings(settings: DigestSettings) {
+  return request<DigestSettings>("/settings/digests", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+// Returns rendered HTML (not JSON), so it bypasses request().
+export async function previewDigest(kind: "daily" | "weekly"): Promise<string> {
+  const res = await fetch(`${BASE}/settings/digests/preview?kind=${kind}`, { method: "POST" });
+  if (!res.ok) throw new Error(`Preview failed (${res.status})`);
+  return res.text();
 }

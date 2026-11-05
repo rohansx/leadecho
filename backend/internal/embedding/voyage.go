@@ -20,12 +20,13 @@ type Client struct {
 	http    *http.Client
 }
 
-// New creates a Voyage AI embedding client using the voyage-3 model (1024-dim).
-// voyage-3-lite returns 512-dim which is incompatible with the vector(1024) columns.
+// New creates a Voyage AI embedding client using voyage-4-large (1024-dim,
+// best retrieval quality; the voyage-4 family includes 200M free tokens).
+// Any model must return 1024 dims to fit the vector(1024) columns.
 func New(apiKey string) *Client {
 	return &Client{
 		apiKey:  apiKey,
-		model:   "voyage-3",
+		model:   "voyage-4-large",
 		baseURL: "https://api.voyageai.com/v1",
 		http:    &http.Client{Timeout: 30 * time.Second},
 	}
@@ -48,6 +49,14 @@ type embedResponse struct {
 }
 
 // EmbedTexts generates embeddings for multiple texts in one API call (max 128).
+// WithModel uses a workspace's chosen model; "" keeps the default.
+func (c *Client) WithModel(model string) *Client {
+	if model != "" {
+		c.model = model
+	}
+	return c
+}
+
 func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([]pgvector.Vector, error) {
 	if len(texts) == 0 {
 		return nil, nil

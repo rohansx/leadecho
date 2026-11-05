@@ -3,17 +3,21 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"leadecho/internal/ai"
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
+	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
+	"leadecho/internal/onboarding"
+	"leadecho/internal/reply"
 )
 
 // OnboardingHandler manages workspace onboarding state stored in settings JSONB.
@@ -23,6 +27,12 @@ type OnboardingHandler struct {
 	llmRouter *llm.Router
 	logger    zerolog.Logger
 	scanner   WorkspaceScanner
+
+	// onboarding v2 (optional; see onboarding_flow.go)
+	kb     *knowledge.Service
+	finder onboarding.CompetitorFinder
+	fetch  onboarding.PageFetcher // nil = SSRF-safe default
+	search onboarding.Searcher    // nil = public sources
 }
 
 // WorkspaceScanner starts an immediate crawl of one workspace (monitor.Monitor).
@@ -133,71 +143,15 @@ func (h *OnboardingHandler) AnalyzeURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure URL has scheme
-	url := body.URL
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		url = "https://" + url
+	res, err := h.runAnalysis(r.Context(), wsID, body.URL, func(string) {})
+	switch {
+	case errors.Is(err, errBadURL):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		writeError(w, http.StatusBadGateway, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, res.Analysis)
 	}
-
-	ctx := r.Context()
-
-	// Create analysis record
-	analysis, err := h.q.CreateOnboardingAnalysis(ctx, database.CreateOnboardingAnalysisParams{
-		WorkspaceID: wsID,
-		SourceUrl:   url,
-		RawText:     pgtype.Text{},
-		Analysis:    []byte("{}"),
-		Status:      "pending",
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create analysis record")
-		return
-	}
-
-	// Scrape the URL — try Scrapling first, fall back to HTTP
-	var pageText string
-	if h.scrapling != nil {
-		if err := h.scrapling.Navigate(ctx, url); err == nil {
-			pageText, _ = h.scrapling.GetText(ctx)
-		}
-	}
-	if pageText == "" {
-		pageText, err = browser.FetchPageText(ctx, url)
-		if err != nil {
-			h.q.UpdateOnboardingAnalysis(ctx, database.UpdateOnboardingAnalysisParams{
-				ID:           analysis.ID,
-				Analysis:     []byte("{}"),
-				Status:       "failed",
-				ErrorMessage: pgtype.Text{String: "failed to fetch URL: " + err.Error(), Valid: true},
-			})
-			writeError(w, http.StatusBadGateway, "failed to fetch URL: "+err.Error())
-			return
-		}
-	}
-
-	// Analyze with AI
-	result, err := h.llmRouter.AnalyzeProductPage(ctx, wsID, pageText)
-	if err != nil {
-		h.q.UpdateOnboardingAnalysis(ctx, database.UpdateOnboardingAnalysisParams{
-			ID:           analysis.ID,
-			Analysis:     []byte("{}"),
-			Status:       "failed",
-			ErrorMessage: pgtype.Text{String: "AI analysis failed: " + err.Error(), Valid: true},
-		})
-		writeError(w, http.StatusInternalServerError, "AI analysis failed: "+err.Error())
-		return
-	}
-
-	// Save the result
-	resultJSON, _ := json.Marshal(result)
-	h.q.UpdateOnboardingAnalysis(ctx, database.UpdateOnboardingAnalysisParams{
-		ID:           analysis.ID,
-		Analysis:     resultJSON,
-		Status:       "completed",
-		ErrorMessage: pgtype.Text{},
-	})
-
-	writeJSON(w, http.StatusOK, result)
 }
 
 // completeRequest holds the user-reviewed onboarding data.
@@ -208,6 +162,33 @@ type completeRequest struct {
 	Keywords    []string `json:"keywords"`
 	Platforms   []string `json:"platforms"`
 	Subreddits  []string `json:"subreddits"`
+
+	// The rest of the analysis, previously dropped (persisted to brand_profiles).
+	Competitors    []string `json:"competitors"`
+	Features       []string `json:"features"`
+	TargetAudience string   `json:"target_audience"`
+	SourceURL      string   `json:"source_url"`
+
+	// onboarding v2: the edited brand profile and the confirmed listeners
+	// (one monitoring profile each). When Listeners is set, ProductName,
+	// Keywords and Platforms are not needed.
+	BrandProfile *onboarding.BrandProfile `json:"brand_profile"`
+	Listeners    []listenerInput          `json:"listeners"`
+}
+
+// brandProfile returns the edited brand profile, or one built from the
+// legacy flat fields.
+func (b completeRequest) brandProfile() onboarding.BrandProfile {
+	if b.BrandProfile != nil {
+		return *b.BrandProfile
+	}
+	pa := &ai.ProductAnalysis{
+		ProductName: b.ProductName, Description: b.Description, PainPoints: b.PainPoints,
+		Competitors: b.Competitors, Features: b.Features, SuggestedKeywords: b.Keywords,
+	}
+	bp := onboarding.FromAnalysis(pa, b.SourceURL)
+	bp.TargetAudience = b.TargetAudience
+	return bp
 }
 
 // onboardingCompleted reports whether this workspace has already finished onboarding.
@@ -247,6 +228,14 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		Strs("subreddits", body.Subreddits).
 		Msg("onboarding complete request received")
 
+	if body.Subreddits == nil {
+		body.Subreddits = []string{}
+	}
+	if len(body.Listeners) > 0 {
+		h.completeWithListeners(w, r, wsID, body)
+		return
+	}
+
 	body.ProductName = strings.TrimSpace(body.ProductName)
 	if body.ProductName == "" {
 		writeError(w, http.StatusBadRequest, "product_name is required")
@@ -265,9 +254,6 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	// Normalize array fields so a nil slice never hits a NOT NULL column.
 	if len(body.Platforms) == 0 {
 		body.Platforms = []string{"hackernews", "reddit", "twitter", "linkedin"}
-	}
-	if body.Subreddits == nil {
-		body.Subreddits = []string{}
 	}
 
 	// 1. Create monitoring profile with pain points
@@ -333,7 +319,84 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Mark onboarding complete
+	// 4. Persist the full analysis (competitors, features, audience) and
+	//    mark onboarding complete.
+	h.saveBrandProfile(ctx, wsID, body.brandProfile())
+	h.markOnboardingComplete(ctx, wsID)
+
+	// Kick off the first crawl (7-day backfill) instead of waiting for the next tick.
+	if keywordsCreated > 0 {
+		h.startFirstScan(wsID)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":           "completed",
+		"profile_id":       profile.ID,
+		"keywords_created": keywordsCreated,
+	})
+}
+
+// completeWithListeners is the v2 completion: one monitoring profile per
+// confirmed listener, the edited brand profile, then the 7-day backfill.
+func (h *OnboardingHandler) completeWithListeners(w http.ResponseWriter, r *http.Request, wsID string, body completeRequest) {
+	ctx := r.Context()
+	if len(body.Listeners) > maxListeners {
+		writeError(w, http.StatusBadRequest, "too many listeners")
+		return
+	}
+	for i := range body.Listeners {
+		l, err := body.Listeners[i].validate()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		body.Listeners[i] = l
+	}
+	if body.BrandProfile != nil {
+		bp, err := body.BrandProfile.Normalized()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "brand_profile: "+err.Error())
+			return
+		}
+		body.BrandProfile = &bp
+	}
+	if h.onboardingCompleted(ctx, wsID) {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "completed", "already_completed": true})
+		return
+	}
+	created, profileIDs, err := h.completeListeners(ctx, wsID, body)
+	if err != nil {
+		h.logger.Error().Err(err).Str("workspace_id", wsID).Msg("onboarding: create listeners")
+		writeError(w, http.StatusInternalServerError, "failed to create listeners")
+		return
+	}
+	if created == 0 {
+		writeError(w, http.StatusBadRequest, "all keywords were duplicates; add at least one unique keyword")
+		return
+	}
+	if body.BrandProfile != nil {
+		h.saveBrandProfile(ctx, wsID, *body.BrandProfile)
+	}
+	h.markOnboardingComplete(ctx, wsID)
+	h.startFirstScan(wsID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "completed", "profile_ids": profileIDs, "keywords_created": created,
+		"backfill_days": int(backfillLookback.Hours() / 24),
+	})
+}
+
+// saveBrandProfile is best-effort: onboarding must not fail on it.
+func (h *OnboardingHandler) saveBrandProfile(ctx context.Context, wsID string, bp onboarding.BrandProfile) {
+	bp, err := bp.Normalized()
+	if err != nil {
+		return
+	}
+	if _, err := h.q.UpsertBrandProfile(ctx, bp.Params(wsID)); err != nil {
+		h.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("onboarding: save brand profile")
+	}
+}
+
+func (h *OnboardingHandler) markOnboardingComplete(ctx context.Context, wsID string) {
 	raw, _ := h.q.GetWorkspaceSettings(ctx, wsID)
 	var settings map[string]json.RawMessage
 	if len(raw) > 0 {
@@ -345,21 +408,13 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	obJSON, _ := json.Marshal(onboardingState{Completed: true, Step: 3})
 	settings["onboarding"] = obJSON
 	newRaw, _ := json.Marshal(settings)
-	h.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{
-		ID:       wsID,
-		Settings: newRaw,
-	})
-
-	// Kick off the first crawl now instead of waiting for the next monitor tick.
-	if h.scanner != nil && keywordsCreated > 0 {
-		h.scanner.ScanWorkspaceNow(wsID)
+	if err := h.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{ID: wsID, Settings: newRaw}); err != nil {
+		h.logger.Error().Err(err).Str("workspace_id", wsID).Msg("onboarding: mark complete")
 	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":           "completed",
-		"profile_id":       profile.ID,
-		"keywords_created": keywordsCreated,
-	})
+	// voice: give the workspace a default reply voice (no-op if one exists).
+	if _, err := reply.EnsureDefaultResponseProfile(ctx, h.q, wsID); err != nil {
+		h.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("onboarding: default response profile")
+	}
 }
 
 // embedAndStore embeds and stores pain-point phrases for a profile.

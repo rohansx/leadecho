@@ -1,0 +1,135 @@
+---
+// Free tool (feature: growth): runs entirely in the browser against public APIs.
+import Layout from '../../layouts/Layout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<Layout
+  title="Free Reddit + Hacker News keyword tester | LeadEcho"
+  description="Type a keyword and see how many Reddit and Hacker News posts mentioned it in the last 7 days, with sample threads. Free, no sign-up."
+>
+  <Nav />
+  <main>
+    <section class="hero" style="padding-bottom: 40px;">
+      <div class="container-sm">
+        <div class="section-label section-label-bracket">Free tool</div>
+        <h1 class="section-title">Reddit + HN keyword tester</h1>
+        <p class="section-sub">See how often a keyword shows up on Reddit and Hacker News in the last 7 days, before you build a listener around it. Runs in your browser against the public Reddit search and HN Algolia APIs.</p>
+        <form id="kt-form" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+          <label for="kt-q" class="sr-only" style="position:absolute;left:-9999px;">Keyword</label>
+          <input id="kt-q" name="q" required maxlength="200" placeholder='e.g. "alternative to hubspot"'
+            style="flex: 1 1 320px; padding: 12px 16px; border-radius: var(--r-lg); border: 1px solid var(--border2); background: var(--bg-card); color: var(--text); font: inherit;" />
+          <button class="btn btn-primary" type="submit">Test keyword</button>
+        </form>
+        <p id="kt-status" class="mono" role="status" style="margin-top: 16px; color: var(--muted); font-size: 0.8rem;"></p>
+      </div>
+    </section>
+
+    <section class="features" id="kt-results" hidden>
+      <div class="container">
+        <div class="feature-grid" style="grid-template-columns: repeat(2, 1fr); margin-top: 0;">
+          <div class="feat"><h3>Reddit, last 7 days: <span id="kt-reddit-count" class="mono"></span></h3><ul id="kt-reddit" style="list-style: none; display: grid; gap: 10px; margin-top: 12px; font-size: 0.85rem;"></ul></div>
+          <div class="feat"><h3>Hacker News, last 7 days: <span id="kt-hn-count" class="mono"></span></h3><ul id="kt-hn" style="list-style: none; display: grid; gap: 10px; margin-top: 12px; font-size: 0.85rem;"></ul></div>
+        </div>
+        <div class="cta-box" style="margin-top: 48px;">
+          <h2>Want these scored for buying intent?</h2>
+          <p>LeadEcho watches these keywords on Reddit, HN, X, LinkedIn and Bluesky, ranks the buyers, drafts the reply and tracks the click to revenue.</p>
+          <a class="btn btn-primary btn-lg" href="/app/register">Start for free</a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
+
+<script>
+  const SAMPLES = 5;
+  const WEEK = 7 * 24 * 3600;
+
+  interface Sample { title: string; url: string; meta: string }
+  interface Result { count: string; samples: Sample[] }
+
+  async function getJSON(url: string): Promise<any> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function reddit(q: string): Promise<Result> {
+    const data = await getJSON(`https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&sort=new&t=week&limit=100&raw_json=1`);
+    const posts = (data?.data?.children ?? []).map((c: any) => c.data);
+    // ponytail: one page of 100; "100+" when Reddit says there is more.
+    const count = data?.data?.after ? `${posts.length}+` : String(posts.length);
+    return {
+      count,
+      samples: posts.slice(0, SAMPLES).map((p: any) => ({
+        title: String(p.title ?? ''),
+        url: `https://www.reddit.com${p.permalink ?? ''}`,
+        meta: `r/${p.subreddit} · ${p.num_comments ?? 0} comments`,
+      })),
+    };
+  }
+
+  async function hn(q: string): Promise<Result> {
+    const since = Math.floor(Date.now() / 1000) - WEEK;
+    const data = await getJSON(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=(story,comment)&numericFilters=created_at_i>${since}&hitsPerPage=${SAMPLES}`);
+    return {
+      count: String(data?.nbHits ?? 0),
+      samples: (data?.hits ?? []).map((h: any) => ({
+        title: String(h.title ?? h.story_title ?? h.comment_text ?? '').replace(/<[^>]*>/g, '').slice(0, 160),
+        url: `https://news.ycombinator.com/item?id=${encodeURIComponent(h.objectID)}`,
+        meta: `${h._tags?.includes('comment') ? 'comment' : 'story'} · ${h.points ?? 0} points`,
+      })),
+    };
+  }
+
+  // textContent only: titles come from third parties.
+  function render(prefix: string, r: Result | Error) {
+    const count = document.getElementById(`kt-${prefix}-count`)!;
+    const list = document.getElementById(`kt-${prefix}`)!;
+    list.replaceChildren();
+    if (r instanceof Error) {
+      count.textContent = 'unavailable';
+      const li = document.createElement('li');
+      li.textContent = `Could not reach the public API (${r.message}). Try again in a minute.`;
+      list.append(li);
+      return;
+    }
+    count.textContent = r.count;
+    if (r.samples.length === 0) {
+      const li = document.createElement('li');
+      li.textContent = 'No posts in the last 7 days. Try a broader phrase.';
+      list.append(li);
+    }
+    for (const s of r.samples) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = s.url;
+      a.target = '_blank';
+      a.rel = 'noreferrer nofollow';
+      a.textContent = s.title || '(untitled)';
+      const meta = document.createElement('div');
+      meta.className = 'mono';
+      meta.style.cssText = 'font-size: 0.72rem; color: var(--muted);';
+      meta.textContent = s.meta;
+      li.append(a, meta);
+      list.append(li);
+    }
+  }
+
+  const settle = (p: Promise<Result>) => p.catch((e: unknown) => (e instanceof Error ? e : new Error(String(e))));
+
+  document.getElementById('kt-form')!.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const q = (document.getElementById('kt-q') as HTMLInputElement).value.trim().slice(0, 200);
+    const status = document.getElementById('kt-status')!;
+    if (!q) return;
+    status.textContent = `Searching Reddit and Hacker News for "${q}"...`;
+    const [r, h] = await Promise.all([settle(reddit(q)), settle(hn(q))]);
+    render('reddit', r);
+    render('hn', h);
+    document.getElementById('kt-results')!.hidden = false;
+    status.textContent = '';
+  });
+</script>

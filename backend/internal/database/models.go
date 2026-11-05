@@ -199,6 +199,7 @@ const (
 	NotificationChannelSlack   NotificationChannel = "slack"
 	NotificationChannelDiscord NotificationChannel = "discord"
 	NotificationChannelEmail   NotificationChannel = "email"
+	NotificationChannelInApp   NotificationChannel = "in_app"
 )
 
 func (e *NotificationChannel) Scan(src interface{}) error {
@@ -249,6 +250,7 @@ const (
 	PlatformTypeQuora        PlatformType = "quora"
 	PlatformTypeExa          PlatformType = "exa"
 	PlatformTypeGooglenews   PlatformType = "googlenews"
+	PlatformTypeBluesky      PlatformType = "bluesky"
 )
 
 func (e *PlatformType) Scan(src interface{}) error {
@@ -416,6 +418,80 @@ func (ns NullWorkflowStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowStatus), nil
 }
 
+type AuthToken struct {
+	ID        string             `json:"id"`
+	UserID    string             `json:"user_id"`
+	Kind      string             `json:"kind"`
+	TokenHash string             `json:"token_hash"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
+type Automation struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Kind        string             `json:"kind"`
+	Frequency   string             `json:"frequency"`
+	RunTime     string             `json:"run_time"`
+	Weekday     string             `json:"weekday"`
+	Timezone    string             `json:"timezone"`
+	Enabled     bool               `json:"enabled"`
+	Config      []byte             `json:"config"`
+	LastRunAt   pgtype.Timestamptz `json:"last_run_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+type AutomationRun struct {
+	ID           string             `json:"id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	AutomationID string             `json:"automation_id"`
+	Trigger      string             `json:"trigger"`
+	PeriodStart  pgtype.Timestamptz `json:"period_start"`
+	Status       string             `json:"status"`
+	Output       []byte             `json:"output"`
+	Error        string             `json:"error"`
+	StartedAt    time.Time          `json:"started_at"`
+	FinishedAt   pgtype.Timestamptz `json:"finished_at"`
+}
+
+type BrandProfile struct {
+	WorkspaceID      string    `json:"workspace_id"`
+	Overview         string    `json:"overview"`
+	Product          string    `json:"product"`
+	Positioning      string    `json:"positioning"`
+	CustomerSegments []byte    `json:"customer_segments"`
+	Competitors      []string  `json:"competitors"`
+	PainPoints       []byte    `json:"pain_points"`
+	Keywords         []byte    `json:"keywords"`
+	Features         []string  `json:"features"`
+	TargetAudience   string    `json:"target_audience"`
+	SourceUrl        string    `json:"source_url"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type ChatMessage struct {
+	ID          string    `json:"id"`
+	ThreadID    string    `json:"thread_id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Role        string    `json:"role"`
+	Content     string    `json:"content"`
+	ToolCalls   []byte    `json:"tool_calls"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type ChatThread struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	UserID      string    `json:"user_id"`
+	Title       string    `json:"title"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type ConsumerCheckpoint struct {
 	ID                 string      `json:"id"`
 	StreamName         string      `json:"stream_name"`
@@ -459,6 +535,32 @@ type DeadLetterEvent struct {
 	ResolvedAt       pgtype.Timestamptz `json:"resolved_at"`
 	ResolutionStatus string             `json:"resolution_status"`
 	CreatedAt        time.Time          `json:"created_at"`
+}
+
+type DigestRun struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Kind        string    `json:"kind"`
+	PeriodStart time.Time `json:"period_start"`
+	PeriodEnd   time.Time `json:"period_end"`
+	Status      string    `json:"status"`
+	Attempts    int32     `json:"attempts"`
+	Error       string    `json:"error"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type DigestSetting struct {
+	WorkspaceID   string    `json:"workspace_id"`
+	DailyEnabled  bool      `json:"daily_enabled"`
+	DailyTime     string    `json:"daily_time"`
+	WeeklyEnabled bool      `json:"weekly_enabled"`
+	WeeklyDay     string    `json:"weekly_day"`
+	Timezone      string    `json:"timezone"`
+	Recipients    []string  `json:"recipients"`
+	Channels      []string  `json:"channels"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type Document struct {
@@ -566,6 +668,14 @@ type Keyword struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 	Subreddits    []string  `json:"subreddits"`
 	ProfileID     string    `json:"profile_id"`
+	Cadence       []byte    `json:"cadence"`
+}
+
+type KeywordPlatformScan struct {
+	KeywordID     string    `json:"keyword_id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	Platform      string    `json:"platform"`
+	LastScannedAt time.Time `json:"last_scanned_at"`
 }
 
 type Lead struct {
@@ -644,6 +754,22 @@ type Mention struct {
 	ContentEmbedding      *pgvector_go.Vector `json:"content_embedding"`
 	ScoringMetadata       []byte              `json:"scoring_metadata"`
 	AwarenessLevel        pgtype.Text         `json:"awareness_level"`
+	IntentTags            []string            `json:"intent_tags"`
+	Sentiment             pgtype.Text         `json:"sentiment"`
+	CanonicalUrl          pgtype.Text         `json:"canonical_url"`
+	ContentSimhash        pgtype.Int8         `json:"content_simhash"`
+}
+
+type MentionFeedback struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	MentionID   string      `json:"mention_id"`
+	ProfileID   pgtype.UUID `json:"profile_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	Label       string      `json:"label"`
+	Note        string      `json:"note"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
 type MonitoringProfile struct {
@@ -654,6 +780,18 @@ type MonitoringProfile struct {
 	IsActive    bool      `json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	LooksFor    string    `json:"looks_for"`
+	Skips       string    `json:"skips"`
+	Goal        string    `json:"goal"`
+}
+
+type Mute struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	Kind        string      `json:"kind"`
+	Value       string      `json:"value"`
+	CreatedBy   pgtype.UUID `json:"created_by"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type Notification struct {
@@ -678,6 +816,18 @@ type OnboardingAnalysis struct {
 	Status       string      `json:"status"`
 	ErrorMessage pgtype.Text `json:"error_message"`
 	CreatedAt    time.Time   `json:"created_at"`
+}
+
+type OnboardingSampleFeedback struct {
+	ID          string      `json:"id"`
+	WorkspaceID string      `json:"workspace_id"`
+	ProfileID   pgtype.UUID `json:"profile_id"`
+	Goal        string      `json:"goal"`
+	Platform    string      `json:"platform"`
+	Url         string      `json:"url"`
+	Text        string      `json:"text"`
+	Label       string      `json:"label"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 type PainPointEmbedding struct {
@@ -769,6 +919,24 @@ type ReplyEngagement struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type ResponseProfile struct {
+	ID                  string    `json:"id"`
+	WorkspaceID         string    `json:"workspace_id"`
+	Name                string    `json:"name"`
+	Goal                string    `json:"goal"`
+	SpecialInstructions string    `json:"special_instructions"`
+	Tone                int32     `json:"tone"`
+	Length              string    `json:"length"`
+	Assertiveness       int32     `json:"assertiveness"`
+	BrandPlug           string    `json:"brand_plug"`
+	CtaGoal             string    `json:"cta_goal"`
+	DestinationUrl      string    `json:"destination_url"`
+	Examples            []byte    `json:"examples"`
+	IsDefault           bool      `json:"is_default"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
 type Subscription struct {
 	ID                   string             `json:"id"`
 	WorkspaceID          string             `json:"workspace_id"`
@@ -809,19 +977,41 @@ type Thread struct {
 	CreatedAt           time.Time   `json:"created_at"`
 }
 
-type User struct {
+type TrackedProfile struct {
 	ID           string             `json:"id"`
-	ClerkUserID  string             `json:"clerk_user_id"`
 	WorkspaceID  string             `json:"workspace_id"`
-	Email        string             `json:"email"`
-	Name         string             `json:"name"`
-	AvatarUrl    pgtype.Text        `json:"avatar_url"`
-	Role         UserRole           `json:"role"`
-	IsActive     bool               `json:"is_active"`
-	LastActiveAt pgtype.Timestamptz `json:"last_active_at"`
+	Platform     string             `json:"platform"`
+	Handle       string             `json:"handle"`
+	Url          string             `json:"url"`
+	LastPolledAt pgtype.Timestamptz `json:"last_polled_at"`
 	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	PasswordHash pgtype.Text        `json:"password_hash"`
+}
+
+type TregCall struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Tool        string    `json:"tool"`
+	CallID      string    `json:"call_id"`
+	CostMicro   int64     `json:"cost_micro"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type User struct {
+	ID             string             `json:"id"`
+	ClerkUserID    string             `json:"clerk_user_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Email          string             `json:"email"`
+	Name           string             `json:"name"`
+	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	Role           UserRole           `json:"role"`
+	IsActive       bool               `json:"is_active"`
+	LastActiveAt   pgtype.Timestamptz `json:"last_active_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	PasswordHash   pgtype.Text        `json:"password_hash"`
+	EmailVerified  bool               `json:"email_verified"`
+	SessionVersion int32              `json:"session_version"`
 }
 
 type UtmEvent struct {
@@ -893,4 +1083,17 @@ type Workspace struct {
 	SeatLimit        int32       `json:"seat_limit"`
 	CreatedAt        time.Time   `json:"created_at"`
 	UpdatedAt        time.Time   `json:"updated_at"`
+}
+
+type WorkspaceApiKey struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Prefix      string             `json:"prefix"`
+	KeyHash     string             `json:"key_hash"`
+	Scopes      []string           `json:"scopes"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt   time.Time          `json:"created_at"`
 }

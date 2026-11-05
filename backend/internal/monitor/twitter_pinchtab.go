@@ -17,8 +17,8 @@ import (
 type tweetData struct {
 	Text   string `json:"text"`
 	Author string `json:"author"`
-	Time   string `json:"time"`   // ISO datetime
-	URL    string `json:"url"`    // e.g. https://x.com/user/status/12345
+	Time   string `json:"time"` // ISO datetime
+	URL    string `json:"url"`  // e.g. https://x.com/user/status/12345
 }
 
 // JS snippet that extracts tweet data from the current Twitter/X search page.
@@ -53,7 +53,7 @@ func (m *Monitor) crawlTwitterPinchtab(ctx context.Context, wsID string, kw data
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".x.com")
+	cookies := ParseCookieString(cookieStr, ".x.com")
 
 	// Navigate to x.com first so IDPI allows cookie injection on the right domain.
 	if err := m.pinchtab.Navigate(ctx, "https://x.com"); err != nil {

@@ -16,7 +16,10 @@ import {
   Globe,
   Bell,
   Settings,
+  Users, // enrich
+  CalendarClock, // automations (P2 #17)
 } from "lucide-react";
+import { Sparkles } from "lucide-react"; // chat (P2 #15)
 
 const navGroups = [
   {
@@ -25,6 +28,7 @@ const navGroups = [
       { to: "/inbox", label: "Inbox", icon: Inbox },
       { to: "/pipeline", label: "Pipeline", icon: GitBranch },
       { to: "/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/chat", label: "Ask LeadEcho", icon: Sparkles }, // chat (P2 #15)
     ],
   },
   {
@@ -34,6 +38,8 @@ const navGroups = [
       { to: "/profiles", label: "Profiles", icon: Target },
       { to: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
       { to: "/workflows", label: "Workflows", icon: Zap },
+      { to: "/engagers", label: "LinkedIn engagers", icon: Users }, // enrich
+      { to: "/automations", label: "Automations", icon: CalendarClock }, // automations (P2 #17)
     ],
   },
   {

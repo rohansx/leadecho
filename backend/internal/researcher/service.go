@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"leadecho/internal/database"
+	"leadecho/internal/enrich"
 )
 
 var githubHandleRE = regexp.MustCompile(`(?i)github\.com/([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)`)
@@ -74,6 +75,9 @@ type Service struct {
 	q      *database.Queries
 	github *githubClient
 	logger zerolog.Logger
+	// enrich: treg enrichment (nil = off) and CRM push after it.
+	enricher *enrich.Enricher
+	crm      CRMEmitter
 }
 
 func NewService(q *database.Queries, logger zerolog.Logger) *Service {
@@ -85,8 +89,14 @@ func NewService(q *database.Queries, logger zerolog.Logger) *Service {
 }
 
 // EnrichLeadAsync runs enrichment in the background; safe to call from hot paths.
+// enrichSlots bounds concurrent background enrichments (an engagers pull can
+// queue ~200 at once); excess callers wait for a slot.
+var enrichSlots = make(chan struct{}, 4)
+
 func (s *Service) EnrichLeadAsync(leadID, workspaceID string) {
 	go func() {
+		enrichSlots <- struct{}{}
+		defer func() { <-enrichSlots }()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := s.EnrichLead(ctx, leadID, workspaceID); err != nil {
@@ -95,8 +105,19 @@ func (s *Service) EnrichLeadAsync(leadID, workspaceID string) {
 	}()
 }
 
-// EnrichLead builds or updates Person360 for a lead from mention + GitHub L1 data.
+// EnrichLead builds or updates Person360 for a lead from mention + GitHub L1
+// data, plus treg enrichment when configured.
 func (s *Service) EnrichLead(ctx context.Context, leadID, workspaceID string) error {
+	return s.enrichLead(ctx, leadID, workspaceID, true)
+}
+
+// ScoreLead is EnrichLead without paid treg calls (enrich: engagers that
+// were not asked to be enriched still get a Person360 and an ICP score).
+func (s *Service) ScoreLead(ctx context.Context, leadID, workspaceID string) error {
+	return s.enrichLead(ctx, leadID, workspaceID, false)
+}
+
+func (s *Service) enrichLead(ctx context.Context, leadID, workspaceID string, paid bool) error {
 	lead, err := s.q.GetLead(ctx, database.GetLeadParams{ID: leadID, WorkspaceID: workspaceID})
 	if err != nil {
 		return fmt.Errorf("get lead: %w", err)
@@ -146,16 +167,24 @@ func (s *Service) EnrichLead(ctx context.Context, leadID, workspaceID string) er
 	}
 
 	var gh *GitHubProfile
-	githubHandle := extractGitHubHandle(profileURL, mention.Content, handle)
+	ghAuthor := handle
+	if platform == "linkedin" { // enrich: LinkedIn slugs are not GitHub logins
+		ghAuthor = ""
+	}
+	githubHandle := extractGitHubHandle(profileURL, mention.Content, ghAuthor)
 	if githubHandle != "" {
 		if gh, err = s.enrichFromGitHub(ctx, workspaceID, person.ID, githubHandle); err != nil {
 			s.logger.Debug().Err(err).Str("handle", githubHandle).Msg("github enrichment skipped")
 		}
 	}
-	return s.updateICPFit(ctx, workspaceID, person.ID, mention, gh)
+	var ent *enrich.Result
+	if paid {
+		ent = s.enrichWithTreg(ctx, workspaceID, lead, person.ID, platform, handle, profileURL)
+	}
+	return s.updateICPFit(ctx, workspaceID, person.ID, mention, gh, ent)
 }
 
-func (s *Service) updateICPFit(ctx context.Context, workspaceID, personID string, mention database.Mention, gh *GitHubProfile) error {
+func (s *Service) updateICPFit(ctx context.Context, workspaceID, personID string, mention database.Mention, gh *GitHubProfile, ent *enrich.Result) error {
 	person, err := s.q.GetPerson(ctx, database.GetPersonParams{ID: personID, WorkspaceID: workspaceID})
 	if err != nil {
 		return fmt.Errorf("get person for icp: %w", err)
@@ -169,6 +198,10 @@ func (s *Service) updateICPFit(ctx context.Context, workspaceID, personID string
 	if gh != nil {
 		sig.HasWebsite = strings.TrimSpace(gh.Blog) != ""
 		sig.PublicRepos = gh.PublicRepos
+	}
+	if ent != nil { // enrich: firmographics
+		sig.CompanySize, sig.Industry = ent.CompanySize, ent.Industry
+		sig.IndustryMatch = ent.Industry != "" && IndustryMatches(ent.Industry, s.icpTargetText(ctx, workspaceID))
 	}
 	if _, err := s.q.UpdatePerson(ctx, database.UpdatePersonParams{
 		ID:          personID,
@@ -200,6 +233,7 @@ func (s *Service) ensurePerson(ctx context.Context, workspaceID string, lead dat
 	person, err := s.q.CreatePerson(ctx, database.CreatePersonParams{
 		WorkspaceID: workspaceID,
 		DisplayName: pgtype.Text{String: displayName, Valid: displayName != ""},
+		Company:     lead.Company, // enrich: engager headlines carry a company
 		Confidence:  0.5,
 		Metadata:    []byte(`{"source":"mention_author"}`),
 	})

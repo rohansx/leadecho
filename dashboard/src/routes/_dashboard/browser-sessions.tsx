@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listSessions, saveSession, deleteSession, testSession } from "@/lib/api";
 import type { PlatformSession } from "@/lib/types";
-import { Globe, Wifi, WifiOff, CheckCircle2, Circle, Trash2, FlaskConical } from "lucide-react";
+import { Globe, Wifi, WifiOff, CheckCircle2, Circle, Trash2, FlaskConical, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_dashboard/browser-sessions")({
   component: BrowserSessionsPage,
@@ -92,7 +92,13 @@ function SessionCard({ session }: { session: PlatformSession }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <CardTitle>{meta.label}</CardTitle>
-              {session.is_configured ? (
+              {session.is_managed ? (
+                // treg feature: hosted search, cookies optional
+                <Badge variant="surface" size="sm" className="text-xs text-green-600 border-green-200">
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  Managed — no cookies needed
+                </Badge>
+              ) : session.is_configured ? (
                 <Badge variant="surface" size="sm" className="text-xs text-green-600 border-green-200">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   {session.username ? `Connected as ${session.username}` : "Connected"}
@@ -105,7 +111,9 @@ function SessionCard({ session }: { session: PlatformSession }) {
               )}
             </div>
             <CardDescription className="flex items-center gap-1.5 mt-0.5">
-              {session.is_pinchtab_online ? (
+              {session.is_managed ? (
+                <span>Searched by LeadEcho's managed data source. A cookie is only used as a fallback.</span>
+              ) : session.is_pinchtab_online ? (
                 <>
                   <Wifi className="h-3 w-3 text-green-500" />
                   <span className="text-green-600">Pinchtab online</span>

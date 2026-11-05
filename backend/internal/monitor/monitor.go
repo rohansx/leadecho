@@ -17,6 +17,8 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
+	"leadecho/internal/mutes"
+	"leadecho/internal/treg" // treg: hosted X/LinkedIn sources
 )
 
 // LeadEnricher runs Person360 enrichment after lead qualification.
@@ -26,29 +28,47 @@ type LeadEnricher interface {
 
 // Monitor polls social platforms for keyword matches and inserts new mentions.
 type Monitor struct {
-	crm              *crmsync.Dispatcher
-	q                *database.Queries
-	logger           zerolog.Logger
-	resendAPIKey     string
-	redditBackoffNs  atomic.Int64             // unix-nano; skip Reddit crawls until then (set on 429/403). Atomic: scans run concurrently.
-	scanning         sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
-	llmRouter        llm.MentionScorer        // workspace-aware LLM/embedding router
-	pinchtab         *browser.PinchtabClient  // browser sidecar (nil if not configured)
-	camoufox         *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
-	scrapling        *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
-	encKey           []byte                   // AES key for decrypting session cookies
-	exaAPIKey        string                   // Exa web-search API key (empty disables the exa source)
-	eventPublisher   *publishers.Publisher
-	enricher         LeadEnricher
-	streamsEnabled   bool
-	streamsDualWrite bool
-	inlineFallback   bool
-	qualifierAsync   bool
+	crm               *crmsync.Dispatcher
+	q                 *database.Queries
+	logger            zerolog.Logger
+	resendAPIKey      string
+	redditBackoffNs   atomic.Int64             // unix-nano; skip Reddit crawls until then (set on 429/403). Atomic: scans run concurrently.
+	scanning          sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
+	painPointsChecked sync.Map                 // workspaceID -> struct{}; pain-point embedding backfill done
+	llmRouter         llm.MentionScorer        // workspace-aware LLM/embedding router
+	pinchtab          *browser.PinchtabClient  // browser sidecar (nil if not configured)
+	camoufox          *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
+	scrapling         *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
+	encKey            []byte                   // AES key for decrypting session cookies
+	exaAPIKey         string                   // Exa web-search API key (empty disables the exa source)
+	eventPublisher    *publishers.Publisher
+	enricher          LeadEnricher
+	streamsEnabled    bool
+	streamsDualWrite  bool
+	inlineFallback    bool
+	qualifierAsync    bool
 
 	// googleNewsEnabled opts in to the Google News RSS source. Off by default:
 	// Google's feed terms limit it to personal, non-commercial use, so it must
 	// be a deliberate operator choice rather than a default in a shipped build.
 	googleNewsEnabled bool
+
+	// onboarding: public search endpoints (nil = production defaults; tests override).
+	public *PublicSources
+	// scoring: extra few-shot example sources (e.g. onboarding calibration)
+	extraExamples []ExampleSource
+	// treg: hosted X/LinkedIn search (nil = browser paths). Reddit comment
+	// search via the public JSON stream (see reddit_comments.go).
+	treg                  *treg.Client
+	redditCommentsEnabled bool
+	// sources: workspace mute lists applied before insert (nil = none).
+	mutes *mutes.Store
+
+	// sources: optional Bluesky session (BLUESKY_HANDLE/BLUESKY_APP_PASSWORD).
+	bluesky blueskyAuth
+
+	// enrich: tracked LinkedIn/X profile poll interval (0 = off).
+	trackedEvery time.Duration
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -75,6 +95,7 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRou
 		streamsDualWrite: streamsDualWrite,
 		inlineFallback:   inlineFallback,
 		qualifierAsync:   qualifierAsync,
+		mutes:            mutes.NewStore(q), // sources
 	}
 }
 
@@ -114,6 +135,8 @@ func (m *Monitor) tick(ctx context.Context) {
 				Msg("monitor: recovered from panic in tick")
 		}
 	}()
+
+	m.pollTrackedProfiles(ctx) // enrich: tracked LinkedIn/X profiles
 
 	// Fetch all active keywords across every workspace
 	allKeywords, err := m.q.ListAllActiveKeywords(ctx)
@@ -180,9 +203,11 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	}
 	defer m.scanning.Delete(wsID)
 
+	kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
 	var alerts []mentionAlert
 	for i, kw := range kws {
 		alerts = append(alerts, m.crawlKeyword(ctx, wsID, kw)...)
+		m.recordScans(ctx, wsID, kw) // sources
 		// Pause between keywords to avoid hammering APIs
 		if i < len(kws)-1 {
 			select {
@@ -199,7 +224,12 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 // ScanWorkspaceNow starts an immediate background scan of one workspace, e.g.
 // right after onboarding, so new users don't wait for the next tick (which can
 // be many minutes behind on a busy instance).
-func (m *Monitor) ScanWorkspaceNow(wsID string) {
+func (m *Monitor) ScanWorkspaceNow(wsID string) { m.ScanWorkspaceSince(wsID, 0) }
+
+// onboarding: ScanWorkspaceSince is ScanWorkspaceNow with a backfill window:
+// sources that support time filters (HN, Reddit, Dev.to) pull posts from the
+// last lookback instead of only the newest page. lookback 0 = normal scan.
+func (m *Monitor) ScanWorkspaceSince(wsID string, lookback time.Duration) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -208,6 +238,9 @@ func (m *Monitor) ScanWorkspaceNow(wsID string) {
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
+		if lookback > 0 {
+			ctx = WithSince(ctx, time.Now().Add(-lookback))
+		}
 		kws, err := m.q.ListActiveKeywords(ctx, wsID)
 		if err != nil {
 			m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("monitor: immediate scan: list keywords")
@@ -219,6 +252,12 @@ func (m *Monitor) ScanWorkspaceNow(wsID string) {
 		m.logger.Info().Str("workspace_id", wsID).Int("keywords", len(kws)).Msg("monitor: immediate workspace scan")
 		m.scanWorkspace(ctx, wsID, kws)
 	}()
+}
+
+// onboarding: IsScanning reports whether a scan of the workspace is running.
+func (m *Monitor) IsScanning(wsID string) bool {
+	_, busy := m.scanning.Load(wsID)
+	return busy
 }
 
 func (m *Monitor) redditBackedOff() bool { return time.Now().UnixNano() < m.redditBackoffNs.Load() }
@@ -245,7 +284,18 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 	for _, platform := range akw.Platforms {
 		switch database.PlatformType(platform) {
 		case database.PlatformTypeReddit:
-			// Try Pinchtab → Scrapling → unauthenticated
+			// treg feature: keyword hits inside comments (free public JSON).
+			if m.redditCommentsEnabled {
+				alerts = append(alerts, m.crawlRedditComments(ctx, wsID, akw)...)
+			}
+			// Hosted treg search unless official Reddit OAuth is set; then
+			// Pinchtab → Scrapling → unauthenticated (OAuth-aware).
+			if m.redditViaTreg() {
+				if tregAlerts, ok := m.crawlRedditTreg(ctx, wsID, akw); ok {
+					alerts = append(alerts, tregAlerts...)
+					break
+				}
+			}
 			if m.pinchtab != nil {
 				if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
 					alerts = append(alerts, pinchtabAlerts...)
@@ -277,13 +327,19 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeTwitter:
-			if m.pinchtab != nil {
+			// treg feature: hosted search first; falls through on failure.
+			if a, ok := m.crawlTwitterTreg(ctx, wsID, akw); ok {
+				alerts = append(alerts, a...)
+			} else if m.pinchtab != nil {
 				alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)
 			} else if m.scrapling != nil {
 				alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeLinkedin:
-			if m.camoufox != nil {
+			// treg feature: hosted search first; falls through on failure.
+			if a, ok := m.crawlLinkedInTreg(ctx, wsID, akw); ok {
+				alerts = append(alerts, a...)
+			} else if m.camoufox != nil {
 				alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
 			} else if m.pinchtab != nil {
 				alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
@@ -305,6 +361,8 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlIndieHackers(ctx, wsID, akw)...)
 			case "googlenews":
 				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
+			case "bluesky": // sources
+				alerts = append(alerts, m.crawlBluesky(ctx, wsID, akw)...)
 			}
 		}
 	}
@@ -325,6 +383,14 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 	// once here so every crawler stores readable text.
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
+	if m.isMuted(ctx, p) { // sources: mute lists
+		return nil
+	}
+	// scoring: drop bots and cross-link / near-duplicate posts before insert
+	keys, drop := m.dropBeforeInsert(ctx, p)
+	if drop {
+		return nil
+	}
 	mention, err := m.q.CreateMention(ctx, p)
 	if err != nil {
 		if isDuplicateError(err) {
@@ -333,6 +399,7 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 		m.logger.Error().Err(err).Str("platform_id", p.PlatformID).Msg("failed to insert mention")
 		return nil
 	}
+	m.recordDedupeKeys(ctx, p.WorkspaceID, mention.ID, keys)
 
 	title := ""
 	if p.Title.Valid {

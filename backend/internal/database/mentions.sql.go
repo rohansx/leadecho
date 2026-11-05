@@ -17,7 +17,7 @@ const assignMention = `-- name: AssignMention :one
 UPDATE mentions
 SET assigned_to = $1
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type AssignMentionParams struct {
@@ -57,6 +57,10 @@ func (q *Queries) AssignMention(ctx context.Context, arg AssignMentionParams) (M
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
@@ -178,7 +182,7 @@ INSERT INTO mentions (
     $12, $13, $14, $15,
     $16, $17, $18,
     $19
-) RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+) RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type CreateMentionParams struct {
@@ -254,12 +258,16 @@ func (q *Queries) CreateMention(ctx context.Context, arg CreateMentionParams) (M
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
 
 const getMention = `-- name: GetMention :one
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -299,12 +307,16 @@ func (q *Queries) GetMention(ctx context.Context, arg GetMentionParams) (Mention
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
 
 const listMentions = `-- name: ListMentions :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $2
@@ -353,6 +365,10 @@ func (q *Queries) ListMentions(ctx context.Context, arg ListMentionsParams) ([]M
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -365,7 +381,7 @@ func (q *Queries) ListMentions(ctx context.Context, arg ListMentionsParams) ([]M
 }
 
 const listMentionsByIntent = `-- name: ListMentionsByIntent :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1 AND intent = $2
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $3
@@ -420,6 +436,10 @@ func (q *Queries) ListMentionsByIntent(ctx context.Context, arg ListMentionsByIn
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -432,7 +452,7 @@ func (q *Queries) ListMentionsByIntent(ctx context.Context, arg ListMentionsByIn
 }
 
 const listMentionsByPlatform = `-- name: ListMentionsByPlatform :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1 AND platform = $2
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $3
@@ -487,6 +507,10 @@ func (q *Queries) ListMentionsByPlatform(ctx context.Context, arg ListMentionsBy
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -499,7 +523,7 @@ func (q *Queries) ListMentionsByPlatform(ctx context.Context, arg ListMentionsBy
 }
 
 const listMentionsByStatus = `-- name: ListMentionsByStatus :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1 AND status = $2
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $3
@@ -554,6 +578,10 @@ func (q *Queries) ListMentionsByStatus(ctx context.Context, arg ListMentionsBySt
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -566,7 +594,7 @@ func (q *Queries) ListMentionsByStatus(ctx context.Context, arg ListMentionsBySt
 }
 
 const listMentionsFiltered = `-- name: ListMentionsFiltered :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
 AND NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
 AND COALESCE(relevance_score, 0) < 4.0
@@ -621,6 +649,10 @@ func (q *Queries) ListMentionsFiltered(ctx context.Context, arg ListMentionsFilt
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -634,7 +666,7 @@ func (q *Queries) ListMentionsFiltered(ctx context.Context, arg ListMentionsFilt
 
 const listMentionsLeadsReady = `-- name: ListMentionsLeadsReady :many
 
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
 AND relevance_score >= 6.0
 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')
@@ -686,6 +718,10 @@ func (q *Queries) ListMentionsLeadsReady(ctx context.Context, arg ListMentionsLe
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -698,7 +734,7 @@ func (q *Queries) ListMentionsLeadsReady(ctx context.Context, arg ListMentionsLe
 }
 
 const listMentionsWorthWatching = `-- name: ListMentionsWorthWatching :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
 AND relevance_score IS NOT NULL
 AND relevance_score >= 4.0
@@ -750,6 +786,10 @@ func (q *Queries) ListMentionsWorthWatching(ctx context.Context, arg ListMention
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -822,7 +862,7 @@ func (q *Queries) ListRecentLeadsForWorkspace(ctx context.Context, arg ListRecen
 }
 
 const listUnclassifiedMentions = `-- name: ListUnclassifiedMentions :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1 AND intent IS NULL
   AND NOT (COALESCE(scoring_metadata ? 'stage', false) AND scoring_metadata->>'stage' <> 'stage3_classification_error')
 ORDER BY created_at DESC
@@ -834,6 +874,9 @@ type ListUnclassifiedMentionsParams struct {
 	Lim         int32  `json:"lim"`
 }
 
+// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
+// re-sending them to the LLM every tick wastes tokens. Classification errors
+// stay eligible so transient provider outages are retried.
 func (q *Queries) ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error) {
 	rows, err := q.db.Query(ctx, listUnclassifiedMentions, arg.WorkspaceID, arg.Lim)
 	if err != nil {
@@ -871,6 +914,10 @@ func (q *Queries) ListUnclassifiedMentions(ctx context.Context, arg ListUnclassi
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -886,7 +933,7 @@ const patchMentionScoringMetadata = `-- name: PatchMentionScoringMetadata :one
 UPDATE mentions
 SET scoring_metadata = $1
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type PatchMentionScoringMetadataParams struct {
@@ -926,12 +973,16 @@ func (q *Queries) PatchMentionScoringMetadata(ctx context.Context, arg PatchMent
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
 
 const searchMentions = `-- name: SearchMentions :many
-SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level FROM mentions
+SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
 AND content_tsv @@ plainto_tsquery('english', $2)
 ORDER BY ts_rank(content_tsv, plainto_tsquery('english', $2)) DESC
@@ -987,6 +1038,10 @@ func (q *Queries) SearchMentions(ctx context.Context, arg SearchMentionsParams) 
 			&i.ContentEmbedding,
 			&i.ScoringMetadata,
 			&i.AwarenessLevel,
+			&i.IntentTags,
+			&i.Sentiment,
+			&i.CanonicalUrl,
+			&i.ContentSimhash,
 		); err != nil {
 			return nil, err
 		}
@@ -1039,7 +1094,7 @@ SET intent = $1,
     conversion_probability = $2,
     relevance_score = $3
 WHERE id = $4 AND workspace_id = $5
-RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type UpdateMentionIntentParams struct {
@@ -1087,6 +1142,10 @@ func (q *Queries) UpdateMentionIntent(ctx context.Context, arg UpdateMentionInte
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
@@ -1099,7 +1158,7 @@ SET intent = $1,
     scoring_metadata = $4,
     awareness_level = $5
 WHERE id = $6 AND workspace_id = $7
-RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type UpdateMentionScoringParams struct {
@@ -1151,6 +1210,10 @@ func (q *Queries) UpdateMentionScoring(ctx context.Context, arg UpdateMentionSco
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
@@ -1159,7 +1222,7 @@ const updateMentionStatus = `-- name: UpdateMentionStatus :one
 UPDATE mentions
 SET status = $1
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type UpdateMentionStatusParams struct {
@@ -1199,6 +1262,10 @@ func (q *Queries) UpdateMentionStatus(ctx context.Context, arg UpdateMentionStat
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }
@@ -1208,7 +1275,7 @@ UPDATE mentions
 SET status = $1,
     scoring_metadata = $2
 WHERE id = $3 AND workspace_id = $4
-RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level
+RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
 `
 
 type UpdateMentionStatusWithMetadataParams struct {
@@ -1254,6 +1321,10 @@ func (q *Queries) UpdateMentionStatusWithMetadata(ctx context.Context, arg Updat
 		&i.ContentEmbedding,
 		&i.ScoringMetadata,
 		&i.AwarenessLevel,
+		&i.IntentTags,
+		&i.Sentiment,
+		&i.CanonicalUrl,
+		&i.ContentSimhash,
 	)
 	return i, err
 }

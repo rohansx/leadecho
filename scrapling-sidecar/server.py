@@ -17,14 +17,19 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from scrapling import StealthyFetcher
 
+from netguard import Blocked, guarded_fetch
+
 # Scrapling renamed PlayWrightFetcher to DynamicFetcher. Import whichever the
 # installed version exposes so the sidecar works across both: the hard import of
 # PlayWrightFetcher failed at startup on any current scrapling, which meant the
 # container exited(1) before serving a request.
-try:  # scrapling >= 0.4.x
+try:  # scrapling 0.4.x
     from scrapling import DynamicFetcher as _PlaywrightFetcher
-except ImportError:  # older releases
-    from scrapling import PlayWrightFetcher as _PlaywrightFetcher
+except ImportError:
+    try:  # older releases
+        from scrapling import PlayWrightFetcher as _PlaywrightFetcher
+    except ImportError:  # scrapling 0.5 ships only StealthyFetcher for browser fetches
+        _PlaywrightFetcher = StealthyFetcher
 
 PORT = int(os.environ.get("SCRAPLING_PORT", "9869"))
 TOKEN = os.environ.get("SCRAPLING_TOKEN", "changeme")
@@ -57,6 +62,19 @@ def require_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
 # ── Health ──────────────────────────────────────────────────────────────────
 
 
+def _guarded_fetch(fetcher: Any, url: str, headers: dict[str, str]) -> Any:
+    """SSRF-guarded fetch (see netguard): 403 for internal targets or redirects."""
+    def fetch(u: str) -> Any:
+        try:
+            return fetcher.fetch(u, headless=True, disable_resources=True, extra_headers=headers, timeout=30000)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"scrapling fetch failed: {e}")
+    try:
+        return guarded_fetch(fetch, url)
+    except Blocked as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -80,17 +98,8 @@ def navigate(body: NavigateRequest, _: None = Depends(require_auth)):
         if cookie_header:
             headers["Cookie"] = cookie_header
 
-        try:
-            resp = fetcher.fetch(
-                body.url,
-                headless=True,
-                disable_resources=True,
-                extra_headers=headers,
-                timeout=30000,
-            )
-            _last_response = resp
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"scrapling fetch failed: {e}")
+        _last_response = None  # never serve a previous page after a refused navigation
+        _last_response = _guarded_fetch(fetcher, body.url, headers)
 
     return {"ok": True}
 
@@ -181,16 +190,7 @@ def scrape(body: ScrapeRequest, _: None = Depends(require_auth)):
         if cookie_header:
             headers["Cookie"] = cookie_header
 
-        try:
-            resp = fetcher.fetch(
-                body.url,
-                headless=True,
-                disable_resources=True,
-                extra_headers=headers,
-                timeout=30000,
-            )
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"scrapling fetch failed: {e}")
+        resp = _guarded_fetch(fetcher, body.url, headers)
 
         elements = resp.css(body.selector)
         results = []

@@ -25,6 +25,7 @@ var (
 		"reddit": true, "hackernews": true, "devto": true, "lobsters": true,
 		"indiehackers": true, "twitter": true, "linkedin": true, "quora": true,
 		"exa": true, "googlenews": true,
+		"bluesky": true, // sources
 	}
 	validMatchTypes = map[string]bool{"contains": true, "broad": true, "exact": true, "phrase": true}
 )

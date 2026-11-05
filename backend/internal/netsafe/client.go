@@ -17,9 +17,21 @@ func DisallowedIP(ip net.IP) bool {
 		ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 		return true
 	}
-	// CGNAT 100.64.0.0/10
-	if v4 := ip.To4(); v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127 {
-		return true
+	if v4 := ip.To4(); v4 != nil {
+		switch {
+		case v4[0] == 0: // 0.0.0.0/8 ("this network", reaches localhost on Linux)
+			return true
+		case v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127: // CGNAT 100.64.0.0/10
+			return true
+		case v4[0] == 198 && (v4[1] == 18 || v4[1] == 19): // benchmarking 198.18.0.0/15
+			return true
+		}
+		return false
+	}
+	// NAT64 64:ff9b::/96 embeds an IPv4 address: judge the embedded one.
+	if len(ip) == net.IPv6len && ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b &&
+		string(ip[4:12]) == string(make([]byte, 8)) {
+		return DisallowedIP(net.IPv4(ip[12], ip[13], ip[14], ip[15]))
 	}
 	return false
 }

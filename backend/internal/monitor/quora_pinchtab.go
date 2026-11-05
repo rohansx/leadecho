@@ -67,7 +67,7 @@ func (m *Monitor) crawlQuoraPinchtab(ctx context.Context, wsID string, kw databa
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".quora.com")
+	cookies := ParseCookieString(cookieStr, ".quora.com")
 
 	if err := m.pinchtab.Navigate(ctx, "https://www.quora.com"); err != nil {
 		m.logger.Warn().Err(err).Msg("quora-pinchtab: failed to navigate to domain")

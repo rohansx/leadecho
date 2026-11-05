@@ -34,7 +34,7 @@ func (m *Monitor) crawlTwitterScrapling(ctx context.Context, wsID string, kw dat
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".x.com")
+	cookies := ParseCookieString(cookieStr, ".x.com")
 	if err := m.scrapling.InjectCookies(ctx, cookies); err != nil {
 		m.logger.Warn().Err(err).Msg("twitter-scrapling: failed to inject cookies")
 		return nil
@@ -88,11 +88,11 @@ func (m *Monitor) crawlTwitterScrapling(ctx context.Context, wsID string, kw dat
 		author := strings.TrimPrefix(tweet.Author, "@")
 
 		alert := m.insertMention(ctx, database.CreateMentionParams{
-			WorkspaceID:   wsID,
-			Platform:      string(database.PlatformTypeTwitter),
-			PlatformID:    platformID,
-			Url:           tweet.URL,
-			Content:       tweet.Text,
+			WorkspaceID:    wsID,
+			Platform:       string(database.PlatformTypeTwitter),
+			PlatformID:     platformID,
+			Url:            tweet.URL,
+			Content:        tweet.Text,
 			AuthorUsername: pgtype.Text{String: author, Valid: author != ""},
 			AuthorProfileUrl: pgtype.Text{
 				String: "https://x.com/" + author,

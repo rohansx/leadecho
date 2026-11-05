@@ -41,7 +41,7 @@ func (m *Monitor) crawlRedditPinchtab(ctx context.Context, wsID string, kw datab
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".reddit.com")
+	cookies := ParseCookieString(cookieStr, ".reddit.com")
 
 	// Navigate to reddit.com and inject cookies ONCE for all subreddits.
 	// Doing this per-subreddit causes too many page loads and triggers Reddit's
@@ -151,7 +151,7 @@ func (m *Monitor) fetchSubredditPinchtab(ctx context.Context, wsID string, kw da
 				"score":        post.Score,
 				"num_comments": post.NumComments,
 			}),
-			KeywordMatches:   []string{kw.Term},
+			KeywordMatches: []string{kw.Term},
 			PlatformCreatedAt: pgtype.Timestamptz{
 				Time:  time.Unix(int64(post.CreatedUTC), 0),
 				Valid: true,
@@ -170,7 +170,9 @@ func (m *Monitor) fetchSubredditPinchtab(ctx context.Context, wsID string, kw da
 // If the string has no "=" (a bare token), it's treated as the value of
 // defaultCookieName — e.g. a user who pastes just the reddit_session JWT
 // value without wrapping it in "reddit_session=...".
-func parseCookieString(cookieStr, domain string) []browser.Cookie {
+// ParseCookieString parses a pasted cookie: either a bare value (named after
+// the platform's login cookie) or a "name=value; name2=value2" header.
+func ParseCookieString(cookieStr, domain string) []browser.Cookie {
 	cookieStr = strings.TrimSpace(cookieStr)
 	if cookieStr == "" {
 		return nil

@@ -15,6 +15,9 @@ const navLinks = [
   { label: 'Features', href: '/#features' },
   { label: 'Pricing', href: '/#pricing' },
   { label: 'Docs', href: '/docs' },
+  // growth: compare page + free tool
+  { label: 'Compare', href: '/compare/snitchfeed' },
+  { label: 'Free tool', href: '/tools/keyword-tester' },
 ];
 
 export default function FloatingNav() {

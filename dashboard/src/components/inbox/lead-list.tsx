@@ -2,7 +2,9 @@ import { motion } from "motion/react";
 import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
-import { ACTION_KINDS, INBOX_QUEUES, MENTION_STATUSES } from "@/lib/constants";
+import { ACTION_KINDS, INBOX_QUEUES, INTENT_TAGS, MENTION_STATUSES, SENTIMENTS } from "@/lib/constants";
+import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
+import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 
 const intentColors: Record<string, string> = {
   buy_signal: "text-primary-ink",
@@ -98,6 +100,10 @@ export function LeadList({
   platformOptions,
   statusFilter,
   onStatusChange,
+  tagFilter = "",
+  onTagChange,
+  sentimentFilter = "",
+  onSentimentChange,
   search,
   onSearchChange,
   onRefresh,
@@ -128,6 +134,10 @@ export function LeadList({
   platformOptions: { platform: string; count: number }[];
   statusFilter: string;
   onStatusChange: (status: string) => void;
+  tagFilter?: string;
+  onTagChange?: (tag: string) => void;
+  sentimentFilter?: string;
+  onSentimentChange?: (sentiment: string) => void;
   search: string;
   onSearchChange: (v: string) => void;
   onRefresh: () => void;
@@ -210,6 +220,17 @@ export function LeadList({
               <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
+          {/* sources: CSV export of the current view */}
+          {queueFilter !== INBOX_QUEUES.PROPOSALS && (
+            <ExportCsvButton
+              kind="mentions"
+              params={
+                queueFilter === INBOX_QUEUES.ALL
+                  ? { queue: queueFilter, platform: platformFilter, status: statusFilter, search }
+                  : { queue: queueFilter, action_kind: queueFilter === INBOX_QUEUES.ACTION_REQUIRED ? actionKind : undefined }
+              }
+            />
+          )}
           <button
             type="button"
             onClick={onRefresh}
@@ -309,6 +330,36 @@ export function LeadList({
                 ))}
               </select>
             </div>
+            {onTagChange && onSentimentChange && (
+              <div className="flex gap-1.5">
+                <select
+                  value={tagFilter}
+                  onChange={(e) => onTagChange(e.target.value)}
+                  aria-label="Filter by intent tag"
+                  className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+                >
+                  <option value="">All intent tags</option>
+                  {INTENT_TAGS.map((t) => (
+                    <option key={t} value={t}>
+                      {tagLabel(t)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sentimentFilter}
+                  onChange={(e) => onSentimentChange(e.target.value)}
+                  aria-label="Filter by sentiment"
+                  className="flex-1 min-w-0 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+                >
+                  <option value="">Any sentiment</option>
+                  {SENTIMENTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -419,6 +470,9 @@ export function LeadList({
                   <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
                   <div className="mt-1 text-xs text-muted-foreground truncate">
                     @{m.author_username ?? "unknown"}
+                  </div>
+                  <div className="mt-1.5">
+                    <TagChips tags={m.intent_tags} sentiment={m.sentiment} />
                   </div>
                 </div>
               </motion.button>

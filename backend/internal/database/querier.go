@@ -13,10 +13,28 @@ import (
 type Querier interface {
 	ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error)
 	AssignMention(ctx context.Context, arg AssignMentionParams) (Mention, error)
+	// Per keyword over mentions created in the last @days days: volume, posted
+	// replies and the clicks/signups/revenue of those replies' tracked links.
+	AutomationKeywordValue(ctx context.Context, arg AutomationKeywordValueParams) ([]AutomationKeywordValueRow, error)
+	// Returns a row only when this caller owns the (workspace, kind, period) slot:
+	// a fresh insert, a retry of a failed run (max 5 attempts, backoff of
+	// 10 min x attempts so a provider outage is ridden out inside the due window),
+	// or a run left 'pending' >15 min by a sender that crashed mid-send.
+	// Also refuses a new slot within min_gap_seconds of a run already sent or
+	// sending: editing the send time must not produce a second digest that day.
+	ClaimDigestRun(ctx context.Context, arg ClaimDigestRunParams) (string, error)
+	// Returns a row only for the first caller of an (automation, period) slot.
+	// Also refuses a slot within min_gap_seconds of another scheduled run, so
+	// editing the run time can't make it run twice in one period.
+	ClaimScheduledAutomationRun(ctx context.Context, arg ClaimScheduledAutomationRunParams) (AutomationRun, error)
 	ConversionFunnel(ctx context.Context, workspaceID string) ([]ConversionFunnelRow, error)
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountConvertedLeads(ctx context.Context, workspaceID string) (int32, error)
 	CountDocuments(ctx context.Context, workspaceID string) (int32, error)
+	// ─── KB seed ──────────────────────────────────────────
+	CountDocumentsBySourceURL(ctx context.Context, arg CountDocumentsBySourceURLParams) (int32, error)
+	// enrich (P1 #11, P2 #16): lead enrichment cap, LinkedIn engagers, tracked profiles.
+	CountEnrichedLeadsSince(ctx context.Context, arg CountEnrichedLeadsSinceParams) (int64, error)
 	CountHumanProposalsByStatus(ctx context.Context, workspaceID string) ([]CountHumanProposalsByStatusRow, error)
 	CountKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CountLeadsByStage(ctx context.Context, workspaceID string) ([]CountLeadsByStageRow, error)
@@ -31,6 +49,10 @@ type Querier interface {
 	CountRepliesByStatus(ctx context.Context, workspaceID string) ([]CountRepliesByStatusRow, error)
 	CountRepliesPosted30d(ctx context.Context, workspaceID string) (int32, error)
 	CountTotalLeads(ctx context.Context, workspaceID string) (int32, error)
+	CreateAutomation(ctx context.Context, arg CreateAutomationParams) (Automation, error)
+	CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error)
+	// chat (P2 #15). Every query is scoped by workspace_id and, for threads, user_id.
+	CreateChatThread(ctx context.Context, arg CreateChatThreadParams) (ChatThread, error)
 	CreateConsumerProcessedEvent(ctx context.Context, arg CreateConsumerProcessedEventParams) (ConsumerProcessedEvent, error)
 	CreateDeadLetterEvent(ctx context.Context, arg CreateDeadLetterEventParams) (DeadLetterEvent, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
@@ -41,8 +63,11 @@ type Querier interface {
 	CreateKeyword(ctx context.Context, arg CreateKeywordParams) (CreateKeywordRow, error)
 	CreateLead(ctx context.Context, arg CreateLeadParams) (Lead, error)
 	CreateLeadEvent(ctx context.Context, arg CreateLeadEventParams) (LeadEvent, error)
+	CreateManualAutomationRun(ctx context.Context, arg CreateManualAutomationRunParams) (AutomationRun, error)
 	CreateMention(ctx context.Context, arg CreateMentionParams) (Mention, error)
 	CreateMonitoringProfile(ctx context.Context, arg CreateMonitoringProfileParams) (MonitoringProfile, error)
+	// Idempotent: re-muting the same value returns the existing row.
+	CreateMute(ctx context.Context, arg CreateMuteParams) (Mute, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateOnboardingAnalysis(ctx context.Context, arg CreateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	// ─── Pain-Point Embeddings ─────────────────────────────
@@ -50,25 +75,54 @@ type Querier interface {
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	CreateReply(ctx context.Context, arg CreateReplyParams) (Reply, error)
 	CreateReplyEngagement(ctx context.Context, arg CreateReplyEngagementParams) (ReplyEngagement, error)
+	// The first profile in a workspace becomes its default.
+	CreateResponseProfile(ctx context.Context, arg CreateResponseProfileParams) (ResponseProfile, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
+	CreateTrackedProfile(ctx context.Context, arg CreateTrackedProfileParams) (TrackedProfile, error)
 	CreateUTMEvent(ctx context.Context, arg CreateUTMEventParams) (UtmEvent, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
+	CreateWorkspaceAPIKey(ctx context.Context, arg CreateWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
+	DeleteAutomation(ctx context.Context, arg DeleteAutomationParams) (int64, error)
+	DeleteChatThread(ctx context.Context, arg DeleteChatThreadParams) (int64, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
 	DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
 	DeleteKeyword(ctx context.Context, arg DeleteKeywordParams) error
 	DeleteMonitoringProfile(ctx context.Context, arg DeleteMonitoringProfileParams) error
+	DeleteMute(ctx context.Context, arg DeleteMuteParams) (int64, error)
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
 	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
+	DeleteResponseProfile(ctx context.Context, arg DeleteResponseProfileParams) (int64, error)
+	DeleteTrackedProfile(ctx context.Context, arg DeleteTrackedProfileParams) (int64, error)
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
+	DigestAttribution(ctx context.Context, arg DigestAttributionParams) (DigestAttributionRow, error)
+	DigestIntentCounts(ctx context.Context, arg DigestIntentCountsParams) ([]DigestIntentCountsRow, error)
+	DigestKeywordStats(ctx context.Context, arg DigestKeywordStatsParams) ([]DigestKeywordStatsRow, error)
+	DigestPlatformCounts(ctx context.Context, arg DigestPlatformCountsParams) ([]DigestPlatformCountsRow, error)
+	DigestRepliesPosted(ctx context.Context, arg DigestRepliesPostedParams) (int32, error)
+	DigestTopMentions(ctx context.Context, arg DigestTopMentionsParams) ([]DigestTopMentionsRow, error)
+	// scoring: dedupe, intent tags, human feedback, listener intent.
+	// Same canonical URL, or a simhash within max_distance bits (-1 disables the
+	// text check), in the same workspace within the lookback window.
+	FindRecentDuplicateMention(ctx context.Context, arg FindRecentDuplicateMentionParams) (bool, error)
 	FindSimilarDocumentChunks(ctx context.Context, arg FindSimilarDocumentChunksParams) ([]FindSimilarDocumentChunksRow, error)
 	// Only match pain points from ACTIVE monitoring profiles so deactivating a
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) (AutomationRun, error)
+	FinishDigestRun(ctx context.Context, arg FinishDigestRunParams) error
+	GetActiveWorkspaceAPIKeyByHash(ctx context.Context, keyHash string) (WorkspaceApiKey, error)
+	GetAutomation(ctx context.Context, arg GetAutomationParams) (Automation, error)
+	// ─── Brand profile (onboarding) ───────────────────────
+	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
+	GetChatMessageForUser(ctx context.Context, arg GetChatMessageForUserParams) (ChatMessage, error)
+	GetChatThread(ctx context.Context, arg GetChatThreadParams) (ChatThread, error)
+	// Digests (P1 #13)
+	GetDigestSettings(ctx context.Context, workspaceID string) (DigestSetting, error)
 	GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error)
 	GetEventLogByEventID(ctx context.Context, eventID string) (EventLog, error)
 	GetExtensionTokenByToken(ctx context.Context, token string) (ExtensionToken, error)
@@ -79,18 +133,23 @@ type Querier interface {
 	GetLead(ctx context.Context, arg GetLeadParams) (Lead, error)
 	GetLeadByMention(ctx context.Context, arg GetLeadByMentionParams) (Lead, error)
 	GetMention(ctx context.Context, arg GetMentionParams) (Mention, error)
+	// The listener (monitoring profile) a mention came from, via its keyword.
+	GetMentionScoringProfile(ctx context.Context, arg GetMentionScoringProfileParams) (GetMentionScoringProfileRow, error)
 	GetMonitoringProfile(ctx context.Context, arg GetMonitoringProfileParams) (MonitoringProfile, error)
 	GetPerson(ctx context.Context, arg GetPersonParams) (Person, error)
 	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
 	GetPersonIdentity(ctx context.Context, arg GetPersonIdentityParams) (PersonIdentity, error)
 	GetPlatformSession(ctx context.Context, arg GetPlatformSessionParams) (PlatformAccount, error)
+	GetPreferredResponseProfile(ctx context.Context, workspaceID string) (ResponseProfile, error)
 	GetReply(ctx context.Context, arg GetReplyParams) (Reply, error)
+	GetResponseProfile(ctx context.Context, arg GetResponseProfileParams) (ResponseProfile, error)
 	GetThreadByMention(ctx context.Context, mentionID string) (Thread, error)
 	GetUTMLinkByCode(ctx context.Context, code string) (UtmLink, error)
 	GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
+	GetWorkspaceOwnerEmail(ctx context.Context, workspaceID string) (string, error)
 	GetWorkspaceSettings(ctx context.Context, id string) ([]byte, error)
 	HasConsumerProcessedEvent(ctx context.Context, arg HasConsumerProcessedEventParams) (bool, error)
 	HasWorkflowExecutionForMention(ctx context.Context, arg HasWorkflowExecutionForMentionParams) (bool, error)
@@ -98,17 +157,31 @@ type Querier interface {
 	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
 	InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error)
 	LinkLeadToPerson(ctx context.Context, arg LinkLeadToPersonParams) error
+	LinkSampleFeedbackToProfile(ctx context.Context, arg LinkSampleFeedbackToProfileParams) error
 	ListActiveKeywords(ctx context.Context, workspaceID string) ([]ListActiveKeywordsRow, error)
 	ListActiveMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
 	ListActiveWorkflowsByWorkspace(ctx context.Context, workspaceID string) ([]Workflow, error)
 	ListAllActiveKeywords(ctx context.Context) ([]ListAllActiveKeywordsRow, error)
 	ListAllActiveProfiles(ctx context.Context) ([]MonitoringProfile, error)
 	ListApprovedRepliesByWorkspace(ctx context.Context, workspaceID string) ([]ListApprovedRepliesByWorkspaceRow, error)
+	ListAutomationRuns(ctx context.Context, arg ListAutomationRunsParams) ([]AutomationRun, error)
+	// automations (P2 #17)
+	ListAutomations(ctx context.Context, workspaceID string) ([]Automation, error)
+	ListChatMessages(ctx context.Context, arg ListChatMessagesParams) ([]ChatMessage, error)
+	ListChatThreads(ctx context.Context, arg ListChatThreadsParams) ([]ChatThread, error)
 	ListConsumerCheckpoints(ctx context.Context) ([]ConsumerCheckpoint, error)
+	// Every workspace with its digest schedule; workspaces without a row get the defaults.
+	ListDigestSchedules(ctx context.Context) ([]ListDigestSchedulesRow, error)
 	ListDocuments(ctx context.Context, workspaceID string) ([]Document, error)
+	// Cross-workspace on purpose (monitor tick); every row carries workspace_id.
+	ListDueTrackedProfiles(ctx context.Context, arg ListDueTrackedProfilesParams) ([]TrackedProfile, error)
+	// Scheduler scan across all workspaces; every follow-up query is scoped by workspace_id.
+	ListEnabledAutomations(ctx context.Context) ([]Automation, error)
 	ListEventLogByWorkspace(ctx context.Context, arg ListEventLogByWorkspaceParams) ([]EventLog, error)
 	ListEventReplays(ctx context.Context, arg ListEventReplaysParams) ([]EventReplay, error)
 	ListHumanProposals(ctx context.Context, arg ListHumanProposalsParams) ([]HumanProposal, error)
+	ListKeywordCadences(ctx context.Context, workspaceID string) ([]ListKeywordCadencesRow, error)
+	ListKeywordPlatformScans(ctx context.Context, workspaceID string) ([]ListKeywordPlatformScansRow, error)
 	ListKeywords(ctx context.Context, workspaceID string) ([]ListKeywordsRow, error)
 	ListLeadEvents(ctx context.Context, leadID string) ([]LeadEvent, error)
 	ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, error)
@@ -126,6 +199,7 @@ type Querier interface {
 	ListMentionsLeadsReady(ctx context.Context, arg ListMentionsLeadsReadyParams) ([]Mention, error)
 	ListMentionsWorthWatching(ctx context.Context, arg ListMentionsWorthWatchingParams) ([]Mention, error)
 	ListMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
+	ListMutes(ctx context.Context, workspaceID string) ([]Mute, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	ListOpenDeadLetterEvents(ctx context.Context, arg ListOpenDeadLetterEventsParams) ([]DeadLetterEvent, error)
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
@@ -137,30 +211,65 @@ type Querier interface {
 	ListReplayableEvents(ctx context.Context, arg ListReplayableEventsParams) ([]EventLog, error)
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
 	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
+	ListResponseProfiles(ctx context.Context, workspaceID string) ([]ResponseProfile, error)
+	ListSampleFeedbackForProfile(ctx context.Context, arg ListSampleFeedbackForProfileParams) ([]OnboardingSampleFeedback, error)
+	// Latest labelled mentions for one listener; profile_id NULL = mentions with
+	// no listener (workspace-level examples).
+	ListScoringExamples(ctx context.Context, arg ListScoringExamplesParams) ([]ListScoringExamplesRow, error)
+	ListTrackedProfiles(ctx context.Context, workspaceID string) ([]TrackedProfile, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
+	// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
+	// re-sending them to the LLM every tick wastes tokens. Classification errors
+	// stay eligible so transient provider outages are retried.
 	ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error)
 	ListUsersByExternalID(ctx context.Context, clerkUserID string) ([]User, error)
+	ListWorkspaceAPIKeys(ctx context.Context, workspaceID string) ([]WorkspaceApiKey, error)
 	MarkEventLogPublishFailed(ctx context.Context, arg MarkEventLogPublishFailedParams) (EventLog, error)
 	MarkEventLogPublished(ctx context.Context, arg MarkEventLogPublishedParams) (EventLog, error)
 	MarkReplyPosted(ctx context.Context, arg MarkReplyPostedParams) (Reply, error)
+	MarkTrackedProfilePolled(ctx context.Context, arg MarkTrackedProfilePolledParams) error
 	MentionsPerDay(ctx context.Context, workspaceID string) ([]MentionsPerDayRow, error)
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
 	PatchMentionScoringMetadata(ctx context.Context, arg PatchMentionScoringMetadataParams) (Mention, error)
+	RecordTregCall(ctx context.Context, arg RecordTregCallParams) error
 	RecordUTMConversion(ctx context.Context, arg RecordUTMConversionParams) (UtmLink, error)
 	ReplyAttributionFunnel(ctx context.Context, workspaceID string) (ReplyAttributionFunnelRow, error)
 	ReplyStats(ctx context.Context, workspaceID string) ([]ReplyStatsRow, error)
 	ReplyStyleAttribution(ctx context.Context, workspaceID string) ([]ReplyStyleAttributionRow, error)
 	ResolveDeadLetterEvent(ctx context.Context, arg ResolveDeadLetterEventParams) (DeadLetterEvent, error)
+	RevokeWorkspaceAPIKey(ctx context.Context, arg RevokeWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
+	SetAutomationLastRun(ctx context.Context, arg SetAutomationLastRunParams) error
+	// One statement flips the old default off and the new one on; no-op when the
+	// id is not in this workspace.
+	SetDefaultResponseProfile(ctx context.Context, arg SetDefaultResponseProfileParams) (int64, error)
+	SetMentionDedupeKeys(ctx context.Context, arg SetMentionDedupeKeysParams) error
+	// ─── Listener builder ─────────────────────────────────
+	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
+	SetReplyTrackingLink(ctx context.Context, arg SetReplyTrackingLinkParams) (Reply, error)
+	// Compare-and-swap so a confirm runs a write tool at most once.
+	SwapChatMessageToolCalls(ctx context.Context, arg SwapChatMessageToolCallsParams) (int64, error)
+	// Revenue and funnel per source platform for replies created in the window.
+	ToolsAttributionByPlatform(ctx context.Context, arg ToolsAttributionByPlatformParams) ([]ToolsAttributionByPlatformRow, error)
+	// Queries backing the agent tool layer (internal/tools), shared by the MCP
+	// server and the in-app AI chat.
+	ToolsUpdateListenerIntent(ctx context.Context, arg ToolsUpdateListenerIntentParams) (MonitoringProfile, error)
+	// Headline numbers for the last @days days.
+	ToolsWorkspaceSummary(ctx context.Context, arg ToolsWorkspaceSummaryParams) (ToolsWorkspaceSummaryRow, error)
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
+	TouchChatThread(ctx context.Context, arg TouchChatThreadParams) error
 	TouchExtensionToken(ctx context.Context, token string) error
+	TouchWorkspaceAPIKey(ctx context.Context, arg TouchWorkspaceAPIKeyParams) error
+	TregSpendByTool(ctx context.Context, arg TregSpendByToolParams) ([]TregSpendByToolRow, error)
+	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDocumentChunkCount(ctx context.Context, arg UpdateDocumentChunkCountParams) error
 	UpdateEventReplayStatus(ctx context.Context, arg UpdateEventReplayStatusParams) (EventReplay, error)
 	UpdateHumanProposalStatus(ctx context.Context, arg UpdateHumanProposalStatusParams) (HumanProposal, error)
 	UpdateKeyword(ctx context.Context, arg UpdateKeywordParams) (UpdateKeywordRow, error)
+	UpdateKeywordCadence(ctx context.Context, arg UpdateKeywordCadenceParams) (UpdateKeywordCadenceRow, error)
 	UpdateLead(ctx context.Context, arg UpdateLeadParams) (Lead, error)
 	UpdateLeadStage(ctx context.Context, arg UpdateLeadStageParams) (Lead, error)
 	UpdateMentionAwarenessLevel(ctx context.Context, arg UpdateMentionAwarenessLevelParams) error
@@ -170,18 +279,29 @@ type Querier interface {
 	UpdateMentionScoring(ctx context.Context, arg UpdateMentionScoringParams) (Mention, error)
 	UpdateMentionStatus(ctx context.Context, arg UpdateMentionStatusParams) (Mention, error)
 	UpdateMentionStatusWithMetadata(ctx context.Context, arg UpdateMentionStatusWithMetadataParams) (Mention, error)
+	UpdateMentionTags(ctx context.Context, arg UpdateMentionTagsParams) error
 	UpdateMonitoringProfile(ctx context.Context, arg UpdateMonitoringProfileParams) (MonitoringProfile, error)
+	UpdateMonitoringProfileIntent(ctx context.Context, arg UpdateMonitoringProfileIntentParams) (MonitoringProfile, error)
 	UpdateOnboardingAnalysis(ctx context.Context, arg UpdateOnboardingAnalysisParams) (OnboardingAnalysis, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 	UpdateReplyContent(ctx context.Context, arg UpdateReplyContentParams) (Reply, error)
 	UpdateReplyMetadata(ctx context.Context, arg UpdateReplyMetadataParams) (Reply, error)
 	UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusParams) (Reply, error)
+	UpdateResponseProfile(ctx context.Context, arg UpdateResponseProfileParams) (ResponseProfile, error)
 	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
+	UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error)
 	UpsertConsumerCheckpoint(ctx context.Context, arg UpsertConsumerCheckpointParams) (ConsumerCheckpoint, error)
+	UpsertDigestSettings(ctx context.Context, arg UpsertDigestSettingsParams) (DigestSetting, error)
+	// scoring_metadata.stage keeps these out of the LLM backfill (which would
+	// auto-qualify a second lead); relevance is the engager heuristic.
+	UpsertEngagerMention(ctx context.Context, arg UpsertEngagerMentionParams) (string, error)
+	UpsertKeywordPlatformScan(ctx context.Context, arg UpsertKeywordPlatformScanParams) error
+	UpsertMentionFeedback(ctx context.Context, arg UpsertMentionFeedbackParams) (MentionFeedback, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
 	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
+	UpsertSampleFeedback(ctx context.Context, arg UpsertSampleFeedbackParams) (OnboardingSampleFeedback, error)
 }
 
 var _ Querier = (*Queries)(nil)

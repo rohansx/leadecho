@@ -166,6 +166,13 @@ func (h *ExtensionHandler) IngestSignals(w http.ResponseWriter, r *http.Request)
 		if !validExtensionPlatforms[s.Platform] {
 			continue
 		}
+		// sources: drop signals matching the workspace mute list.
+		if h.mon != nil && h.mon.IsMutedMention(ctx, database.CreateMentionParams{
+			WorkspaceID: wsID, Platform: s.Platform, Url: s.URL, Content: s.Content,
+			Title: pgtype.Text{String: s.Title, Valid: true}, AuthorUsername: pgtype.Text{String: s.Author, Valid: true},
+		}) {
+			continue
+		}
 
 		mention, err := h.q.CreateMention(ctx, database.CreateMentionParams{
 			WorkspaceID:           wsID,
