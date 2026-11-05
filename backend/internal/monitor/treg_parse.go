@@ -16,6 +16,7 @@ import (
 // field takes the first of several known key names. See docs/treg-integration.md.
 type tregPost struct {
 	ID, Text, URL, Author, AuthorURL string
+	Title, Subreddit                 string // Reddit rows
 	CreatedAt                        time.Time
 	Likes, Replies, Reposts          int
 }
@@ -27,7 +28,7 @@ var (
 	idKeys           = []string{"id_str", "rest_id", "tweetId", "tweet_id", "urn", "activityId", "postId", "id"}
 	textKeys         = []string{"full_text", "fullText", "text", "content", "commentary", "body", "description", "snippet"}
 	urlKeys          = []string{"url", "twitterUrl", "tweetUrl", "postUrl", "post_url", "shareUrl", "link"}
-	timeKeys         = []string{"createdAt", "created_at", "publishedAt", "published_at", "postedAt", "posted_at", "publishDate", "date", "timestamp", "time", "createdUtc"}
+	timeKeys         = []string{"createdAt", "created_at", "publishedAt", "published_at", "postedAt", "posted_at", "publishDate", "date", "timestamp", "time", "createdUtc", "created"}
 	userKeys         = []string{"userName", "username", "screen_name", "handle", "publicIdentifier", "name"}
 	authorURLKeys    = []string{"url", "profileUrl", "profile_url", "linkedinUrl"}
 )
@@ -91,6 +92,10 @@ func toTregPost(row map[string]any) tregPost {
 		Likes:   num(row, "likeCount", "like_count", "favorite_count", "likes", "numLikes", "reactions"),
 		Replies: num(row, "replyCount", "reply_count", "replies", "numComments", "comments"),
 		Reposts: num(row, "retweetCount", "retweet_count", "reposts", "numShares", "shares"),
+	}
+	p.Title, p.Subreddit = strings.TrimSpace(str(row, "title")), str(row, "subreddit")
+	if p.Text == "" {
+		p.Text = p.Title // Reddit link posts have no body
 	}
 	p.CreatedAt = parseAnyTime(row, timeKeys)
 	for _, k := range []string{"author", "user"} {
@@ -202,6 +207,22 @@ func tregTwitterParams(wsID string, kw database.ListActiveKeywordsRow, p tregPos
 	}
 	params := tregMentionBase(wsID, kw, database.PlatformTypeTwitter, p, tregXTool)
 	params.PlatformID = "twitter_" + id
+	return params, true
+}
+
+// tregRedditParams uses "reddit_<id>" like the other Reddit crawlers so
+// sources dedupe.
+func tregRedditParams(wsID string, kw database.ListActiveKeywordsRow, p tregPost) (database.CreateMentionParams, bool) {
+	if p.ID == "" {
+		return database.CreateMentionParams{}, false
+	}
+	if p.AuthorURL == "" && p.Author != "" {
+		p.AuthorURL = "https://reddit.com/u/" + p.Author
+	}
+	params := tregMentionBase(wsID, kw, database.PlatformTypeReddit, p, tregRedditTool)
+	params.PlatformID = "reddit_" + p.ID
+	params.Title = pgtextPtr(p.Title)
+	params.PlatformMetadata = jsonBytes(map[string]any{"source": "treg", "tool": tregRedditTool, "query": kw.Term, "subreddit": p.Subreddit})
 	return params, true
 }
 

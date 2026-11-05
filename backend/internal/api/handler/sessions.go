@@ -36,7 +36,7 @@ type SessionResponse struct {
 }
 
 // TregManagedPlatforms are searched through treg when TREG_TOKEN is set.
-var TregManagedPlatforms = []string{"twitter", "linkedin"}
+var TregManagedPlatforms = []string{"twitter", "linkedin", "reddit"}
 
 // SessionHandler manages browser session cookies for Reddit and Twitter.
 type SessionHandler struct {

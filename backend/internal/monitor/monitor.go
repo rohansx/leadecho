@@ -287,7 +287,14 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 			if m.redditCommentsEnabled {
 				alerts = append(alerts, m.crawlRedditComments(ctx, wsID, akw)...)
 			}
-			// Try Pinchtab → Scrapling → unauthenticated
+			// Hosted treg search unless official Reddit OAuth is set; then
+			// Pinchtab → Scrapling → unauthenticated (OAuth-aware).
+			if m.redditViaTreg() {
+				if tregAlerts, ok := m.crawlRedditTreg(ctx, wsID, akw); ok {
+					alerts = append(alerts, tregAlerts...)
+					break
+				}
+			}
 			if m.pinchtab != nil {
 				if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
 					alerts = append(alerts, pinchtabAlerts...)

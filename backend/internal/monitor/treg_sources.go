@@ -11,6 +11,7 @@ import (
 const (
 	tregXTool        = "treg.x.search.posts"          // routed, $0.00075/hit, misses free
 	tregLinkedInTool = "anyapi.linkedin.search.posts" // $0.002/success, misses free
+	tregRedditTool   = "crawl4ai.reddit.search.posts" // $0.0009/call, misses free
 )
 
 // SetTreg enables the hosted X/LinkedIn sources. nil (TREG_TOKEN unset)
@@ -66,4 +67,18 @@ func (m *Monitor) crawlTreg(ctx context.Context, wsID string, kw database.ListAc
 		m.logger.Info().Int("count", len(alerts)).Str("keyword", kw.Term).Str("tool", tool).Msg("treg: new mentions found")
 	}
 	return alerts, true
+}
+
+// crawlRedditTreg runs one sitewide search per keyword (newest, past week).
+// ponytail: sitewide, not per subreddit: one call instead of one per
+// subreddit, and it finds posts outside the suggested subreddits.
+func (m *Monitor) crawlRedditTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, bool) {
+	body := map[string]any{"query": kw.Term, "sort": "new", "t": "week", "limit": 25}
+	return m.crawlTreg(ctx, wsID, kw, tregRedditTool, body, tregRedditParams)
+}
+
+// redditViaTreg: the official Reddit API (free) wins when configured; else
+// treg, ahead of the logged-in browser paths that risk the user's account.
+func (m *Monitor) redditViaTreg() bool {
+	return m.treg.Enabled() && m.sources().RedditOAuth == nil
 }

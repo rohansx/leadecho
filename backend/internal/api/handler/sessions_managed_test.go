@@ -20,7 +20,7 @@ func TestSessionResponseManaged(t *testing.T) {
 	}{
 		{"twitter", nil, true, false},
 		{"linkedin", acc, true, true},
-		{"reddit", nil, false, false},
+		{"reddit", nil, true, false},
 		{"quora", acc, false, true},
 	}
 	for _, tc := range cases {

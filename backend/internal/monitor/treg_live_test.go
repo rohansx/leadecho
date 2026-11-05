@@ -30,6 +30,7 @@ func TestTregLive(t *testing.T) {
 	}{
 		{"x", tregXTool, map[string]string{"q": "MCP server"}},
 		{"linkedin", tregLinkedInTool, map[string]string{"query": "MCP server", "datePosted": "last-week"}},
+		{"reddit", "crawl4ai.reddit.search.posts", map[string]any{"query": "MCP server", "sort": "new", "t": "week", "limit": 25}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
