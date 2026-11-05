@@ -38,7 +38,7 @@ func (m *Monitor) crawlRedditScrapling(ctx context.Context, wsID string, kw data
 		return nil
 	}
 
-	cookies := parseCookieString(cookieStr, ".reddit.com")
+	cookies := ParseCookieString(cookieStr, ".reddit.com")
 
 	var alerts []mentionAlert
 	for _, sub := range kw.Subreddits {
@@ -98,13 +98,13 @@ func (m *Monitor) fetchSubredditScrapling(ctx context.Context, wsID string, kw d
 		}
 
 		alert := m.insertMention(ctx, database.CreateMentionParams{
-			WorkspaceID: wsID,
-			KeywordID:   pgtype.UUID{},
-			Platform:    string(database.PlatformTypeReddit),
-			PlatformID:  "reddit_" + post.ID,
-			Url:         "https://reddit.com" + post.Permalink,
-			Title:       pgtype.Text{String: post.Title, Valid: post.Title != ""},
-			Content:     content,
+			WorkspaceID:    wsID,
+			KeywordID:      pgtype.UUID{},
+			Platform:       string(database.PlatformTypeReddit),
+			PlatformID:     "reddit_" + post.ID,
+			Url:            "https://reddit.com" + post.Permalink,
+			Title:          pgtype.Text{String: post.Title, Valid: post.Title != ""},
+			Content:        content,
 			AuthorUsername: pgtype.Text{String: post.Author, Valid: true},
 			AuthorProfileUrl: pgtype.Text{
 				String: "https://reddit.com/u/" + post.Author,

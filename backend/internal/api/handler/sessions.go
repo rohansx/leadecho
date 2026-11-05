@@ -15,6 +15,7 @@ import (
 	"leadecho/internal/browser"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/monitor"
 )
 
 var supportedSessionPlatforms = map[string]bool{
@@ -316,7 +317,7 @@ func (h *SessionHandler) validateSessionCookie(ctx context.Context, wsID, platfo
 	}
 
 	// Parse cookies
-	cookies := parseCookieStringForHandler(cookieStr, check.cookieDom)
+	cookies := monitor.ParseCookieString(cookieStr, check.cookieDom)
 
 	// Navigate to domain first (IDPI requires being on the right domain)
 	if err := h.pinchtab.Navigate(ctx, check.domain); err != nil {
@@ -372,31 +373,4 @@ func (h *SessionHandler) validateSessionCookie(ctx context.Context, wsID, platfo
 		}
 		return false, fmt.Sprintf("? Could not verify session for %s [url=%s] page: %s", platform, diagURL, diagText)
 	}
-}
-
-// parseCookieStringForHandler parses a cookie header string into browser.Cookie structs.
-func parseCookieStringForHandler(cookieStr, domain string) []browser.Cookie {
-	var cookies []browser.Cookie
-	for _, part := range strings.Split(cookieStr, ";") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		idx := strings.IndexByte(part, '=')
-		if idx < 0 {
-			continue
-		}
-		name := strings.TrimSpace(part[:idx])
-		value := strings.TrimSpace(part[idx+1:])
-		if name == "" {
-			continue
-		}
-		cookies = append(cookies, browser.Cookie{
-			Name:   name,
-			Value:  value,
-			Domain: domain,
-			Path:   "/",
-		})
-	}
-	return cookies
 }
