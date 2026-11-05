@@ -285,7 +285,23 @@ func stripCodeFences(s string) string {
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
-	return sanitizeJSON(strings.TrimSpace(s))
+	return firstJSONValue(sanitizeJSON(strings.TrimSpace(s)))
+}
+
+// firstJSONValue keeps only the first complete JSON object/array, dropping
+// prose around it (Claude sometimes adds "Note: ..." after the JSON).
+// Returns s unchanged when no valid value is found, so callers' errors stay
+// as informative as before.
+func firstJSONValue(s string) string {
+	start := strings.IndexAny(s, "{[")
+	if start < 0 {
+		return s
+	}
+	var raw json.RawMessage
+	if err := json.NewDecoder(strings.NewReader(s[start:])).Decode(&raw); err != nil {
+		return s
+	}
+	return string(raw)
 }
 
 // sanitizeJSON strips JS-style comments and trailing commas that fall outside

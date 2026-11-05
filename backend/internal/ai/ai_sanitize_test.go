@@ -49,3 +49,19 @@ func TestSanitizeJSONBlockCommentAndClean(t *testing.T) {
 		}
 	}
 }
+
+// Live Claude replies sometimes add prose after (or before) the JSON object,
+// e.g. `{"pass": false, ...}\n\nNote: ...`: keep only the first JSON value.
+func TestStripCodeFencesSurroundingProse(t *testing.T) {
+	cases := map[string]string{
+		"{\"pass\": false, \"reason\": \"x\"}\n\nNote: this is off-topic.": `{"pass": false, "reason": "x"}`,
+		"Here is the JSON:\n{\"a\": [1, 2]}":                               `{"a": [1, 2]}`,
+		"```json\n[{\"k\": \"}\"}]\n```\nDone.":                            `[{"k": "}"}]`,
+		"no json here":                                                     "no json here",
+	}
+	for in, want := range cases {
+		if got := stripCodeFences(in); got != want {
+			t.Errorf("stripCodeFences(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
