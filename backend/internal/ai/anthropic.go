@@ -31,12 +31,16 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		}
 	}
 
-	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
+	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(p.Model),
 		MaxTokens: 16000,
 		System:    system,
 		Messages:  msgs,
-	})
+	}
+	if p.Effort != "" {
+		params.OutputConfig = anthropic.OutputConfigParam{Effort: anthropic.OutputConfigEffort(p.Effort)}
+	}
+	resp, err := client.Messages.New(ctx, params)
 	if err != nil {
 		return "", Usage{}, fmt.Errorf("anthropic: %w", err)
 	}

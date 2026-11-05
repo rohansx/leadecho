@@ -118,7 +118,7 @@ var providerRegistry = []ProviderStatus{
 	{Provider: "deepseek", DisplayName: "DeepSeek", Capabilities: []string{"chat"}, DefaultModel: "deepseek-chat", RecommendedModels: []string{"deepseek-chat", "deepseek-reasoner"}, Enabled: true},
 	{Provider: "glm", DisplayName: "GLM / ZhipuAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "glm-4.5-flash", RecommendedModels: []string{"glm-4.5-flash", "glm-4-plus", "glm-4-air"}, EmbeddingModels: []string{"embedding-3"}, Enabled: true},
 	{Provider: "openai", DisplayName: "OpenAI", Capabilities: []string{"chat", "embedding"}, DefaultModel: "gpt-4o-mini", RecommendedModels: []string{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"}, EmbeddingModels: []string{"text-embedding-3-small", "text-embedding-3-large"}, Enabled: true},
-	{Provider: "anthropic", DisplayName: "Anthropic Claude", Capabilities: []string{"chat"}, DefaultModel: "claude-haiku-5-5", RecommendedModels: []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}, Enabled: true},
+	{Provider: "anthropic", DisplayName: "Anthropic Claude", Capabilities: []string{"chat"}, DefaultModel: "claude-sonnet-5-5", RecommendedModels: []string{"claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"}, Enabled: true},
 	{Provider: "openrouter", DisplayName: "OpenRouter", Capabilities: []string{"chat"}, DefaultModel: "openai/gpt-4o-mini", RecommendedModels: []string{"openai/gpt-4o-mini", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"}, Enabled: true},
 	{Provider: "ollama", DisplayName: "Ollama Cloud", Capabilities: []string{"chat"}, DefaultModel: "gpt-oss:120b", RecommendedModels: []string{"gpt-oss:120b", "gpt-oss:20b", "deepseek-v3.1:671b", "qwen3-coder:480b"}, Enabled: true},
 	{Provider: "voyage", DisplayName: "Voyage AI", Capabilities: []string{"embedding"}, DefaultModel: "voyage-3", RecommendedModels: []string{"voyage-3"}, EmbeddingModels: []string{"voyage-3"}, Enabled: true},
@@ -777,6 +777,11 @@ func providerForTarget(name, key string, target ModelTarget, sys SystemKeys) ai.
 	}
 	if name == "ollama" && sys.OllamaModel != "" {
 		p.Model = sys.OllamaModel
+	}
+	// Cheap tier on Claude: Sonnet 5.5 (quality over cost) at low effort,
+	// which suits filtering/classification; pinned models keep their default.
+	if name == "anthropic" && target.Model == "" {
+		p.Effort = "low"
 	}
 	if name == "openrouter" && sys.OpenRouterModel != "" {
 		p.Model = sys.OpenRouterModel

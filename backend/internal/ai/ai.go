@@ -17,6 +17,7 @@ type Provider struct {
 	APIKey  string
 	BaseURL string // e.g. "https://open.bigmodel.cn/api/paas/v4", "https://api.deepseek.com/v1", or "https://api.openai.com/v1"
 	Model   string // e.g. "glm-4-flash", "deepseek-chat", or "gpt-4o-mini"
+	Effort  string // Anthropic output_config.effort ("low".."max"); "" = model default
 }
 
 // ClassifyResult holds the output from intent classification.
@@ -195,7 +196,7 @@ func DefaultProvider(name, apiKey string) Provider {
 		return Provider{
 			Name:   "anthropic",
 			APIKey: apiKey,
-			Model:  "claude-haiku-5-5",
+			Model:  "claude-sonnet-5-5",
 		}
 	case "ollama":
 		// Ollama Cloud — OpenAI-compatible endpoint, Bearer API key.
