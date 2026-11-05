@@ -75,6 +75,10 @@ type Config struct {
 	// Anthropic Claude (native Messages API)
 	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY,default="`
 
+	// OpenRouter (OpenAI-compatible gateway; model ids like "anthropic/claude-...")
+	OpenRouterAPIKey string `env:"OPENROUTER_API_KEY,default="`
+	OpenRouterModel  string `env:"OPENROUTER_MODEL,default="`
+
 	// Ollama Cloud (OpenAI-compatible; https://ollama.com/v1)
 	OllamaAPIKey string `env:"OLLAMA_API_KEY,default="`
 	OllamaModel  string `env:"OLLAMA_MODEL,default=gpt-oss:120b"`

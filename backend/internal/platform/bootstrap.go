@@ -74,15 +74,17 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	encKey := crypto.DeriveKey(cfg.EncryptionKeyOrDefault())
 
 	llmRouter := llm.NewRouter(queries, encKey, llm.SystemKeys{
-		NVIDIAAPIKey:    cfg.NVIDIAAPIKey,
-		NVIDIAModel:     cfg.NVIDIAModel,
-		DeepSeekAPIKey:  cfg.DeepSeekAPIKey,
-		GLMAPIKey:       cfg.GLMAPIKey,
-		OpenAIAPIKey:    cfg.OpenAIAPIKey,
-		OllamaAPIKey:    cfg.OllamaAPIKey,
-		AnthropicAPIKey: cfg.AnthropicAPIKey,
-		OllamaModel:     cfg.OllamaModel,
-		VoyageAPIKey:    cfg.VoyageAPIKey,
+		NVIDIAAPIKey:     cfg.NVIDIAAPIKey,
+		NVIDIAModel:      cfg.NVIDIAModel,
+		DeepSeekAPIKey:   cfg.DeepSeekAPIKey,
+		GLMAPIKey:        cfg.GLMAPIKey,
+		OpenAIAPIKey:     cfg.OpenAIAPIKey,
+		OllamaAPIKey:     cfg.OllamaAPIKey,
+		AnthropicAPIKey:  cfg.AnthropicAPIKey,
+		OllamaModel:      cfg.OllamaModel,
+		VoyageAPIKey:     cfg.VoyageAPIKey,
+		OpenRouterAPIKey: cfg.OpenRouterAPIKey,
+		OpenRouterModel:  cfg.OpenRouterModel,
 	}, logger)
 
 	streamClient := streamredis.NewClient(redis, logger)

@@ -38,15 +38,17 @@ const (
 )
 
 type SystemKeys struct {
-	NVIDIAAPIKey    string
-	NVIDIAModel     string
-	DeepSeekAPIKey  string
-	GLMAPIKey       string
-	OpenAIAPIKey    string
-	OllamaAPIKey    string
-	AnthropicAPIKey string
-	OllamaModel     string
-	VoyageAPIKey    string
+	NVIDIAAPIKey     string
+	NVIDIAModel      string
+	DeepSeekAPIKey   string
+	GLMAPIKey        string
+	OpenAIAPIKey     string
+	OllamaAPIKey     string
+	AnthropicAPIKey  string
+	OllamaModel      string
+	VoyageAPIKey     string
+	OpenRouterAPIKey string
+	OpenRouterModel  string
 }
 
 type ProviderSettings struct {
@@ -776,6 +778,9 @@ func providerForTarget(name, key string, target ModelTarget, sys SystemKeys) ai.
 	if name == "ollama" && sys.OllamaModel != "" {
 		p.Model = sys.OllamaModel
 	}
+	if name == "openrouter" && sys.OpenRouterModel != "" {
+		p.Model = sys.OpenRouterModel
+	}
 	if target.Model != "" {
 		p.Model = target.Model
 	}
@@ -812,6 +817,8 @@ func (r *Router) systemKey(provider string) string {
 		return r.system.AnthropicAPIKey
 	case "voyage":
 		return r.system.VoyageAPIKey
+	case "openrouter":
+		return r.system.OpenRouterAPIKey
 	default:
 		return ""
 	}
