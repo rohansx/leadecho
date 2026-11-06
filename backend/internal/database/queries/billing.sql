@@ -35,12 +35,12 @@ RETURNING w.credit_balance;
 
 -- name: GetBillingState :one
 SELECT id, plan, credit_balance, keyword_limit, plan_renews_at, credits_refreshed_at,
-       dodo_customer_id, dodo_subscription_id
+       dodo_customer_id, dodo_subscription_id, plan_source, paid_data, scanning_paused
 FROM workspaces WHERE id = @workspace_id;
 
 -- name: SetWorkspacePlan :exec
 UPDATE workspaces
-SET plan = @plan, keyword_limit = @keyword_limit,
+SET plan = @plan, keyword_limit = @keyword_limit, plan_source = @plan_source, paid_data = @paid_data,
     dodo_customer_id = COALESCE(sqlc.narg(dodo_customer_id), dodo_customer_id),
     dodo_subscription_id = sqlc.narg(dodo_subscription_id),
     plan_renews_at = sqlc.narg(plan_renews_at),

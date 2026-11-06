@@ -847,6 +847,21 @@ type OnboardingSampleFeedback struct {
 	CreatedAt   time.Time   `json:"created_at"`
 }
 
+type OpsAudit struct {
+	ID          string      `json:"id"`
+	ActorEmail  string      `json:"actor_email"`
+	Action      string      `json:"action"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Detail      []byte      `json:"detail"`
+	CreatedAt   time.Time   `json:"created_at"`
+}
+
+type OpsSetting struct {
+	Key       string    `json:"key"`
+	Value     []byte    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type PainPointEmbedding struct {
 	ID          string              `json:"id"`
 	ProfileID   string              `json:"profile_id"`
@@ -1106,6 +1121,9 @@ type Workspace struct {
 	PlanRenewsAt       pgtype.Timestamptz `json:"plan_renews_at"`
 	DodoCustomerID     pgtype.Text        `json:"dodo_customer_id"`
 	DodoSubscriptionID pgtype.Text        `json:"dodo_subscription_id"`
+	PaidData           bool               `json:"paid_data"`
+	ScanningPaused     bool               `json:"scanning_paused"`
+	PlanSource         string             `json:"plan_source"`
 }
 
 type WorkspaceApiKey struct {

@@ -117,7 +117,12 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	mon.SetTreg(tregClient)
 	// billing: prepaid credits meter treg calls, scoring and drafts.
 	credits := billing.New(queries, cfg.CreditsEnforced())
-	tregClient.SetMeter(credits)
+	// Every treg call: global /ops switch, the workspace's paid-data access,
+	// then one credit. Identical calls within TREG_CACHE_TTL are free.
+	tregClient.SetMeter(billing.NewPaidDataMeter(queries, credits))
+	if c := treg.NewRedisCache(redis); c != nil {
+		tregClient.SetCache(c, cfg.TregCacheTTL)
+	}
 	mon.SetCredits(credits)
 	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
 	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources

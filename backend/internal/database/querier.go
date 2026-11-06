@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -140,6 +141,7 @@ type Querier interface {
 	// The listener (monitoring profile) a mention came from, via its keyword.
 	GetMentionScoringProfile(ctx context.Context, arg GetMentionScoringProfileParams) (GetMentionScoringProfileRow, error)
 	GetMonitoringProfile(ctx context.Context, arg GetMonitoringProfileParams) (MonitoringProfile, error)
+	GetOpsSetting(ctx context.Context, key string) ([]byte, error)
 	GetPerson(ctx context.Context, arg GetPersonParams) (Person, error)
 	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
 	GetPersonIdentity(ctx context.Context, arg GetPersonIdentityParams) (PersonIdentity, error)
@@ -151,6 +153,7 @@ type Querier interface {
 	GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
+	GetWorkspaceAccess(ctx context.Context, workspaceID string) (GetWorkspaceAccessRow, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
 	GetWorkspaceOwnerEmail(ctx context.Context, workspaceID string) (string, error)
 	GetWorkspaceSettings(ctx context.Context, id string) ([]byte, error)
@@ -161,6 +164,7 @@ type Querier interface {
 	IncrementUTMClicks(ctx context.Context, code string) error
 	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
 	InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error)
+	InsertOpsAudit(ctx context.Context, arg InsertOpsAuditParams) error
 	LinkLeadToPerson(ctx context.Context, arg LinkLeadToPersonParams) error
 	LinkSampleFeedbackToProfile(ctx context.Context, arg LinkSampleFeedbackToProfileParams) error
 	ListActiveKeywords(ctx context.Context, workspaceID string) ([]ListActiveKeywordsRow, error)
@@ -208,6 +212,7 @@ type Querier interface {
 	ListMutes(ctx context.Context, workspaceID string) ([]Mute, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	ListOpenDeadLetterEvents(ctx context.Context, arg ListOpenDeadLetterEventsParams) ([]DeadLetterEvent, error)
+	ListOpsAudit(ctx context.Context, lim int32) ([]ListOpsAuditRow, error)
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
 	ListPainPointEmbeddingsByWorkspace(ctx context.Context, workspaceID string) ([]PainPointEmbedding, error)
 	ListPersonIdentities(ctx context.Context, arg ListPersonIdentitiesParams) ([]PersonIdentity, error)
@@ -236,6 +241,11 @@ type Querier interface {
 	MentionsPerDay(ctx context.Context, workspaceID string) ([]MentionsPerDayRow, error)
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
+	OpsListWorkspaces(ctx context.Context) ([]OpsListWorkspacesRow, error)
+	OpsSetPaidData(ctx context.Context, arg OpsSetPaidDataParams) error
+	OpsSetPlan(ctx context.Context, arg OpsSetPlanParams) error
+	OpsSetScanningPaused(ctx context.Context, arg OpsSetScanningPausedParams) error
+	OpsSpendSince(ctx context.Context, since time.Time) (OpsSpendSinceRow, error)
 	PatchMentionScoringMetadata(ctx context.Context, arg PatchMentionScoringMetadataParams) (Mention, error)
 	RecordTregCall(ctx context.Context, arg RecordTregCallParams) error
 	RecordUTMConversion(ctx context.Context, arg RecordUTMConversionParams) (UtmLink, error)
@@ -255,6 +265,7 @@ type Querier interface {
 	SetMentionDedupeKeys(ctx context.Context, arg SetMentionDedupeKeysParams) error
 	// ─── Listener builder ─────────────────────────────────
 	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
+	SetOpsSetting(ctx context.Context, arg SetOpsSettingParams) error
 	SetReplyTrackingLink(ctx context.Context, arg SetReplyTrackingLinkParams) (Reply, error)
 	SetWorkspacePlan(ctx context.Context, arg SetWorkspacePlanParams) error
 	// All-or-nothing: returns the new balance, or no row when the balance is short.

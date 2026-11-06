@@ -336,6 +336,24 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			// chat: "Ask LeadEcho" in-app assistant (P2 #15)
 			chatH := handler.NewChatHandler(queries, agentTools, llmRouter, logger)
 			chatH.SetCredits(credits)
+			// ops: operator console, email allowlist only (OPS_ADMIN_EMAILS)
+			var opsTreg handler.TregBalance
+			if t := mon.Treg(); t != nil {
+				opsTreg = t
+			}
+			ops := handler.NewOpsHandler(queries, credits, opsTreg, handler.ParseOpsAdmins(cfg.OpsAdminEmails), logger)
+			r.Route("/ops", func(r chi.Router) {
+				r.Use(ops.RequireOps)
+				r.Get("/me", ops.Me)
+				r.Get("/overview", ops.Overview)
+				r.Get("/workspaces", ops.Workspaces)
+				r.Get("/audit", ops.Audit)
+				r.Post("/paid-data-paused", ops.SetPaidDataPaused)
+				r.Post("/workspaces/{id}/plan", ops.SetPlan)
+				r.Post("/workspaces/{id}/credits", ops.AdjustCredits)
+				r.Post("/workspaces/{id}/paid-data", ops.SetPaidData)
+				r.Post("/workspaces/{id}/scanning", ops.SetScanning)
+			})
 			// billing: plan, balance, checkout and customer portal
 			r.Get("/billing", billingH.Get)
 			r.Post("/billing/checkout", billingH.Checkout)

@@ -86,13 +86,33 @@ func TestPreview(t *testing.T) {
 	if got := byPlatform["linkedin"].USDPerMonth; math.Abs(got-0.06) > 1e-9 {
 		t.Errorf("linkedin usd = %v, want 0.06", got)
 	}
-	if byPlatform["reddit"].USDPerMonth != 0 || byPlatform["bluesky"].USDPerMonth != 0 {
-		t.Error("free platforms must cost 0")
+	// Reddit goes through treg now: paid, default 4h -> 180 calls * $0.0009.
+	if r := byPlatform["reddit"]; r.CallsPerMonth != 180 || math.Abs(r.USDPerMonth-0.162) > 1e-9 || r.Cadence != "4h" {
+		t.Errorf("reddit = %+v, want 180 calls, $0.162, 4h", r)
 	}
-	if math.Abs(p.USDPerMonth-0.60) > 1e-9 {
-		t.Errorf("total = %v, want 0.60", p.USDPerMonth)
+	if b := byPlatform["bluesky"]; b.USDPerMonth != 0 || b.Cadence != "1h" {
+		t.Errorf("bluesky = %+v, want free at 1h", b)
 	}
-	if byPlatform["reddit"].Cadence != "1h" {
-		t.Errorf("default cadence label = %q, want 1h", byPlatform["reddit"].Cadence)
+	if math.Abs(p.USDPerMonth-0.762) > 1e-9 {
+		t.Errorf("total = %v, want 0.762", p.USDPerMonth)
+	}
+}
+
+// Paid sources (treg) default to every 4 hours to save the operator's
+// balance; free sources stay hourly.
+func TestPaidDefaults(t *testing.T) {
+	var none Map
+	for _, p := range []string{"twitter", "linkedin", "reddit"} {
+		if got := none.Interval(p); got != 4*time.Hour {
+			t.Errorf("%s default = %v, want 4h", p, got)
+		}
+	}
+	for _, p := range []string{"hackernews", "devto", "bluesky"} {
+		if got := none.Interval(p); got != time.Hour {
+			t.Errorf("%s default = %v, want 1h", p, got)
+		}
+	}
+	if m, err := Parse([]byte(`{"twitter":"4h"}`)); err != nil || m.Interval("twitter") != 4*time.Hour {
+		t.Errorf("4h option: %v %v", m, err)
 	}
 }

@@ -2,7 +2,9 @@ package monitor
 
 import (
 	"context"
+	"errors"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 	"leadecho/internal/treg"
 )
@@ -23,7 +25,10 @@ func (m *Monitor) SetTreg(c *treg.Client) { m.treg = c }
 func (m *Monitor) tregSearch(ctx context.Context, wsID, tool string, body any) ([]tregPost, bool) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tool, Body: body})
 	if err != nil {
-		if !treg.IsOperatorError(err) { // operator errors are already alerted by the client
+		// Not allowed / paused / out of credits is expected, not an incident.
+		quiet := treg.IsOperatorError(err) || errors.Is(err, billing.ErrNoPaidData) ||
+			errors.Is(err, billing.ErrPaidDataPaused) || errors.Is(err, billing.ErrNoCredits)
+		if !quiet {
 			m.logger.Warn().Err(err).Str("tool", tool).Str("workspace_id", wsID).Msg("treg: search failed, falling back")
 		}
 		return nil, false

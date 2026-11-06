@@ -90,7 +90,7 @@ func (q *Queries) FindWorkspaceByDodoCustomer(ctx context.Context, dodoCustomerI
 
 const getBillingState = `-- name: GetBillingState :one
 SELECT id, plan, credit_balance, keyword_limit, plan_renews_at, credits_refreshed_at,
-       dodo_customer_id, dodo_subscription_id
+       dodo_customer_id, dodo_subscription_id, plan_source, paid_data, scanning_paused
 FROM workspaces WHERE id = $1
 `
 
@@ -103,6 +103,9 @@ type GetBillingStateRow struct {
 	CreditsRefreshedAt time.Time          `json:"credits_refreshed_at"`
 	DodoCustomerID     pgtype.Text        `json:"dodo_customer_id"`
 	DodoSubscriptionID pgtype.Text        `json:"dodo_subscription_id"`
+	PlanSource         string             `json:"plan_source"`
+	PaidData           bool               `json:"paid_data"`
+	ScanningPaused     bool               `json:"scanning_paused"`
 }
 
 func (q *Queries) GetBillingState(ctx context.Context, workspaceID string) (GetBillingStateRow, error) {
@@ -117,6 +120,9 @@ func (q *Queries) GetBillingState(ctx context.Context, workspaceID string) (GetB
 		&i.CreditsRefreshedAt,
 		&i.DodoCustomerID,
 		&i.DodoSubscriptionID,
+		&i.PlanSource,
+		&i.PaidData,
+		&i.ScanningPaused,
 	)
 	return i, err
 }
@@ -216,17 +222,19 @@ func (q *Queries) RefreshFreeCredits(ctx context.Context, allowance int32) (int6
 
 const setWorkspacePlan = `-- name: SetWorkspacePlan :exec
 UPDATE workspaces
-SET plan = $1, keyword_limit = $2,
-    dodo_customer_id = COALESCE($3, dodo_customer_id),
-    dodo_subscription_id = $4,
-    plan_renews_at = $5,
+SET plan = $1, keyword_limit = $2, plan_source = $3, paid_data = $4,
+    dodo_customer_id = COALESCE($5, dodo_customer_id),
+    dodo_subscription_id = $6,
+    plan_renews_at = $7,
     updated_at = now()
-WHERE id = $6
+WHERE id = $8
 `
 
 type SetWorkspacePlanParams struct {
 	Plan               string             `json:"plan"`
 	KeywordLimit       int32              `json:"keyword_limit"`
+	PlanSource         string             `json:"plan_source"`
+	PaidData           bool               `json:"paid_data"`
 	DodoCustomerID     pgtype.Text        `json:"dodo_customer_id"`
 	DodoSubscriptionID pgtype.Text        `json:"dodo_subscription_id"`
 	PlanRenewsAt       pgtype.Timestamptz `json:"plan_renews_at"`
@@ -237,6 +245,8 @@ func (q *Queries) SetWorkspacePlan(ctx context.Context, arg SetWorkspacePlanPara
 	_, err := q.db.Exec(ctx, setWorkspacePlan,
 		arg.Plan,
 		arg.KeywordLimit,
+		arg.PlanSource,
+		arg.PaidData,
 		arg.DodoCustomerID,
 		arg.DodoSubscriptionID,
 		arg.PlanRenewsAt,

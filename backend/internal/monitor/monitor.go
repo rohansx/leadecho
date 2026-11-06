@@ -205,9 +205,9 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	}
 	defer m.scanning.Delete(wsID)
 
-	// billing: an empty balance pauses scanning; posts already found stay.
-	if bal, err := m.credits.Balance(ctx, wsID); err == nil && bal <= 0 {
-		m.logger.Debug().Str("workspace_id", wsID).Msg("monitor: out of credits, scan paused")
+	// billing/ops: paused in /ops, or out of credits; posts already found stay.
+	if !m.credits.ScanAllowed(ctx, wsID) {
+		m.logger.Debug().Str("workspace_id", wsID).Msg("monitor: scan paused (ops or out of credits)")
 		return false
 	}
 

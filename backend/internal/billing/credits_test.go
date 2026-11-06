@@ -143,6 +143,59 @@ func TestCreditsDB(t *testing.T) {
 		}
 	})
 
+	t.Run("paid data gate: global switch, workspace access, then a credit", func(t *testing.T) {
+		m := NewPaidDataMeter(q, c)
+		ws := newWorkspace(t, ctx, pool, q, 10)
+		if err := m.Spend(ctx, ws, 1, ReasonSearch); !errors.Is(err, ErrNoPaidData) {
+			t.Fatalf("no access: %v, want ErrNoPaidData", err)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE workspaces SET paid_data = true WHERE id = $1`, ws); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.Spend(ctx, ws, 1, ReasonSearch); err != nil {
+			t.Fatalf("with access: %v", err)
+		}
+		if b, _ := c.Balance(ctx, ws); b != 9 {
+			t.Fatalf("balance = %d, want 9", b)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE ops_settings SET value = 'true' WHERE key = 'paid_data_paused'`); err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Exec(ctx, `UPDATE ops_settings SET value = 'false' WHERE key = 'paid_data_paused'`)
+		if err := m.Spend(ctx, ws, 1, ReasonSearch); !errors.Is(err, ErrPaidDataPaused) {
+			t.Fatalf("globally paused: %v, want ErrPaidDataPaused", err)
+		}
+		if b, _ := c.Balance(ctx, ws); b != 9 {
+			t.Fatalf("blocked calls must not charge: balance %d", b)
+		}
+		m.Refund(ctx, ws, 1, ReasonSearch)
+		if b, _ := c.Balance(ctx, ws); b != 10 {
+			t.Fatalf("refund: balance %d, want 10", b)
+		}
+	})
+
+	t.Run("scan allowed: ops pause and empty balance", func(t *testing.T) {
+		ws := newWorkspace(t, ctx, pool, q, 5)
+		if !c.ScanAllowed(ctx, ws) {
+			t.Fatal("funded, not paused: allowed")
+		}
+		if _, err := pool.Exec(ctx, `UPDATE workspaces SET scanning_paused = true WHERE id = $1`, ws); err != nil {
+			t.Fatal(err)
+		}
+		if c.ScanAllowed(ctx, ws) || New(q, false).ScanAllowed(ctx, ws) {
+			t.Fatal("ops pause must stop scans, even when credits aren't enforced")
+		}
+		if _, err := pool.Exec(ctx, `UPDATE workspaces SET scanning_paused = false, credit_balance = 0 WHERE id = $1`, ws); err != nil {
+			t.Fatal(err)
+		}
+		if c.ScanAllowed(ctx, ws) {
+			t.Fatal("empty balance: paused")
+		}
+		if !New(q, false).ScanAllowed(ctx, ws) {
+			t.Fatal("empty balance but unenforced (self-host): allowed")
+		}
+	})
+
 	t.Run("spend is all or nothing", func(t *testing.T) {
 		ws := newWorkspace(t, ctx, pool, q, 7)
 		if err := c.Spend(ctx, ws, CostDraft, ReasonDraft); err != nil {

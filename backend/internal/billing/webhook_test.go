@@ -97,7 +97,8 @@ func TestHandleEventDB(t *testing.T) {
 		}
 	}
 	st := state()
-	if st.Plan != "starter" || st.CreditBalance != 5300 || st.KeywordLimit != 15 || st.DodoCustomerID.String != cus || !st.PlanRenewsAt.Valid {
+	if st.Plan != "starter" || st.CreditBalance != 5300 || st.KeywordLimit != 15 || st.DodoCustomerID.String != cus || !st.PlanRenewsAt.Valid ||
+		!st.PaidData || st.PlanSource != "dodo" {
 		t.Fatalf("after activation: %+v", st)
 	}
 
@@ -149,7 +150,8 @@ func TestHandleEventDB(t *testing.T) {
 	if err := svc.HandleEvent(ctx, sub("subscription.cancelled", "pdt_pro", p2, p2)); err != nil {
 		t.Fatal(err)
 	}
-	if st = state(); st.Plan != "free" || st.KeywordLimit != 3 || st.DodoSubscriptionID.Valid || st.CreditBalance != 32300 {
+	if st = state(); st.Plan != "free" || st.KeywordLimit != 3 || st.DodoSubscriptionID.Valid || st.CreditBalance != 32300 ||
+		st.PaidData || st.PlanSource != "free" {
 		t.Fatalf("after cancel: %+v", st)
 	}
 

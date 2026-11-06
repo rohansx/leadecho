@@ -21,7 +21,8 @@ func TestKeywordsDue(t *testing.T) {
 	}
 	cad := map[string]cadence.Map{"k1": {"twitter": "6h"}}
 	last := map[string]map[string]time.Time{
-		"k1": {"reddit": now.Add(-2 * time.Hour), "twitter": now.Add(-time.Hour)},
+		// reddit is a paid (treg) source: default every 4h, so 5h ago is due.
+		"k1": {"reddit": now.Add(-5 * time.Hour), "twitter": now.Add(-time.Hour)},
 		"k2": {"hackernews": now.Add(-10 * time.Minute)},
 	}
 	got := keywordsDue(kws, cad, last, now)
@@ -30,6 +31,11 @@ func TestKeywordsDue(t *testing.T) {
 	}
 	if got[0].ID != "k1" || !reflect.DeepEqual(got[0].Platforms, []string{"reddit"}) {
 		t.Errorf("k1 = %+v, want only reddit due", got[0])
+	}
+	// The 4h paid default is what saves the treg balance: 2h ago is not due.
+	recent := map[string]map[string]time.Time{"k1": {"reddit": now.Add(-2 * time.Hour), "twitter": now.Add(-time.Hour)}}
+	if due := keywordsDue(kws[:1], cad, recent, now); len(due) != 0 {
+		t.Errorf("reddit scanned 2h ago must not be due under the 4h default: %+v", due)
 	}
 	if got[1].ID != "k3" || !reflect.DeepEqual(got[1].Platforms, []string{"bluesky"}) {
 		t.Errorf("k3 = %+v, want bluesky (never scanned)", got[1])

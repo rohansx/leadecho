@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -81,6 +82,8 @@ type Client struct {
 	backoff     func(attempt int) time.Duration
 	pausedUntil atomic.Int64 // unix nano
 	meter       Meter        // nil: calls are not metered
+	cache       Cache        // nil: no response cache
+	cacheTTL    time.Duration
 }
 
 // New returns nil when no token is configured; a nil *Client is valid and
@@ -142,8 +145,49 @@ func (c *Client) SetMeter(m Meter) {
 	}
 }
 
-// Call runs one catalog tool, metered when a Meter is set.
+// Cache stores successful responses so repeated searches cost nothing.
+type Cache interface {
+	Get(ctx context.Context, key string) ([]byte, bool)
+	Set(ctx context.Context, key string, val []byte, ttl time.Duration)
+}
+
+// SetCache serves identical calls (same tool and body, any workspace: the
+// data is public) from cache for ttl.
+func (c *Client) SetCache(cache Cache, ttl time.Duration) {
+	if c != nil {
+		c.cache, c.cacheTTL = cache, ttl
+	}
+}
+
+func cacheKey(req Request) (string, bool) {
+	body, err := json.Marshal(req.Body) // map keys marshal sorted: stable
+	if err != nil {
+		return "", false
+	}
+	sum := sha256.Sum256(append([]byte(req.Tool+"\x00"), body...))
+	return "treg:v1:" + hex.EncodeToString(sum[:]), true
+}
+
+// Call runs one catalog tool: served from cache when possible, otherwise
+// metered (when a Meter is set) and cached on success.
 func (c *Client) Call(ctx context.Context, req Request) (*Response, error) {
+	var key string
+	if c != nil && c.cache != nil && c.cacheTTL > 0 {
+		if k, ok := cacheKey(req); ok {
+			key = k
+			if body, hit := c.cache.Get(ctx, key); hit {
+				return &Response{Status: http.StatusOK, Body: body, ServedBy: "cache"}, nil
+			}
+		}
+	}
+	resp, err := c.meteredCall(ctx, req)
+	if err == nil && key != "" && resp != nil && resp.Status >= 200 && resp.Status < 300 {
+		c.cache.Set(ctx, key, resp.Body, c.cacheTTL)
+	}
+	return resp, err
+}
+
+func (c *Client) meteredCall(ctx context.Context, req Request) (*Response, error) {
 	if c == nil || c.meter == nil {
 		return c.call(ctx, req)
 	}
