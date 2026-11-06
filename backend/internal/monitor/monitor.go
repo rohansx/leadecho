@@ -20,6 +20,7 @@ import (
 	"leadecho/internal/llm"
 	"leadecho/internal/mutes"
 	"leadecho/internal/treg" // treg: hosted X/LinkedIn sources
+	"leadecho/internal/workflow"
 )
 
 // LeadEnricher runs Person360 enrichment after lead qualification.
@@ -30,6 +31,7 @@ type LeadEnricher interface {
 // Monitor polls social platforms for keyword matches and inserts new mentions.
 type Monitor struct {
 	crm               *crmsync.Dispatcher
+	workflows         WorkflowRunner
 	q                 *database.Queries
 	logger            zerolog.Logger
 	resendAPIKey      string
@@ -76,6 +78,13 @@ func (m *Monitor) SetGoogleNewsEnabled(v bool) { m.googleNewsEnabled = v }
 
 // SetCRMSync wires outbound lead events (webhooks/HubSpot/Attio). Optional.
 func (m *Monitor) SetCRMSync(d *crmsync.Dispatcher) { m.crm = d }
+
+// WorkflowRunner runs real-time workflows for a scored lead (*workflow.Engine).
+type WorkflowRunner interface {
+	Run(ctx context.Context, l workflow.Lead)
+}
+
+func (m *Monitor) SetWorkflows(w WorkflowRunner) { m.workflows = w }
 
 func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, scrapling *browser.ScraplingClient, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool, enricher LeadEnricher) *Monitor {
 	return &Monitor{

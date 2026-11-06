@@ -16,6 +16,7 @@ import (
 	"leadecho/internal/events"
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/llm"
+	"leadecho/internal/workflow"
 )
 
 // batchScoreMentions runs the 4-stage auto-scoring pipeline on newly inserted mentions.
@@ -515,6 +516,20 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, result.Intent) {
 		m.qualifyAsLead(ctx, c.alert, result)
 	}
+	m.runWorkflows(ctx, c.alert, result)
+}
+
+// runWorkflows runs the workspace's real-time workflows inline, unless the
+// streams pipeline is on (publishWorkflowTrigger hands the lead to its consumer).
+func (m *Monitor) runWorkflows(ctx context.Context, a mentionAlert, r *ai.ClassifyResult) {
+	if m.workflows == nil || (m.streamsEnabled && m.eventPublisher != nil) {
+		return
+	}
+	m.workflows.Run(ctx, workflow.Lead{
+		MentionID: a.ID, WorkspaceID: a.WorkspaceID, Platform: a.Platform, Keyword: a.Keyword,
+		Title: a.Title, Content: a.Content, URL: a.URL, Author: a.Author,
+		Intent: r.Intent, IntentTags: r.IntentTags, Score: r.RelevanceScore,
+	})
 }
 
 // leadScoreThreshold must match the leads_ready SQL predicate in

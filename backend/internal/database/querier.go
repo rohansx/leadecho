@@ -51,6 +51,8 @@ type Querier interface {
 	CountRepliesByStatus(ctx context.Context, workspaceID string) ([]CountRepliesByStatusRow, error)
 	CountRepliesPosted30d(ctx context.Context, workspaceID string) (int32, error)
 	CountTotalLeads(ctx context.Context, workspaceID string) (int32, error)
+	CountWorkflowExecutionsSince(ctx context.Context, arg CountWorkflowExecutionsSinceParams) (int64, error)
+	CountWorkflows(ctx context.Context, workspaceID string) (int64, error)
 	CountWorkspaceKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CreateAutomation(ctx context.Context, arg CreateAutomationParams) (Automation, error)
 	CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error)
@@ -85,6 +87,7 @@ type Querier interface {
 	CreateUTMEvent(ctx context.Context, arg CreateUTMEventParams) (UtmEvent, error)
 	CreateUTMLink(ctx context.Context, arg CreateUTMLinkParams) (UtmLink, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) (Workflow, error)
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	CreateWorkspaceAPIKey(ctx context.Context, arg CreateWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
@@ -101,6 +104,7 @@ type Querier interface {
 	DeleteResponseProfile(ctx context.Context, arg DeleteResponseProfileParams) (int64, error)
 	DeleteTrackedProfile(ctx context.Context, arg DeleteTrackedProfileParams) (int64, error)
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
+	DeleteWorkflow(ctx context.Context, arg DeleteWorkflowParams) (int64, error)
 	DigestAttribution(ctx context.Context, arg DigestAttributionParams) (DigestAttributionRow, error)
 	DigestIntentCounts(ctx context.Context, arg DigestIntentCountsParams) ([]DigestIntentCountsRow, error)
 	DigestKeywordStats(ctx context.Context, arg DigestKeywordStatsParams) ([]DigestKeywordStatsRow, error)
@@ -152,6 +156,7 @@ type Querier interface {
 	GetUTMLinkByCode(ctx context.Context, code string) (UtmLink, error)
 	GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error)
 	GetUser(ctx context.Context, id string) (User, error)
+	GetWorkflow(ctx context.Context, arg GetWorkflowParams) (Workflow, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
 	GetWorkspaceAccess(ctx context.Context, workspaceID string) (GetWorkspaceAccessRow, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
@@ -220,6 +225,8 @@ type Querier interface {
 	ListPersonIdentities(ctx context.Context, arg ListPersonIdentitiesParams) ([]PersonIdentity, error)
 	ListPostedRepliesSince(ctx context.Context, since pgtype.Timestamptz) ([]ListPostedRepliesSinceRow, error)
 	ListRecentLeadsForWorkspace(ctx context.Context, arg ListRecentLeadsForWorkspaceParams) ([]ListRecentLeadsForWorkspaceRow, error)
+	// Preview corpus for "test this workflow": the latest classified posts.
+	ListRecentScoredMentions(ctx context.Context, arg ListRecentScoredMentionsParams) ([]ListRecentScoredMentionsRow, error)
 	ListReplayableEvents(ctx context.Context, arg ListReplayableEventsParams) ([]EventLog, error)
 	ListRepliesByMention(ctx context.Context, arg ListRepliesByMentionParams) ([]Reply, error)
 	ListReplyEngagements(ctx context.Context, arg ListReplyEngagementsParams) ([]ReplyEngagement, error)
@@ -235,6 +242,8 @@ type Querier interface {
 	// stay eligible so transient provider outages are retried.
 	ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error)
 	ListUsersByExternalID(ctx context.Context, clerkUserID string) ([]User, error)
+	ListWorkflowExecutions(ctx context.Context, arg ListWorkflowExecutionsParams) ([]ListWorkflowExecutionsRow, error)
+	ListWorkflows(ctx context.Context, workspaceID string) ([]Workflow, error)
 	ListWorkspaceAPIKeys(ctx context.Context, workspaceID string) ([]WorkspaceApiKey, error)
 	MarkEventLogPublishFailed(ctx context.Context, arg MarkEventLogPublishFailedParams) (EventLog, error)
 	MarkEventLogPublished(ctx context.Context, arg MarkEventLogPublishedParams) (EventLog, error)
@@ -314,6 +323,7 @@ type Querier interface {
 	UpdateReplyStatus(ctx context.Context, arg UpdateReplyStatusParams) (Reply, error)
 	UpdateResponseProfile(ctx context.Context, arg UpdateResponseProfileParams) (ResponseProfile, error)
 	UpdateThreadContent(ctx context.Context, arg UpdateThreadContentParams) (Thread, error)
+	UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) (Workflow, error)
 	UpdateWorkflowExecution(ctx context.Context, arg UpdateWorkflowExecutionParams) (WorkflowExecution, error)
 	UpdateWorkspaceSettings(ctx context.Context, arg UpdateWorkspaceSettingsParams) error
 	UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error)

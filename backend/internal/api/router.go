@@ -376,6 +376,15 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/automations/{id}/runs", autoH.Runs)
 			r.Get("/skills", handler.ListSkills)
 			// end automations
+
+			// workflows: real-time rules run after each lead is scored
+			wfH := handler.NewWorkflowHandler(queries)
+			r.Get("/workflows", wfH.List)
+			r.Post("/workflows", wfH.Create)
+			r.Post("/workflows/preview", wfH.Preview)
+			r.Put("/workflows/{id}", wfH.Update)
+			r.Delete("/workflows/{id}", wfH.Delete)
+			r.Get("/workflows/{id}/runs", wfH.Runs)
 		})
 
 		// Extension signal ingestion — separate auth (X-Extension-Key). CORS for the

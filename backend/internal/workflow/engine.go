@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,220 +11,154 @@ import (
 
 	"leadecho/internal/database"
 	"leadecho/internal/events"
-	"leadecho/internal/events/publishers"
 )
 
+// Drafter writes an AI reply draft for a mention (reply.Drafter, adapted).
+type Drafter func(ctx context.Context, wsID, mentionID string) error
+
+// Engine runs a workspace's real-time workflows against each newly scored lead.
 type Engine struct {
-	q        *database.Queries
-	publisher *publishers.Publisher
-	logger   zerolog.Logger
+	q      *database.Queries
+	acts   *actions
+	logger zerolog.Logger
 }
 
-func NewEngine(q *database.Queries, publisher *publishers.Publisher, logger zerolog.Logger) *Engine {
-	return &Engine{
-		q:        q,
-		publisher: publisher,
-		logger:   logger.With().Str("component", "workflow_engine").Logger(),
-	}
+func NewEngine(q *database.Queries, logger zerolog.Logger) *Engine {
+	return &Engine{q: q, acts: newActions(q), logger: logger.With().Str("component", "workflow_engine").Logger()}
 }
 
-func (e *Engine) EvaluateAndTrigger(ctx context.Context, payload events.WorkflowTriggerRequestedPayload) error {
-	workflows, err := e.q.ListActiveWorkflowsByWorkspace(ctx, payload.WorkspaceID)
+func (e *Engine) SetDrafter(d Drafter)        { e.acts.draft = d }
+func (e *Engine) SetCRM(c CRMEmitter)         { e.acts.crm = c }
+func (e *Engine) SetMail(apiKey, from string) { e.acts.mail.APIKey, e.acts.mail.From = apiKey, from }
+func (e *Engine) SetAppURL(u string)          { e.acts.appURL = u }
+
+// Run evaluates every active workflow of the lead's workspace. Failures are
+// logged per workflow; one bad workflow never stops the others.
+func (e *Engine) Run(ctx context.Context, l Lead) {
+	wfs, err := e.q.ListActiveWorkflowsByWorkspace(ctx, l.WorkspaceID)
 	if err != nil {
-		return fmt.Errorf("list workflows: %w", err)
+		e.logger.Error().Err(err).Str("workspace_id", l.WorkspaceID).Msg("list workflows")
+		return
 	}
-
-	for _, wf := range workflows {
-		var trigger TriggerConfig
-		if err := json.Unmarshal(wf.TriggerConfig, &trigger); err != nil {
-			e.logger.Error().Err(err).Str("workflow_id", wf.ID).Msg("invalid trigger_config")
-			continue
-		}
-		if !matchesTrigger(payload, trigger) {
-			continue
-		}
-
-		exists, err := e.q.HasWorkflowExecutionForMention(ctx, database.HasWorkflowExecutionForMentionParams{
-			WorkflowID: wf.ID,
-			MentionID:  pgUUID(payload.MentionID),
-		})
-		if err != nil {
-			return fmt.Errorf("dedup check: %w", err)
-		}
-		if exists {
-			continue
-		}
-
-		if err := e.startExecution(ctx, wf, payload); err != nil {
-			e.logger.Error().Err(err).Str("workflow_id", wf.ID).Str("mention_id", payload.MentionID).Msg("workflow execution failed")
+	for _, wf := range wfs {
+		if err := e.runOne(ctx, wf, l); err != nil {
+			e.logger.Error().Err(err).Str("workflow_id", wf.ID).Str("mention_id", l.MentionID).Msg("workflow run failed")
 		}
 	}
+}
+
+// EvaluateAndTrigger is the streams-consumer entry point.
+func (e *Engine) EvaluateAndTrigger(ctx context.Context, p events.WorkflowTriggerRequestedPayload) error {
+	e.Run(ctx, Lead{
+		MentionID: p.MentionID, WorkspaceID: p.WorkspaceID, Platform: p.Platform, Title: p.Title,
+		Content: p.Content, URL: p.URL, Author: p.Author, Intent: p.Intent, Score: float64(p.RelevanceScore),
+	})
 	return nil
 }
 
-func matchesTrigger(payload events.WorkflowTriggerRequestedPayload, trigger TriggerConfig) bool {
-	if trigger.MinScore > 0 && float64(payload.RelevanceScore) < trigger.MinScore {
-		return false
+func (e *Engine) runOne(ctx context.Context, wf database.Workflow, l Lead) error {
+	var t Trigger
+	if err := json.Unmarshal(wf.TriggerConfig, &t); err != nil {
+		return fmt.Errorf("parse trigger: %w", err)
 	}
-	if len(trigger.Platforms) > 0 && !containsString(trigger.Platforms, payload.Platform) {
-		return false
+	if !t.Matches(l) {
+		return nil
 	}
-	if len(trigger.IntentTypes) > 0 {
-		if payload.Intent == "" || !containsString(trigger.IntentTypes, payload.Intent) {
-			return false
-		}
+	mention := pgUUID(l.MentionID)
+	done, err := e.q.HasWorkflowExecutionForMention(ctx, database.HasWorkflowExecutionForMentionParams{WorkflowID: wf.ID, MentionID: mention})
+	if err != nil || done {
+		return err
 	}
-	if len(trigger.Keywords) > 0 {
-		lower := strings.ToLower(payload.Title + " " + payload.Content)
-		matched := false
-		for _, kw := range trigger.Keywords {
-			if strings.Contains(lower, strings.ToLower(kw)) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
+	n, err := e.q.CountWorkflowExecutionsSince(ctx, database.CountWorkflowExecutionsSinceParams{WorkflowID: wf.ID, Since: time.Now().Add(-time.Hour)})
+	if err != nil {
+		return fmt.Errorf("rate check: %w", err)
 	}
-	return true
-}
-
-func (e *Engine) startExecution(ctx context.Context, wf database.Workflow, payload events.WorkflowTriggerRequestedPayload) error {
-	var actions []ActionConfig
-	if err := json.Unmarshal(wf.ActionChain, &actions); err != nil {
-		return fmt.Errorf("parse action_chain: %w", err)
+	if n >= int64(wf.MaxTriggersPerHour) {
+		e.logger.Warn().Str("workflow_id", wf.ID).Int64("runs_last_hour", n).Msg("workflow hourly cap reached; skipping")
+		return nil
 	}
-
-	steps := make([]StepResult, 0, len(actions))
+	var chain []ActionConfig
+	if err := json.Unmarshal(wf.ActionChain, &chain); err != nil {
+		return fmt.Errorf("parse actions: %w", err)
+	}
 	exec, err := e.q.CreateWorkflowExecution(ctx, database.CreateWorkflowExecutionParams{
-		WorkflowID:  wf.ID,
-		MentionID:   pgUUID(payload.MentionID),
-		Status:      database.ExecutionStatusRunning,
-		Steps:       mustJSON(steps),
-		CurrentStep: 0,
+		WorkflowID: wf.ID, MentionID: mention, Status: database.ExecutionStatusRunning, Steps: []byte("[]"),
 	})
 	if err != nil {
 		return fmt.Errorf("create execution: %w", err)
 	}
-
 	if _, err := e.q.IncrementWorkflowTriggerCount(ctx, wf.ID); err != nil {
-		e.logger.Error().Err(err).Str("workflow_id", wf.ID).Msg("increment trigger count")
+		e.logger.Warn().Err(err).Str("workflow_id", wf.ID).Msg("increment trigger count")
 	}
 
-	currentStep := int32(0)
-	status := database.ExecutionStatusRunning
-	var lastErr error
-
-	for i, action := range actions {
-		stepResult := StepResult{Step: i, Type: action.Type, Status: "running"}
-		switch action.Type {
-		case ActionAIDraft:
-			if e.publisher == nil {
-				stepResult.Status = "skipped"
-				stepResult.Detail = "event publisher not configured"
-			} else {
-				env, err := events.NewEnvelope(
-					events.EventTypeReplyDraftRequested,
-					events.AggregateTypeReply,
-					payload.MentionID,
-					"workflow_engine",
-					payload.WorkspaceID,
-					fmt.Sprintf("%s:%s:%s", events.EventTypeReplyDraftRequested, exec.ID, payload.MentionID),
-					events.ReplyDraftRequestedPayload{
-						MentionID:           payload.MentionID,
-						WorkspaceID:         payload.WorkspaceID,
-						WorkflowExecutionID: exec.ID,
-						Source:              "workflow",
-					},
-				)
-				if err != nil {
-					stepResult.Status = "failed"
-					stepResult.Detail = err.Error()
-					lastErr = err
-				} else if _, err := e.publisher.Publish(ctx, env); err != nil {
-					stepResult.Status = "failed"
-					stepResult.Detail = err.Error()
-					lastErr = err
-				} else {
-					stepResult.Status = "completed"
-					stepResult.Detail = "reply.draft_requested published"
-				}
-			}
-		case ActionCreateLead:
-			stepResult.Status = "deferred"
-			stepResult.Detail = "handled by mention qualifier pipeline"
-		case ActionApprovalGate, ActionPostReply, ActionNotifySlack, ActionNotifyDiscord, ActionWebhook, ActionDelay, ActionCondition, ActionTagMention:
-			stepResult.Status = "deferred"
-			stepResult.Detail = "not implemented in v1 executor"
-		default:
-			stepResult.Status = "skipped"
-			stepResult.Detail = "unknown action type"
-		}
-
-		steps = append(steps, stepResult)
-		currentStep = int32(i + 1)
-
-		if stepResult.Status == "failed" {
-			status = database.ExecutionStatusFailed
-			break
-		}
+	steps, failed := e.acts.runChain(ctx, wf, l, chain)
+	status, errMsg := database.ExecutionStatusCompleted, pgtype.Text{}
+	if failed > 0 {
+		status = database.ExecutionStatusFailed
+		errMsg = pgtype.Text{String: fmt.Sprintf("%d of %d actions failed", failed, len(steps)), Valid: true}
 	}
-
-	if status == database.ExecutionStatusRunning {
-		status = database.ExecutionStatusCompleted
-	}
-
-	var completedAt pgtype.Timestamptz
-	if status == database.ExecutionStatusCompleted {
-		completedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
-	}
-
-	errMsg := pgtype.Text{}
-	if lastErr != nil {
-		errMsg = pgtype.Text{String: lastErr.Error(), Valid: true}
-	}
-
+	stepsJSON, _ := json.Marshal(steps)
 	_, err = e.q.UpdateWorkflowExecution(ctx, database.UpdateWorkflowExecutionParams{
-		ID:           exec.ID,
-		Status:       status,
-		CurrentStep:  currentStep,
-		Steps:        mustJSON(steps),
-		ErrorMessage: errMsg,
-		CompletedAt:  completedAt,
+		ID: exec.ID, Status: status, CurrentStep: int32(len(steps)), Steps: stepsJSON, ErrorMessage: errMsg,
+		CompletedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("update execution: %w", err)
 	}
-
-	e.logger.Info().
-		Str("workflow_id", wf.ID).
-		Str("execution_id", exec.ID).
-		Str("mention_id", payload.MentionID).
-		Str("status", string(status)).
-		Msg("workflow execution finished")
-	return lastErr
+	e.logger.Info().Str("workflow_id", wf.ID).Str("mention_id", l.MentionID).Str("status", string(status)).Msg("workflow ran")
+	return nil
 }
 
-func containsString(items []string, v string) bool {
-	for _, item := range items {
-		if item == v {
-			return true
+// PreviewResult says how many recent leads a trigger would have matched.
+type PreviewResult struct {
+	Checked int    `json:"checked"`
+	Matched int    `json:"matched"`
+	Samples []Lead `json:"samples"`
+}
+
+const previewCorpus = 100
+
+// RecentLeads loads the preview corpus (database.Queries).
+type RecentLeads interface {
+	ListRecentScoredMentions(ctx context.Context, arg database.ListRecentScoredMentionsParams) ([]database.ListRecentScoredMentionsRow, error)
+}
+
+// Preview runs t over the workspace's latest scored posts (no side effects).
+func Preview(ctx context.Context, q RecentLeads, wsID string, t Trigger) (PreviewResult, error) {
+	rows, err := q.ListRecentScoredMentions(ctx, database.ListRecentScoredMentionsParams{WorkspaceID: wsID, Lim: previewCorpus})
+	if err != nil {
+		return PreviewResult{}, fmt.Errorf("load recent posts: %w", err)
+	}
+	res := PreviewResult{Checked: len(rows), Samples: []Lead{}}
+	for _, r := range rows {
+		l := Lead{
+			MentionID: r.ID, Platform: r.Platform, Title: r.Title.String, Content: r.Content, URL: r.Url,
+			Author: r.AuthorUsername.String, IntentTags: r.IntentTags, Score: float64(r.RelevanceScore.Float32),
+		}
+		if !t.Matches(l) {
+			continue
+		}
+		res.Matched++
+		if len(res.Samples) < 5 {
+			l.Content = clip(l.Content, 240)
+			res.Samples = append(res.Samples, l)
 		}
 	}
-	return false
-}
-
-func mustJSON(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
+	return res, nil
 }
 
 func pgUUID(s string) pgtype.UUID {
 	var u pgtype.UUID
-	if s == "" {
-		return u
+	if s != "" {
+		_ = u.Scan(s)
 	}
-	_ = u.Scan(s)
 	return u
+}
+
+func clip(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
