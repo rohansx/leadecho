@@ -81,7 +81,7 @@ func (h *KeywordCadenceHandler) CostPreview(w http.ResponseWriter, r *http.Reque
 	resp := costPreviewResponse{
 		Keywords: make([]keywordCost, 0, len(rows)),
 		Rates:    cadence.CostPerCall,
-		Options:  []string{"15m", "30m", "1h", "3h", "6h", "12h", "24h"},
+		Options:  []string{"15m", "30m", "1h", "3h", "4h", "6h", "12h", "24h"},
 		Default:  "1h",
 	}
 	for _, k := range rows {
