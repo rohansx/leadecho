@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"leadecho/internal/api/handler"
+	"leadecho/internal/billing"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
@@ -114,6 +115,10 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	// treg feature: hosted X/LinkedIn sources + Reddit comment search.
 	tregClient := treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger)
 	mon.SetTreg(tregClient)
+	// billing: prepaid credits meter treg calls, scoring and drafts.
+	credits := billing.New(queries, cfg.CreditsEnforced())
+	tregClient.SetMeter(credits)
+	mon.SetCredits(credits)
 	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
 	mon.SetBlueskyCredentials(cfg.BlueskyHandle, cfg.BlueskyAppPassword) // sources
 	crm := crmsync.NewDispatcher(queries, encKey, logger)
@@ -125,6 +130,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
+	replyDrafter.SetCredits(credits)
 	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
 	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
 

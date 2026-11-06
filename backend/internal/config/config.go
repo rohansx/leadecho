@@ -102,7 +102,18 @@ type Config struct {
 	// enrich: treg lead enrichment (qualified leads only) + tracked profiles.
 	EnrichDailyCap            int   `env:"ENRICH_DAILY_CAP,default=25"`
 	TregCustomerDailyCapMicro int64 `env:"TREG_CUSTOMER_DAILY_CAP_MICRO,default=0"`
-	TrackedProfilesPollHours  int   `env:"TRACKED_PROFILES_POLL_HOURS,default=6"`
+
+	// billing: Dodo Payments + prepaid credits (see internal/billing).
+	DodoAPIKey         string `env:"DODO_API_KEY,default="`
+	DodoWebhookSecret  string `env:"DODO_WEBHOOK_SECRET,default="`
+	DodoEnvironment    string `env:"DODO_ENVIRONMENT,default=test_mode"` // test_mode | live_mode
+	DodoProductStarter string `env:"DODO_PRODUCT_STARTER,default="`
+	DodoProductPro     string `env:"DODO_PRODUCT_PRO,default="`
+	DodoProductTopup   string `env:"DODO_PRODUCT_TOPUP,default="`
+	// CreditsEnforcedEnv: "true"/"false" forces credit enforcement; empty =
+	// enforced exactly when Dodo is configured (self-host stays unlimited).
+	CreditsEnforcedEnv       string `env:"CREDITS_ENFORCED,default="`
+	TrackedProfilesPollHours int    `env:"TRACKED_PROFILES_POLL_HOURS,default=6"`
 	// RedditCommentsEnabled searches subreddit comments (free public JSON).
 	RedditCommentsEnabled bool `env:"REDDIT_COMMENTS_ENABLED,default=true"`
 	// sources: optional Bluesky session for authenticated search. Unset =
@@ -196,6 +207,25 @@ func (c *Config) MetricsCollectInterval() time.Duration {
 // RequireEmailVerification is true when an email provider is configured.
 // Without one, password accounts are auto-verified (self-host convenience).
 func (c *Config) RequireEmailVerification() bool { return c.ResendAPIKey != "" }
+
+// CreditsEnforced: whether credit balances gate scans, scoring, drafts and chat.
+func (c *Config) CreditsEnforced() bool {
+	switch c.CreditsEnforcedEnv {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	return c.DodoAPIKey != ""
+}
+
+// DodoBaseURL is the Dodo API for the configured environment.
+func (c *Config) DodoBaseURL() string {
+	if c.DodoEnvironment == "live_mode" {
+		return "https://live.dodopayments.com"
+	}
+	return "https://test.dodopayments.com"
+}
 
 // SecureCookies is true outside local development (cookies sent over HTTPS only).
 func (c *Config) SecureCookies() bool { return c.Environment != "development" }

@@ -122,6 +122,27 @@ func TestCreditsDB(t *testing.T) {
 		}
 	})
 
+	t.Run("keyword limit", func(t *testing.T) {
+		ws := newWorkspace(t, ctx, pool, q, 0)
+		if _, err := pool.Exec(ctx, `UPDATE workspaces SET keyword_limit = 2 WHERE id = $1`, ws); err != nil {
+			t.Fatal(err)
+		}
+		if ok, limit, err := c.CanAddKeyword(ctx, ws); err != nil || !ok || limit != 2 {
+			t.Fatalf("empty: ok=%v limit=%d err=%v", ok, limit, err)
+		}
+		if _, err := pool.Exec(ctx, `WITH p AS (INSERT INTO monitoring_profiles (workspace_id, name) VALUES ($1, 'p') RETURNING id)
+			INSERT INTO keywords (workspace_id, term, profile_id, is_active) SELECT $1, t, p.id, a FROM p,
+			(VALUES ('one', true), ('two', true), ('off', false)) v(t, a)`, ws); err != nil {
+			t.Fatal(err)
+		}
+		if ok, _, _ := c.CanAddKeyword(ctx, ws); ok {
+			t.Fatal("2 active keywords at limit 2: must refuse (inactive ones don't count)")
+		}
+		if ok, _, _ := New(nil, false).CanAddKeyword(ctx, ws); !ok {
+			t.Fatal("unenforced: always allowed")
+		}
+	})
+
 	t.Run("spend is all or nothing", func(t *testing.T) {
 		ws := newWorkspace(t, ctx, pool, q, 7)
 		if err := c.Spend(ctx, ws, CostDraft, ReasonDraft); err != nil {

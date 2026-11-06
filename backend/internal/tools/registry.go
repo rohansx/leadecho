@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/reply"
@@ -66,6 +67,7 @@ type Deps struct {
 	Drafter Drafter
 	CRM     CRMEmitter
 	Mutes   MuteStore
+	Credits *billing.Credits // billing: keyword limits (nil = unlimited)
 }
 
 type Registry struct {

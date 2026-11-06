@@ -12,6 +12,7 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/billing"
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
 	"leadecho/internal/knowledge"
@@ -33,7 +34,12 @@ type OnboardingHandler struct {
 	finder onboarding.CompetitorFinder
 	fetch  onboarding.PageFetcher // nil = SSRF-safe default
 	search onboarding.Searcher    // nil = public sources
+
+	credits *billing.Credits // billing: keywords past the plan limit start inactive
 }
+
+// SetCredits applies the plan's keyword limit to onboarding keywords.
+func (h *OnboardingHandler) SetCredits(c *billing.Credits) { h.credits = c }
 
 // WorkspaceScanner starts an immediate crawl of one workspace (monitor.Monitor).
 type WorkspaceScanner interface{ ScanWorkspaceNow(workspaceID string) }
@@ -291,7 +297,7 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 			ProfileID:     profile.ID,
 			Term:          keyword,
 			Platforms:     body.Platforms,
-			IsActive:      true,
+			IsActive:      h.credits.KeywordActive(ctx, wsID),
 			MatchType:     "contains",
 			NegativeTerms: []string{},
 			Subreddits:    body.Subreddits,

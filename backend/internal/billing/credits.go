@@ -75,6 +75,30 @@ func (c *Credits) Balance(ctx context.Context, wsID string) (int, error) {
 	return int(st.CreditBalance), nil
 }
 
+// CanAddKeyword reports whether the workspace may activate one more keyword
+// under its plan's limit (always true when billing isn't enforced).
+func (c *Credits) CanAddKeyword(ctx context.Context, wsID string) (ok bool, limit int, err error) {
+	if !c.Enforced() {
+		return true, 0, nil
+	}
+	st, err := c.q.GetBillingState(ctx, wsID)
+	if err != nil {
+		return false, 0, fmt.Errorf("keyword limit: %w", err)
+	}
+	used, err := c.q.CountWorkspaceKeywords(ctx, wsID)
+	if err != nil {
+		return false, 0, fmt.Errorf("keyword limit: %w", err)
+	}
+	return used < st.KeywordLimit, int(st.KeywordLimit), nil
+}
+
+// KeywordActive: whether a keyword created now should start active (false
+// once the plan's limit is reached, or when the check itself fails).
+func (c *Credits) KeywordActive(ctx context.Context, wsID string) bool {
+	ok, _, err := c.CanAddKeyword(ctx, wsID)
+	return err == nil && ok
+}
+
 // Refund returns credits taken for work that then failed before doing it.
 func (c *Credits) Refund(ctx context.Context, wsID string, n int, reason string) {
 	if !c.Enforced() || n <= 0 {

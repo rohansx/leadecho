@@ -127,6 +127,10 @@ func validKeywords(field string, in []string) ([]string, error) {
 func (d Deps) addKeywords(ctx context.Context, ws, profileID string, terms, plats []string) (added, skipped []string, err error) {
 	added, skipped = []string{}, []string{}
 	for _, t := range terms {
+		if !d.Credits.KeywordActive(ctx, ws) {
+			skipped = append(skipped, t+" (plan keyword limit reached)")
+			continue
+		}
 		_, err := d.Q.CreateKeyword(ctx, database.CreateKeywordParams{
 			WorkspaceID: ws, ProfileID: profileID, Term: t, Platforms: plats, IsActive: true,
 			MatchType: "contains", NegativeTerms: []string{}, Subreddits: []string{},

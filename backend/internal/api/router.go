@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -17,6 +18,7 @@ import (
 	"leadecho/internal/attribution"
 	"leadecho/internal/auth"
 	"leadecho/internal/automation" // automations (P2 #17)
+	"leadecho/internal/billing"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
@@ -66,13 +68,24 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	convHook := handler.NewConversionWebhookHandler(queries, attrib)
 	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
 
+	// billing: credits + Dodo Payments. The webhook is public; its signature is the auth.
+	credits := billing.New(queries, cfg.CreditsEnforced())
+	dodo := billing.NewDodo(billing.DodoConfig{
+		APIKey: cfg.DodoAPIKey, BaseURL: cfg.DodoBaseURL(), ReturnURL: strings.TrimRight(cfg.FrontendURL, "/") + "/settings?tab=billing",
+		Products: billing.Products{Starter: cfg.DodoProductStarter, Pro: cfg.DodoProductPro, Topup: cfg.DodoProductTopup},
+	})
+	billingH := handler.NewBillingHandler(queries, credits,
+		dodo, billing.NewService(queries, credits, billing.Products{Starter: cfg.DodoProductStarter, Pro: cfg.DodoProductPro, Topup: cfg.DodoProductTopup}),
+		cfg.DodoWebhookSecret, logger)
+	r.Post("/api/v1/webhooks/dodo", billingH.Webhook)
+
 	// mcp: agent tools behind workspace API keys — MCP server + public REST.
 	// sources: one mute store shared by the API, MCP tools and the insert path.
 	muteStore := mutes.NewStore(queries)
 	if mon != nil && mon.Mutes() != nil {
 		muteStore = mon.Mutes()
 	}
-	toolDeps := tools.Deps{Q: queries, CRM: crm, Mutes: muteStore}
+	toolDeps := tools.Deps{Q: queries, CRM: crm, Mutes: muteStore, Credits: credits}
 	if replyDrafter != nil { // avoid a typed-nil interface
 		toolDeps.Drafter = replyDrafter
 	}
@@ -165,6 +178,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// Keywords
 			keywords := handler.NewKeywordHandler(queries)
+			keywords.SetCredits(credits)
 			r.Get("/keywords", keywords.List)
 			r.Get("/keywords/{id}", keywords.Get)
 			r.Post("/keywords", keywords.Create)
@@ -274,6 +288,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// Onboarding wizard
 			onboarding := handler.NewOnboardingHandler(queries, scrapling, llmRouter, logger)
+			onboarding.SetCredits(credits)
 			if mon != nil && cfg.ShouldRunMonitor() {
 				onboarding.SetScanner(mon) // immediate first crawl; split deployments leave it to the worker tick
 			}
@@ -320,6 +335,11 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// chat: "Ask LeadEcho" in-app assistant (P2 #15)
 			chatH := handler.NewChatHandler(queries, agentTools, llmRouter, logger)
+			chatH.SetCredits(credits)
+			// billing: plan, balance, checkout and customer portal
+			r.Get("/billing", billingH.Get)
+			r.Post("/billing/checkout", billingH.Checkout)
+			r.Post("/billing/portal", billingH.Portal)
 			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/chat", chatH.Send)
 			r.Get("/chat/threads", chatH.Threads)
 			r.Get("/chat/threads/{id}/messages", chatH.Messages)

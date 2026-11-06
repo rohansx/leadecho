@@ -19,6 +19,7 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/billing"
 	"leadecho/internal/chat"
 	"leadecho/internal/database"
 	"leadecho/internal/llm"
@@ -45,11 +46,15 @@ type chatStore interface {
 }
 
 type ChatHandler struct {
-	store  chatStore
-	tools  chat.ToolSet
-	model  func(ctx context.Context, ws string) chat.Model
-	logger zerolog.Logger
+	store   chatStore
+	tools   chat.ToolSet
+	model   func(ctx context.Context, ws string) chat.Model
+	logger  zerolog.Logger
+	credits *billing.Credits // billing: one chat question costs billing.CostChat
 }
+
+// SetCredits meters chat questions.
+func (h *ChatHandler) SetCredits(c *billing.Credits) { h.credits = c }
 
 // NewChatHandler uses the LLM router when the workspace has a chat provider
 // key and the deterministic keyless StubModel otherwise.
@@ -115,6 +120,9 @@ func (h *ChatHandler) Send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	if writeOutOfCredits(w, h.credits.Spend(ctx, ws, billing.CostChat, billing.ReasonChat)) {
+		return
+	}
 	thread, status, err := h.thread(ctx, ws, uid, req)
 	if err != nil {
 		writeError(w, status, err.Error())
