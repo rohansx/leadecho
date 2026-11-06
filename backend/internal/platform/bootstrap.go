@@ -43,8 +43,6 @@ type Shared struct {
 	LLMRouter      *llm.Router
 	StreamClient   *streamredis.Client
 	EventPublisher *publishers.Publisher
-	Pinchtab       *browser.PinchtabClient
-	Camoufox       *browser.CamoufoxClient
 	Scrapling      *browser.ScraplingClient
 	Knowledge      *knowledge.Service
 	Researcher     *researcher.Service
@@ -90,16 +88,6 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	streamClient := streamredis.NewClient(redis, logger)
 	eventPublisher := publishers.New(queries, streamClient, logger)
 
-	var pinchtab *browser.PinchtabClient
-	if cfg.PinchtabToken != "" {
-		pinchtab = browser.New(cfg.PinchtabURL, cfg.PinchtabToken)
-	}
-
-	var camoufox *browser.CamoufoxClient
-	if cfg.CamoufoxURL != "" {
-		camoufox = browser.NewCamoufox(cfg.CamoufoxURL, cfg.CamoufoxToken)
-	}
-
 	var scrapling *browser.ScraplingClient
 	if cfg.ScraplingURL != "" {
 		scrapling = browser.NewScrapling(cfg.ScraplingURL, cfg.ScraplingToken)
@@ -113,10 +101,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		logger,
 		cfg.ResendAPIKey,
 		llmRouter,
-		pinchtab,
-		camoufox,
 		scrapling,
-		encKey,
 		cfg.ExaAPIKey,
 		eventPublisher,
 		cfg.StreamsEnabled,
@@ -152,8 +137,6 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		LLMRouter:      llmRouter,
 		StreamClient:   streamClient,
 		EventPublisher: eventPublisher,
-		Pinchtab:       pinchtab,
-		Camoufox:       camoufox,
 		Scrapling:      scrapling,
 		Knowledge:      knowledgeSvc,
 		Researcher:     researcherSvc,

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 const faqs = [
   {
     q: 'Does it work without API keys?',
-    a: 'Reddit and Hacker News work completely without any API keys. For AI scoring you need to provide your own key from OpenAI, Anthropic, or a compatible provider. Twitter and LinkedIn require browser session cookies for authenticated access.',
+    a: 'Reddit and Hacker News work completely without any API keys. For AI scoring you need to provide your own key from OpenAI, Anthropic, or a compatible provider. Twitter and LinkedIn are searched through treg's hosted API (TREG_TOKEN); no browser cookies needed.',
   },
   {
     q: 'How is this different from keyword alerts?',
@@ -28,7 +28,7 @@ const faqs = [
   },
   {
     q: 'Is LinkedIn monitoring reliable?',
-    a: "LinkedIn is the hardest platform to monitor. LeadEcho uses Pinchtab with your own session cookie. For more stealth, the Pro tier includes Camoufox (fingerprint-spoofing Firefox). You'll need to occasionally refresh session cookies.",
+    a: "LinkedIn is searched through treg's hosted API, so there are no session cookies to paste or refresh and your account is never logged in by a bot.",
   },
 ];
 

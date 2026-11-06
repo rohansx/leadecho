@@ -28,7 +28,7 @@ const (
 // listenerPlatforms are the platforms a listener may target.
 var listenerPlatforms = map[string]bool{
 	"reddit": true, "hackernews": true, "twitter": true, "linkedin": true, "devto": true,
-	"lobsters": true, "indiehackers": true, "exa": true, "googlenews": true, "quora": true, "bluesky": true, // sources
+	"lobsters": true, "indiehackers": true, "exa": true, "googlenews": true, "bluesky": true, // sources
 }
 
 var defaultListenerPlatforms = []string{"reddit", "hackernews", "devto"}

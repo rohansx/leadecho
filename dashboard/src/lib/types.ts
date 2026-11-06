@@ -196,15 +196,6 @@ export interface MonitoringProfile {
   updated_at: string;
 }
 
-export interface PlatformSession {
-  platform: "reddit" | "twitter" | "linkedin" | "quora";
-  username: string | null;
-  is_configured: boolean;
-  is_pinchtab_online: boolean;
-  /** treg feature: crawled via treg, no browser cookie needed */
-  is_managed?: boolean;
-}
-
 export interface ExtensionTokenInfo {
   has_token: boolean;
   masked_token?: string;

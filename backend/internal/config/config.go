@@ -93,8 +93,8 @@ type Config struct {
 	// Google's feed terms restrict it to personal, non-commercial use.
 	GoogleNewsEnabled bool `env:"GOOGLE_NEWS_ENABLED,default=false"`
 
-	// treg feature: hosted data tools (X/LinkedIn search). Empty token keeps
-	// the Pinchtab/Camoufox/Scrapling paths. See docs/treg-integration.md.
+	// treg feature: hosted data tools (X/LinkedIn search). Empty token
+	// disables X and LinkedIn monitoring. See docs/treg-integration.md.
 	TregToken        string `env:"TREG_TOKEN,default="`
 	TregOrgID        string `env:"TREG_ORG_ID,default="`
 	TregBaseURL      string `env:"TREG_BASE_URL,default=https://treg.to"`
@@ -126,15 +126,7 @@ type Config struct {
 	// automations (P2 #17): scheduler for user-enabled automations, runs wherever the monitor runs.
 	AutomationsEnabled bool `env:"AUTOMATIONS_ENABLED,default=true"`
 
-	// Pinchtab (browser automation sidecar for Reddit + Twitter)
-	PinchtabURL   string `env:"PINCHTAB_URL,default=http://localhost:9867"`
-	PinchtabToken string `env:"PINCHTAB_TOKEN,default="`
-
-	// Camoufox (Pro-tier stealth Firefox sidecar for LinkedIn)
-	CamoufoxURL   string `env:"CAMOUFOX_URL,default="`
-	CamoufoxToken string `env:"CAMOUFOX_TOKEN,default="`
-
-	// Scrapling (stealth fallback sidecar — used when Pinchtab/Camoufox unavailable)
+	// Scrapling (stealth sidecar used to read websites, e.g. onboarding)
 	ScraplingURL   string `env:"SCRAPLING_URL,default="`
 	ScraplingToken string `env:"SCRAPLING_TOKEN,default="`
 

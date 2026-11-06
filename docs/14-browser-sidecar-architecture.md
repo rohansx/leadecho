@@ -1,5 +1,7 @@
 # 14 — Browser Sidecar Architecture
 
+> **Superseded.** Pinchtab and Camoufox (and the Settings > Browser sessions cookie page) were removed. X, LinkedIn and Reddit are fetched through treg (see `treg-integration.md`); only the Scrapling sidecar remains, for reading websites during onboarding.
+
 LeadEcho uses **browser sidecars** — lightweight HTTP microservices wrapping headless browsers — to crawl platforms that block API access or require authenticated sessions. Each sidecar exposes a uniform HTTP/JSON contract so the Go backend can swap between them seamlessly.
 
 ---

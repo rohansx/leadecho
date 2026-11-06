@@ -108,7 +108,7 @@ func (m *Monitor) handleRedditErr(err error, target string) bool {
 		// Reddit now blocks unauthenticated JSON API access entirely.
 		// Back off for 30 minutes to avoid spamming 403s every tick.
 		m.setRedditBackoff(30 * time.Minute)
-		m.logger.Warn().Str("subreddit", target).Dur("backoff", 30*time.Minute).Msg("reddit: blocked (403), backing off 30m — configure authenticated crawl via Pinchtab or Reddit OAuth2")
+		m.logger.Warn().Str("subreddit", target).Dur("backoff", 30*time.Minute).Msg("reddit: blocked (403), backing off 30m — configure Reddit OAuth2 or TREG_TOKEN")
 	default:
 		m.logger.Warn().Err(err).Str("subreddit", target).Msg("reddit: request failed")
 	}

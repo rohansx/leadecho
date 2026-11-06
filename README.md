@@ -2,7 +2,7 @@
 
 **Find buyers before they find your competitors.**
 
-LeadEcho monitors Reddit, Twitter/X, LinkedIn, Quora, Hacker News, Dev.to, Lobsters, and Indie Hackers for people actively describing the exact problem your product solves — then scores them by conversion probability, drafts AI replies from your knowledge base, and lets you post them with one click via the Chrome extension.
+LeadEcho monitors Reddit, Twitter/X, LinkedIn, Hacker News, Dev.to, Lobsters, and Indie Hackers for people actively describing the exact problem your product solves — then scores them by conversion probability, drafts AI replies from your knowledge base, and lets you post them with one click via the Chrome extension.
 
 → **[Live demo](https://app.leadecho.io)** · **[Product Hunt](https://www.producthunt.com/posts/leadecho)** · **[Docs](./docs/)**
 
@@ -21,8 +21,7 @@ LeadEcho monitors Reddit, Twitter/X, LinkedIn, Quora, Hacker News, Dev.to, Lobst
 - **CRM sync** — new leads, stage changes and conversions pushed to HubSpot, Attio, or any HMAC-signed webhook
 - **ICP fit score** — every enriched lead gets a 0–100% fit score from profile match, intent, and GitHub signals
 - **Multi-provider AI** — BYOK: NVIDIA Nemotron, DeepSeek, GLM (ZhipuAI), OpenAI, Anthropic, or any compatible API
-- **Authenticated crawling** — Reddit, Twitter, LinkedIn, Quora via browser session cookies
-- **Stealth browser fallback** — Scrapling anti-bot bypass as backup when Pinchtab/Camoufox unavailable
+- **X, LinkedIn and Reddit via treg** — hosted search API, no browser cookies or logged-in sessions
 - **Full E2E test suite** — 86 Playwright tests covering auth, inbox, pipeline, keywords, profiles, analytics, and more
 - **Astro landing page** — interactive 3D hero with React Three Fiber and Framer Motion
 
@@ -88,31 +87,13 @@ Work out of the box using public APIs. No account needed.
 ### Dev.to, Lobsters, Indie Hackers (no setup)
 Also public — no authentication required.
 
-### Quora, Twitter/X and LinkedIn (authenticated)
+### Twitter/X and LinkedIn (treg)
 
-These require the Pinchtab browser sidecar:
+Set `TREG_TOKEN` in `.env` (see `docs/treg-integration.md`). No browser cookies needed; without it X and LinkedIn are not monitored.
 
-```bash
-# Start with browser sidecar (needs PINCHTAB_TOKEN in .env)
-docker compose --profile browser up -d
-```
+### Website reading (Scrapling, optional)
 
-Then in the dashboard, go to **Settings → Browser Sessions** and paste your:
-- **Twitter/X**: session cookie (`auth_token` from browser devtools)
-- **LinkedIn**: `li_at` cookie
-- **Quora**: session cookies (the sidecar auto-validates login state)
-
-### LinkedIn stealth mode (Pro)
-
-For less aggressive LinkedIn detection, use the Camoufox sidecar:
-
-```bash
-CAMOUFOX_URL=http://localhost:9868 docker compose --profile browser-pro up -d
-```
-
-### Anti-bot bypass fallback (Scrapling)
-
-When Pinchtab and Camoufox are both unavailable, Scrapling provides a lightweight fallback:
+Onboarding reads your product site with a plain fetch, falling back to the Scrapling sidecar:
 
 ```bash
 docker compose --profile browser-scrapling up -d
@@ -169,7 +150,7 @@ Then in the extension Settings tab:
 │  ├─ auth/         JWT + Google OAuth             │
 │  ├─ monitor/      9 crawlers (8 platforms + web-wide Exa) │
 │  │   └─ scorer/   4-stage AI scoring pipeline    │
-│  ├─ browser/      Pinchtab + Camoufox clients    │
+│  ├─ browser/      Scrapling website reader       │
 │  ├─ embedding/    Voyage AI client               │
 │  └─ database/     sqlc-generated queries         │
 └────────────────┬────────────────────────────────┘
@@ -184,10 +165,9 @@ Then in the extension Settings tab:
 
 | Platform | Method | Fallback |
 |---|---|---|
-| Reddit | Pinchtab (authenticated) | Public JSON API |
-| Twitter/X | Pinchtab | — |
-| LinkedIn | Camoufox → Pinchtab | — |
-| Quora | Pinchtab (authenticated) | — |
+| Reddit | Reddit OAuth, else treg | Public JSON API |
+| Twitter/X | treg (`TREG_TOKEN`) | — |
+| LinkedIn | treg (`TREG_TOKEN`) | — |
 | Web (Exa) | Exa semantic search (needs `EXA_API_KEY`) | — |
 | HN, Dev.to, Lobsters, IH | Direct API | — |
 
@@ -214,11 +194,7 @@ Then in the extension Settings tab:
 | `VOYAGE_API_KEY` | | Voyage AI for embeddings (falls back to keyword matching) |
 | `EXA_API_KEY` | | Exa web-wide discovery source (add `exa` to a keyword's platforms; skipped if unset) |
 | `RESEND_API_KEY` | | Resend for auth + notification emails. When set, password accounts must verify their email and password reset works; when unset, new accounts are auto-verified |
-| `PINCHTAB_TOKEN` | | Pinchtab browser sidecar token |
-| `PINCHTAB_URL` | | Pinchtab URL (default: http://localhost:9867) |
-| `CAMOUFOX_URL` | | Camoufox stealth browser URL (Pro LinkedIn) |
-| `CAMOUFOX_TOKEN` | | Camoufox auth token |
-| `SCRAPLING_URL` | | Scrapling anti-bot fallback URL |
+| `SCRAPLING_URL` | | Scrapling website-reader sidecar URL (onboarding) |
 | `SCRAPLING_TOKEN` | | Scrapling auth token |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | | Enables "Continue with Google" |
 | `GOOGLE_REDIRECT_URL` | | Default `FRONTEND_URL/api/v1/auth/google/callback` (register it in Google Cloud) |
@@ -288,7 +264,7 @@ make fmt
 | Extension | WXT 0.19, MV3, React |
 | AI | NVIDIA Nemotron, DeepSeek, GLM (ZhipuAI), OpenAI, Anthropic (BYOK); Voyage AI (embeddings) |
 | Email | Resend |
-| Browser automation | Pinchtab, Camoufox, Scrapling |
+| Website reading | Scrapling |
 | Testing | Playwright (86 E2E tests)
 
 ---

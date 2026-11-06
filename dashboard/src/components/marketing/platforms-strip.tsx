@@ -12,7 +12,6 @@ import {
   DevtoIcon,
   LobstersIcon,
   IndieHackersIcon,
-  QuoraIcon,
 } from "./platform-logos";
 
 const platforms = [
@@ -23,7 +22,6 @@ const platforms = [
   { name: "Dev.to", Icon: DevtoIcon },
   { name: "Lobsters", Icon: LobstersIcon },
   { name: "Indie Hackers", Icon: IndieHackersIcon },
-  { name: "Quora", Icon: QuoraIcon },
 ];
 
 // Render the list twice back-to-back; equal per-item horizontal padding (no flex

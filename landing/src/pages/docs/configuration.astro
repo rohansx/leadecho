@@ -44,7 +44,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
         <td><code>ENCRYPTION_KEY</code></td>
         <td>Optional</td>
         <td>Falls back to <code>JWT_SECRET</code></td>
-        <td>AES key for encrypting stored session cookies and API keys</td>
+        <td>AES key for encrypting stored API keys</td>
       </tr>
       <tr>
         <td><code>PORT</code></td>
@@ -144,29 +144,9 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
     </thead>
     <tbody>
       <tr>
-        <td><code>PINCHTAB_URL</code></td>
-        <td><code>http://localhost:9867</code></td>
-        <td>Pinchtab sidecar API endpoint</td>
-      </tr>
-      <tr>
-        <td><code>PINCHTAB_TOKEN</code></td>
-        <td>—</td>
-        <td>Auth token for the Pinchtab service</td>
-      </tr>
-      <tr>
-        <td><code>CAMOUFOX_URL</code></td>
-        <td>—</td>
-        <td>Camoufox Pro sidecar endpoint. When set, activates stealth LinkedIn crawling.</td>
-      </tr>
-      <tr>
-        <td><code>CAMOUFOX_TOKEN</code></td>
-        <td>—</td>
-        <td>Auth token for the Camoufox service</td>
-      </tr>
-      <tr>
         <td><code>SCRAPLING_URL</code></td>
         <td>—</td>
-        <td>Scrapling adaptive extraction sidecar endpoint</td>
+        <td>Scrapling sidecar endpoint, used to read websites during onboarding</td>
       </tr>
       <tr>
         <td><code>SCRAPLING_TOKEN</code></td>

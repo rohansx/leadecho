@@ -73,6 +73,6 @@ gives the newest ~100 comments per subreddit for free; we filter locally, same a
 
 ## Config
 
-`TREG_TOKEN` (enables treg; unset = old Pinchtab/Camoufox/Scrapling paths), `TREG_ORG_ID` (budgets/
+`TREG_TOKEN` (enables treg; unset = X/LinkedIn off; Pinchtab/Camoufox were removed), `TREG_ORG_ID` (budgets/
 usage helpers only), `TREG_BASE_URL` (default `https://treg.to`), `TREG_MAX_COST_MICRO` (per-call
 ceiling, default 20000 = $0.02), `REDDIT_COMMENTS_ENABLED` (default true).

@@ -36,10 +36,7 @@ type Monitor struct {
 	scanning          sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
 	painPointsChecked sync.Map                 // workspaceID -> struct{}; pain-point embedding backfill done
 	llmRouter         llm.MentionScorer        // workspace-aware LLM/embedding router
-	pinchtab          *browser.PinchtabClient  // browser sidecar (nil if not configured)
-	camoufox          *browser.CamoufoxClient  // Pro-tier stealth Firefox sidecar (nil if not configured)
-	scrapling         *browser.ScraplingClient // Scrapling stealth fallback sidecar (nil if not configured)
-	encKey            []byte                   // AES key for decrypting session cookies
+	scrapling         *browser.ScraplingClient // Scrapling website-reading sidecar (nil if not configured)
 	exaAPIKey         string                   // Exa web-search API key (empty disables the exa source)
 	eventPublisher    *publishers.Publisher
 	enricher          LeadEnricher
@@ -57,7 +54,7 @@ type Monitor struct {
 	public *PublicSources
 	// scoring: extra few-shot example sources (e.g. onboarding calibration)
 	extraExamples []ExampleSource
-	// treg: hosted X/LinkedIn search (nil = browser paths). Reddit comment
+	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
 	redditCommentsEnabled bool
@@ -78,16 +75,13 @@ func (m *Monitor) SetGoogleNewsEnabled(v bool) { m.googleNewsEnabled = v }
 // SetCRMSync wires outbound lead events (webhooks/HubSpot/Attio). Optional.
 func (m *Monitor) SetCRMSync(d *crmsync.Dispatcher) { m.crm = d }
 
-func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, pinchtab *browser.PinchtabClient, camoufox *browser.CamoufoxClient, scrapling *browser.ScraplingClient, encKey []byte, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool, enricher LeadEnricher) *Monitor {
+func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRouter llm.MentionScorer, scrapling *browser.ScraplingClient, exaAPIKey string, eventPublisher *publishers.Publisher, streamsEnabled, streamsDualWrite, inlineFallback, qualifierAsync bool, enricher LeadEnricher) *Monitor {
 	return &Monitor{
 		q:                q,
 		logger:           logger,
 		resendAPIKey:     resendAPIKey,
 		llmRouter:        llmRouter,
-		pinchtab:         pinchtab,
-		camoufox:         camoufox,
 		scrapling:        scrapling,
-		encKey:           encKey,
 		exaAPIKey:        exaAPIKey,
 		eventPublisher:   eventPublisher,
 		enricher:         enricher,
@@ -289,22 +283,10 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlRedditComments(ctx, wsID, akw)...)
 			}
 			// Hosted treg search unless official Reddit OAuth is set; then
-			// Pinchtab → Scrapling → unauthenticated (OAuth-aware).
+			// the public crawler (OAuth-aware).
 			if m.redditViaTreg() {
 				if tregAlerts, ok := m.crawlRedditTreg(ctx, wsID, akw); ok {
 					alerts = append(alerts, tregAlerts...)
-					break
-				}
-			}
-			if m.pinchtab != nil {
-				if pinchtabAlerts := m.crawlRedditPinchtab(ctx, wsID, akw); pinchtabAlerts != nil {
-					alerts = append(alerts, pinchtabAlerts...)
-					break
-				}
-			}
-			if m.scrapling != nil {
-				if scraplingAlerts := m.crawlRedditScrapling(ctx, wsID, akw); scraplingAlerts != nil {
-					alerts = append(alerts, scraplingAlerts...)
 					break
 				}
 			}
@@ -327,28 +309,14 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 				alerts = append(alerts, m.crawlGoogleNews(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeTwitter:
-			// treg feature: hosted search first; falls through on failure.
+			// treg feature: hosted search is the only X source.
 			if a, ok := m.crawlTwitterTreg(ctx, wsID, akw); ok {
 				alerts = append(alerts, a...)
-			} else if m.pinchtab != nil {
-				alerts = append(alerts, m.crawlTwitterPinchtab(ctx, wsID, akw)...)
-			} else if m.scrapling != nil {
-				alerts = append(alerts, m.crawlTwitterScrapling(ctx, wsID, akw)...)
 			}
 		case database.PlatformTypeLinkedin:
-			// treg feature: hosted search first; falls through on failure.
+			// treg feature: hosted search is the only LinkedIn source.
 			if a, ok := m.crawlLinkedInTreg(ctx, wsID, akw); ok {
 				alerts = append(alerts, a...)
-			} else if m.camoufox != nil {
-				alerts = append(alerts, m.crawlLinkedInCamoufox(ctx, wsID, akw)...)
-			} else if m.pinchtab != nil {
-				alerts = append(alerts, m.crawlLinkedInPinchtab(ctx, wsID, akw)...)
-			} else if m.scrapling != nil {
-				alerts = append(alerts, m.crawlLinkedInScrapling(ctx, wsID, akw)...)
-			}
-		case database.PlatformTypeQuora:
-			if m.pinchtab != nil {
-				alerts = append(alerts, m.crawlQuoraPinchtab(ctx, wsID, akw)...)
 			}
 		default:
 			// Phase 2 platforms

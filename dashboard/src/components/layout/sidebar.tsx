@@ -13,7 +13,6 @@ import {
   Zap,
   Search,
   Target,
-  Globe,
   Bell,
   Settings,
   Users, // enrich
@@ -45,7 +44,6 @@ const navGroups = [
   {
     label: "Workspace",
     items: [
-      { to: "/browser-sessions", label: "Browser", icon: Globe },
       { to: "/alerts", label: "Alerts", icon: Bell },
       { to: "/settings", label: "Settings", icon: Settings },
     ],

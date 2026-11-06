@@ -12,8 +12,7 @@ import (
 
 // ScraplingClient controls a Scrapling browser sidecar via its HTTP/JSON API.
 // Scrapling provides stealth browsing with anti-bot bypass and adaptive DOM parsing.
-// The API contract is identical to PinchtabClient/CamoufoxClient for navigate/cookies/evaluate;
-// additionally exposes a higher-level Scrape() method for CSS-based extraction.
+// Used to read websites (onboarding, thread context); no session cookies.
 type ScraplingClient struct {
 	baseURL string
 	token   string
@@ -81,46 +80,6 @@ func (c *ScraplingClient) GetText(ctx context.Context) (string, error) {
 		return string(body), nil
 	}
 	return result.Text, nil
-}
-
-// InjectCookies sets browser cookies for subsequent requests.
-func (c *ScraplingClient) InjectCookies(ctx context.Context, cookies []Cookie) error {
-	return c.post(ctx, "/cookies", cookies, nil)
-}
-
-// EvaluateJS executes JavaScript in the current page context and returns the string result.
-func (c *ScraplingClient) EvaluateJS(ctx context.Context, script string) (string, error) {
-	var result struct {
-		Result string `json:"result"`
-	}
-	if err := c.post(ctx, "/evaluate", map[string]string{"expression": script}, &result); err != nil {
-		return "", err
-	}
-	return result.Result, nil
-}
-
-// ScrapeRequest is the payload for the higher-level /scrape endpoint.
-type ScrapeRequest struct {
-	URL      string            `json:"url"`
-	Selector string            `json:"selector"`
-	Fields   map[string]string `json:"fields"`
-	Limit    int               `json:"limit"`
-	Cookies  []Cookie          `json:"cookies,omitempty"`
-}
-
-// ScrapeResult holds extracted items from the /scrape endpoint.
-type ScrapeResult struct {
-	Results []map[string]string `json:"results"`
-}
-
-// Scrape uses Scrapling's adaptive CSS parsing to extract structured data in one call.
-// This avoids the navigate→wait→evaluate round-trip and works without JavaScript.
-func (c *ScraplingClient) Scrape(ctx context.Context, req ScrapeRequest) ([]map[string]string, error) {
-	var result ScrapeResult
-	if err := c.post(ctx, "/scrape", req, &result); err != nil {
-		return nil, err
-	}
-	return result.Results, nil
 }
 
 func (c *ScraplingClient) post(ctx context.Context, path string, body any, out any) error {

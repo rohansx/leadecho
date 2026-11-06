@@ -185,8 +185,35 @@ func tregMentionBase(wsID string, kw database.ListActiveKeywordsRow, platform da
 	}
 }
 
-// tregTwitterParams maps a hit to a mention. PlatformID matches the
-// Pinchtab/Scrapling crawlers ("twitter_<status id>") so sources dedupe.
+// extractStatusID extracts the numeric status ID from a Twitter URL.
+// e.g. "https://x.com/user/status/1234567890" → "1234567890"
+func extractStatusID(tweetURL string) string {
+	parts := strings.Split(tweetURL, "/status/")
+	if len(parts) < 2 {
+		return ""
+	}
+	id := parts[1]
+	if idx := strings.IndexAny(id, "?#/"); idx >= 0 {
+		id = id[:idx]
+	}
+	return strings.TrimSpace(id)
+}
+
+// extractLinkedInID extracts the activity ID from a LinkedIn URL.
+// e.g. "https://www.linkedin.com/feed/update/urn:li:activity:1234567890" → "1234567890"
+func extractLinkedInID(postURL string) string {
+	if idx := strings.LastIndex(postURL, ":"); idx >= 0 {
+		id := postURL[idx+1:]
+		if qIdx := strings.IndexAny(id, "?#/"); qIdx >= 0 {
+			id = id[:qIdx]
+		}
+		return strings.TrimSpace(id)
+	}
+	return ""
+}
+
+// tregTwitterParams maps a hit to a mention. PlatformID keeps the
+// "twitter_<status id>" shape of existing rows so sources dedupe.
 func tregTwitterParams(wsID string, kw database.ListActiveKeywordsRow, p tregPost) (database.CreateMentionParams, bool) {
 	id := p.ID
 	if id == "" {

@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_dashboard/keywords")({
   component: KeywordsPage,
 });
 
-const platformOptions = ["reddit", "hackernews", "devto", "googlenews", "lobsters", "indiehackers", "twitter", "linkedin", "quora", "exa", "bluesky"] as const;
+const platformOptions = ["reddit", "hackernews", "devto", "googlenews", "lobsters", "indiehackers", "twitter", "linkedin", "exa", "bluesky"] as const;
 const matchTypes = ["broad", "exact", "phrase"] as const;
 
 function KeywordsPage() {

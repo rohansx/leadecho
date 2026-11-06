@@ -10,7 +10,6 @@ import type {
   StatusCount,
   TierCount,
   MonitoringProfile,
-  PlatformSession,
   ExtensionTokenInfo,
   OnboardingStatus,
   UTMLink,
@@ -663,30 +662,6 @@ export function draftReply(id: string, responseProfileId?: string) {
 
 export function getMentionPerson360(id: string) {
   return request<Person360Response>(`/mentions/${id}/person360`);
-}
-
-// ─── Browser Sessions ──────────────────────────────────
-
-export function listSessions() {
-  return request<PlatformSession[]>("/settings/sessions");
-}
-
-export function saveSession(platform: string, data: { session_cookie: string; username?: string }) {
-  return request<PlatformSession>(`/settings/sessions/${platform}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
-
-export function deleteSession(platform: string) {
-  return request<PlatformSession>(`/settings/sessions/${platform}`, { method: "DELETE" });
-}
-
-export function testSession(platform: string) {
-  return request<{ pinchtab_online: boolean; cookie_valid: boolean; message: string }>(
-    `/settings/sessions/${platform}/test`,
-    { method: "POST" },
-  );
 }
 
 // ─── Settings (BYOK API Keys) ─────────────────────────
