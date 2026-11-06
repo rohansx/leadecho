@@ -94,7 +94,6 @@ type Querier interface {
 	DeleteMonitoringProfile(ctx context.Context, arg DeleteMonitoringProfileParams) error
 	DeleteMute(ctx context.Context, arg DeleteMuteParams) (int64, error)
 	DeletePainPointEmbeddingsByProfile(ctx context.Context, profileID string) error
-	DeletePlatformSession(ctx context.Context, arg DeletePlatformSessionParams) error
 	DeleteResponseProfile(ctx context.Context, arg DeleteResponseProfileParams) (int64, error)
 	DeleteTrackedProfile(ctx context.Context, arg DeleteTrackedProfileParams) (int64, error)
 	DeleteUTMLink(ctx context.Context, arg DeleteUTMLinkParams) error
@@ -139,7 +138,6 @@ type Querier interface {
 	GetPerson(ctx context.Context, arg GetPersonParams) (Person, error)
 	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
 	GetPersonIdentity(ctx context.Context, arg GetPersonIdentityParams) (PersonIdentity, error)
-	GetPlatformSession(ctx context.Context, arg GetPlatformSessionParams) (PlatformAccount, error)
 	GetPreferredResponseProfile(ctx context.Context, workspaceID string) (ResponseProfile, error)
 	GetReply(ctx context.Context, arg GetReplyParams) (Reply, error)
 	GetResponseProfile(ctx context.Context, arg GetResponseProfileParams) (ResponseProfile, error)
@@ -205,7 +203,6 @@ type Querier interface {
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
 	ListPainPointEmbeddingsByWorkspace(ctx context.Context, workspaceID string) ([]PainPointEmbedding, error)
 	ListPersonIdentities(ctx context.Context, arg ListPersonIdentitiesParams) ([]PersonIdentity, error)
-	ListPlatformSessions(ctx context.Context, workspaceID string) ([]PlatformAccount, error)
 	ListPostedRepliesSince(ctx context.Context, since pgtype.Timestamptz) ([]ListPostedRepliesSinceRow, error)
 	ListRecentLeadsForWorkspace(ctx context.Context, arg ListRecentLeadsForWorkspaceParams) ([]ListRecentLeadsForWorkspaceRow, error)
 	ListReplayableEvents(ctx context.Context, arg ListReplayableEventsParams) ([]EventLog, error)
@@ -300,7 +297,6 @@ type Querier interface {
 	UpsertKeywordPlatformScan(ctx context.Context, arg UpsertKeywordPlatformScanParams) error
 	UpsertMentionFeedback(ctx context.Context, arg UpsertMentionFeedbackParams) (MentionFeedback, error)
 	UpsertPersonIdentity(ctx context.Context, arg UpsertPersonIdentityParams) (PersonIdentity, error)
-	UpsertPlatformSession(ctx context.Context, arg UpsertPlatformSessionParams) (PlatformAccount, error)
 	UpsertSampleFeedback(ctx context.Context, arg UpsertSampleFeedbackParams) (OnboardingSampleFeedback, error)
 }
 

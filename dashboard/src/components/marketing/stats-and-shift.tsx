@@ -15,7 +15,7 @@ const agents = [
     num: "01 · ingest",
     name: "Scout",
     desc: "Pulls posts from 7 platforms on a 5-min schedule. Stays intentionally dumb — only collects.",
-    tools: ["reddit api", "pinchtab", "camoufox"],
+    tools: ["reddit api", "treg", "public feeds"],
   },
   {
     icon: ArrowDownUp,

@@ -40,7 +40,6 @@ func main() {
 		shared.Config,
 		shared.LLMRouter,
 		shared.EventPublisher,
-		shared.Pinchtab,
 		shared.Scrapling,
 		shared.Monitor,
 		shared.ReplyDrafter,

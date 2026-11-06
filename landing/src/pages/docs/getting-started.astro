@@ -89,30 +89,16 @@ make migrate-up</code></pre>
     </tbody>
   </table>
 
-  <h2>With Browser Sidecars</h2>
+  <h2>X and LinkedIn</h2>
 
   <p>
-    Browser sidecars enable authenticated crawling of Reddit, Twitter, and LinkedIn.
-    They run as separate Docker containers alongside the main stack.
+    Set <code>TREG_TOKEN</code> to monitor X and LinkedIn through treg's hosted search.
+    No browser cookies or logged-in sessions are needed.
   </p>
 
-  <h3>Pinchtab (Reddit, Twitter, LinkedIn)</h3>
+  <h3>Scrapling (website reading, optional)</h3>
 
-  <pre><code># Start with Pinchtab sidecar
-docker compose --profile browser up -d
-
-# Required env vars:
-# PINCHTAB_TOKEN=your-token
-# PINCHTAB_URL=http://localhost:9867  (default)</code></pre>
-
-  <h3>Camoufox Pro (stealth LinkedIn)</h3>
-
-  <pre><code># Start with Camoufox sidecar (Pro tier)
-CAMOUFOX_URL=http://localhost:9868 docker compose --profile browser-pro up -d</code></pre>
-
-  <h3>Scrapling (fallback)</h3>
-
-  <pre><code># Adaptive CSS-based extraction fallback
+  <pre><code># Reads product websites during onboarding
 docker compose --profile browser-scrapling up -d</code></pre>
 
   <h2>Manual Development Setup</h2>

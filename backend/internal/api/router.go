@@ -36,7 +36,7 @@ import (
 	"leadecho/internal/tools"
 )
 
-func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, pinchtab *browser.PinchtabClient, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter, kb *knowledge.Service, rs *researcher.Service) *chi.Mux {
+func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, cfg *config.Config, llmRouter *llm.Router, eventPublisher *publishers.Publisher, scrapling *browser.ScraplingClient, mon *monitor.Monitor, replyDrafter *reply.Drafter, kb *knowledge.Service, rs *researcher.Service) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -254,16 +254,6 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/tracked-profiles", trackedH.Create)
 			r.Delete("/tracked-profiles/{id}", trackedH.Delete)
 			// end enrich
-
-			// Browser sessions (Pinchtab)
-			sessions := handler.NewSessionHandler(queries, encKey, pinchtab)
-			if cfg.TregToken != "" { // treg feature: X/LinkedIn need no cookies
-				sessions.SetManaged(handler.TregManagedPlatforms...)
-			}
-			r.Get("/settings/sessions", sessions.List)
-			r.Put("/settings/sessions/{platform}", sessions.Save)
-			r.Delete("/settings/sessions/{platform}", sessions.Delete)
-			r.Post("/settings/sessions/{platform}/test", sessions.Test)
 
 			// Chrome extension token management
 			r.Get("/settings/extension-token", ext.GetToken)

@@ -100,4 +100,4 @@ Branch: `e2e-hardening` (off `master` @ 884134e). No pushes without approval.
 
 ## Feature surface to cover
 Pages: index(overview), inbox, pipeline, keywords, knowledge-base, profiles,
-analytics, alerts, workflows, browser-sessions, settings, onboarding, + auth.
+analytics, alerts, workflows, settings, onboarding, + auth.

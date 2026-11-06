@@ -79,7 +79,7 @@ func TestCrawlRedditTregRequest(t *testing.T) {
 }
 
 // Official Reddit OAuth (free) wins over treg; treg wins over the
-// logged-in browser paths, which risk the user's Reddit account.
+// unauthenticated public crawler.
 func TestRedditViaTreg(t *testing.T) {
 	off := &Monitor{logger: zerolog.Nop(), public: &PublicSources{}}
 	if off.redditViaTreg() {

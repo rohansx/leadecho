@@ -23,7 +23,6 @@ import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywo
 import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
 import { Route as DashboardEngagersRouteImport } from "./routes/_dashboard/engagers"
 import { Route as DashboardChatRouteImport } from "./routes/_dashboard/chat"
-import { Route as DashboardBrowserSessionsRouteImport } from "./routes/_dashboard/browser-sessions"
 import { Route as DashboardAutomationsRouteImport } from "./routes/_dashboard/automations"
 import { Route as DashboardAnalyticsRouteImport } from "./routes/_dashboard/analytics"
 import { Route as DashboardAlertsRouteImport } from "./routes/_dashboard/alerts"
@@ -100,12 +99,6 @@ const DashboardChatRoute = DashboardChatRouteImport.update({
   path: "/chat",
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardBrowserSessionsRoute =
-  DashboardBrowserSessionsRouteImport.update({
-    id: "/browser-sessions",
-    path: "/browser-sessions",
-    getParentRoute: () => DashboardRoute,
-  } as any)
 const DashboardAutomationsRoute = DashboardAutomationsRouteImport.update({
   id: "/automations",
   path: "/automations",
@@ -153,7 +146,6 @@ export interface FileRoutesByFullPath {
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
   "/automations": typeof DashboardAutomationsRoute
-  "/browser-sessions": typeof DashboardBrowserSessionsRoute
   "/chat": typeof DashboardChatRoute
   "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
@@ -175,7 +167,6 @@ export interface FileRoutesByTo {
   "/alerts": typeof DashboardAlertsRoute
   "/analytics": typeof DashboardAnalyticsRoute
   "/automations": typeof DashboardAutomationsRoute
-  "/browser-sessions": typeof DashboardBrowserSessionsRoute
   "/chat": typeof DashboardChatRoute
   "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
@@ -200,7 +191,6 @@ export interface FileRoutesById {
   "/_dashboard/alerts": typeof DashboardAlertsRoute
   "/_dashboard/analytics": typeof DashboardAnalyticsRoute
   "/_dashboard/automations": typeof DashboardAutomationsRoute
-  "/_dashboard/browser-sessions": typeof DashboardBrowserSessionsRoute
   "/_dashboard/chat": typeof DashboardChatRoute
   "/_dashboard/engagers": typeof DashboardEngagersRoute
   "/_dashboard/inbox": typeof DashboardInboxRoute
@@ -224,7 +214,6 @@ export interface FileRouteTypes {
     | "/alerts"
     | "/analytics"
     | "/automations"
-    | "/browser-sessions"
     | "/chat"
     | "/engagers"
     | "/inbox"
@@ -246,7 +235,6 @@ export interface FileRouteTypes {
     | "/alerts"
     | "/analytics"
     | "/automations"
-    | "/browser-sessions"
     | "/chat"
     | "/engagers"
     | "/inbox"
@@ -270,7 +258,6 @@ export interface FileRouteTypes {
     | "/_dashboard/alerts"
     | "/_dashboard/analytics"
     | "/_dashboard/automations"
-    | "/_dashboard/browser-sessions"
     | "/_dashboard/chat"
     | "/_dashboard/engagers"
     | "/_dashboard/inbox"
@@ -390,13 +377,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardChatRouteImport
       parentRoute: typeof DashboardRoute
     }
-    "/_dashboard/browser-sessions": {
-      id: "/_dashboard/browser-sessions"
-      path: "/browser-sessions"
-      fullPath: "/browser-sessions"
-      preLoaderRoute: typeof DashboardBrowserSessionsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
     "/_dashboard/automations": {
       id: "/_dashboard/automations"
       path: "/automations"
@@ -469,7 +449,6 @@ interface DashboardRouteChildren {
   DashboardAlertsRoute: typeof DashboardAlertsRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardAutomationsRoute: typeof DashboardAutomationsRoute
-  DashboardBrowserSessionsRoute: typeof DashboardBrowserSessionsRoute
   DashboardChatRoute: typeof DashboardChatRoute
   DashboardEngagersRoute: typeof DashboardEngagersRoute
   DashboardInboxRoute: typeof DashboardInboxRoute
@@ -485,7 +464,6 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAlertsRoute: DashboardAlertsRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardAutomationsRoute: DashboardAutomationsRoute,
-  DashboardBrowserSessionsRoute: DashboardBrowserSessionsRoute,
   DashboardChatRoute: DashboardChatRoute,
   DashboardEngagersRoute: DashboardEngagersRoute,
   DashboardInboxRoute: DashboardInboxRoute,

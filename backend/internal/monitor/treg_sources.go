@@ -15,11 +15,11 @@ const (
 )
 
 // SetTreg enables the hosted X/LinkedIn sources. nil (TREG_TOKEN unset)
-// keeps the Pinchtab/Camoufox/Scrapling paths.
+// disables X and LinkedIn (Reddit uses its public crawler).
 func (m *Monitor) SetTreg(c *treg.Client) { m.treg = c }
 
 // tregSearch runs one treg search. ok=false means "treg could not answer"
-// and the caller falls back to the browser paths; errors never reach users.
+// and the caller falls back (Reddit only); errors never reach users.
 func (m *Monitor) tregSearch(ctx context.Context, wsID, tool string, body any) ([]tregPost, bool) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tool, Body: body})
 	if err != nil {
@@ -78,7 +78,7 @@ func (m *Monitor) crawlRedditTreg(ctx context.Context, wsID string, kw database.
 }
 
 // redditViaTreg: the official Reddit API (free) wins when configured; else
-// treg, ahead of the logged-in browser paths that risk the user's account.
+// treg, ahead of the unauthenticated public crawler.
 func (m *Monitor) redditViaTreg() bool {
 	return m.treg.Enabled() && m.sources().RedditOAuth == nil
 }
