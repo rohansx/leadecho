@@ -10,8 +10,27 @@ import (
 	"time"
 )
 
-// Default applies to any platform without an explicit cadence.
+// Default applies to free platforms without an explicit cadence.
 const Default = time.Hour
+
+// PaidDefault applies to paid platforms (searched through treg): every 4h
+// keeps the operator's data balance from draining.
+const PaidDefault = 4 * time.Hour
+
+// defaultFor is the cadence a platform gets when none is set.
+func defaultFor(platform string) time.Duration {
+	if CostPerCall[platform] > 0 {
+		return PaidDefault
+	}
+	return Default
+}
+
+func defaultLabel(platform string) string {
+	if CostPerCall[platform] > 0 {
+		return "4h"
+	}
+	return "1h"
+}
 
 // skew lets a scan that finished slightly less than one interval ago count as
 // due, so a cadence equal to the tick interval doesn't slip every other tick.
@@ -20,15 +39,16 @@ const skew = time.Minute
 // Options are the cadences the UI offers; anything else is rejected.
 var Options = map[string]time.Duration{
 	"15m": 15 * time.Minute, "30m": 30 * time.Minute, "1h": time.Hour,
-	"3h": 3 * time.Hour, "6h": 6 * time.Hour, "12h": 12 * time.Hour, "24h": 24 * time.Hour,
+	"3h": 3 * time.Hour, "4h": 4 * time.Hour, "6h": 6 * time.Hour, "12h": 12 * time.Hour, "24h": 24 * time.Hour,
 }
 
 // CostPerCall is the data cost (USD) of one search call. Platforms not listed
 // are unknown and rejected by Parse. Keep in sync with the platform_type enum.
 var CostPerCall = map[string]float64{
-	"twitter":  0.00075,
-	"linkedin": 0.002,
-	"reddit":   0, "hackernews": 0, "devto": 0, "bluesky": 0,
+	"twitter":    0.00075,
+	"linkedin":   0.002,
+	"reddit":     0.0009, // treg crawl4ai.reddit.search.posts
+	"hackernews": 0, "devto": 0, "bluesky": 0,
 	"lobsters": 0, "indiehackers": 0, "quora": 0, "exa": 0, "googlenews": 0,
 }
 
@@ -49,25 +69,25 @@ func Parse(raw []byte) (Map, error) {
 			return nil, fmt.Errorf("unknown platform %q", p)
 		}
 		if _, ok := Options[v]; !ok {
-			return nil, fmt.Errorf("unsupported cadence %q for %s (use 15m, 30m, 1h, 3h, 6h, 12h or 24h)", v, p)
+			return nil, fmt.Errorf("unsupported cadence %q for %s (use 15m, 30m, 1h, 3h, 4h, 6h, 12h or 24h)", v, p)
 		}
 	}
 	return m, nil
 }
 
-// Interval returns the scan interval for platform (Default if unset/invalid).
+// Interval returns the scan interval for platform (its default if unset/invalid).
 func (m Map) Interval(platform string) time.Duration {
 	if d, ok := Options[m[platform]]; ok {
 		return d
 	}
-	return Default
+	return defaultFor(platform)
 }
 
 func (m Map) label(platform string) string {
 	if _, ok := Options[m[platform]]; ok {
 		return m[platform]
 	}
-	return "1h"
+	return defaultLabel(platform)
 }
 
 // Due returns the platforms (in input order) whose last scan is at least one

@@ -178,6 +178,9 @@ func (h *AIHandler) DraftReply(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "response profile not found")
 		return
 	}
+	if writeOutOfCredits(w, err) {
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "draft generation failed: "+err.Error())
 		return

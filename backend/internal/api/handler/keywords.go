@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"leadecho/internal/api/middleware"
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 )
 
@@ -37,7 +39,25 @@ func isUniqueViolation(err error) bool {
 }
 
 type KeywordHandler struct {
-	q *database.Queries
+	q       *database.Queries
+	credits *billing.Credits // billing: plan keyword limits
+}
+
+// SetCredits enforces the plan's active-keyword limit.
+func (h *KeywordHandler) SetCredits(c *billing.Credits) { h.credits = c }
+
+// keywordLimitReached writes a 403 when one more active keyword is over the plan limit.
+func (h *KeywordHandler) keywordLimitReached(w http.ResponseWriter, r *http.Request, wsID string) bool {
+	ok, limit, err := h.credits.CanAddKeyword(r.Context(), wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check plan limits")
+		return true
+	}
+	if !ok {
+		writeError(w, http.StatusForbidden, fmt.Sprintf("your plan allows %d active keywords: upgrade, or switch one off first", limit))
+		return true
+	}
+	return false
 }
 
 func NewKeywordHandler(q *database.Queries) *KeywordHandler {
@@ -156,6 +176,9 @@ func (h *KeywordHandler) Create(w http.ResponseWriter, r *http.Request) {
 		profileID = profiles[0].ID
 	}
 
+	if h.keywordLimitReached(w, r, wsID) {
+		return
+	}
 	k, err := h.q.CreateKeyword(r.Context(), database.CreateKeywordParams{
 		WorkspaceID:   wsID,
 		ProfileID:     profileID,
@@ -222,6 +245,9 @@ func (h *KeywordHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	isActive := existing.IsActive
 	if body.IsActive != nil {
+		if *body.IsActive && !existing.IsActive && h.keywordLimitReached(w, r, wsID) {
+			return
+		}
 		isActive = *body.IsActive
 	}
 

@@ -516,6 +516,23 @@ type ConsumerProcessedEvent struct {
 	ResultStatus   string      `json:"result_status"`
 }
 
+type CreditLedger struct {
+	ID           string    `json:"id"`
+	WorkspaceID  string    `json:"workspace_id"`
+	Delta        int32     `json:"delta"`
+	BalanceAfter int32     `json:"balance_after"`
+	Reason       string    `json:"reason"`
+	Ref          string    `json:"ref"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type CreditUsageDaily struct {
+	WorkspaceID string      `json:"workspace_id"`
+	Day         pgtype.Date `json:"day"`
+	Reason      string      `json:"reason"`
+	Credits     int32       `json:"credits"`
+}
+
 type DeadLetterEvent struct {
 	ID               string             `json:"id"`
 	EventID          string             `json:"event_id"`
@@ -830,6 +847,21 @@ type OnboardingSampleFeedback struct {
 	CreatedAt   time.Time   `json:"created_at"`
 }
 
+type OpsAudit struct {
+	ID          string      `json:"id"`
+	ActorEmail  string      `json:"actor_email"`
+	Action      string      `json:"action"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Detail      []byte      `json:"detail"`
+	CreatedAt   time.Time   `json:"created_at"`
+}
+
+type OpsSetting struct {
+	Key       string    `json:"key"`
+	Value     []byte    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type PainPointEmbedding struct {
 	ID          string              `json:"id"`
 	ProfileID   string              `json:"profile_id"`
@@ -1071,18 +1103,27 @@ type WorkflowExecution struct {
 }
 
 type Workspace struct {
-	ID               string      `json:"id"`
-	ClerkOrgID       string      `json:"clerk_org_id"`
-	Name             string      `json:"name"`
-	Slug             string      `json:"slug"`
-	Tier             string      `json:"tier"`
-	StripeCustomerID pgtype.Text `json:"stripe_customer_id"`
-	Settings         []byte      `json:"settings"`
-	KeywordLimit     int32       `json:"keyword_limit"`
-	MentionLimit     int32       `json:"mention_limit"`
-	SeatLimit        int32       `json:"seat_limit"`
-	CreatedAt        time.Time   `json:"created_at"`
-	UpdatedAt        time.Time   `json:"updated_at"`
+	ID                 string             `json:"id"`
+	ClerkOrgID         string             `json:"clerk_org_id"`
+	Name               string             `json:"name"`
+	Slug               string             `json:"slug"`
+	Tier               string             `json:"tier"`
+	StripeCustomerID   pgtype.Text        `json:"stripe_customer_id"`
+	Settings           []byte             `json:"settings"`
+	KeywordLimit       int32              `json:"keyword_limit"`
+	MentionLimit       int32              `json:"mention_limit"`
+	SeatLimit          int32              `json:"seat_limit"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	Plan               string             `json:"plan"`
+	CreditBalance      int32              `json:"credit_balance"`
+	CreditsRefreshedAt time.Time          `json:"credits_refreshed_at"`
+	PlanRenewsAt       pgtype.Timestamptz `json:"plan_renews_at"`
+	DodoCustomerID     pgtype.Text        `json:"dodo_customer_id"`
+	DodoSubscriptionID pgtype.Text        `json:"dodo_subscription_id"`
+	PaidData           bool               `json:"paid_data"`
+	ScanningPaused     bool               `json:"scanning_paused"`
+	PlanSource         string             `json:"plan_source"`
 }
 
 type WorkspaceApiKey struct {

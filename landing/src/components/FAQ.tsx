@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 const faqs = [
   {
     q: 'Does it work without API keys?',
-    a: 'Reddit and Hacker News work completely without any API keys. For AI scoring you need to provide your own key from OpenAI, Anthropic, or a compatible provider. Twitter and LinkedIn are searched through treg's hosted API (TREG_TOKEN); no browser cookies needed.',
+    a: "Yes. Reddit, Hacker News, Dev.to and Bluesky need no keys. On the hosted plans, AI scoring and X/LinkedIn search are included and paid for with credits. Self-hosted, you bring your own AI key and a treg token for X/LinkedIn; no browser cookies needed.",
   },
   {
     q: 'How is this different from keyword alerts?',

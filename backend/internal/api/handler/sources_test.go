@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -148,8 +149,9 @@ func TestKeywordCostPreview(t *testing.T) {
 		t.Fatalf("resp = %+v", resp)
 	}
 	// Inactive keywords are listed but do not count toward the total.
-	if resp.USDPerMonth != 0.54 {
-		t.Errorf("total = %v, want 0.54", resp.USDPerMonth)
+	// twitter @1h: 720 x $0.00075 = 0.54; reddit (treg, default 4h): 180 x $0.0009 = 0.162.
+	if math.Abs(resp.USDPerMonth-0.702) > 1e-9 {
+		t.Errorf("total = %v, want 0.702", resp.USDPerMonth)
 	}
 	if resp.Rates["linkedin"] != 0.002 || len(resp.Options) == 0 {
 		t.Errorf("rates/options missing: %+v", resp)

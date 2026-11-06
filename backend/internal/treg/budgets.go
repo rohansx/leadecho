@@ -62,6 +62,17 @@ func (c *Client) UsageByTag(ctx context.Context, key string, days int) (*TagUsag
 	return &out, nil
 }
 
+// Balance is the org's prepaid treg balance in micro-USD.
+func (c *Client) Balance(ctx context.Context) (int64, error) {
+	var out struct {
+		BalanceMicro int64 `json:"balance_micro"`
+	}
+	if err := c.admin(ctx, http.MethodGet, "/balance", nil, &out); err != nil {
+		return 0, err
+	}
+	return out.BalanceMicro, nil
+}
+
 func (c *Client) admin(ctx context.Context, method, path string, body []byte, out any) error {
 	if !c.Enabled() {
 		return ErrNotConfigured
