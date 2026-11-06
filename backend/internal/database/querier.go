@@ -196,6 +196,8 @@ type Querier interface {
 	ListLeadEvents(ctx context.Context, leadID string) ([]LeadEvent, error)
 	ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, error)
 	ListLeadsByStage(ctx context.Context, arg ListLeadsByStageParams) ([]Lead, error)
+	// Pipeline list: each lead plus what the person actually wrote, best first.
+	ListLeadsWithMention(ctx context.Context, arg ListLeadsWithMentionParams) ([]ListLeadsWithMentionRow, error)
 	ListMentions(ctx context.Context, arg ListMentionsParams) ([]Mention, error)
 	ListMentionsByIntent(ctx context.Context, arg ListMentionsByIntentParams) ([]Mention, error)
 	ListMentionsByPlatform(ctx context.Context, arg ListMentionsByPlatformParams) ([]Mention, error)

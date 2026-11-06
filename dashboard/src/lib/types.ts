@@ -55,6 +55,17 @@ export interface Lead {
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  /** The post that made them a lead (list endpoint only). */
+  mention?: LeadMention | null;
+}
+
+export interface LeadMention {
+  title: string | null;
+  snippet: string;
+  url: string;
+  intent: string | null;
+  score: number | null;
+  posted_at: string | null;
 }
 
 export interface Keyword {

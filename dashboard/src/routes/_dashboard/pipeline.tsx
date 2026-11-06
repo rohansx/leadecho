@@ -1,47 +1,35 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import {
-  DollarSign,
-  User,
-  ExternalLink,
-  ChevronRight,
-  RefreshCw,
-} from "lucide-react";
 import { listLeads, updateLeadStage, leadCounts } from "@/lib/api";
-import type { Lead, LeadStage } from "@/lib/types";
-import { platformTone, stageTone } from "@/lib/tones";
+import type { LeadStage } from "@/lib/types";
+import { sortLeads } from "@/lib/pipeline";
 import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
+import { LeadRow } from "@/components/pipeline/lead-row";
+import { StageTabs } from "@/components/pipeline/stage-tabs";
 
 export const Route = createFileRoute("/_dashboard/pipeline")({
   component: PipelinePage,
 });
 
-const stages: { key: LeadStage; label: string }[] = [
-  { key: "prospect", label: "Prospect" },
-  { key: "qualified", label: "Qualified" },
-  { key: "engaged", label: "Engaged" },
-  { key: "converted", label: "Converted" },
-  { key: "lost", label: "Lost" },
-];
-
-const nextStage: Record<string, LeadStage | null> = {
-  prospect: "qualified",
-  qualified: "engaged",
-  engaged: "converted",
-  converted: null,
-  lost: null,
+const EMPTY: Record<LeadStage, string> = {
+  prospect: "Leads appear here when someone asks for a tool like yours. Reply, then move them along.",
+  qualified: "People you've replied to land here. Move them on when they answer.",
+  engaged: "Leads you're in a back-and-forth with. Mark them Won when they sign up.",
+  converted: "Leads that became customers. Nothing here yet.",
+  lost: "Leads that weren't a fit. Nothing here yet.",
 };
 
 function PipelinePage() {
   const queryClient = useQueryClient();
+  const [stage, setStage] = useState<LeadStage>("prospect");
+  const [platform, setPlatform] = useState("");
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["leads"],
-    queryFn: () => listLeads({ limit: 100 }),
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["leads", stage],
+    // ponytail: first 100 per stage (API max); add paging when a stage outgrows it.
+    queryFn: () => listLeads({ stage, limit: 100 }),
   });
 
   const { data: counts } = useQuery({
@@ -50,198 +38,74 @@ function PipelinePage() {
   });
 
   const moveMutation = useMutation({
-    mutationFn: ({ id, stage }: { id: string; stage: string }) =>
-      updateLeadStage(id, stage),
+    mutationFn: ({ id, stage: next }: { id: string; stage: LeadStage }) => updateLeadStage(id, next),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["leadCounts"] });
     },
   });
 
-  const leads = data?.data ?? [];
+  const all = data?.data ?? [];
+  const platforms = [...new Set(all.map((l) => l.platform).filter((p): p is NonNullable<typeof p> => !!p))];
+  const leads = sortLeads(platform ? all.filter((l) => l.platform === platform) : all);
   const countMap = new Map(counts?.map((c) => [c.status, c.count]) ?? []);
 
-  const leadsByStage = (stage: string) =>
-    leads.filter((l: Lead) => l.stage === stage);
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Text as="h2">Lead Pipeline</Text>
-        <div className="flex gap-2 items-center">
-          <Badge variant="surface">{leads.length} leads</Badge>
-          <ExportCsvButton kind="leads" label="Export CSV" /> {/* sources */}
-          <Button size="sm" variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            Refresh
-          </Button>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <Text as="h2">Pipeline</Text>
+          <p className="text-sm text-muted-foreground">Who to reply to, and what's next.</p>
         </div>
+        <ExportCsvButton kind="leads" label="Export CSV" /> {/* sources */}
       </div>
 
-      {/* Loading state */}
-      {isLoading && (
-        <Card className="w-full">
-          <CardContent className="p-8 text-center">
-            <Text as="p" className="text-muted-foreground">
-              Loading pipeline...
-            </Text>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Kanban Board */}
-      {!isLoading && (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {stages.map((stage) => {
-            const stageLeads = leadsByStage(stage.key);
-            const count = countMap.get(stage.key) ?? stageLeads.length;
-            return (
-              <div
-                key={stage.key}
-                className="min-w-[256px] w-[256px] flex-shrink-0"
-              >
-                {/* Column Header */}
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      className={stageTone(stage.key)}
-                      size="sm"
-                    >
-                      {stage.label}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground font-[family-name:var(--font-sans)]">
-                      {count}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Lead Cards */}
-                <div className="space-y-3">
-                  {stageLeads.length === 0 && (
-                    <div className="border border-dashed border-border rounded-lg p-6 text-center">
-                      <Text
-                        as="p"
-                        className="text-xs text-muted-foreground"
-                      >
-                        No leads
-                      </Text>
-                    </div>
-                  )}
-                  {stageLeads.map((lead: Lead) => (
-                    <LeadCard
-                      key={lead.id}
-                      lead={lead}
-                      onMove={(id, newStage) =>
-                        moveMutation.mutate({ id, stage: newStage })
-                      }
-                      isPending={moveMutation.isPending}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LeadCard({
-  lead,
-  onMove,
-  isPending,
-}: {
-  lead: Lead;
-  onMove: (id: string, stage: string) => void;
-  isPending: boolean;
-}) {
-  const next = nextStage[lead.stage];
-
-  return (
-    <Card className="w-full hover:shadow-sm">
-      <CardContent className="p-3 space-y-2">
-        {/* Name + Platform */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <Text as="span" className="text-sm font-medium truncate max-w-[140px]">
-              {lead.contact_name ?? lead.username ?? "Unknown"}
-            </Text>
-          </div>
-          {lead.platform && (
-            <Badge
-              className={platformTone(lead.platform)}
-              size="sm"
-            >
-              {lead.platform}
-            </Badge>
-          )}
-        </div>
-
-        {/* Company */}
-        {lead.company && (
-          <Text as="p" className="text-xs text-muted-foreground truncate">
-            {lead.company}
-          </Text>
-        )}
-
-        {/* Value */}
-        {lead.estimated_value != null && lead.estimated_value > 0 && (
-          <div className="flex items-center gap-1">
-            <DollarSign className="h-3 w-3 text-success" />
-            <Text as="span" className="text-xs font-medium text-success tabular-nums">
-              ${lead.estimated_value.toLocaleString()}/yr
-            </Text>
-          </div>
-        )}
-
-        {/* Tags */}
-        {lead.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {lead.tags.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="outline" size="sm" className="text-xs">
-                {tag}
-              </Badge>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <StageTabs
+          value={stage}
+          counts={countMap}
+          onChange={(s) => {
+            setStage(s);
+            setPlatform("");
+          }}
+        />
+        {platforms.length > 1 && (
+          <select
+            aria-label="Filter by platform"
+            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground"
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value)}
+          >
+            <option value="">All platforms</option>
+            {platforms.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
             ))}
-          </div>
+          </select>
         )}
+      </div>
 
-        {/* Notes preview */}
-        {lead.notes && (
-          <Text as="p" className="text-xs text-muted-foreground line-clamp-2">
-            {lead.notes}
-          </Text>
+      <div className="rounded-xl border border-border bg-card">
+        {isLoading ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">Loading leads…</p>
+        ) : isError ? (
+          <p className="p-8 text-center text-sm text-destructive">Couldn't load leads. Try refreshing.</p>
+        ) : leads.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">{EMPTY[stage]}</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {leads.map((lead) => (
+              <LeadRow
+                key={lead.id}
+                lead={lead}
+                pending={moveMutation.isPending && moveMutation.variables?.id === lead.id}
+                onStage={(id, next) => moveMutation.mutate({ id, stage: next })}
+              />
+            ))}
+          </ul>
         )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-          {lead.profile_url && (
-            <a
-              href={lead.profile_url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button size="sm" variant="ghost" className="h-7 px-2">
-                <ExternalLink className="h-3 w-3" />
-              </Button>
-            </a>
-          )}
-          {next && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto h-7 px-2 text-xs"
-              onClick={() => onMove(lead.id, next)}
-              disabled={isPending}
-            >
-              {next}
-              <ChevronRight className="h-3 w-3 ml-1" />
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

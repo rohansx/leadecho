@@ -363,6 +363,89 @@ func (q *Queries) ListLeadsByStage(ctx context.Context, arg ListLeadsByStagePara
 	return items, nil
 }
 
+const listLeadsWithMention = `-- name: ListLeadsWithMention :many
+SELECT l.id, l.workspace_id, l.mention_id, l.stage, l.contact_name, l.contact_email, l.company, l.username, l.platform, l.profile_url, l.estimated_value, l.notes, l.tags, l.metadata, l.created_at, l.updated_at, l.person_id,
+       m.title               AS mention_title,
+       m.content             AS mention_content,
+       m.url                 AS mention_url,
+       m.intent              AS mention_intent,
+       m.relevance_score     AS mention_score,
+       m.platform_created_at AS mention_posted_at
+FROM leads l
+LEFT JOIN mentions m ON m.id = l.mention_id AND m.workspace_id = l.workspace_id
+WHERE l.workspace_id = $1
+  AND ($2::lead_stage IS NULL OR l.stage = $2::lead_stage)
+ORDER BY m.relevance_score DESC NULLS LAST, l.created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListLeadsWithMentionParams struct {
+	WorkspaceID string        `json:"workspace_id"`
+	Stage       NullLeadStage `json:"stage"`
+	Off         int32         `json:"off"`
+	Lim         int32         `json:"lim"`
+}
+
+type ListLeadsWithMentionRow struct {
+	Lead            Lead               `json:"lead"`
+	MentionTitle    pgtype.Text        `json:"mention_title"`
+	MentionContent  pgtype.Text        `json:"mention_content"`
+	MentionUrl      pgtype.Text        `json:"mention_url"`
+	MentionIntent   NullIntentType     `json:"mention_intent"`
+	MentionScore    pgtype.Float4      `json:"mention_score"`
+	MentionPostedAt pgtype.Timestamptz `json:"mention_posted_at"`
+}
+
+// Pipeline list: each lead plus what the person actually wrote, best first.
+func (q *Queries) ListLeadsWithMention(ctx context.Context, arg ListLeadsWithMentionParams) ([]ListLeadsWithMentionRow, error) {
+	rows, err := q.db.Query(ctx, listLeadsWithMention,
+		arg.WorkspaceID,
+		arg.Stage,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLeadsWithMentionRow{}
+	for rows.Next() {
+		var i ListLeadsWithMentionRow
+		if err := rows.Scan(
+			&i.Lead.ID,
+			&i.Lead.WorkspaceID,
+			&i.Lead.MentionID,
+			&i.Lead.Stage,
+			&i.Lead.ContactName,
+			&i.Lead.ContactEmail,
+			&i.Lead.Company,
+			&i.Lead.Username,
+			&i.Lead.Platform,
+			&i.Lead.ProfileUrl,
+			&i.Lead.EstimatedValue,
+			&i.Lead.Notes,
+			&i.Lead.Tags,
+			&i.Lead.Metadata,
+			&i.Lead.CreatedAt,
+			&i.Lead.UpdatedAt,
+			&i.Lead.PersonID,
+			&i.MentionTitle,
+			&i.MentionContent,
+			&i.MentionUrl,
+			&i.MentionIntent,
+			&i.MentionScore,
+			&i.MentionPostedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateLead = `-- name: UpdateLead :one
 UPDATE leads
 SET
