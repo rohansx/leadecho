@@ -18,6 +18,7 @@ import { Route as DashboardWorkflowsRouteImport } from "./routes/_dashboard/work
 import { Route as DashboardSettingsRouteImport } from "./routes/_dashboard/settings"
 import { Route as DashboardProfilesRouteImport } from "./routes/_dashboard/profiles"
 import { Route as DashboardPipelineRouteImport } from "./routes/_dashboard/pipeline"
+import { Route as DashboardOpsRouteImport } from "./routes/_dashboard/ops"
 import { Route as DashboardKnowledgeBaseRouteImport } from "./routes/_dashboard/knowledge-base"
 import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywords"
 import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
@@ -72,6 +73,11 @@ const DashboardProfilesRoute = DashboardProfilesRouteImport.update({
 const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
   id: "/pipeline",
   path: "/pipeline",
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardOpsRoute = DashboardOpsRouteImport.update({
+  id: "/ops",
+  path: "/ops",
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardKnowledgeBaseRoute = DashboardKnowledgeBaseRouteImport.update({
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
   "/knowledge-base": typeof DashboardKnowledgeBaseRoute
+  "/ops": typeof DashboardOpsRoute
   "/pipeline": typeof DashboardPipelineRoute
   "/profiles": typeof DashboardProfilesRoute
   "/settings": typeof DashboardSettingsRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   "/inbox": typeof DashboardInboxRoute
   "/keywords": typeof DashboardKeywordsRoute
   "/knowledge-base": typeof DashboardKnowledgeBaseRoute
+  "/ops": typeof DashboardOpsRoute
   "/pipeline": typeof DashboardPipelineRoute
   "/profiles": typeof DashboardProfilesRoute
   "/settings": typeof DashboardSettingsRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   "/_dashboard/inbox": typeof DashboardInboxRoute
   "/_dashboard/keywords": typeof DashboardKeywordsRoute
   "/_dashboard/knowledge-base": typeof DashboardKnowledgeBaseRoute
+  "/_dashboard/ops": typeof DashboardOpsRoute
   "/_dashboard/pipeline": typeof DashboardPipelineRoute
   "/_dashboard/profiles": typeof DashboardProfilesRoute
   "/_dashboard/settings": typeof DashboardSettingsRoute
@@ -219,6 +228,7 @@ export interface FileRouteTypes {
     | "/inbox"
     | "/keywords"
     | "/knowledge-base"
+    | "/ops"
     | "/pipeline"
     | "/profiles"
     | "/settings"
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | "/inbox"
     | "/keywords"
     | "/knowledge-base"
+    | "/ops"
     | "/pipeline"
     | "/profiles"
     | "/settings"
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | "/_dashboard/inbox"
     | "/_dashboard/keywords"
     | "/_dashboard/knowledge-base"
+    | "/_dashboard/ops"
     | "/_dashboard/pipeline"
     | "/_dashboard/profiles"
     | "/_dashboard/settings"
@@ -340,6 +352,13 @@ declare module "@tanstack/react-router" {
       path: "/pipeline"
       fullPath: "/pipeline"
       preLoaderRoute: typeof DashboardPipelineRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/ops": {
+      id: "/_dashboard/ops"
+      path: "/ops"
+      fullPath: "/ops"
+      preLoaderRoute: typeof DashboardOpsRouteImport
       parentRoute: typeof DashboardRoute
     }
     "/_dashboard/knowledge-base": {
@@ -454,6 +473,7 @@ interface DashboardRouteChildren {
   DashboardInboxRoute: typeof DashboardInboxRoute
   DashboardKeywordsRoute: typeof DashboardKeywordsRoute
   DashboardKnowledgeBaseRoute: typeof DashboardKnowledgeBaseRoute
+  DashboardOpsRoute: typeof DashboardOpsRoute
   DashboardPipelineRoute: typeof DashboardPipelineRoute
   DashboardProfilesRoute: typeof DashboardProfilesRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
@@ -469,6 +489,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardInboxRoute: DashboardInboxRoute,
   DashboardKeywordsRoute: DashboardKeywordsRoute,
   DashboardKnowledgeBaseRoute: DashboardKnowledgeBaseRoute,
+  DashboardOpsRoute: DashboardOpsRoute,
   DashboardPipelineRoute: DashboardPipelineRoute,
   DashboardProfilesRoute: DashboardProfilesRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,

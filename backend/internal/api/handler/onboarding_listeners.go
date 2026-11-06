@@ -242,7 +242,7 @@ func (h *OnboardingHandler) completeListeners(ctx context.Context, wsID string, 
 		for _, term := range l.Keywords {
 			if _, err := h.q.CreateKeyword(ctx, database.CreateKeywordParams{
 				WorkspaceID: wsID, ProfileID: profile.ID, Term: term, Platforms: l.Platforms,
-				IsActive: true, MatchType: "contains", NegativeTerms: []string{}, Subreddits: body.Subreddits,
+				IsActive: h.credits.KeywordActive(ctx, wsID), MatchType: "contains", NegativeTerms: []string{}, Subreddits: body.Subreddits,
 			}); err != nil {
 				if isUniqueViolation(err) {
 					continue

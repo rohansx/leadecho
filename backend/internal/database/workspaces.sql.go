@@ -12,7 +12,7 @@ import (
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (clerk_org_id, name, slug)
 VALUES ($1, $2, $3)
-RETURNING id, clerk_org_id, name, slug, tier, stripe_customer_id, settings, keyword_limit, mention_limit, seat_limit, created_at, updated_at
+RETURNING id, clerk_org_id, name, slug, tier, stripe_customer_id, settings, keyword_limit, mention_limit, seat_limit, created_at, updated_at, plan, credit_balance, credits_refreshed_at, plan_renews_at, dodo_customer_id, dodo_subscription_id, paid_data, scanning_paused, plan_source
 `
 
 type CreateWorkspaceParams struct {
@@ -37,12 +37,21 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.SeatLimit,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Plan,
+		&i.CreditBalance,
+		&i.CreditsRefreshedAt,
+		&i.PlanRenewsAt,
+		&i.DodoCustomerID,
+		&i.DodoSubscriptionID,
+		&i.PaidData,
+		&i.ScanningPaused,
+		&i.PlanSource,
 	)
 	return i, err
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, clerk_org_id, name, slug, tier, stripe_customer_id, settings, keyword_limit, mention_limit, seat_limit, created_at, updated_at FROM workspaces WHERE id = $1
+SELECT id, clerk_org_id, name, slug, tier, stripe_customer_id, settings, keyword_limit, mention_limit, seat_limit, created_at, updated_at, plan, credit_balance, credits_refreshed_at, plan_renews_at, dodo_customer_id, dodo_subscription_id, paid_data, scanning_paused, plan_source FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
@@ -61,12 +70,21 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 		&i.SeatLimit,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Plan,
+		&i.CreditBalance,
+		&i.CreditsRefreshedAt,
+		&i.PlanRenewsAt,
+		&i.DodoCustomerID,
+		&i.DodoSubscriptionID,
+		&i.PaidData,
+		&i.ScanningPaused,
+		&i.PlanSource,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, clerk_org_id, name, slug, tier, stripe_customer_id, settings, keyword_limit, mention_limit, seat_limit, created_at, updated_at FROM workspaces WHERE slug = $1
+SELECT id, clerk_org_id, name, slug, tier, stripe_customer_id, settings, keyword_limit, mention_limit, seat_limit, created_at, updated_at, plan, credit_balance, credits_refreshed_at, plan_renews_at, dodo_customer_id, dodo_subscription_id, paid_data, scanning_paused, plan_source FROM workspaces WHERE slug = $1
 `
 
 func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error) {
@@ -85,6 +103,15 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.SeatLimit,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Plan,
+		&i.CreditBalance,
+		&i.CreditsRefreshedAt,
+		&i.PlanRenewsAt,
+		&i.DodoCustomerID,
+		&i.DodoSubscriptionID,
+		&i.PaidData,
+		&i.ScanningPaused,
+		&i.PlanSource,
 	)
 	return i, err
 }

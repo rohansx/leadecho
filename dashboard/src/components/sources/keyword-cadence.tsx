@@ -9,7 +9,7 @@ import {
 } from "@/lib/sources-api";
 import type { Keyword } from "@/lib/types";
 
-const HOURS: Record<string, number> = { "15m": 0.25, "30m": 0.5, "1h": 1, "3h": 3, "6h": 6, "12h": 12, "24h": 24 };
+const HOURS: Record<string, number> = { "15m": 0.25, "30m": 0.5, "1h": 1, "3h": 3, "4h": 4, "6h": 6, "12h": 12, "24h": 24 };
 
 export function useCostPreview() {
   return useQuery({ queryKey: [COST_PREVIEW_KEY], queryFn: getCostPreview });

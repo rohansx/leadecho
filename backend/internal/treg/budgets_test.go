@@ -77,3 +77,15 @@ func TestUsageByTag(t *testing.T) {
 		t.Fatal("mismatch must not reconcile")
 	}
 }
+
+func TestBalance(t *testing.T) {
+	var gotPath string
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`{"org_id":7,"balance_micro":9824500,"balance_usd":9.8245}`))
+	})
+	micro, err := c.Balance(context.Background())
+	if err != nil || micro != 9824500 || gotPath != "/orgs/7/balance" {
+		t.Fatalf("balance = %d %v path=%s", micro, err, gotPath)
+	}
+}

@@ -18,7 +18,8 @@ import {
   Users, // enrich
   CalendarClock, // automations (P2 #17)
 } from "lucide-react";
-import { Sparkles } from "lucide-react"; // chat (P2 #15)
+import { ShieldCheck, Sparkles } from "lucide-react"; // chat (P2 #15), ops
+import { opsMe } from "@/lib/ops-api";
 
 const navGroups = [
   {
@@ -59,6 +60,8 @@ export function Sidebar() {
     queryFn: mentionTierCounts,
   });
   const leadsReady = tierCounts?.find((c) => c.tier === MENTION_TIERS.LEADS_READY)?.count ?? 0;
+  // ops: only the operator's allowlisted emails get a 200 here.
+  const { data: isOps } = useQuery({ queryKey: ["ops", "me"], queryFn: opsMe, retry: false, staleTime: 5 * 60_000 });
 
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-border bg-card/60">
@@ -67,6 +70,17 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2">
+        {isOps?.ops && (
+          <Link
+            to="/ops"
+            className={cn(
+              "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px]",
+              pathname.startsWith("/ops") ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0" /> Operator console
+          </Link>
+        )}
         {navGroups.map((group) => (
           <div key={group.label}>
             <p className="px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">

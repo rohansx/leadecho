@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/ai"
+	"leadecho/internal/billing"
 	"leadecho/internal/browser"
 	"leadecho/internal/database"
 	"leadecho/internal/llm"
@@ -40,8 +41,12 @@ type Drafter struct {
 	llmRouter llm.ReplyGenerator
 	scrapling *browser.ScraplingClient
 	kb        KBRetriever
-	shortBase string // voice: public base for /r/{code} tracking links
+	shortBase string           // voice: public base for /r/{code} tracking links
+	credits   *billing.Credits // billing: nil or unenforced never blocks
 }
+
+// SetCredits charges each draft (billing.CostDraft), refunded if drafting fails.
+func (d *Drafter) SetCredits(c *billing.Credits) { d.credits = c }
 
 // SetShortLinkBase sets the public base URL used for tracked short links (voice).
 func (d *Drafter) SetShortLinkBase(base string) { d.shortBase = strings.TrimRight(base, "/") }
@@ -66,7 +71,15 @@ func (d *Drafter) DraftForMention(ctx context.Context, wsID, mentionID string) (
 
 // DraftWithProfile drafts using the given response profile ("" = workspace
 // default, or a derived voice when the workspace has none).
-func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profileID string) (*DraftResult, error) {
+func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profileID string) (res *DraftResult, err error) {
+	if err := d.credits.Spend(ctx, wsID, billing.CostDraft, billing.ReasonDraft); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			d.credits.Refund(ctx, wsID, billing.CostDraft, billing.ReasonDraft)
+		}
+	}()
 	mention, err := d.q.GetMention(ctx, database.GetMentionParams{
 		ID:          mentionID,
 		WorkspaceID: wsID,

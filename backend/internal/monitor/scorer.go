@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/ai"
+	"leadecho/internal/billing"
 	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/events"
@@ -35,6 +36,23 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	}
 	if len(scoreable) == 0 {
 		return
+	}
+
+	// billing: one credit per post sent to the AI. Posts beyond the balance
+	// stay unscored (no stage) and the backfill scores them once credits return.
+	if m.llmRouter != nil && m.credits.Enforced() {
+		taken, err := m.credits.Take(ctx, wsID, len(scoreable), billing.ReasonPost)
+		if err != nil {
+			m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("scorer: credit check failed, not scoring")
+			return
+		}
+		if taken < len(scoreable) {
+			m.logger.Info().Int("left_unscored", len(scoreable)-taken).Str("workspace_id", wsID).Msg("scorer: out of credits")
+			scoreable = scoreable[:taken]
+		}
+		if len(scoreable) == 0 {
+			return
+		}
 	}
 
 	// Stage 1: LLM spam/noise filter (cheap model via TaskFilter)

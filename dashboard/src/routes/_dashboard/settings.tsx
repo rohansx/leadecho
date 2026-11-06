@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
 import { ReplyVoiceCard } from "@/components/settings/reply-voice-card"; // voice
 import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
+import { BillingCard } from "@/components/settings/billing-card"; // billing
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -605,6 +606,10 @@ function SettingsPage() {
           Manage your account configuration.
         </Text>
       </div>
+
+      <ErrorBoundary>
+        <BillingCard />
+      </ErrorBoundary>
 
       <Card>
         <CardHeader>

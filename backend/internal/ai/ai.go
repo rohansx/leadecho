@@ -382,7 +382,7 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "competitors": array of competitor names mentioned or implied
 - "suggested_keywords": array of 5-15 monitoring keywords (product name, competitor names, pain-point phrases people would search for)
 - "suggested_subreddits": array of 3-8 relevant subreddit names (without r/ prefix) where the target audience hangs out
-- "suggested_platforms": array of platforms to monitor, from: "reddit", "hackernews", "twitter", "linkedin", "devto", "lobsters", "indiehackers"
+- "suggested_platforms": array of platforms to monitor, from: "reddit", "hackernews", "twitter", "devto", "bluesky", "lobsters", "indiehackers"
 - "positioning": one sentence on how the product differs from alternatives
 - "customer_segments": array of 2-5 objects {"name": segment name, "why_they_buy": one sentence}
 - "pain_point_details": array of objects {"problem": short problem, "explanation": one sentence}, one per pain point
@@ -404,7 +404,20 @@ Be thorough with pain_points — think about what problems potential customers w
 	if err := json.Unmarshal([]byte(result), &pa); err != nil {
 		return nil, fmt.Errorf("parse product analysis: %w (raw: %s)", err, result)
 	}
+	pa.SuggestedPlatforms = defaultPlatforms(pa.SuggestedPlatforms)
 	return &pa, nil
+}
+
+// defaultPlatforms drops opt-in platforms from suggestions. LinkedIn is the
+// priciest paid source and rarely yields leads, so users switch it on themselves.
+func defaultPlatforms(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, p := range in {
+		if !strings.EqualFold(p, "linkedin") {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // FilterMention is Stage 1 of the scoring pipeline: cheap spam and noise rejection.

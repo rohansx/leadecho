@@ -1,3 +1,4 @@
+import { CreditsBanner } from "@/components/billing/credits-banner";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -268,6 +269,7 @@ function InboxPage() {
   return (
     <div className="flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
       {search.loosened && <LoosenedBanner /> /* onboarding */}
+      <CreditsBanner /* billing */ />
       <LeadList
         mentions={mentions}
         listTotal={listTotal}

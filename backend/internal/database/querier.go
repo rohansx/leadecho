@@ -6,11 +6,13 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	AddCreditUsage(ctx context.Context, arg AddCreditUsageParams) error
 	ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error)
 	AssignMention(ctx context.Context, arg AssignMentionParams) (Mention, error)
 	// Per keyword over mentions created in the last @days days: volume, posted
@@ -49,6 +51,7 @@ type Querier interface {
 	CountRepliesByStatus(ctx context.Context, workspaceID string) ([]CountRepliesByStatusRow, error)
 	CountRepliesPosted30d(ctx context.Context, workspaceID string) (int32, error)
 	CountTotalLeads(ctx context.Context, workspaceID string) (int32, error)
+	CountWorkspaceKeywords(ctx context.Context, workspaceID string) (int32, error)
 	CreateAutomation(ctx context.Context, arg CreateAutomationParams) (Automation, error)
 	CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error)
 	// chat (P2 #15). Every query is scoped by workspace_id and, for threads, user_id.
@@ -85,6 +88,7 @@ type Querier interface {
 	CreateWorkflowExecution(ctx context.Context, arg CreateWorkflowExecutionParams) (WorkflowExecution, error)
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error)
 	CreateWorkspaceAPIKey(ctx context.Context, arg CreateWorkspaceAPIKeyParams) (WorkspaceApiKey, error)
+	CreditUsageSince(ctx context.Context, arg CreditUsageSinceParams) ([]CreditUsageSinceRow, error)
 	DeleteAutomation(ctx context.Context, arg DeleteAutomationParams) (int64, error)
 	DeleteChatThread(ctx context.Context, arg DeleteChatThreadParams) (int64, error)
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
@@ -112,10 +116,12 @@ type Querier interface {
 	// profile actually stops its phrases from scoring new mentions.
 	FindSimilarPainPoints(ctx context.Context, arg FindSimilarPainPointsParams) ([]FindSimilarPainPointsRow, error)
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	FindWorkspaceByDodoCustomer(ctx context.Context, dodoCustomerID pgtype.Text) (string, error)
 	FinishAutomationRun(ctx context.Context, arg FinishAutomationRunParams) (AutomationRun, error)
 	FinishDigestRun(ctx context.Context, arg FinishDigestRunParams) error
 	GetActiveWorkspaceAPIKeyByHash(ctx context.Context, keyHash string) (WorkspaceApiKey, error)
 	GetAutomation(ctx context.Context, arg GetAutomationParams) (Automation, error)
+	GetBillingState(ctx context.Context, workspaceID string) (GetBillingStateRow, error)
 	// ─── Brand profile (onboarding) ───────────────────────
 	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
 	GetChatMessageForUser(ctx context.Context, arg GetChatMessageForUserParams) (ChatMessage, error)
@@ -135,6 +141,7 @@ type Querier interface {
 	// The listener (monitoring profile) a mention came from, via its keyword.
 	GetMentionScoringProfile(ctx context.Context, arg GetMentionScoringProfileParams) (GetMentionScoringProfileRow, error)
 	GetMonitoringProfile(ctx context.Context, arg GetMonitoringProfileParams) (MonitoringProfile, error)
+	GetOpsSetting(ctx context.Context, key string) ([]byte, error)
 	GetPerson(ctx context.Context, arg GetPersonParams) (Person, error)
 	GetPersonByLead(ctx context.Context, arg GetPersonByLeadParams) (Person, error)
 	GetPersonIdentity(ctx context.Context, arg GetPersonIdentityParams) (PersonIdentity, error)
@@ -146,14 +153,18 @@ type Querier interface {
 	GetUTMLinkByID(ctx context.Context, arg GetUTMLinkByIDParams) (UtmLink, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetWorkspace(ctx context.Context, id string) (Workspace, error)
+	GetWorkspaceAccess(ctx context.Context, workspaceID string) (GetWorkspaceAccessRow, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
 	GetWorkspaceOwnerEmail(ctx context.Context, workspaceID string) (string, error)
 	GetWorkspaceSettings(ctx context.Context, id string) ([]byte, error)
+	// Idempotent on (workspace_id, ref): returns no row when the grant already happened.
+	GrantCredits(ctx context.Context, arg GrantCreditsParams) (int32, error)
 	HasConsumerProcessedEvent(ctx context.Context, arg HasConsumerProcessedEventParams) (bool, error)
 	HasWorkflowExecutionForMention(ctx context.Context, arg HasWorkflowExecutionForMentionParams) (bool, error)
 	IncrementUTMClicks(ctx context.Context, code string) error
 	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
 	InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error)
+	InsertOpsAudit(ctx context.Context, arg InsertOpsAuditParams) error
 	LinkLeadToPerson(ctx context.Context, arg LinkLeadToPersonParams) error
 	LinkSampleFeedbackToProfile(ctx context.Context, arg LinkSampleFeedbackToProfileParams) error
 	ListActiveKeywords(ctx context.Context, workspaceID string) ([]ListActiveKeywordsRow, error)
@@ -168,6 +179,7 @@ type Querier interface {
 	ListChatMessages(ctx context.Context, arg ListChatMessagesParams) ([]ChatMessage, error)
 	ListChatThreads(ctx context.Context, arg ListChatThreadsParams) ([]ChatThread, error)
 	ListConsumerCheckpoints(ctx context.Context) ([]ConsumerCheckpoint, error)
+	ListCreditGrants(ctx context.Context, arg ListCreditGrantsParams) ([]ListCreditGrantsRow, error)
 	// Every workspace with its digest schedule; workspaces without a row get the defaults.
 	ListDigestSchedules(ctx context.Context) ([]ListDigestSchedulesRow, error)
 	ListDocuments(ctx context.Context, workspaceID string) ([]Document, error)
@@ -200,6 +212,7 @@ type Querier interface {
 	ListMutes(ctx context.Context, workspaceID string) ([]Mute, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	ListOpenDeadLetterEvents(ctx context.Context, arg ListOpenDeadLetterEventsParams) ([]DeadLetterEvent, error)
+	ListOpsAudit(ctx context.Context, lim int32) ([]ListOpsAuditRow, error)
 	ListPainPointEmbeddings(ctx context.Context, profileID string) ([]PainPointEmbedding, error)
 	ListPainPointEmbeddingsByWorkspace(ctx context.Context, workspaceID string) ([]PainPointEmbedding, error)
 	ListPersonIdentities(ctx context.Context, arg ListPersonIdentitiesParams) ([]PersonIdentity, error)
@@ -228,9 +241,16 @@ type Querier interface {
 	MentionsPerDay(ctx context.Context, workspaceID string) ([]MentionsPerDayRow, error)
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
+	OpsListWorkspaces(ctx context.Context) ([]OpsListWorkspacesRow, error)
+	OpsSetPaidData(ctx context.Context, arg OpsSetPaidDataParams) error
+	OpsSetPlan(ctx context.Context, arg OpsSetPlanParams) error
+	OpsSetScanningPaused(ctx context.Context, arg OpsSetScanningPausedParams) error
+	OpsSpendSince(ctx context.Context, since time.Time) (OpsSpendSinceRow, error)
 	PatchMentionScoringMetadata(ctx context.Context, arg PatchMentionScoringMetadataParams) (Mention, error)
 	RecordTregCall(ctx context.Context, arg RecordTregCallParams) error
 	RecordUTMConversion(ctx context.Context, arg RecordUTMConversionParams) (UtmLink, error)
+	// Free plan: top the balance back up to the monthly allowance every 30 days.
+	RefreshFreeCredits(ctx context.Context, allowance int32) (int64, error)
 	ReplyAttributionFunnel(ctx context.Context, workspaceID string) (ReplyAttributionFunnelRow, error)
 	ReplyStats(ctx context.Context, workspaceID string) ([]ReplyStatsRow, error)
 	ReplyStyleAttribution(ctx context.Context, workspaceID string) ([]ReplyStyleAttributionRow, error)
@@ -245,9 +265,15 @@ type Querier interface {
 	SetMentionDedupeKeys(ctx context.Context, arg SetMentionDedupeKeysParams) error
 	// ─── Listener builder ─────────────────────────────────
 	SetMonitoringProfileIntent(ctx context.Context, arg SetMonitoringProfileIntentParams) error
+	SetOpsSetting(ctx context.Context, arg SetOpsSettingParams) error
 	SetReplyTrackingLink(ctx context.Context, arg SetReplyTrackingLinkParams) (Reply, error)
+	SetWorkspacePlan(ctx context.Context, arg SetWorkspacePlanParams) error
+	// All-or-nothing: returns the new balance, or no row when the balance is short.
+	SpendCredits(ctx context.Context, arg SpendCreditsParams) (int32, error)
 	// Compare-and-swap so a confirm runs a write tool at most once.
 	SwapChatMessageToolCalls(ctx context.Context, arg SwapChatMessageToolCallsParams) (int64, error)
+	// Atomically takes up to @want credits; returns how many were taken (0..want).
+	TakeCredits(ctx context.Context, arg TakeCreditsParams) (int32, error)
 	// Revenue and funnel per source platform for replies created in the window.
 	ToolsAttributionByPlatform(ctx context.Context, arg ToolsAttributionByPlatformParams) ([]ToolsAttributionByPlatformRow, error)
 	// Queries backing the agent tool layer (internal/tools), shared by the MCP
