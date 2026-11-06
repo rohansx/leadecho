@@ -137,7 +137,15 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
 	replyDrafter.SetCredits(credits)
 	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
-	workflowEngine := workflow.NewEngine(queries, eventPublisher, logger)
+	workflowEngine := workflow.NewEngine(queries, logger)
+	workflowEngine.SetDrafter(func(ctx context.Context, wsID, mentionID string) error {
+		_, err := replyDrafter.DraftForMention(ctx, wsID, mentionID)
+		return err
+	})
+	workflowEngine.SetCRM(crm)
+	workflowEngine.SetMail(cfg.ResendAPIKey, cfg.DigestFromEmail)
+	workflowEngine.SetAppURL(cfg.FrontendURL)
+	mon.SetWorkflows(workflowEngine) // real-time workflows run inline after scoring
 
 	return &Shared{
 		Config:         cfg,

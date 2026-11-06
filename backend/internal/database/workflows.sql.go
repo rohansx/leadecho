@@ -7,9 +7,85 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countWorkflowExecutionsSince = `-- name: CountWorkflowExecutionsSince :one
+SELECT count(*) FROM workflow_executions
+WHERE workflow_id = $1 AND created_at > $2
+`
+
+type CountWorkflowExecutionsSinceParams struct {
+	WorkflowID string    `json:"workflow_id"`
+	Since      time.Time `json:"since"`
+}
+
+func (q *Queries) CountWorkflowExecutionsSince(ctx context.Context, arg CountWorkflowExecutionsSinceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkflowExecutionsSince, arg.WorkflowID, arg.Since)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countWorkflows = `-- name: CountWorkflows :one
+SELECT count(*) FROM workflows WHERE workspace_id = $1
+`
+
+func (q *Queries) CountWorkflows(ctx context.Context, workspaceID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkflows, workspaceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createWorkflow = `-- name: CreateWorkflow :one
+INSERT INTO workflows (workspace_id, name, description, status, trigger_config, action_chain, max_triggers_per_hour, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, workspace_id, name, description, status, trigger_config, action_chain, max_triggers_per_hour, execution_count, last_triggered_at, created_by, created_at, updated_at
+`
+
+type CreateWorkflowParams struct {
+	WorkspaceID        string         `json:"workspace_id"`
+	Name               string         `json:"name"`
+	Description        pgtype.Text    `json:"description"`
+	Status             WorkflowStatus `json:"status"`
+	TriggerConfig      []byte         `json:"trigger_config"`
+	ActionChain        []byte         `json:"action_chain"`
+	MaxTriggersPerHour int32          `json:"max_triggers_per_hour"`
+	CreatedBy          pgtype.UUID    `json:"created_by"`
+}
+
+func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) (Workflow, error) {
+	row := q.db.QueryRow(ctx, createWorkflow,
+		arg.WorkspaceID,
+		arg.Name,
+		arg.Description,
+		arg.Status,
+		arg.TriggerConfig,
+		arg.ActionChain,
+		arg.MaxTriggersPerHour,
+		arg.CreatedBy,
+	)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.TriggerConfig,
+		&i.ActionChain,
+		&i.MaxTriggersPerHour,
+		&i.ExecutionCount,
+		&i.LastTriggeredAt,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createWorkflowExecution = `-- name: CreateWorkflowExecution :one
 INSERT INTO workflow_executions (
@@ -47,6 +123,54 @@ func (q *Queries) CreateWorkflowExecution(ctx context.Context, arg CreateWorkflo
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const deleteWorkflow = `-- name: DeleteWorkflow :execrows
+DELETE FROM workflows WHERE id = $1 AND workspace_id = $2
+`
+
+type DeleteWorkflowParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteWorkflow(ctx context.Context, arg DeleteWorkflowParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkflow, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getWorkflow = `-- name: GetWorkflow :one
+SELECT id, workspace_id, name, description, status, trigger_config, action_chain, max_triggers_per_hour, execution_count, last_triggered_at, created_by, created_at, updated_at FROM workflows
+WHERE id = $1 AND workspace_id = $2
+`
+
+type GetWorkflowParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) GetWorkflow(ctx context.Context, arg GetWorkflowParams) (Workflow, error) {
+	row := q.db.QueryRow(ctx, getWorkflow, arg.ID, arg.WorkspaceID)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.TriggerConfig,
+		&i.ActionChain,
+		&i.MaxTriggersPerHour,
+		&i.ExecutionCount,
+		&i.LastTriggeredAt,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -138,6 +262,210 @@ func (q *Queries) ListActiveWorkflowsByWorkspace(ctx context.Context, workspaceI
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRecentScoredMentions = `-- name: ListRecentScoredMentions :many
+SELECT id, platform, title, content, url, author_username, relevance_score, intent_tags
+FROM mentions
+WHERE workspace_id = $1 AND relevance_score IS NOT NULL
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListRecentScoredMentionsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Lim         int32  `json:"lim"`
+}
+
+type ListRecentScoredMentionsRow struct {
+	ID             string        `json:"id"`
+	Platform       string        `json:"platform"`
+	Title          pgtype.Text   `json:"title"`
+	Content        string        `json:"content"`
+	Url            string        `json:"url"`
+	AuthorUsername pgtype.Text   `json:"author_username"`
+	RelevanceScore pgtype.Float4 `json:"relevance_score"`
+	IntentTags     []string      `json:"intent_tags"`
+}
+
+// Preview corpus for "test this workflow": the latest classified posts.
+func (q *Queries) ListRecentScoredMentions(ctx context.Context, arg ListRecentScoredMentionsParams) ([]ListRecentScoredMentionsRow, error) {
+	rows, err := q.db.Query(ctx, listRecentScoredMentions, arg.WorkspaceID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentScoredMentionsRow{}
+	for rows.Next() {
+		var i ListRecentScoredMentionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Platform,
+			&i.Title,
+			&i.Content,
+			&i.Url,
+			&i.AuthorUsername,
+			&i.RelevanceScore,
+			&i.IntentTags,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowExecutions = `-- name: ListWorkflowExecutions :many
+SELECT e.id, e.status, e.steps, e.error_message, e.created_at,
+       m.id AS mention_id, m.platform, m.title, m.url, m.relevance_score
+FROM workflow_executions e
+JOIN workflows w ON w.id = e.workflow_id
+LEFT JOIN mentions m ON m.id = e.mention_id
+WHERE e.workflow_id = $1 AND w.workspace_id = $2
+ORDER BY e.created_at DESC
+LIMIT 50
+`
+
+type ListWorkflowExecutionsParams struct {
+	WorkflowID  string `json:"workflow_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type ListWorkflowExecutionsRow struct {
+	ID             string           `json:"id"`
+	Status         ExecutionStatus  `json:"status"`
+	Steps          []byte           `json:"steps"`
+	ErrorMessage   pgtype.Text      `json:"error_message"`
+	CreatedAt      time.Time        `json:"created_at"`
+	MentionID      pgtype.UUID      `json:"mention_id"`
+	Platform       NullPlatformType `json:"platform"`
+	Title          pgtype.Text      `json:"title"`
+	Url            pgtype.Text      `json:"url"`
+	RelevanceScore pgtype.Float4    `json:"relevance_score"`
+}
+
+func (q *Queries) ListWorkflowExecutions(ctx context.Context, arg ListWorkflowExecutionsParams) ([]ListWorkflowExecutionsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowExecutions, arg.WorkflowID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowExecutionsRow{}
+	for rows.Next() {
+		var i ListWorkflowExecutionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.Steps,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+			&i.MentionID,
+			&i.Platform,
+			&i.Title,
+			&i.Url,
+			&i.RelevanceScore,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflows = `-- name: ListWorkflows :many
+SELECT id, workspace_id, name, description, status, trigger_config, action_chain, max_triggers_per_hour, execution_count, last_triggered_at, created_by, created_at, updated_at FROM workflows
+WHERE workspace_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListWorkflows(ctx context.Context, workspaceID string) ([]Workflow, error) {
+	rows, err := q.db.Query(ctx, listWorkflows, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Workflow{}
+	for rows.Next() {
+		var i Workflow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Description,
+			&i.Status,
+			&i.TriggerConfig,
+			&i.ActionChain,
+			&i.MaxTriggersPerHour,
+			&i.ExecutionCount,
+			&i.LastTriggeredAt,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateWorkflow = `-- name: UpdateWorkflow :one
+UPDATE workflows
+SET name = $1, description = $2, status = $3,
+    trigger_config = $4, action_chain = $5,
+    max_triggers_per_hour = $6, updated_at = NOW()
+WHERE id = $7 AND workspace_id = $8
+RETURNING id, workspace_id, name, description, status, trigger_config, action_chain, max_triggers_per_hour, execution_count, last_triggered_at, created_by, created_at, updated_at
+`
+
+type UpdateWorkflowParams struct {
+	Name               string         `json:"name"`
+	Description        pgtype.Text    `json:"description"`
+	Status             WorkflowStatus `json:"status"`
+	TriggerConfig      []byte         `json:"trigger_config"`
+	ActionChain        []byte         `json:"action_chain"`
+	MaxTriggersPerHour int32          `json:"max_triggers_per_hour"`
+	ID                 string         `json:"id"`
+	WorkspaceID        string         `json:"workspace_id"`
+}
+
+func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) (Workflow, error) {
+	row := q.db.QueryRow(ctx, updateWorkflow,
+		arg.Name,
+		arg.Description,
+		arg.Status,
+		arg.TriggerConfig,
+		arg.ActionChain,
+		arg.MaxTriggersPerHour,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.TriggerConfig,
+		&i.ActionChain,
+		&i.MaxTriggersPerHour,
+		&i.ExecutionCount,
+		&i.LastTriggeredAt,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateWorkflowExecution = `-- name: UpdateWorkflowExecution :one
