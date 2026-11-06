@@ -1,47 +1,32 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { motion, AnimatePresence } from "motion/react";
 import { Check, Github, Minus } from "lucide-react";
 import { Reveal, StaggerGroup, StaggerItem } from "./reveal";
 import { GITHUB_URL } from "@/lib/constants";
 
-type Period = "monthly" | "yearly";
-
+// Must match backend/internal/billing/plans.go (prices, credits, keyword limits).
 const plans = [
   {
     name: "Free",
-    for: "For trying it out",
-    monthly: 0,
-    yearly: 0,
-    features: ["1 workspace", "Reddit + Hacker News", "3 pain-point profiles", "50 enriched leads / mo", "Person360 (basic)", "Chrome extension"],
+    for: "Try it on the free sources",
+    price: 0,
+    features: ["300 credits / mo", "3 active keywords", "Hacker News, Dev.to, Bluesky", "AI scoring + reply drafts", "Slack, Discord & email alerts"],
     cta: "Get started",
     featured: false,
   },
   {
     name: "Starter",
-    for: "For solo technical founders",
-    monthly: 99,
-    yearly: 79,
-    features: ["All 7 platforms", "15 pain-point profiles", "500 enriched leads / mo", "Conversation agent (full)", "Thread-aware replies", "Knowledge base RAG"],
-    cta: "Start free trial",
+    for: "For solo founders",
+    price: 49,
+    features: ["5,000 credits / mo", "15 active keywords", "Adds X, Reddit, LinkedIn", "Ask LeadEcho (chat)", "Knowledge base for replies"],
+    cta: "Choose Starter",
     featured: true,
   },
   {
     name: "Pro",
     for: "For small revenue teams",
-    monthly: 249,
-    yearly: 199,
-    features: ["Everything in Starter", "Unlimited leads", "HubSpot / Attio sync", "Signed outbound webhooks", "Discovery agent (soon)"],
-    cta: "Start free trial",
-    featured: false,
-  },
-  {
-    name: "Team",
-    for: "For 3+ seat GTM teams",
-    monthly: 599,
-    yearly: 479,
-    features: ["Everything in Pro", "Up to 5 seats (soon)", "Salesforce sync (soon)", "SSO & audit log (soon)", "Priority support · 4h SLA"],
-    cta: "Book a demo",
+    price: 149,
+    features: ["20,000 credits / mo", "50 active keywords", "Everything in Starter", "HubSpot / Attio sync", "Signed outbound webhooks"],
+    cta: "Choose Pro",
     featured: false,
   },
 ];
@@ -53,8 +38,8 @@ const compareRows = [
   { cap: "Thread-aware AI replies", us: true, common: false, trigify: false },
   { cap: "Per-style conversion attribution", us: true, common: false, trigify: false },
   { cap: "Self-hostable / open source", us: "MIT", common: false, trigify: false },
-  { cap: "BYO AI keys (zero margin)", us: true, common: false, trigify: false },
-  { cap: "Starting price", us: "Free / $99", common: "$500+/mo", trigify: "$150/mo" },
+  { cap: "Self-host with your own AI keys", us: true, common: false, trigify: false },
+  { cap: "Starting price", us: "Free / $49", common: "$500+/mo", trigify: "$150/mo" },
 ];
 
 function Cell({ v }: { v: boolean | string }) {
@@ -64,8 +49,6 @@ function Cell({ v }: { v: boolean | string }) {
 }
 
 export function PricingSection() {
-  const [period, setPeriod] = useState<Period>("monthly");
-
   return (
     <section id="pricing" className="py-24">
       <div className="max-w-6xl mx-auto px-6">
@@ -78,31 +61,11 @@ export function PricingSection() {
             <em className="font-[family-name:var(--font-serif)] italic font-normal text-primary-ink">seat.</em>
           </h2>
           <p className="mt-4 text-lg text-foreground-soft leading-relaxed max-w-xl">
-            Or self-host for free, forever. All AI calls go to your own API key.
+            AI, scraping and hosting included. Pay for what you use with credits, or self-host free forever.
           </p>
         </Reveal>
 
-        <Reveal delay={0.08} className="mt-8 flex justify-center">
-          <div className="inline-flex rounded-lg border border-border bg-card p-1">
-            {(["monthly", "yearly"] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                role="switch"
-                aria-checked={period === p}
-                onClick={() => setPeriod(p)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium cursor-pointer transition-colors ${
-                  period === p ? "bg-foreground text-background" : "text-foreground-soft hover:text-foreground"
-                }`}
-              >
-                {p === "monthly" ? "Monthly" : "Yearly"}
-                {p === "yearly" && <span className="ml-1.5 text-xs opacity-80">save 20%</span>}
-              </button>
-            ))}
-          </div>
-        </Reveal>
-
-        <StaggerGroup className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <StaggerGroup className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {plans.map((p) => (
             <StaggerItem
               key={p.name}
@@ -119,18 +82,7 @@ export function PricingSection() {
               <div className="text-xs text-muted-foreground mt-1">{p.for}</div>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="text-lg">$</span>
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={`${p.name}-${period}`}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 6 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-3xl font-[family-name:var(--font-head)] font-medium"
-                  >
-                    {period === "monthly" ? p.monthly : p.yearly}
-                  </motion.span>
-                </AnimatePresence>
+                <span className="text-3xl font-[family-name:var(--font-head)] font-medium">{p.price}</span>
                 <span className="text-sm text-muted-foreground"> / month</span>
               </div>
               <ul className="mt-5 space-y-2 text-sm flex-1">
@@ -154,6 +106,11 @@ export function PricingSection() {
             </StaggerItem>
           ))}
         </StaggerGroup>
+
+        <p className="mt-6 text-sm text-muted-foreground max-w-3xl">
+          1 credit = 1 post scored by AI or 1 paid search (X, Reddit, LinkedIn); a reply draft is 5. Hacker News, Dev.to
+          and Bluesky searches are free. Need more? Top up 1,000 credits for $10 — they never expire.
+        </p>
 
         <Reveal delay={0.1} className="mt-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 rounded-xl border border-border bg-card p-6">
