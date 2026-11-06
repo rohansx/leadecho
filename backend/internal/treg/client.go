@@ -80,6 +80,7 @@ type Client struct {
 	logger      zerolog.Logger
 	backoff     func(attempt int) time.Duration
 	pausedUntil atomic.Int64 // unix nano
+	meter       Meter        // nil: calls are not metered
 }
 
 // New returns nil when no token is configured; a nil *Client is valid and
@@ -127,7 +128,36 @@ func validTag(v string) bool { return tagValueRe.MatchString(v) && !strings.Cont
 
 // Call POSTs to /call/<tool>, retrying 5xx/timeouts/409 with the same
 // Idempotency-Key so a lost answer is replayed rather than paid twice.
+// Meter charges a workspace's prepaid balance for paid calls (billing.Credits).
+type Meter interface {
+	Spend(ctx context.Context, workspaceID string, cost int, reason string) error
+	Refund(ctx context.Context, workspaceID string, n int, reason string)
+}
+
+// SetMeter makes every call cost the workspace one credit, refunded when the
+// call fails or treg doesn't bill it (a miss).
+func (c *Client) SetMeter(m Meter) {
+	if c != nil {
+		c.meter = m
+	}
+}
+
+// Call runs one catalog tool, metered when a Meter is set.
 func (c *Client) Call(ctx context.Context, req Request) (*Response, error) {
+	if c == nil || c.meter == nil {
+		return c.call(ctx, req)
+	}
+	if err := c.meter.Spend(ctx, req.WorkspaceID, 1, "search"); err != nil {
+		return nil, err
+	}
+	resp, err := c.call(ctx, req)
+	if err != nil || resp == nil || resp.CostMicro == 0 {
+		c.meter.Refund(ctx, req.WorkspaceID, 1, "search")
+	}
+	return resp, err
+}
+
+func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 	if !c.Enabled() {
 		return nil, ErrNotConfigured
 	}

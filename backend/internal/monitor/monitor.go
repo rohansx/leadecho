@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/browser"
 	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
@@ -57,6 +58,7 @@ type Monitor struct {
 	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
+	credits               *billing.Credits // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).
 	mutes *mutes.Store
@@ -92,6 +94,9 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRou
 		mutes:            mutes.NewStore(q), // sources
 	}
 }
+
+// SetCredits meters scoring and pauses scans at an empty balance.
+func (m *Monitor) SetCredits(c *billing.Credits) { m.credits = c }
 
 // Run starts polling all workspaces on an interval. Blocks until ctx is cancelled.
 func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
@@ -130,6 +135,9 @@ func (m *Monitor) tick(ctx context.Context) {
 		}
 	}()
 
+	if _, err := m.credits.RefreshFree(ctx); err != nil { // billing: free plan monthly top-up
+		m.logger.Warn().Err(err).Msg("billing: free credit refresh failed")
+	}
 	m.pollTrackedProfiles(ctx) // enrich: tracked LinkedIn/X profiles
 
 	// Fetch all active keywords across every workspace
@@ -196,6 +204,12 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 		return false
 	}
 	defer m.scanning.Delete(wsID)
+
+	// billing: an empty balance pauses scanning; posts already found stay.
+	if bal, err := m.credits.Balance(ctx, wsID); err == nil && bal <= 0 {
+		m.logger.Debug().Str("workspace_id", wsID).Msg("monitor: out of credits, scan paused")
+		return false
+	}
 
 	kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
 	var alerts []mentionAlert
