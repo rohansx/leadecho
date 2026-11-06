@@ -106,33 +106,24 @@ func (h *LeadHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var leads []database.Lead
-	var err error
-
-	stage := r.URL.Query().Get("stage")
-	if stage != "" {
-		leads, err = h.q.ListLeadsByStage(ctx, database.ListLeadsByStageParams{
-			WorkspaceID: workspaceID,
-			Stage:       database.LeadStage(stage),
-			Lim:         limit,
-			Off:         offset,
-		})
-	} else {
-		leads, err = h.q.ListLeads(ctx, database.ListLeadsParams{
-			WorkspaceID: workspaceID,
-			Lim:         limit,
-			Off:         offset,
-		})
+	params := database.ListLeadsWithMentionParams{WorkspaceID: workspaceID, Lim: limit, Off: offset}
+	if stage := r.URL.Query().Get("stage"); stage != "" {
+		if !validLeadStages[stage] {
+			writeError(w, http.StatusBadRequest, "invalid stage")
+			return
+		}
+		params.Stage = database.NullLeadStage{LeadStage: database.LeadStage(stage), Valid: true}
 	}
 
+	rows, err := h.q.ListLeadsWithMention(ctx, params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list leads")
 		return
 	}
 
-	resp := make([]LeadResponse, len(leads))
-	for i, l := range leads {
-		resp[i] = leadToResponse(l)
+	resp := make([]LeadListItem, len(rows))
+	for i, row := range rows {
+		resp[i] = leadRowToListItem(row)
 	}
 
 	writeJSON(w, http.StatusOK, listResponse{

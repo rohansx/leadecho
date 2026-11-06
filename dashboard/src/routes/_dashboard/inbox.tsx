@@ -6,6 +6,7 @@ import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail } from "@/components/inbox/lead-detail";
 import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
 import {
+  getMention,
   listMentions,
   listProposals,
   mentionPlatformCounts,
@@ -208,9 +209,14 @@ function InboxPage() {
 
   const mentions = data?.pages.flatMap((p) => p.data) ?? [];
   const listTotal = data?.pages[0]?.total ?? 0;
-  const selected = isProposalsView
-    ? null
-    : (mentions.find((m) => m.id === id) ?? null);
+  const inList = mentions.find((m) => m.id === id);
+  // Deep links (e.g. "Draft reply" from Leads) may target a mention outside the loaded page.
+  const { data: linked } = useQuery({
+    queryKey: [QUERY_KEYS.mentions, "one", id],
+    queryFn: () => getMention(id!),
+    enabled: !!id && !isProposalsView && !isLoading && !inList,
+  });
+  const selected = isProposalsView ? null : (inList ?? (linked && linked.id === id ? linked : null));
   const selectedIndex = selected ? mentions.findIndex((m) => m.id === selected.id) : -1;
 
   const selectMention = (mentionId: string) => setSearch({ id: mentionId });

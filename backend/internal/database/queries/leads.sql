@@ -51,6 +51,22 @@ SET
 WHERE id = @id AND workspace_id = @workspace_id
 RETURNING *;
 
+-- name: ListLeadsWithMention :many
+-- Pipeline list: each lead plus what the person actually wrote, best first.
+SELECT sqlc.embed(l),
+       m.title               AS mention_title,
+       m.content             AS mention_content,
+       m.url                 AS mention_url,
+       m.intent              AS mention_intent,
+       m.relevance_score     AS mention_score,
+       m.platform_created_at AS mention_posted_at
+FROM leads l
+LEFT JOIN mentions m ON m.id = l.mention_id AND m.workspace_id = l.workspace_id
+WHERE l.workspace_id = @workspace_id
+  AND (sqlc.narg('stage')::lead_stage IS NULL OR l.stage = sqlc.narg('stage')::lead_stage)
+ORDER BY m.relevance_score DESC NULLS LAST, l.created_at DESC
+LIMIT @lim OFFSET @off;
+
 -- name: CountLeadsByStage :many
 SELECT stage, COUNT(*)::int as count
 FROM leads
