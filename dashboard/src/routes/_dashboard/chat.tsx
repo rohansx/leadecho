@@ -65,7 +65,11 @@ function ChatPage() {
   });
   const shown = [...(thread ? (messages.data?.data ?? []) : []), ...((thread ?? "new") === pendingFor ? pending : [])];
 
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [shown.length, pending]);
+  // Braces matter: newer Chrome returns a Promise from scrollIntoView, and an
+  // effect that returns a non-function crashes React ("X is not a function").
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [shown.length, pending]);
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const patchAssistant = (fn: (m: ChatMessage) => ChatMessage) =>
