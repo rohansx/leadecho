@@ -39,7 +39,10 @@ export function AuthPanel({ mode }: { mode: Mode }) {
   const [unverified, setUnverified] = useState(false);
   const [checkEmail, setCheckEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [usePassword, setUsePassword] = useState(false);
   const isRegister = mode === "register";
+  // Logto hosts sign-in/sign-up (and social logins); the password form stays for older accounts.
+  const hosted = !!providers?.logto && !usePassword;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +79,20 @@ export function AuthPanel({ mode }: { mode: Mode }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <UrlError />
-        {checkEmail ? (
+        {hosted ? (
+          <div className="space-y-3">
+            <a href={`/api/v1/auth/logto${isRegister ? "?screen=register" : ""}`} className="block">
+              <Button className="w-full" size="lg" type="button">
+                {isRegister ? "Create account" : "Continue"}
+              </Button>
+            </a>
+            {!isRegister && (
+              <button type="button" className="w-full text-center text-xs text-muted-foreground underline hover:text-foreground" onClick={() => setUsePassword(true)}>
+                Sign in with email and password
+              </button>
+            )}
+          </div>
+        ) : checkEmail ? (
           <CheckEmail email={checkEmail} />
         ) : (
           <>

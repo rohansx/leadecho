@@ -52,7 +52,13 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 		}
 		return front + "/api/v1/auth/" + provider + "/callback"
 	}
-	var google, github bool
+	var google, github, logto bool
+	if cfg.LogtoEndpoint != "" && cfg.LogtoAppID != "" && cfg.LogtoAppSecret != "" {
+		h := auth.NewOAuthHandler(auth.NewLogtoProvider(cfg.LogtoEndpoint, cfg.LogtoAppID, cfg.LogtoAppSecret, redirect(cfg.LogtoRedirectURL, "logto")), email)
+		r.Get("/auth/logto", h.Login)
+		r.Get("/auth/logto/callback", h.Callback)
+		logto = true
+	}
 	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
 		h := auth.NewOAuthHandler(auth.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret, redirect(cfg.GoogleRedirectURL, "google")), email)
 		r.Get("/auth/google", h.Login)
@@ -66,7 +72,7 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 		github = true
 	}
 
-	providers := fmt.Sprintf(`{"google":%t,"github":%t,"password":true,"email_verification":%t}`, google, github, email.RequiresVerification())
+	providers := fmt.Sprintf(`{"google":%t,"github":%t,"logto":%t,"password":true,"email_verification":%t}`, google, github, logto, email.RequiresVerification())
 	r.Get("/auth/providers", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(providers))

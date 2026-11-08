@@ -50,6 +50,11 @@ type Config struct {
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID,default="`
 	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET,default="`
 	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL,default="`
+	// Logto (OIDC): when all three are set, login/register go through Logto.
+	LogtoEndpoint    string `env:"LOGTO_ENDPOINT,default="`
+	LogtoAppID       string `env:"LOGTO_APP_ID,default="`
+	LogtoAppSecret   string `env:"LOGTO_APP_SECRET,default="`
+	LogtoRedirectURL string `env:"LOGTO_REDIRECT_URL,default="`
 
 	// TrustedProxyHops is how many reverse proxies we control sit in front of
 	// the API (1 behind Traefik/nginx). 0 = never trust X-Forwarded-For.

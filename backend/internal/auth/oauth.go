@@ -35,6 +35,8 @@ type Provider struct {
 	oauth  *oauth2.Config
 	fetch  func(ctx context.Context, c *http.Client) (identity, error)
 	apiURL string // overridable in tests
+	// authOpts adds provider-specific params to the consent redirect (optional).
+	authOpts func(r *http.Request) []oauth2.AuthCodeOption
 }
 
 func NewGoogleProvider(clientID, secret, redirectURL string) *Provider {
@@ -53,6 +55,50 @@ func NewGitHubProvider(clientID, secret, redirectURL string) *Provider {
 	}}
 	p.fetch = p.fetchGitHub
 	return p
+}
+
+// NewLogtoProvider signs in through a Logto app (OIDC, traditional web app).
+// endpoint is the Logto tenant URL, e.g. https://logto.example.com.
+func NewLogtoProvider(endpoint, clientID, secret, redirectURL string) *Provider {
+	endpoint = strings.TrimRight(endpoint, "/")
+	p := &Provider{Name: "logto", apiURL: endpoint, oauth: &oauth2.Config{
+		ClientID: clientID, ClientSecret: secret, RedirectURL: redirectURL,
+		Scopes: []string{"openid", "email", "profile"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL: endpoint + "/oidc/auth", TokenURL: endpoint + "/oidc/token",
+			AuthStyle: oauth2.AuthStyleInHeader,
+		},
+	}}
+	p.fetch = p.fetchLogto
+	p.authOpts = logtoAuthOpts
+	return p
+}
+
+// logtoAuthOpts opens Logto on the register screen for ?screen=register.
+func logtoAuthOpts(r *http.Request) []oauth2.AuthCodeOption {
+	if r.URL.Query().Get("screen") == "register" {
+		return []oauth2.AuthCodeOption{oauth2.SetAuthURLParam("first_screen", "register")}
+	}
+	return nil
+}
+
+func (p *Provider) fetchLogto(ctx context.Context, c *http.Client) (identity, error) {
+	var u struct {
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Name          string `json:"name"`
+		Username      string `json:"username"`
+		Picture       string `json:"picture"`
+	}
+	if err := getJSON(ctx, c, p.apiURL+"/oidc/me", &u); err != nil {
+		return identity{}, err
+	}
+	name := u.Name
+	if name == "" {
+		name = u.Username
+	}
+	return identity{ID: u.Sub, Email: u.Email, EmailVerified: u.EmailVerified, Name: name, Avatar: u.Picture}, nil
 }
 
 func getJSON(ctx context.Context, c *http.Client, url string, out any) error {
@@ -144,7 +190,11 @@ func (h *OAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Name: h.stateCookie(), Value: state, Path: "/", MaxAge: 600,
 		HttpOnly: true, Secure: h.core.secure, SameSite: http.SameSiteLaxMode,
 	})
-	http.Redirect(w, r, h.p.oauth.AuthCodeURL(state), http.StatusFound)
+	var opts []oauth2.AuthCodeOption
+	if h.p.authOpts != nil {
+		opts = h.p.authOpts(r)
+	}
+	http.Redirect(w, r, h.p.oauth.AuthCodeURL(state, opts...), http.StatusFound)
 }
 
 // Callback verifies state, exchanges the code, then signs in / links / creates the user.
@@ -201,7 +251,11 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	if created {
 		go h.core.mail.welcome(context.Background(), user.Name, user.Email)
 	}
-	http.Redirect(w, r, h.core.frontendURL+"/inbox", http.StatusFound)
+	next := "/inbox"
+	if created {
+		next = "/onboarding"
+	}
+	http.Redirect(w, r, h.core.frontendURL+next, http.StatusFound)
 }
 
 // signIn: external id → existing account by (provider-verified) email → new account.

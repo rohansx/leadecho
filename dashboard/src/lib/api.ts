@@ -578,6 +578,7 @@ export type RegisterResponse = AuthResponse | { verification_required: true; ema
 export interface AuthProviders {
   google: boolean;
   github: boolean;
+  logto?: boolean;
   password: boolean;
   email_verification: boolean;
 }
