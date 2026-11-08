@@ -52,12 +52,12 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 		}
 		return front + "/api/v1/auth/" + provider + "/callback"
 	}
-	var google, github, logto bool
-	if cfg.LogtoEndpoint != "" && cfg.LogtoAppID != "" && cfg.LogtoAppSecret != "" {
-		h := auth.NewOAuthHandler(auth.NewLogtoProvider(cfg.LogtoEndpoint, cfg.LogtoAppID, cfg.LogtoAppSecret, redirect(cfg.LogtoRedirectURL, "logto")), email)
-		r.Get("/auth/logto", h.Login)
-		r.Get("/auth/logto/callback", h.Callback)
-		logto = true
+	var google, github, oidc bool
+	if cfg.OIDCIssuer != "" && cfg.OIDCClientID != "" && cfg.OIDCClientSecret != "" {
+		h := auth.NewOAuthHandler(auth.NewOIDCProvider(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret, redirect(cfg.OIDCRedirectURL, "oidc")), email)
+		r.Get("/auth/oidc", h.Login)
+		r.Get("/auth/oidc/callback", h.Callback)
+		oidc = true
 	}
 	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
 		h := auth.NewOAuthHandler(auth.NewGoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret, redirect(cfg.GoogleRedirectURL, "google")), email)
@@ -72,7 +72,7 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 		github = true
 	}
 
-	providers := fmt.Sprintf(`{"google":%t,"github":%t,"logto":%t,"password":true,"email_verification":%t}`, google, github, logto, email.RequiresVerification())
+	providers := fmt.Sprintf(`{"google":%t,"github":%t,"oidc":%t,"password":true,"email_verification":%t}`, google, github, oidc, email.RequiresVerification())
 	r.Get("/auth/providers", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(providers))

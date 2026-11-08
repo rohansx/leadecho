@@ -41,8 +41,8 @@ export function AuthPanel({ mode }: { mode: Mode }) {
   const [loading, setLoading] = useState(false);
   const [usePassword, setUsePassword] = useState(false);
   const isRegister = mode === "register";
-  // Logto hosts sign-in/sign-up (and social logins); the password form stays for older accounts.
-  const hosted = !!providers?.logto && !usePassword;
+  // Hosted sign-in/sign-up (OIDC, e.g. Keycloak); the password form stays for older accounts.
+  const hosted = !!providers?.oidc && !usePassword;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +81,7 @@ export function AuthPanel({ mode }: { mode: Mode }) {
         <UrlError />
         {hosted ? (
           <div className="space-y-3">
-            <a href={`/api/v1/auth/logto${isRegister ? "?screen=register" : ""}`} className="block">
+            <a href={`/api/v1/auth/oidc${isRegister ? "?screen=register" : ""}`} className="block">
               <Button className="w-full" size="lg" type="button">
                 {isRegister ? "Create account" : "Continue"}
               </Button>
