@@ -63,20 +63,20 @@ export function OAuthButtons({ providers }: { providers?: AuthProviders }) {
         </div>
       </div>
       {providers.google && (
-        <a href="/api/v1/auth/google" className="block">
-          <Button className="w-full" size="lg" variant="outline" type="button">
+        <Button asChild className="w-full" size="lg" variant="outline">
+          <a href="/api/v1/auth/google">
             <GoogleIcon />
             Continue with Google
-          </Button>
-        </a>
+          </a>
+        </Button>
       )}
       {providers.github && (
-        <a href="/api/v1/auth/github" className="block">
-          <Button className="w-full" size="lg" variant="outline" type="button">
+        <Button asChild className="w-full" size="lg" variant="outline">
+          <a href="/api/v1/auth/github">
             <GitHubIcon />
             Continue with GitHub
-          </Button>
-        </a>
+          </a>
+        </Button>
       )}
     </div>
   );

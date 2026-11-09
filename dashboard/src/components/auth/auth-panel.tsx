@@ -107,22 +107,22 @@ export function AuthPanel({ mode }: { mode: Mode }) {
                   const { label, Icon } = IDP_BUTTONS[idp];
                   const query = new URLSearchParams({ idp, ...(isRegister && { screen: "register" }) });
                   return (
-                    <a key={idp} href={`/api/v1/auth/oidc?${query}`} className="block">
-                      <Button className="w-full" size="lg" variant="outline" type="button">
+                    <Button key={idp} asChild className="w-full" size="lg" variant="outline">
+                      <a href={`/api/v1/auth/oidc?${query}`}>
                         <Icon />
                         Continue with {label}
-                      </Button>
-                    </a>
+                      </a>
+                    </Button>
                   );
                 })}
                 <OrSeparator />
               </>
             )}
-            <a href={`/api/v1/auth/oidc${isRegister ? "?screen=register" : ""}`} className="block">
-              <Button className="w-full" size="lg" type="button">
+            <Button asChild className="w-full" size="lg">
+              <a href={`/api/v1/auth/oidc${isRegister ? "?screen=register" : ""}`}>
                 {isRegister ? "Create account" : "Continue"}
-              </Button>
-            </a>
+              </a>
+            </Button>
             {!isRegister && (
               <button type="button" className="w-full text-center text-xs text-muted-foreground underline hover:text-foreground" onClick={() => setUsePassword(true)}>
                 Sign in with email and password
