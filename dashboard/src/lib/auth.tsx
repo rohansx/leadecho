@@ -57,7 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setUser(null);
     resetAnalytics();
-    window.location.href = "/login";
+    // Keycloak SSO may still be live; /login would sign straight back in, so land on the homepage.
+    window.location.href = "/";
   };
 
   return (
