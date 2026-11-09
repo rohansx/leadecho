@@ -579,6 +579,8 @@ export interface AuthProviders {
   google: boolean;
   github: boolean;
   oidc?: boolean;
+  /** Keycloak IdP aliases reachable via /auth/oidc?idp=<alias>. */
+  oidc_idps?: string[];
   password: boolean;
   email_verification: boolean;
 }

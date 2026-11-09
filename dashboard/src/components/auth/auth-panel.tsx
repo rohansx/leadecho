@@ -6,10 +6,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { AuthError, getAuthProviders, loginWithEmail, registerWithEmail, resendVerification } from "@/lib/api";
-import { FormError, OAuthButtons, UrlError } from "./auth-shared";
+import { FormError, GitHubIcon, GoogleIcon, OAuthButtons, UrlError } from "./auth-shared";
 import { errorMessage } from "./errors";
 
 type Mode = "login" | "register";
+
+// Keycloak IdP aliases we have a button for; others from the server are skipped.
+const IDP_BUTTONS: Record<string, { label: string; Icon: () => React.JSX.Element }> = {
+  google: { label: "Google", Icon: GoogleIcon },
+  github: { label: "GitHub", Icon: GitHubIcon },
+};
+
+function OrSeparator() {
+  return (
+    <div className="relative">
+      <div className="absolute inset-0 flex items-center">
+        <span className="w-full border-t border-border" />
+      </div>
+      <div className="relative flex justify-center text-xs uppercase">
+        <span className="bg-card px-2 text-muted-foreground">Or</span>
+      </div>
+    </div>
+  );
+}
 
 function CheckEmail({ email }: { email: string }) {
   const [sent, setSent] = useState(false);
@@ -43,6 +62,7 @@ export function AuthPanel({ mode }: { mode: Mode }) {
   const isRegister = mode === "register";
   // Hosted sign-in/sign-up (OIDC, e.g. Keycloak); the password form stays for older accounts.
   const hosted = !!providers?.oidc && !usePassword;
+  const idps = (providers?.oidc_idps ?? []).filter((idp) => Object.hasOwn(IDP_BUTTONS, idp));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +101,23 @@ export function AuthPanel({ mode }: { mode: Mode }) {
         <UrlError />
         {hosted ? (
           <div className="space-y-3">
+            {idps.length > 0 && (
+              <>
+                {idps.map((idp) => {
+                  const { label, Icon } = IDP_BUTTONS[idp];
+                  const query = new URLSearchParams({ idp, ...(isRegister && { screen: "register" }) });
+                  return (
+                    <a key={idp} href={`/api/v1/auth/oidc?${query}`} className="block">
+                      <Button className="w-full" size="lg" variant="outline" type="button">
+                        <Icon />
+                        Continue with {label}
+                      </Button>
+                    </a>
+                  );
+                })}
+                <OrSeparator />
+              </>
+            )}
             <a href={`/api/v1/auth/oidc${isRegister ? "?screen=register" : ""}`} className="block">
               <Button className="w-full" size="lg" type="button">
                 {isRegister ? "Create account" : "Continue"}

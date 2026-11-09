@@ -18,7 +18,10 @@ import (
 // identity server is down.
 //
 // issuer examples: https://auth.leadecho.app/realms/leadecho, https://auth.example.com/oidc
-func NewOIDCProvider(issuer, clientID, secret, redirectURL string) *Provider {
+//
+// idps lists the Keycloak identity providers (e.g. "google", "github") that
+// ?idp=<alias> may jump straight to via kc_idp_hint; anything else is ignored.
+func NewOIDCProvider(issuer, clientID, secret, redirectURL string, idps []string) *Provider {
 	p := &Provider{Name: "oidc", oauth: &oauth2.Config{
 		ClientID: clientID, ClientSecret: secret, RedirectURL: redirectURL,
 		Scopes: []string{"openid", "email", "profile"},
@@ -26,7 +29,13 @@ func NewOIDCProvider(issuer, clientID, secret, redirectURL string) *Provider {
 	d := &oidcDiscovery{issuer: strings.TrimRight(issuer, "/"), client: &http.Client{Timeout: 10 * time.Second}}
 	p.prepare = func(ctx context.Context) error { return d.load(ctx, p) }
 	p.fetch = func(ctx context.Context, c *http.Client) (identity, error) { return fetchOIDCUser(ctx, c, p.apiURL) }
-	p.authOpts = d.registerOpts
+	p.authOpts = func(r *http.Request) []oauth2.AuthCodeOption {
+		opts := d.registerOpts(r)
+		if idp := r.URL.Query().Get("idp"); idp != "" && slices.Contains(idps, idp) {
+			opts = append(opts, oauth2.SetAuthURLParam("kc_idp_hint", idp))
+		}
+		return opts
+	}
 	return p
 }
 

@@ -56,6 +56,9 @@ type Config struct {
 	OIDCClientID     string `env:"OIDC_CLIENT_ID,default="`
 	OIDCClientSecret string `env:"OIDC_CLIENT_SECRET,default="`
 	OIDCRedirectURL  string `env:"OIDC_REDIRECT_URL,default="`
+	// Comma list of Keycloak IdP aliases (e.g. "google,github") the login page
+	// may link to directly via kc_idp_hint.
+	OIDCIdPs string `env:"OIDC_IDPS,default="`
 
 	// TrustedProxyHops is how many reverse proxies we control sit in front of
 	// the API (1 behind Traefik/nginx). 0 = never trust X-Forwarded-For.

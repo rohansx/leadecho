@@ -37,7 +37,7 @@ func authQuery(t *testing.T, p *Provider, target string) url.Values {
 
 func TestOIDCProvider(t *testing.T) {
 	srv := oidcServer(t, `["none","login","create"]`)
-	p := NewOIDCProvider(srv.URL+"/realms/x/", "app", "secret", "https://x/cb")
+	p := NewOIDCProvider(srv.URL+"/realms/x/", "app", "secret", "https://x/cb", nil)
 
 	q := authQuery(t, p, "/auth/oidc?screen=register")
 	if q.Get("prompt") != "create" || q.Get("client_id") != "app" {
@@ -61,7 +61,7 @@ func TestOIDCProvider(t *testing.T) {
 
 func TestOIDCProviderWithoutPromptCreate(t *testing.T) {
 	srv := oidcServer(t, `["consent"]`)
-	p := NewOIDCProvider(srv.URL+"/realms/x", "app", "secret", "https://x/cb")
+	p := NewOIDCProvider(srv.URL+"/realms/x", "app", "secret", "https://x/cb", nil)
 	if got := authQuery(t, p, "/auth/oidc?screen=register").Get("first_screen"); got != "register" {
 		t.Fatalf("first_screen: %q", got)
 	}
@@ -69,8 +69,40 @@ func TestOIDCProviderWithoutPromptCreate(t *testing.T) {
 
 func TestOIDCProviderRejectsIssuerMismatch(t *testing.T) {
 	srv := oidcServer(t, `[]`)
-	p := NewOIDCProvider(srv.URL+"/realms/other", "app", "secret", "https://x/cb")
+	p := NewOIDCProvider(srv.URL+"/realms/other", "app", "secret", "https://x/cb", nil)
 	if err := p.prepare(context.Background()); err == nil {
 		t.Fatal("want discovery error for unknown issuer path")
+	}
+}
+
+func TestOIDCProviderIdPHint(t *testing.T) {
+	srv := oidcServer(t, `["create"]`)
+	allowed := NewOIDCProvider(srv.URL+"/realms/x", "app", "secret", "https://x/cb", []string{"google", "github"})
+	none := NewOIDCProvider(srv.URL+"/realms/x", "app", "secret", "https://x/cb", nil)
+	for _, tc := range []struct {
+		name   string
+		p      *Provider
+		target string
+		want   string
+	}{
+		{"google", allowed, "/auth/oidc?idp=google", "google"},
+		{"github with register", allowed, "/auth/oidc?idp=github&screen=register", "github"},
+		{"no idp", allowed, "/auth/oidc", ""},
+		{"unknown idp", allowed, "/auth/oidc?idp=facebook", ""},
+		{"injection", allowed, "/auth/oidc?idp=" + url.QueryEscape("google&prompt=none"), ""},
+		{"not configured", none, "/auth/oidc?idp=google", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			q := authQuery(t, tc.p, tc.target)
+			if got := q.Get("kc_idp_hint"); got != tc.want {
+				t.Fatalf("kc_idp_hint = %q, want %q (%v)", got, tc.want, q)
+			}
+			if q.Get("prompt") == "none" {
+				t.Fatalf("prompt injected: %v", q)
+			}
+		})
+	}
+	if q := authQuery(t, allowed, "/auth/oidc?idp=github&screen=register"); q.Get("prompt") != "create" {
+		t.Fatalf("register lost with idp: %v", q)
 	}
 }
