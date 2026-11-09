@@ -54,7 +54,7 @@ function OnboardingPage() {
   }, [onboarding, step, navigate]);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
+    if (!loading && !user) navigate({ to: "/login", replace: true });
   }, [loading, user, navigate]);
 
   const saveProfile = useMutation({
