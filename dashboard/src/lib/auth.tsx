@@ -55,13 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: "{}",
     });
-    setUser(null);
     resetAnalytics();
     // End the Keycloak session too, or /login would sign straight back in.
+    // No setUser(null) here: it makes the route guard jump to /login (and back
+    // into Keycloak's still-live session) before this redirect runs.
     const providers = await fetch("/api/v1/auth/providers")
       .then((r) => r.json())
       .catch(() => null);
-    window.location.href = providers?.oidc ? "/api/v1/auth/oidc/logout" : "/";
+    window.location.replace(providers?.oidc ? "/api/v1/auth/oidc/logout" : "/");
   };
 
   return (
