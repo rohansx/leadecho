@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
-import { Section, SectionHead } from "./section";
+import { Section, Eyebrow, H2 } from "./section";
+import { Reveal } from "./fx";
 
 const faqs = [
   {
@@ -27,17 +28,24 @@ const faqs = [
 export function FaqSection() {
   return (
     <Section id="faq">
-      <SectionHead label="Questions" title="Common questions." />
-      <div className="mt-8 overflow-hidden rounded-[18px] border border-border bg-card">
-        {faqs.map((f, i) => (
-          <details key={f.q} open={i === 0} className="group border-t border-border first:border-t-0">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 text-[17px] font-medium [&::-webkit-details-marker]:hidden">
-              {f.q}
-              <Plus className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-45" />
-            </summary>
-            <p className="max-w-2xl px-6 pb-6 text-[15px] leading-relaxed text-foreground-soft">{f.a}</p>
-          </details>
-        ))}
+      <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+        <Reveal>
+          <Eyebrow>Questions</Eyebrow>
+          <H2 className="mt-4">Answers before you ask.</H2>
+        </Reveal>
+        <Reveal delay={0.08} className="border-t border-border">
+          {faqs.map((f, i) => (
+            <details key={f.q} open={i === 0} className="group border-b border-border">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-[18px] font-semibold tracking-[-0.01em] [&::-webkit-details-marker]:hidden">
+                {f.q}
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border transition-transform group-open:rotate-45">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+              </summary>
+              <p className="max-w-2xl pb-6 text-[16px] leading-relaxed text-foreground-soft">{f.a}</p>
+            </details>
+          ))}
+        </Reveal>
       </div>
     </Section>
   );

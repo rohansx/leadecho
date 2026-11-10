@@ -85,50 +85,71 @@
   --ring: #f0b429;
 }
 
-/* === Marketing page: warm white, ink, and one bright yellow for the primary
-   action, highlights and active states. Scoped so the app UI is unaffected. === */
+/* === Marketing page: soft neutral grey, white surfaces, ink. Yellow is the
+   accent in dark mode; in light mode it is only a highlighter for matched text.
+   Scoped so the app UI is unaffected. === */
 .mkt {
-  --background: #fcfbf6;
+  --background: #f4f4f2;
   --card: #ffffff;
-  --panel: #f7f3e3;
-  --foreground: #1c1a14;
-  --foreground-soft: #4a463b;
-  --muted: #f3efe2;
-  --muted-foreground: #7a7465;
-  --muted-head: #aaa38f;
-  --accent: #f3efe2;
-  --border: #ece7d7;
-  --ring: #1c1a14;
-  --yellow: #ffd43b;
-  --yellow-deep: #e9b800;
-  --signal: #8a6a00;
-  --marker: #ffe57a;
-  --demo: linear-gradient(180deg, #fff8d6 0%, #ffe68a 100%);
-  --terminal: #1c1a14;
-  --primary-ink: var(--yellow-deep); /* logo mark */
-  font-family: var(--font-plex);
+  --foreground: #18181b;
+  --foreground-soft: #4b4b52;
+  --muted: #ebebe8;
+  --muted-foreground: #74747c;
+  --accent: #ebebe8;
+  --border: #e2e2de;
+  --ring: #18181b;
+  --primary-bg: #18181b;
+  --primary-fg: #ffffff;
+  --chip-bg: #18181b;
+  --chip-fg: #ffffff;
+  --dot: #e0a800;
+  --marker: #ffe58f;
+  --band: #18181b;
+  --primary-ink: #e0a800; /* logo mark */
+  --hairline-plate: #ffffff;
+  --hairline-hi: #18181b;
+  --hairline-edge: #a1a1a9;
+  --hairline-mid: #c8c8cd;
+  --hairline-lo: #e6e6e8;
+  font-family: var(--font-inst);
   font-size: 17px;
   line-height: 1.6;
 }
 .dark .mkt {
-  --background: #13120e;
-  --card: #1b1a15;
-  --panel: #211f17;
-  --foreground: #f3f0e6;
-  --foreground-soft: #c9c4b5;
-  --muted: #24221b;
-  --muted-foreground: #948e7e;
-  --muted-head: #6b6657;
-  --accent: #24221b;
-  --border: #2d2a21;
-  --ring: #f3f0e6;
-  --signal: #ffd43b;
-  --demo: linear-gradient(180deg, #221f14 0%, #3a3215 100%);
-  --terminal: #0c0b08;
-  --primary-ink: var(--yellow);
+  --background: #0e0e10;
+  --card: #18181b;
+  --foreground: #f2f2f0;
+  --foreground-soft: #bdbdc3;
+  --muted: #222226;
+  --muted-foreground: #8a8a92;
+  --accent: #222226;
+  --border: #29292e;
+  --ring: #f2f2f0;
+  --primary-bg: #ffd43b;
+  --primary-fg: #18181b;
+  --chip-bg: #ffd43b;
+  --chip-fg: #18181b;
+  --dot: #ffd43b;
+  --band: #060607;
+  --primary-ink: #ffd43b;
+  --hairline-plate: #18181b;
+  --hairline-hi: #f2f2f0;
+  --hairline-edge: #75757d;
+  --hairline-mid: #4a4a50;
+  --hairline-lo: #2e2e33;
 }
-.mkt ::selection { background: var(--marker); color: #1c1a14; }
-.mkt :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
+/* Figures drawn straight on the page need the page colour as their plate. */
+.mkt .on-page { --hairline-plate: var(--background); }
+.mkt ::selection { background: var(--marker); color: #18181b; }
+.mkt :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 8px; }
+
+/* Live feed: each new post slides in at the top. */
+@keyframes mkt-feed-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+.mkt-feed-in { animation: mkt-feed-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes mkt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--dot) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.mkt-live { animation: mkt-pulse 2s ease-in-out infinite; }
+@keyframes mkt-caret { 50% { opacity: 0; } }
+.mkt-caret { animation: mkt-caret 1s step-end infinite; }
 
 /* Demo thread: noise dims, the buyer's sentence gets marked, its score appears. */
 @keyframes mkt-dim { to { opacity: 0.38; } }
@@ -146,15 +167,14 @@
 .mkt-score { animation: mkt-in 0.4s ease 1.9s both; }
 
 @theme inline {
-  --font-plex: "IBM Plex Sans", "Geist", system-ui, sans-serif;
-  --font-plexmono: "IBM Plex Mono", "Geist Mono", monospace;
-  --color-signal: var(--signal);
-  --color-yellow: var(--yellow);
-  --color-yellow-deep: var(--yellow-deep);
-  --color-panel: var(--panel);
-  --color-muted-head: var(--muted-head);
+  --font-inst: "Instrument Sans", "Geist", system-ui, sans-serif;
+  --color-primary-bg: var(--primary-bg);
+  --color-primary-fg: var(--primary-fg);
+  --color-chip-bg: var(--chip-bg);
+  --color-chip-fg: var(--chip-fg);
+  --color-dot: var(--dot);
+  --color-band: var(--band);
   --color-marker: var(--marker);
-  --color-terminal: var(--terminal);
   --font-head: "Geist", "Inter", system-ui, sans-serif;
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-serif: "Instrument Serif", Georgia, serif;

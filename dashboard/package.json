@@ -12,6 +12,7 @@
     "test": "node --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@lucasmarkes/hairline": "0.5.1",
     "@radix-ui/react-slot": "^1.2.4",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-router": "^1.162.2",

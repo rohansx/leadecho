@@ -1,43 +1,40 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** One block in the main column. The id is what the table of contents links to. */
-export function Section({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
+export function Section({
+  id,
+  children,
+  className,
+}: {
+  id?: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section id={id} className={cn("scroll-mt-24 border-t border-border pt-16 pb-20 first:border-t-0 first:pt-4", className)}>
-      {children}
+    <section id={id} className={cn("scroll-mt-20 py-24 sm:py-28", className)}>
+      <div className="mx-auto w-full max-w-[1180px] px-5 sm:px-8">{children}</div>
     </section>
   );
 }
 
-export function Label({ children }: { children: ReactNode }) {
+export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="font-[family-name:var(--font-plexmono)] text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
+    <p className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] text-muted-foreground">
+      <span className="size-1.5 rounded-full bg-dot" aria-hidden="true" />
       {children}
     </p>
   );
 }
 
-/** Two-tone heading: the statement in ink, its consequence in a muted tone. */
-export function SectionHead({
-  label,
-  title,
-  muted,
-  children,
-}: {
-  label: string;
-  title: string;
-  muted?: string;
-  children?: ReactNode;
-}) {
+export function H2({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="max-w-2xl">
-      <Label>{label}</Label>
-      <h2 className="mt-3 text-[clamp(2rem,3.6vw,2.6rem)] leading-[1.12] font-light tracking-[-0.025em] text-balance">
-        {title}
-        {muted && <span className="text-muted-head"> {muted}</span>}
-      </h2>
-      {children && <p className="mt-5 text-foreground-soft">{children}</p>}
-    </div>
+    <h2
+      className={cn(
+        "text-[clamp(2.1rem,4vw,3.1rem)] leading-[1.04] font-semibold tracking-[-0.035em] text-balance [font-stretch:92%]",
+        className,
+      )}
+    >
+      {children}
+    </h2>
   );
 }
