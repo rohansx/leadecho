@@ -64,6 +64,7 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 		h := auth.NewOAuthHandler(auth.NewOIDCProvider(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret, redirect(cfg.OIDCRedirectURL, "oidc"), idps), email)
 		r.Get("/auth/oidc", h.Login)
 		r.Get("/auth/oidc/callback", h.Callback)
+		r.Get("/auth/oidc/logout", h.Logout)
 		oidc = true
 	}
 	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {

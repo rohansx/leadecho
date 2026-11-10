@@ -57,8 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setUser(null);
     resetAnalytics();
-    // Keycloak SSO may still be live; /login would sign straight back in, so land on the homepage.
-    window.location.href = "/";
+    // End the Keycloak session too, or /login would sign straight back in.
+    const providers = await fetch("/api/v1/auth/providers")
+      .then((r) => r.json())
+      .catch(() => null);
+    window.location.href = providers?.oidc ? "/api/v1/auth/oidc/logout" : "/";
   };
 
   return (

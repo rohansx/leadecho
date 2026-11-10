@@ -13,7 +13,7 @@ func oidcServer(t *testing.T, prompts string) *httptest.Server {
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/realms/x/.well-known/openid-configuration":
-			w.Write([]byte(`{"issuer":"` + srv.URL + `/realms/x","authorization_endpoint":"` + srv.URL + `/auth","token_endpoint":"` + srv.URL + `/token","userinfo_endpoint":"` + srv.URL + `/me","prompt_values_supported":` + prompts + `}`))
+			w.Write([]byte(`{"issuer":"` + srv.URL + `/realms/x","authorization_endpoint":"` + srv.URL + `/auth","token_endpoint":"` + srv.URL + `/token","userinfo_endpoint":"` + srv.URL + `/me","end_session_endpoint":"` + srv.URL + `/logout","prompt_values_supported":` + prompts + `}`))
 		case "/me":
 			w.Write([]byte(`{"sub":"u1","email":"a@b.co","email_verified":true,"preferred_username":"ann"}`))
 		default:
