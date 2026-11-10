@@ -85,7 +85,62 @@
   --ring: #f0b429;
 }
 
+/* === Marketing page: cool paper, navy ink, a highlighter for matched text and
+   one signal colour for intent scores. Scoped so the app UI is unaffected. === */
+.mkt {
+  --background: #f5f6f8;
+  --card: #ffffff;
+  --foreground: #0e1726;
+  --foreground-soft: #3b4556;
+  --muted: #eceef2;
+  --muted-foreground: #626b7b;
+  --accent: #eceef2;
+  --border: #dce0e6;
+  --ring: #0e1726;
+  --signal: #c2370f;
+  --marker: #ffe45e;
+  --terminal: #0e1726;
+  --primary-ink: var(--signal); /* logo mark */
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.6;
+}
+.dark .mkt {
+  --background: #0a1120;
+  --card: #0f1828;
+  --foreground: #e9edf3;
+  --foreground-soft: #b7c0cd;
+  --muted: #152033;
+  --muted-foreground: #8792a3;
+  --accent: #152033;
+  --border: #1f2b3d;
+  --ring: #e9edf3;
+  --signal: #ff7a50;
+  --terminal: #060b16;
+}
+.mkt ::selection { background: var(--marker); color: #0e1726; }
+.mkt :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 4px; }
+
+/* Hero thread: noise dims, the buyer's sentence gets marked, its score appears. */
+@keyframes mkt-dim { to { opacity: 0.38; } }
+@keyframes mkt-mark { to { background-size: 100% 100%; } }
+@keyframes mkt-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.mkt-noise { animation: mkt-dim 0.6s ease 0.9s both; }
+.mkt-mark {
+  background: linear-gradient(var(--marker), var(--marker)) no-repeat 0 0 / 0% 100%;
+  color: inherit;
+  padding: 0 2px;
+  animation: mkt-mark 0.7s cubic-bezier(0.6, 0, 0.2, 1) 1.3s both;
+}
+@keyframes mkt-mark-dark { to { background-size: 100% 100%; color: #0e1726; } }
+.dark .mkt .mkt-mark { animation-name: mkt-mark-dark; }
+.mkt-score { animation: mkt-in 0.4s ease 1.9s both; }
+
 @theme inline {
+  --font-display: "Schibsted Grotesk", "Geist", system-ui, sans-serif;
+  --color-signal: var(--signal);
+  --color-marker: var(--marker);
+  --color-terminal: var(--terminal);
   --font-head: "Geist", "Inter", system-ui, sans-serif;
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-serif: "Instrument Serif", Georgia, serif;
