@@ -66,6 +66,8 @@ func (h *BillingHandler) Get(w http.ResponseWriter, r *http.Request) {
 			"post": billing.CostPost, "search": billing.CostSearch, "draft": billing.CostDraft, "chat": billing.CostChat,
 		},
 		"enforced":     h.credits.Enforced(),
+		// X, Reddit and LinkedIn need a paid plan; the app shows them locked.
+		"paid_platforms_locked": h.credits.Enforced() && !st.PaidData,
 		"can_checkout": h.dodo != nil,
 	})
 }
