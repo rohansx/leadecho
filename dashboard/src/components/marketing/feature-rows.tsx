@@ -169,7 +169,7 @@ export function FeatureRows() {
       <Row
         figure={<Keyboard play className="mx-auto max-w-[400px]" intensity={0.6} label="A keyboard whose keys sink under the pointer" />}
         eyebrow="Drafts"
-        title="A reply in your voice, from your docs."
+        title="A reply drafted from your docs and the thread."
         body="Drafts read the full thread and quote your real product. Nothing posts until you approve it, and it posts from your own account through the Chrome extension."
       >
         <Draft />

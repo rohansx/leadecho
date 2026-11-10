@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Check, Minus } from "lucide-react";
+import { Check, Lock, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Section, Eyebrow, H2 } from "./section";
 import { Reveal } from "./fx";
@@ -12,6 +12,7 @@ const plans = [
     for: "Try it on the free sources",
     price: 0,
     features: ["300 credits a month", "3 active keywords", "Hacker News, Dev.to, Bluesky", "AI scoring and reply drafts", "Slack, Discord and email alerts"],
+    locked: ["X, Reddit and LinkedIn"],
     cta: "Start free",
   },
   {
@@ -86,6 +87,14 @@ export function PricingSection() {
                 <li key={f} className="flex gap-2.5 text-foreground-soft">
                   <Check className="mt-1 h-4 w-4 shrink-0 text-foreground" />
                   {f}
+                </li>
+              ))}
+              {p.locked?.map((f) => (
+                <li key={f} className="flex gap-2.5 text-muted-foreground">
+                  <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>
+                    {f} <span className="text-[13px]">(Starter and up)</span>
+                  </span>
                 </li>
               ))}
             </ul>
