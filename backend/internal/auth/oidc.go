@@ -59,6 +59,7 @@ func (d *oidcDiscovery) load(ctx context.Context, p *Provider) error {
 		Authorization string   `json:"authorization_endpoint"`
 		Token         string   `json:"token_endpoint"`
 		UserInfo      string   `json:"userinfo_endpoint"`
+		EndSession    string   `json:"end_session_endpoint"`
 		PromptValues  []string `json:"prompt_values_supported"`
 	}
 	if err := getJSON(ctx, d.client, d.issuer+"/.well-known/openid-configuration", &doc); err != nil {
@@ -72,6 +73,7 @@ func (d *oidcDiscovery) load(ctx context.Context, p *Provider) error {
 	}
 	p.oauth.Endpoint = oauth2.Endpoint{AuthURL: doc.Authorization, TokenURL: doc.Token}
 	p.apiURL = doc.UserInfo
+	p.endSession = doc.EndSession
 	d.prompt = slices.Contains(doc.PromptValues, "create")
 	d.done = true
 	return nil

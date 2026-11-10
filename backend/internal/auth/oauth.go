@@ -39,6 +39,8 @@ type Provider struct {
 	authOpts func(r *http.Request) []oauth2.AuthCodeOption
 	// prepare runs before Login/Callback (optional), e.g. OIDC discovery.
 	prepare func(ctx context.Context) error
+	// endSession is the issuer's RP-initiated logout endpoint (OIDC only).
+	endSession string
 }
 
 func NewGoogleProvider(clientID, secret, redirectURL string) *Provider {
@@ -224,6 +226,9 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !h.core.startSession(w, user, wsID, st.SessionVersion) {
 		fail("auth_failed")
 		return
+	}
+	if idt, _ := tok.Extra("id_token").(string); idt != "" && h.p.endSession != "" {
+		h.setIDToken(w, idt, int(sessionTTL.Seconds()))
 	}
 	if created {
 		go h.core.mail.welcome(context.Background(), user.Name, user.Email)
