@@ -6,7 +6,6 @@ const profile = [
   { k: "Company", v: "cursivelabs.dev, found from the GitHub profile" },
   { k: "Stage", v: "Comparing vendors, has a budget" },
   { k: "Asked about", v: "Reddit monitoring that hits rate limits, a 0.82 match to your pain point" },
-  { k: "Reply style", v: "Founder to founder. Name the rate-limit problem, link the install docs." },
 ];
 
 const timeline = [
@@ -18,27 +17,27 @@ const timeline = [
 
 export function LeadAndReply() {
   return (
-    <Section>
-      <SectionHead title="Know who is asking before you answer">
-        Each lead comes with the person behind the username and a reply drafted from your own docs. Nothing
-        posts until you approve it, and it posts from your account.
+    <Section id="who">
+      <SectionHead label="Who is asking" title="Know the person behind the username." muted="Then answer like one.">
+        Each lead comes with a profile and a reply drafted from your own docs. Nothing posts until you approve it,
+        and it posts from your account.
       </SectionHead>
 
-      <div className="mt-14 grid overflow-hidden rounded-[10px] border border-border bg-card lg:grid-cols-2">
-        <div className="p-6 sm:p-8">
-          <div className="flex items-baseline justify-between gap-4">
+      <div className="mt-10 overflow-hidden rounded-[18px] border border-border bg-card">
+        <div className="p-5 sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-2xl font-semibold tracking-[-0.01em]">Daniel Reyes</div>
+              <div className="text-[22px] font-medium tracking-[-0.01em]">Daniel Reyes</div>
               <div className="text-[15px] text-muted-foreground">u/build_in_public on Reddit</div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-signal">88%</div>
-              <div className="text-[13px] text-muted-foreground">fits your customer profile</div>
+            <div className="flex items-center gap-2 text-[14px] text-foreground-soft">
+              <span className="rounded-full bg-yellow px-2.5 py-0.5 text-[15px] font-semibold text-[#1c1a14]">88%</span>
+              fits your customer profile
             </div>
           </div>
           <dl className="mt-6 border-t border-border">
             {profile.map((r) => (
-              <div key={r.k} className="grid grid-cols-[7rem_1fr] gap-4 border-b border-border py-3 text-[15px]">
+              <div key={r.k} className="grid gap-1 border-b border-border py-3 text-[15px] sm:grid-cols-[8rem_1fr] sm:gap-4">
                 <dt className="text-muted-foreground">{r.k}</dt>
                 <dd>{r.v}</dd>
               </div>
@@ -46,15 +45,15 @@ export function LeadAndReply() {
           </dl>
         </div>
 
-        <ol className="border-t border-border bg-background p-6 sm:p-8 lg:border-t-0 lg:border-l">
+        <ol className="border-t border-border bg-panel p-5 sm:p-7">
           {timeline.map((t) => (
-            <li key={t.when} className="grid grid-cols-[5.5rem_1fr] gap-4 pb-5 last:pb-0">
-              <span className="pt-0.5 text-[13px] text-muted-foreground">{t.when}</span>
+            <li key={t.when} className="grid gap-1 pb-5 last:pb-0 sm:grid-cols-[6rem_1fr] sm:gap-4">
+              <span className="pt-0.5 font-[family-name:var(--font-plexmono)] text-[12px] text-muted-foreground">{t.when}</span>
               <div>
-                <div className="text-[13px] font-semibold">{t.who}</div>
+                <div className="text-[13px] font-medium">{t.who}</div>
                 <p
                   className={`mt-1 text-[15px] leading-relaxed ${
-                    t.draft ? "rounded-lg border border-border bg-card p-3" : "text-foreground-soft"
+                    t.draft ? "rounded-[12px] border border-border bg-card p-3.5" : "text-foreground-soft"
                   }`}
                 >
                   {t.body}

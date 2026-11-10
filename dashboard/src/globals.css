@@ -85,43 +85,52 @@
   --ring: #f0b429;
 }
 
-/* === Marketing page: cool paper, navy ink, a highlighter for matched text and
-   one signal colour for intent scores. Scoped so the app UI is unaffected. === */
+/* === Marketing page: warm white, ink, and one bright yellow for the primary
+   action, highlights and active states. Scoped so the app UI is unaffected. === */
 .mkt {
-  --background: #f5f6f8;
+  --background: #fcfbf6;
   --card: #ffffff;
-  --foreground: #0e1726;
-  --foreground-soft: #3b4556;
-  --muted: #eceef2;
-  --muted-foreground: #626b7b;
-  --accent: #eceef2;
-  --border: #dce0e6;
-  --ring: #0e1726;
-  --signal: #c2370f;
-  --marker: #ffe45e;
-  --terminal: #0e1726;
-  --primary-ink: var(--signal); /* logo mark */
-  font-family: var(--font-display);
+  --panel: #f7f3e3;
+  --foreground: #1c1a14;
+  --foreground-soft: #4a463b;
+  --muted: #f3efe2;
+  --muted-foreground: #7a7465;
+  --muted-head: #aaa38f;
+  --accent: #f3efe2;
+  --border: #ece7d7;
+  --ring: #1c1a14;
+  --yellow: #ffd43b;
+  --yellow-deep: #e9b800;
+  --signal: #8a6a00;
+  --marker: #ffe57a;
+  --demo: linear-gradient(180deg, #fff8d6 0%, #ffe68a 100%);
+  --terminal: #1c1a14;
+  --primary-ink: var(--yellow-deep); /* logo mark */
+  font-family: var(--font-plex);
   font-size: 17px;
   line-height: 1.6;
 }
 .dark .mkt {
-  --background: #0a1120;
-  --card: #0f1828;
-  --foreground: #e9edf3;
-  --foreground-soft: #b7c0cd;
-  --muted: #152033;
-  --muted-foreground: #8792a3;
-  --accent: #152033;
-  --border: #1f2b3d;
-  --ring: #e9edf3;
-  --signal: #ff7a50;
-  --terminal: #060b16;
+  --background: #13120e;
+  --card: #1b1a15;
+  --panel: #211f17;
+  --foreground: #f3f0e6;
+  --foreground-soft: #c9c4b5;
+  --muted: #24221b;
+  --muted-foreground: #948e7e;
+  --muted-head: #6b6657;
+  --accent: #24221b;
+  --border: #2d2a21;
+  --ring: #f3f0e6;
+  --signal: #ffd43b;
+  --demo: linear-gradient(180deg, #221f14 0%, #3a3215 100%);
+  --terminal: #0c0b08;
+  --primary-ink: var(--yellow);
 }
-.mkt ::selection { background: var(--marker); color: #0e1726; }
-.mkt :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 4px; }
+.mkt ::selection { background: var(--marker); color: #1c1a14; }
+.mkt :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
 
-/* Hero thread: noise dims, the buyer's sentence gets marked, its score appears. */
+/* Demo thread: noise dims, the buyer's sentence gets marked, its score appears. */
 @keyframes mkt-dim { to { opacity: 0.38; } }
 @keyframes mkt-mark { to { background-size: 100% 100%; } }
 @keyframes mkt-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -132,13 +141,18 @@
   padding: 0 2px;
   animation: mkt-mark 0.7s cubic-bezier(0.6, 0, 0.2, 1) 1.3s both;
 }
-@keyframes mkt-mark-dark { to { background-size: 100% 100%; color: #0e1726; } }
+@keyframes mkt-mark-dark { to { background-size: 100% 100%; color: #1c1a14; } }
 .dark .mkt .mkt-mark { animation-name: mkt-mark-dark; }
 .mkt-score { animation: mkt-in 0.4s ease 1.9s both; }
 
 @theme inline {
-  --font-display: "Schibsted Grotesk", "Geist", system-ui, sans-serif;
+  --font-plex: "IBM Plex Sans", "Geist", system-ui, sans-serif;
+  --font-plexmono: "IBM Plex Mono", "Geist Mono", monospace;
   --color-signal: var(--signal);
+  --color-yellow: var(--yellow);
+  --color-yellow-deep: var(--yellow-deep);
+  --color-panel: var(--panel);
+  --color-muted-head: var(--muted-head);
   --color-marker: var(--marker);
   --color-terminal: var(--terminal);
   --font-head: "Geist", "Inter", system-ui, sans-serif;
