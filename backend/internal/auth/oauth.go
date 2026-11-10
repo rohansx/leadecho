@@ -35,6 +35,10 @@ type Provider struct {
 	oauth  *oauth2.Config
 	fetch  func(ctx context.Context, c *http.Client) (identity, error)
 	apiURL string // overridable in tests
+	// authOpts adds provider-specific params to the consent redirect (optional).
+	authOpts func(r *http.Request) []oauth2.AuthCodeOption
+	// prepare runs before Login/Callback (optional), e.g. OIDC discovery.
+	prepare func(ctx context.Context) error
 }
 
 func NewGoogleProvider(clientID, secret, redirectURL string) *Provider {
@@ -139,12 +143,32 @@ func (h *OAuthHandler) stateCookie() string { return "oauth_state_" + h.p.Name }
 
 // Login redirects to the provider's consent screen.
 func (h *OAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	if !h.ready(w, r) {
+		return
+	}
 	state := randomState()
 	http.SetCookie(w, &http.Cookie{
 		Name: h.stateCookie(), Value: state, Path: "/", MaxAge: 600,
 		HttpOnly: true, Secure: h.core.secure, SameSite: http.SameSiteLaxMode,
 	})
-	http.Redirect(w, r, h.p.oauth.AuthCodeURL(state), http.StatusFound)
+	var opts []oauth2.AuthCodeOption
+	if h.p.authOpts != nil {
+		opts = h.p.authOpts(r)
+	}
+	http.Redirect(w, r, h.p.oauth.AuthCodeURL(state, opts...), http.StatusFound)
+}
+
+// ready runs the provider's prepare step; on failure it sends the user back to /login.
+func (h *OAuthHandler) ready(w http.ResponseWriter, r *http.Request) bool {
+	if h.p.prepare == nil {
+		return true
+	}
+	if err := h.p.prepare(r.Context()); err != nil {
+		h.core.logger.Error().Err(err).Str("provider", h.p.Name).Msg("oauth provider unavailable")
+		http.Redirect(w, r, h.core.frontendURL+"/login?error=auth_failed", http.StatusFound)
+		return false
+	}
+	return true
 }
 
 // Callback verifies state, exchanges the code, then signs in / links / creates the user.
@@ -155,6 +179,9 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if q.Get("error") != "" {
 		fail("oauth_denied")
+		return
+	}
+	if !h.ready(w, r) {
 		return
 	}
 	sc, err := r.Cookie(h.stateCookie())
@@ -201,7 +228,11 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	if created {
 		go h.core.mail.welcome(context.Background(), user.Name, user.Email)
 	}
-	http.Redirect(w, r, h.core.frontendURL+"/inbox", http.StatusFound)
+	next := "/inbox"
+	if created {
+		next = "/onboarding"
+	}
+	http.Redirect(w, r, h.core.frontendURL+next, http.StatusFound)
 }
 
 // signIn: external id → existing account by (provider-verified) email → new account.

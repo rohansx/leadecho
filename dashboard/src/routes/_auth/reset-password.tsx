@@ -72,7 +72,7 @@ function ResetPasswordPage() {
         )}
       </CardContent>
       <CardFooter className="justify-center">
-        <Link to={done ? "/login" : "/forgot-password"} className="text-xs text-muted-foreground underline hover:text-foreground">
+        <Link to={done ? "/login" : "/forgot-password"} search={done ? { legacy: 1 } : {}} className="text-xs text-muted-foreground underline hover:text-foreground">
           {done ? "Sign in" : "Request a new link"}
         </Link>
       </CardFooter>

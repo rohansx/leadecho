@@ -54,7 +54,7 @@ function ForgotPasswordPage() {
         )}
       </CardContent>
       <CardFooter className="justify-center">
-        <Link to="/login" className="text-xs text-muted-foreground underline hover:text-foreground">
+        <Link to="/login" search={{ legacy: 1 }} className="text-xs text-muted-foreground underline hover:text-foreground">
           Back to sign in
         </Link>
       </CardFooter>

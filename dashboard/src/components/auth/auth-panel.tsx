@@ -1,15 +1,15 @@
-import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { AuthError, getAuthProviders, loginWithEmail, registerWithEmail, resendVerification } from "@/lib/api";
+import type { AuthProviders } from "@/lib/api";
+import { authView, type AuthMode } from "@/lib/auth-entry";
 import { FormError, OAuthButtons, UrlError } from "./auth-shared";
 import { errorMessage } from "./errors";
-
-type Mode = "login" | "register";
 
 function CheckEmail({ email }: { email: string }) {
   const [sent, setSent] = useState(false);
@@ -30,8 +30,39 @@ function CheckEmail({ email }: { email: string }) {
   );
 }
 
-export function AuthPanel({ mode }: { mode: Mode }) {
-  const { data: providers } = useQuery({ queryKey: ["auth-providers"], queryFn: getAuthProviders });
+function Redirecting() {
+  return (
+    <Text as="p" role="status" className="text-center text-sm text-muted-foreground">
+      Redirecting to sign in…
+    </Text>
+  );
+}
+
+/** OIDC came back with ?error=: say why, and let the user go again (no auto-loop). */
+function OidcError({ retry }: { retry: string }) {
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Sign-in didn't finish</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <UrlError />
+        <Button className="w-full" size="lg" onClick={() => window.location.replace(retry)}>
+          Try again
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface PasswordCardProps {
+  mode: AuthMode;
+  /** OIDC is on: only the pre-Keycloak password login, no OAuth buttons or sign-up link. */
+  legacy?: boolean;
+  providers?: AuthProviders;
+}
+
+function PasswordCard({ mode, legacy, providers }: PasswordCardProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,9 +100,13 @@ export function AuthPanel({ mode }: { mode: Mode }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>{isRegister ? "Create your account" : "Welcome to LeadEcho"}</CardTitle>
+        <CardTitle>{isRegister ? "Create your account" : legacy ? "Sign in with password" : "Welcome to LeadEcho"}</CardTitle>
         <CardDescription>
-          {isRegister ? "Start catching buying signals" : "Sign in to start catching buying signals"}
+          {isRegister
+            ? "Start catching buying signals"
+            : legacy
+              ? "For accounts created with an email and password"
+              : "Sign in to start catching buying signals"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -112,18 +147,51 @@ export function AuthPanel({ mode }: { mode: Mode }) {
                 </div>
               )}
             </form>
-            <OAuthButtons providers={providers} />
+            {!legacy && <OAuthButtons providers={providers} />}
           </>
         )}
       </CardContent>
       <CardFooter className="justify-center">
         <Text as="p" className="text-xs text-muted-foreground text-center">
-          {isRegister ? "Already have an account? " : "Don't have an account? "}
-          <Link to={isRegister ? "/login" : "/register"} className="underline hover:text-foreground">
-            {isRegister ? "Sign in" : "Register"}
-          </Link>
+          {legacy ? (
+            <a href="/login" className="underline hover:text-foreground">
+              Back to sign in
+            </a>
+          ) : (
+            <>
+              {isRegister ? "Already have an account? " : "Don't have an account? "}
+              <Link to={isRegister ? "/login" : "/register"} className="underline hover:text-foreground">
+                {isRegister ? "Sign in" : "Register"}
+              </Link>
+            </>
+          )}
         </Text>
       </CardFooter>
     </Card>
   );
+}
+
+export function AuthPanel({ mode }: { mode: AuthMode }) {
+  const { data: providers, isError } = useQuery({ queryKey: ["auth-providers"], queryFn: getAuthProviders });
+  const search = useRouterState({ select: (s) => s.location.searchStr });
+  // ponytail: providers fetch failed → fall back to the in-app panel rather than spin forever.
+  const view = authView(isError ? { oidc: false } : providers, search, mode);
+  const redirectTo = view.kind === "redirect" ? view.to : "";
+
+  useEffect(() => {
+    // replace(), not href: Back from Keycloak shouldn't land here and bounce again.
+    if (redirectTo) window.location.replace(redirectTo);
+  }, [redirectTo]);
+
+  switch (view.kind) {
+    case "loading":
+    case "redirect":
+      return <Redirecting />;
+    case "error":
+      return <OidcError retry={view.retry} />;
+    case "legacy":
+      return <PasswordCard mode="login" legacy />;
+    case "panel":
+      return <PasswordCard mode={mode} providers={providers} />;
+  }
 }

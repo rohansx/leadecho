@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" width="168" height="32">
+  <g transform="translate(2 4)" fill="none" stroke="#facc15" stroke-width="1.6">
+    <circle cx="6" cy="12" r="2" fill="#facc15" stroke="none"/>
+    <path d="M10 7 a 7 7 0 0 1 0 10"/><path d="M14 4 a 11 11 0 0 1 0 16"/>
+    <path d="M18 1 a 15 15 0 0 1 0 22" stroke-opacity="0.5"/>
+  </g>
+  <text x="34" y="23" font-size="21" fill="#fafafa" font-family="Geist, Inter, system-ui, sans-serif" font-weight="600">Lead<tspan fill="#facc15" font-family="'Instrument Serif', Georgia, serif" font-style="italic" font-weight="400">Echo</tspan></text>
+</svg>

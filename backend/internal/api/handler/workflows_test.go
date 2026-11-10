@@ -21,7 +21,9 @@ type fakeWorkflowStore struct {
 	count         int64
 }
 
-func (f *fakeWorkflowStore) CountWorkflows(context.Context, string) (int64, error) { return f.count, nil }
+func (f *fakeWorkflowStore) CountWorkflows(context.Context, string) (int64, error) {
+	return f.count, nil
+}
 func (f *fakeWorkflowStore) CreateWorkflow(_ context.Context, p database.CreateWorkflowParams) (database.Workflow, error) {
 	f.created = &p
 	return database.Workflow{ID: "wf1", WorkspaceID: p.WorkspaceID, Name: p.Name, Status: p.Status,
