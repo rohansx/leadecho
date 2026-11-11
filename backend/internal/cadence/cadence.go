@@ -50,7 +50,7 @@ var Options = map[string]time.Duration{
 var CostPerCall = map[string]float64{
 	"twitter":    0.00075,
 	"linkedin":   0.002,
-	"reddit":     0.0009, // treg crawl4ai.reddit.search.posts
+	"reddit":     0.0009, // treg anyapi.reddit.search (observed $0.0004-0.0012)
 	"hackernews": 0, "devto": 0, "bluesky": 0,
 	"lobsters": 0, "indiehackers": 0, "quora": 0, "exa": 0, "googlenews": 0,
 }

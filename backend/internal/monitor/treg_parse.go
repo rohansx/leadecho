@@ -26,7 +26,7 @@ type tregPost struct {
 var (
 	rowContainerKeys = []string{"output", "posts", "results", "data", "items", "elements", "tweets", "rows"}
 	idKeys           = []string{"id_str", "rest_id", "tweetId", "tweet_id", "urn", "activityId", "postId", "id"}
-	textKeys         = []string{"full_text", "fullText", "text", "content", "commentary", "body", "description", "snippet"}
+	textKeys         = []string{"full_text", "fullText", "text", "selftext", "content", "commentary", "body", "description", "snippet"}
 	urlKeys          = []string{"url", "twitterUrl", "tweetUrl", "postUrl", "post_url", "shareUrl", "link"}
 	timeKeys         = []string{"createdAt", "created_at", "publishedAt", "published_at", "postedAt", "posted_at", "publishDate", "date", "timestamp", "time", "createdUtc", "created"}
 	userKeys         = []string{"userName", "username", "screen_name", "handle", "publicIdentifier", "name"}
@@ -94,6 +94,13 @@ func toTregPost(row map[string]any) tregPost {
 		Reposts: num(row, "retweetCount", "retweet_count", "reposts", "numShares", "shares"),
 	}
 	p.Title, p.Subreddit = strings.TrimSpace(str(row, "title")), str(row, "subreddit")
+	// Reddit: "url" is the linked page for link posts; the thread is the permalink.
+	if pl := str(row, "permalink"); strings.HasPrefix(pl, "/r/") {
+		p.URL = "https://www.reddit.com" + pl
+	}
+	if p.Likes == 0 {
+		p.Likes = num(row, "score")
+	}
 	if p.Text == "" {
 		p.Text = p.Title // Reddit link posts have no body
 	}

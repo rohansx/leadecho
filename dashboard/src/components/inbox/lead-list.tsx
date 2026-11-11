@@ -468,9 +468,21 @@ export function LeadList({
                     </span>
                   </div>
                   <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
-                  <div className="mt-1 text-xs text-muted-foreground truncate">
-                    @{m.author_username ?? "unknown"}
-                  </div>
+                  {m.person ? (
+                    <div className="mt-1 text-xs text-foreground truncate" title={m.person.bio}>
+                      <span className="font-medium">{m.person.name || m.author_username}</span>
+                      {[m.person.title || m.person.bio, [m.person.company, m.person.employees && `(${m.person.employees})`].filter(Boolean).join(" ")]
+                        .filter(Boolean)
+                        .map((part) => (
+                          <span key={part} className="text-muted-foreground"> · {part}</span>
+                        ))}
+                      {m.person.has_email && <span className="text-muted-foreground"> · email found</span>}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-muted-foreground truncate">
+                      @{m.author_username ?? "unknown"}
+                    </div>
+                  )}
                   <div className="mt-1.5">
                     <TagChips tags={m.intent_tags} sentiment={m.sentiment} />
                   </div>

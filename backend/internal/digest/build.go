@@ -52,8 +52,11 @@ type Data struct {
 	Clicks        int
 	Signups       int
 	RevenueCents  int64
-	Summary       string // weekly AI (or template) paragraph
-	DashboardURL  string
+	// Pipeline is where every lead stands today (not just this period): the
+	// running proof of what the leads turned into.
+	Pipeline     []Count
+	Summary      string // weekly AI (or template) paragraph
+	DashboardURL string
 }
 
 // NoisyKeywords picks keywords with many mentions but low fit, loudest first.
@@ -67,6 +70,22 @@ func NoisyKeywords(stats []KeywordStat) []KeywordStat {
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Mentions > out[j].Mentions })
 	if len(out) > maxNoisyKeywords {
 		out = out[:maxNoisyKeywords]
+	}
+	return out
+}
+
+// pipelineLabels names lead stages the way the Pipeline page does, in order.
+var pipelineLabels = []struct{ stage, label string }{
+	{"prospect", "to reply"}, {"qualified", "replied"}, {"engaged", "in conversation"}, {"converted", "won"}, {"lost", "lost"},
+}
+
+// PipelineCounts orders raw stage counts and drops empty stages.
+func PipelineCounts(byStage map[string]int) []Count {
+	out := []Count{}
+	for _, s := range pipelineLabels {
+		if n := byStage[s.stage]; n > 0 {
+			out = append(out, Count{s.label, n})
+		}
 	}
 	return out
 }

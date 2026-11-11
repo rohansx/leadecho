@@ -22,6 +22,7 @@ var emailTmpl = template.Must(template.New("digest").Funcs(template.FuncMap{
     <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.Clicks}}</strong><br>clicks</td>
     <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{usd .D.RevenueCents}}</strong><br>attributed</td>
   </tr></table>
+  {{if .D.Pipeline}}<p style="font-size:0.9rem;margin:0 0 20px"><strong>Your pipeline:</strong> {{range $i, $c := .D.Pipeline}}{{if $i}} → {{end}}{{$c.N}} {{$c.Label}}{{end}}</p>{{end}}
   <h2 style="font-size:1rem;margin:0 0 8px">Top leads</h2>
   {{range .D.TopLeads}}<div style="border-left:3px solid #27c17b;padding:6px 12px;margin:6px 0">
     <a href="{{.URL}}" style="color:#0d1117;font-weight:600">{{if .Title}}{{trunc .Title 120}}{{else}}(untitled){{end}}</a><br>
@@ -70,6 +71,13 @@ func RenderSlack(d Data) string {
 	}
 	fmt.Fprintf(&b, "%d mentions · %d buyers · %d replies posted · %d clicks · %s attributed\n",
 		d.TotalMentions(), d.Buyers(), d.RepliesPosted, d.Clicks, FormatUSD(d.RevenueCents))
+	if len(d.Pipeline) > 0 {
+		parts := make([]string, 0, len(d.Pipeline))
+		for _, c := range d.Pipeline {
+			parts = append(parts, fmt.Sprintf("%d %s", c.N, c.Label))
+		}
+		b.WriteString("_Pipeline:_ " + strings.Join(parts, " → ") + "\n")
+	}
 	for i, l := range d.TopLeads {
 		if i >= 5 {
 			break

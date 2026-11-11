@@ -149,7 +149,7 @@ func TestCallErrorMapping(t *testing.T) {
 		{"insufficient balance", 402, `{"error":"insufficient_balance","balance_micro":3,"topup_url":"https://x"}`, ErrInsufficientBalance, "", 1},
 		{"platform daily cap", 429, `{"error":"platform_daily_cap_reached"}`, ErrPlatformDailyCap, "", 1},
 		{"route max cost", 402, `{"error":"route_max_cost"}`, nil, "route_max_cost", 1},
-		{"customer cap", 429, `{"error":"tag_spend_cap_reached","dim":"customer"}`, nil, "tag_spend_cap_reached", 1},
+		// a workspace's own cap is covered in customer_cap_test.go (ErrCustomerDailyCap)
 		{"route failed not retried", 502, `{"error":"route_failed","charged_micro":0}`, nil, "route_failed", 1},
 		{"provider 400", 400, `{"message":"bad q"}`, nil, "http_400", 1},
 		{"5xx retried", 500, `oops`, nil, "http_500", maxAttempts},

@@ -20,6 +20,27 @@ func TestWhoLine(t *testing.T) {
 	}
 }
 
+func TestPipelineCounts(t *testing.T) {
+	got := PipelineCounts(map[string]int{"converted": 1, "prospect": 14, "engaged": 2, "lost": 0, "unknown": 9})
+	want := []Count{{"to reply", 14}, {"in conversation", 2}, {"won", 1}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	}
+	d := Data{Kind: KindDaily, Pipeline: got}
+	html, err := RenderHTML(d)
+	if err != nil || !strings.Contains(html, "14 to reply → 2 in conversation → 1 won") {
+		t.Fatalf("email pipeline line missing (err=%v)", err)
+	}
+	if !strings.Contains(RenderSlack(d), "14 to reply → 2 in conversation → 1 won") {
+		t.Fatal("slack pipeline line missing")
+	}
+}
+
 func TestRenderShowsWhoAndDraft(t *testing.T) {
 	d := Data{Kind: KindDaily, TopLeads: []Lead{{
 		Title: "Need a screening tool", URL: "https://example.com/p", Platform: "linkedin", Score: 8,

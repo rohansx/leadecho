@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,6 +41,10 @@ var (
 	ErrPlatformDailyCap    = errors.New("treg: platform daily cap reached")
 	ErrPaused              = errors.New("treg: paused after an account-level refusal")
 )
+
+// ErrCustomerDailyCap: this one workspace reached its daily spend cap at treg.
+// Other workspaces are unaffected; it lifts at the next UTC midnight.
+var ErrCustomerDailyCap = errors.New("treg: workspace daily spend cap reached")
 
 var (
 	ErrNotConfigured = errors.New("treg: not configured")
@@ -81,6 +86,7 @@ type Client struct {
 	logger      zerolog.Logger
 	backoff     func(attempt int) time.Duration
 	pausedUntil atomic.Int64 // unix nano
+	capped      sync.Map     // workspace id -> time.Time its daily spend cap lifts
 	meter       Meter        // nil: calls are not metered
 	cache       Cache        // nil: no response cache
 	cacheTTL    time.Duration
@@ -214,6 +220,12 @@ func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 	if time.Now().UnixNano() < c.pausedUntil.Load() {
 		return nil, ErrPaused
 	}
+	if until, ok := c.capped.Load(req.WorkspaceID); ok {
+		if time.Now().Before(until.(time.Time)) {
+			return nil, ErrCustomerDailyCap // every call would be refused: don't make them
+		}
+		c.capped.Delete(req.WorkspaceID)
+	}
 	payload, err := json.Marshal(req.Body)
 	if err != nil {
 		return nil, fmt.Errorf("treg: encode body: %w", err)
@@ -277,6 +289,15 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 		ServedBy:  res.Header.Get("X-Treg-Served-By"),
 	}
 	callErr, retry := c.classify(res, body)
+	if errors.Is(callErr, ErrCustomerDailyCap) {
+		until := nextUTCMidnight(time.Now())
+		if _, already := c.capped.LoadOrStore(req.WorkspaceID, until); !already {
+			// Once per workspace per day; raise its budget at treg (or
+			// TREG_CUSTOMER_DAILY_CAP_MICRO) if this is a paying customer.
+			c.logger.Warn().Str("alert", "treg").Str("workspace_id", req.WorkspaceID).Time("until", until).
+				Msg("treg: workspace reached its daily spend cap; paid data is off for it until the cap resets")
+		}
+	}
 	c.record(ctx, req, out, callErr)
 	if callErr != nil {
 		return nil, retry, callErr
@@ -297,6 +318,8 @@ func (c *Client) classify(res *http.Response, body []byte) (error, bool) {
 	case code == "platform_daily_cap_reached":
 		c.alert(ErrPlatformDailyCap)
 		return ErrPlatformDailyCap, false
+	case code == "tag_spend_cap_reached": // one workspace's budget, not the account
+		return ErrCustomerDailyCap, false
 	}
 	isTreg := res.Header.Get("X-Treg-Error") == "1"
 	if code == "" {
@@ -338,15 +361,28 @@ func (c *Client) record(ctx context.Context, req Request, out *Response, callErr
 	}
 }
 
+// errorCode reads the refusal code from {"error":"..."} or, for budget
+// refusals, {"detail":{"error":"..."}}.
 func errorCode(body []byte) string {
 	var e struct {
-		Error any `json:"error"`
+		Error  any `json:"error"`
+		Detail struct {
+			Error string `json:"error"`
+		} `json:"detail"`
 	}
 	if json.Unmarshal(body, &e) != nil {
 		return ""
 	}
-	s, _ := e.Error.(string)
-	return s
+	if s, _ := e.Error.(string); s != "" {
+		return s
+	}
+	return e.Detail.Error
+}
+
+// nextUTCMidnight is when treg's per-day caps reset.
+func nextUTCMidnight(now time.Time) time.Time {
+	y, m, d := now.UTC().Date()
+	return time.Date(y, m, d+1, 0, 0, 0, 0, time.UTC)
 }
 
 func parseMicro(s string) int64 {
