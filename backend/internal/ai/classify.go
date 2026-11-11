@@ -25,6 +25,7 @@ type ScoringContext struct {
 	Product  string // product / listener description
 	LooksFor string // plain-English "Looks for"
 	Skips    string // plain-English "Skips" (negative signal)
+	Buyers   string // who buys the product (brand profile audience); "" = unknown
 	Examples []ScoringExample
 }
 
@@ -34,6 +35,7 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "intent_tags": array of every tag that applies, from: "buying_intent", "recommendation_request", "comparison", "seeking_alternative", "competitor_complaint", "competitor_mention", "brand_mention", "praise", "pain_point", "feature_request", "content_opportunity", "hiring", "promotional"
 - "sentiment": one of "positive", "neutral", "negative"
 - "post_type": one of "question", "discussion", "announcement", "thought_leadership", "other"
+- "author_role": one of "buyer", "non_buyer", "unknown" (see Author role)
 - "matches_skips": boolean (true if the post matches anything the listener SKIPS; false when no SKIPS are given)
 - "conversion_probability": float 0.0-1.0 (how likely this person will buy/convert)
 - "relevance_score": float 0.0-10.0 (how relevant this is for a B2B SaaS product)
@@ -59,6 +61,12 @@ Hard rules:
 - Announcements, launches ("Show HN", "Launch HN", "Introducing", "I built", release notes), thought-leadership, opinion essays, tutorials and "how we did X" posts must NEVER be tagged buying_intent or seeking_alternative, even if they mention competitors or say "alternative to". The author is selling or teaching, not shopping. Tag launches "promotional" and essays "content_opportunity".
 - Only tag buying_intent / seeking_alternative / recommendation_request when the AUTHOR is the one looking.
 
+Author role: judge the PERSON who wrote the post, not the topic.
+- buyer: the author could buy, choose or recommend a product like this at work: they speak as the person or team that has the problem (e.g. "we are hiring", "our team uses", "I run", "looking for a tool for my company").
+- non_buyer: the author is on the other side of the problem or only commenting on it: a job seeker or candidate, a student, a hobbyist, a journalist or bystander sharing an opinion or news, or a vendor/competitor promoting something.
+- unknown: the post gives no clue who the author is.
+A non_buyer is never a lead: do not tag buying_intent, seeking_alternative or recommendation_request, and keep relevance_score at 4 or below however on-topic the post is.
+
 Awareness level definitions:
 - problem_aware: Knows they have a problem but hasn't started looking for solutions
 - solution_aware: Actively researching solution categories
@@ -71,6 +79,10 @@ func buildClassifyPrompt(sc ScoringContext) string {
 	b.WriteString(classifyBasePrompt)
 	if sc.Product != "" {
 		b.WriteString(productFitRules(sc.Product))
+	}
+	if by := strings.TrimSpace(sc.Buyers); by != "" {
+		b.WriteString("\n\nWHO BUYS THE PRODUCT (author_role is \"buyer\" only for people like these):\n")
+		b.WriteString(by)
 	}
 	if lf := strings.TrimSpace(sc.LooksFor); lf != "" {
 		b.WriteString("\n\nTHE LISTENER LOOKS FOR (raise relevance_score when the post matches, alongside the pain-point match):\n")
@@ -86,6 +98,19 @@ func buildClassifyPrompt(sc ScoringContext) string {
 		b.WriteString(formatExamples(sc.Examples))
 	}
 	return b.String()
+}
+
+// classifySystem is the system prompt as messages. For Anthropic the part
+// shared by every workspace and the per-listener part are separate blocks, so
+// prompt caching reuses the shared part across workspaces and the listener
+// part across that listener's posts. Other providers get one message.
+func classifySystem(p Provider, sc ScoringContext) []chatMessage {
+	full := buildClassifyPrompt(sc)
+	listener := strings.TrimPrefix(full, classifyBasePrompt)
+	if p.Name != "anthropic" || listener == "" || listener == full {
+		return []chatMessage{{Role: "system", Content: full}}
+	}
+	return []chatMessage{{Role: "system", Content: classifyBasePrompt}, {Role: "system", Content: listener}}
 }
 
 func formatExamples(ex []ScoringExample) string {
@@ -121,10 +146,7 @@ func truncate(s string, n int) string {
 func ClassifyIntent(ctx context.Context, p Provider, title, content, platform string, sc ScoringContext) (*ClassifyResult, error) {
 	userPrompt := fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)
 
-	result, err := callChat(ctx, p, []chatMessage{
-		{Role: "system", Content: buildClassifyPrompt(sc)},
-		{Role: "user", Content: userPrompt},
-	}, 0.1)
+	result, err := callChat(ctx, p, append(classifySystem(p, sc), chatMessage{Role: "user", Content: userPrompt}), 0.1)
 	if err != nil {
 		return nil, err
 	}

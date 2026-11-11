@@ -174,8 +174,8 @@ export function LeadList({
   }, [onLoadMore, hasMore, isLoadingMore, isBrowseView, mentions.length]);
 
   const queueTabs = [
-    { key: INBOX_QUEUES.ACTION_REQUIRED, label: "Action required" },
-    { key: INBOX_QUEUES.ALL, label: "All mentions" },
+    { key: INBOX_QUEUES.ACTION_REQUIRED, label: "Leads" },
+    { key: INBOX_QUEUES.ALL, label: "All conversations" },
     ...(proposalPendingCount && proposalPendingCount > 0
       ? [{ key: INBOX_QUEUES.PROPOSALS, label: "Proposals" as const }]
       : []),

@@ -168,11 +168,29 @@ func (h *OpsHandler) SetPlan(w http.ResponseWriter, r *http.Request) {
 	if plan.PriceCents == 0 {
 		source, paid = "free", false
 	}
-	err := h.q.OpsSetPlan(r.Context(), database.OpsSetPlanParams{WorkspaceID: ws, Plan: plan.ID, PlanSource: source, KeywordLimit: int32(plan.KeywordLimit)})
+	ctx := r.Context()
+	detail := map[string]any{"plan": plan.ID, "source": source, "paid_data": paid}
+	before, err := h.q.GetBillingState(ctx, ws)
 	if err == nil {
-		err = h.q.OpsSetPaidData(r.Context(), database.OpsSetPaidDataParams{WorkspaceID: ws, PaidData: paid})
+		err = h.q.OpsSetPlan(ctx, database.OpsSetPlanParams{WorkspaceID: ws, Plan: plan.ID, PlanSource: source, KeywordLimit: int32(plan.KeywordLimit)})
 	}
-	h.finish(w, r, ws, "set_plan", map[string]any{"plan": plan.ID, "source": source, "paid_data": paid}, err)
+	if err == nil {
+		err = h.q.OpsSetPaidData(ctx, database.OpsSetPaidDataParams{WorkspaceID: ws, PaidData: paid})
+	}
+	// An upgrade behaves like buying the plan: its month of credits (once per
+	// workspace, plan and month, so flipping back and forth can't stack them)
+	// and the keywords the old limit left paused.
+	if err == nil && int32(plan.KeywordLimit) > before.KeywordLimit {
+		ref := fmt.Sprintf("ops-plan:%s:%s:%s", ws, plan.ID, time.Now().UTC().Format("2006-01"))
+		var granted bool
+		if granted, _, err = h.credits.Grant(ctx, ws, plan.MonthlyCredits, billing.ReasonPlan, ref); granted {
+			detail["credits"] = plan.MonthlyCredits
+		}
+		if err == nil {
+			detail["keywords_activated"], err = h.q.ActivateKeywordsUpTo(ctx, ws, int32(plan.KeywordLimit))
+		}
+	}
+	h.finish(w, r, ws, "set_plan", detail, err)
 }
 
 // AdjustCredits adds (or with a negative delta, removes) credits, with a note.

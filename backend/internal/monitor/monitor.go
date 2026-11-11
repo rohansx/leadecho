@@ -220,6 +220,9 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 		return false
 	}
 
+	if m.credits.PaidPlatformsLocked(ctx, wsID) { // billing: X/Reddit/LinkedIn need a paid plan
+		kws = withoutPaidPlatforms(kws)
+	}
 	kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
 	var alerts []mentionAlert
 	for i, kw := range kws {
@@ -374,6 +377,9 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 	// once here so every crawler stores readable text.
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
+	if tooOld(ctx, p.PlatformCreatedAt, time.Now()) {
+		return nil
+	}
 	if m.isMuted(ctx, p) { // sources: mute lists
 		return nil
 	}

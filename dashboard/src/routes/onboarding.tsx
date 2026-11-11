@@ -8,7 +8,7 @@ import { INBOX_QUEUES } from "@/lib/constants";
 import { BackfillStep } from "@/components/onboarding/backfill-step";
 import { BrandProfileCard } from "@/components/onboarding/brand-profile-card";
 import { ListenerBuilder } from "@/components/onboarding/listener-builder";
-import { UrlStep } from "@/components/onboarding/url-step";
+import { LISTENER_PLATFORMS, UrlStep } from "@/components/onboarding/url-step";
 import type { AnalysisResult, BrandProfile, FirstValue, Goal, Proposal } from "@/components/onboarding/types";
 
 export const Route = createFileRoute("/onboarding")({
@@ -38,6 +38,7 @@ function OnboardingPage() {
   const [step, setStep] = useState<Step>("url");
   const [goals, setGoals] = useState<Goal[]>(["find_buyers"]);
   const [platforms, setPlatforms] = useState<string[]>(["reddit", "hackernews", "devto"]);
+  const [platformsTouched, setPlatformsTouched] = useState(false);
   const [profile, setProfile] = useState<BrandProfile>(EMPTY_PROFILE);
   const [subreddits, setSubreddits] = useState<string[]>([]);
 
@@ -74,6 +75,9 @@ function OnboardingPage() {
 
   function onAnalyzed(r: AnalysisResult) {
     setProfile({ ...EMPTY_PROFILE, ...r.brand_profile });
+    // Unless the user already chose, listen where this product's buyers are.
+    const suggested = (r.analysis.suggested_platforms ?? []).filter((p) => LISTENER_PLATFORMS.some((l) => l.value === p));
+    if (!platformsTouched && suggested.length > 0) setPlatforms(suggested);
     setSubreddits(r.analysis.suggested_subreddits ?? []);
     setStep("profile");
   }
@@ -108,7 +112,7 @@ function OnboardingPage() {
 
         {step === "url" && (
           <>
-            <UrlStep goals={goals} onGoalsChange={setGoals} platforms={platforms} onPlatformsChange={setPlatforms} onAnalyzed={onAnalyzed} />
+            <UrlStep goals={goals} onGoalsChange={setGoals} platforms={platforms} onPlatformsChange={(p) => { setPlatformsTouched(true); setPlatforms(p); }} onAnalyzed={onAnalyzed} />
             <button
               onClick={() => setStep("profile")}
               className="block mx-auto mt-4 text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 cursor-pointer"
