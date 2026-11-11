@@ -48,10 +48,14 @@ type Data struct {
 	Platforms     []Count
 	Intents       []Count
 	NoisyKeywords []KeywordStat
-	RepliesPosted int
-	Clicks        int
-	Signups       int
-	RevenueCents  int64
+	// Hiring signals are companies, not posts: counted on their own so the
+	// "buyers" figure means people who posted a need.
+	HiringConfirmed int // a confirmed contact at a company that posted a matching job
+	HiringHeld      int // found, but held back (contact or company not confirmed)
+	RepliesPosted   int
+	Clicks          int
+	Signups         int
+	RevenueCents    int64
 	// Pipeline is where every lead stands today (not just this period): the
 	// running proof of what the leads turned into.
 	Pipeline     []Count
@@ -113,7 +117,11 @@ func (d Data) intentCount(labels ...string) int {
 func (d Data) TotalMentions() int { return sumCounts(d.Platforms) }
 
 // Buyers counts mentions with purchase-adjacent intent.
-func (d Data) Buyers() int { return d.intentCount("buy_signal", "recommendation_ask", "comparison") }
+// Hiring signals carry a buying intent too; they are reported separately
+// (HiringConfirmed), so they are taken out here.
+func (d Data) Buyers() int {
+	return max(0, d.intentCount("buy_signal", "recommendation_ask", "comparison")-d.HiringConfirmed-d.HiringHeld)
+}
 
 func (d Data) Complaints() int { return d.intentCount("complaint") }
 
@@ -144,6 +152,9 @@ func TemplateSummary(d Data) string {
 
 func Subject(d Data) string {
 	buyers := plural(d.Buyers(), "buyer", "buyers")
+	if d.HiringConfirmed > 0 {
+		buyers += ", " + plural(d.HiringConfirmed, "hiring signal", "hiring signals")
+	}
 	if d.Kind == KindWeekly {
 		return fmt.Sprintf("LeadEcho weekly digest: %s, %s attributed", buyers, FormatUSD(d.RevenueCents))
 	}

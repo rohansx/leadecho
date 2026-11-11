@@ -65,6 +65,11 @@ func (s *Service) Build(ctx context.Context, wsID string, kind Kind, p Period) (
 	}
 	d.Clicks, d.Signups, d.RevenueCents = int(attr.Clicks), int(attr.Signups), attr.RevenueCents
 
+	d.HiringConfirmed, d.HiringHeld, err = s.q.DigestHiringSignals(ctx, wsID, p.Start, p.End)
+	if err != nil {
+		return Data{}, fmt.Errorf("digest hiring signals: %w", err)
+	}
+
 	funnel, err := s.q.ConversionFunnel(ctx, wsID)
 	if err != nil {
 		return Data{}, fmt.Errorf("digest pipeline: %w", err)
