@@ -32,7 +32,7 @@ func TestConfirmContact(t *testing.T) {
 	}{
 		{"confirmed", "Vista Higher Learning", vista, 5000, person, ok(nil), true, false, ""},
 		{"catch-all email still counts", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.EmailStatus = "catchall" }), true, false, ""},
-		{"no size ceiling: unknown size is fine", "Vista Higher Learning", hiringCompany{}, 0, person, ok(nil), true, false, ""},
+		{"no size ceiling: unknown size is fine", "Vista Higher Learning", hiringCompany{domain: "vistahigherlearning.com"}, 0, person, ok(nil), true, false, ""},
 		{"size known only from the contact lookup", "Vista Higher Learning", hiringCompany{domain: "vistahigherlearning.com"}, 5000, person, ok(func(r *enrich.Result) { r.CompanySize = 210 }), true, false, ""},
 		{"nobody found", "Two Barrels LLC", hiringCompany{size: 3}, 5000, foundPerson{}, nil, false, false, "no decision-maker"},
 		{"lookup failed", "TogetherWork", hiringCompany{size: 278}, 5000, person, nil, false, false, "could not look up"},
@@ -40,15 +40,17 @@ func TestConfirmContact(t *testing.T) {
 			&enrich.Result{FullName: "F R", Company: "The Conversation", CompanyDomain: "theconversation.com", Email: "f@x.example"}, false, false, "lists The Conversation"},
 		// Same name, different company: only the domain tells them apart.
 		{"namesake company", "Prophetic", hiringCompany{size: 40, domain: "propheticsoftware.com"}, 5000, person,
-			&enrich.Result{FullName: "C B", Company: "Prophetic", CompanyDomain: "prophetic.health", CompanySize: 40, Email: "c@x.example"}, false, false, "lists Prophetic"},
+			&enrich.Result{FullName: "C B", Company: "Prophetic", CompanyDomain: "prophetic.health", CompanySize: 40, Email: "c@x.example"}, false, false, "another company of the same name"},
 		// The lookup of the hiring company came back empty and the contact works at
 		// a huge namesake: hold it back, but do not drop the real company as too big.
 		{"namesake is large, hiring company unknown", "Prophetic", hiringCompany{}, 5000, person,
 			&enrich.Result{FullName: "C B", Company: "Prophetic Health Systems", CompanyDomain: "prophetic.health", CompanySize: 90000, Email: "c@x.example"}, false, false, "lists Prophetic Health Systems"},
+		{"same name, hiring company's website unknown", "Prophetic", hiringCompany{size: 40}, 5000, person,
+			&enrich.Result{FullName: "C B", Company: "Prophetic", CompanyDomain: "prophetic.health", CompanySize: 40, Email: "c@x.example"}, false, false, "could not verify"},
 		{"subdomain is the same employer", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.CompanyDomain = "eng.vistahigherlearning.com" }), true, false, ""},
 		{"profile names no employer", "Prophetic", hiringCompany{size: 40}, 5000, person, &enrich.Result{FullName: "C B", Email: "c@x.example"}, false, false, "no current employer"},
-		{"no domain on either side: name decides", "LVT (LiveView Technologies)", hiringCompany{size: 900}, 5000, person,
-			&enrich.Result{FullName: "A", Company: "LVT", Email: "a@x.example"}, true, false, ""},
+		{"no domain on either side: a name match is not enough", "LVT (LiveView Technologies)", hiringCompany{size: 900}, 5000, person,
+			&enrich.Result{FullName: "A", Company: "LVT", Email: "a@x.example"}, false, false, "could not verify"},
 		{"size unknown", "Choice Hotels International", hiringCompany{domain: "choicehotels.com"}, 5000, person,
 			&enrich.Result{FullName: "T P", Company: "Choice Hotels International", CompanyDomain: "choicehotels.com", Email: "t@x.example"}, false, false, "company size unknown"},
 		{"too big", "Stripe", hiringCompany{size: 10210, domain: "stripe.com"}, 5000, person,
