@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/net/publicsuffix"
 
 	"leadecho/internal/ai"
 	"leadecho/internal/billing"
@@ -276,7 +277,7 @@ func cleanDomain(d string) string {
 		d = d[i+3:]
 	}
 	d = strings.TrimPrefix(d, "www.")
-	if i := strings.IndexAny(d, "/?#"); i >= 0 {
+	if i := strings.IndexAny(d, "/?#:"); i >= 0 {
 		d = d[:i]
 	}
 	return d
@@ -505,7 +506,7 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 	// The contact's company size only speaks for the hiring company once we
 	// know they are the same company: a namesake's size must not get the real
 	// one dropped as too big.
-	employerOK := sameEmployer(company, co.domain, c)
+	employerOK := sameEmployer(co.domain, c)
 	size := co.size
 	if size == 0 && employerOK {
 		size = c.CompanySize
@@ -514,11 +515,15 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 	case maxSize > 0 && size > maxSize:
 		return contactCheck{tooBig: true}
 	case !employerOK:
-		employer := c.Company
-		if employer == "" {
-			employer = "no current employer"
+		switch {
+		case c.Company == "":
+			return contactCheck{reason: fmt.Sprintf("%s's profile lists no current employer", person.Name)}
+		case sameCompany(company, c.Company):
+			// The names agree, but the websites don't confirm it (one is
+			// unknown, or they differ): it may be a namesake.
+			return contactCheck{reason: fmt.Sprintf("could not verify that %s's employer is this %s and not another company of the same name", person.Name, company)}
 		}
-		return contactCheck{reason: fmt.Sprintf("%s's profile lists %s, not %s", person.Name, employer, company)}
+		return contactCheck{reason: fmt.Sprintf("%s's profile lists %s, not %s", person.Name, c.Company, company)}
 	case maxSize > 0 && size == 0:
 		return contactCheck{reason: "company size unknown, so it may be outside your market"}
 	case c.Email == "" || c.EmailStatus == "invalid":
@@ -527,16 +532,27 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 	return contactCheck{confirmed: true}
 }
 
-// sameEmployer checks the contact's employer against the hiring company.
-// Website domains decide when both are known: two companies can share a name
+// sameEmployer checks the contact's employer against the hiring company by
+// website domain. Both must be known: two companies can share a name
 // ("Prophetic" the software firm and "Prophetic" the ultrasound firm) but not
-// a domain. Names are only the fallback.
-func sameEmployer(company, companyDomain string, c *enrich.Result) bool {
-	if d := cleanDomain(c.CompanyDomain); d != "" && companyDomain != "" {
-		// eng.acme.com and acme.com are one employer.
-		return d == companyDomain || strings.HasSuffix(d, "."+companyDomain) || strings.HasSuffix(companyDomain, "."+d)
+// a domain, so a name match alone never confirms a contact.
+func sameEmployer(companyDomain string, c *enrich.Result) bool {
+	d := cleanDomain(c.CompanyDomain)
+	if d == "" || companyDomain == "" {
+		return false
 	}
-	return sameCompany(company, c.Company)
+	return d == companyDomain || subdomainOf(d, companyDomain) || subdomainOf(companyDomain, d)
+}
+
+// subdomainOf reports whether sub is a subdomain of parent (eng.acme.com of
+// acme.com). parent must itself be a registrable domain: "acme.co.uk" is not
+// a subdomain of "co.uk", nor "x.github.io" of "github.io".
+func subdomainOf(sub, parent string) bool {
+	if !strings.HasSuffix(sub, "."+parent) {
+		return false
+	}
+	reg, err := publicsuffix.EffectiveTLDPlusOne(parent)
+	return err == nil && reg == parent
 }
 
 var (
@@ -584,6 +600,9 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 			contactTitle = contact.Title
 		}
 		fmt.Fprintf(&b, "\n\nWho to contact: %s, %s at %s.", person.Name, contactTitle, job.Company)
+		if contact.EmailStatus == "catchall" {
+			b.WriteString(" Their email could not be verified (the company's mail server accepts any address), so it may bounce.")
+		}
 	} else {
 		fmt.Fprintf(&b, "\n\nNot confirmed as a lead: %s.", check.reason)
 	}
