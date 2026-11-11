@@ -57,6 +57,17 @@ Response headers we read:
 | LinkedIn post keyword search | `anyapi.linkedin.search.posts` | $0.002 per success (misses free) | `{"query": "<term>", "datePosted": "last-week"}` | provider body verbatim (text, link, publish date per row) |
 | Reddit comments | **not via treg**: Reddit public JSON `/r/<sub>/comments.json` (free) | $0 | -- | standard Reddit listing |
 
+Paying less for repeat polls (`internal/monitor/treg_sources.go`, state in Redis, off without it):
+
+- X: after the first poll the query is `(<term>) since_id:<newest id fetched>` with
+  `X-Treg-Route-Waterfall: 0`, so a keyword with nothing new returns an empty page from the cheapest
+  provider only. Whether that empty page is billed is not confirmed: the routed entry calls
+  `output.posts == []` a miss, the anyapi child says "a `found: false` answer is still charged".
+  A failed cursor poll drops the cursor, so the next poll is a plain search.
+- LinkedIn: the catalog (read 2026-11-11) says a `found: false` answer is still charged, so cost
+  follows poll count. Each keyword is polled at most every 12h (`linkedInPollEvery`), with
+  `datePosted: last-day` when the previous poll was under 22h ago and `last-week` otherwise.
+
 LinkedIn alternatives considered: `scrapecreators.x.v1-linkedin-search-posts` ($0.00188 but
 `per_call`, so misses bill and it goes through Google Search), `harvestapi.linkedin.post.search`
 ($0.004 per call). `anyapi` is per-success, so it is cheapest per useful answer.

@@ -17,7 +17,8 @@ var emailTmpl = template.Must(template.New("digest").Funcs(template.FuncMap{
   {{if .D.Summary}}<p style="background:#f6f8fa;border-left:3px solid #27c17b;padding:12px 14px;line-height:1.55;margin:0 0 20px">{{.D.Summary}}</p>{{end}}
   <table style="width:100%;border-collapse:collapse;margin:0 0 20px;font-size:0.9rem"><tr>
     <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.TotalMentions}}</strong><br>mentions</td>
-    <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.Buyers}}</strong><br>buyers</td>
+    <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.Buyers}}</strong><br>buyers from posts</td>
+    <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.HiringConfirmed}}</strong><br>hiring signals{{if .D.HiringHeld}} <span style="color:#6a737d">(+{{.D.HiringHeld}} held back)</span>{{end}}</td>
     <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.RepliesPosted}}</strong><br>replies posted</td>
     <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{.D.Clicks}}</strong><br>clicks</td>
     <td style="padding:8px;border:1px solid #e1e4e8"><strong>{{usd .D.RevenueCents}}</strong><br>attributed</td>
@@ -69,8 +70,8 @@ func RenderSlack(d Data) string {
 	if d.Summary != "" {
 		b.WriteString(slackEscaper.Replace(d.Summary) + "\n")
 	}
-	fmt.Fprintf(&b, "%d mentions · %d buyers · %d replies posted · %d clicks · %s attributed\n",
-		d.TotalMentions(), d.Buyers(), d.RepliesPosted, d.Clicks, FormatUSD(d.RevenueCents))
+	fmt.Fprintf(&b, "%d mentions · %d buyers from posts · %d hiring signals · %d replies posted · %d clicks · %s attributed\n",
+		d.TotalMentions(), d.Buyers(), d.HiringConfirmed, d.RepliesPosted, d.Clicks, FormatUSD(d.RevenueCents))
 	if len(d.Pipeline) > 0 {
 		parts := make([]string, 0, len(d.Pipeline))
 		for _, c := range d.Pipeline {
