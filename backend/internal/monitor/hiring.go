@@ -80,7 +80,9 @@ type foundPerson struct {
 // scanHiring runs at most once a day per workspace. It needs paid data
 // (every call goes through the treg meter) and a brand profile.
 func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
-	if m.hiringPlanner == nil || !m.treg.Enabled() || m.credits.PaidPlatformsLocked(ctx, wsID) {
+	// Checked before claiming today's run: a run that can't make paid calls
+	// must not count as "ran today".
+	if m.hiringPlanner == nil || !m.treg.Enabled() || m.credits.PaidPlatformsLocked(ctx, wsID) || m.credits.PaidDataPaused(ctx) {
 		return
 	}
 	bp, err := m.q.GetBrandProfile(ctx, wsID)
@@ -129,7 +131,15 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		}
 	}
 	created, sizeChecks, lookups := 0, 0, 0
-	for _, job := range m.hiringJobs(ctx, wsID, st.Plan.Roles) {
+	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
+	if !searched {
+		// Every job search failed (out of credits, spend cap, provider down):
+		// nothing was bought, so give today's run back and try again later.
+		st.LastRun = time.Time{}
+		m.saveHiringState(ctx, wsID, st)
+		return
+	}
+	for _, job := range jobs {
 		// The cap counts paid people searches, not stored leads: a search
 		// whose lead is then rejected still cost money.
 		if lookups >= maxHiringCompaniesPerRun || ctx.Err() != nil {
@@ -248,8 +258,9 @@ func (m *Monitor) saveHiringState(ctx context.Context, wsID string, st hiringSta
 	return true
 }
 
-// hiringJobs searches each role and returns one job per company, newest first.
-func (m *Monitor) hiringJobs(ctx context.Context, wsID string, roles []string) []jobPost {
+// hiringJobs searches each role and returns one job per company, newest
+// first. searched is false when no search succeeded at all.
+func (m *Monitor) hiringJobs(ctx context.Context, wsID string, roles []string) (jobs []jobPost, searched bool) {
 	var all []jobPost
 	for _, role := range roles {
 		resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregJobsTool,
@@ -260,9 +271,10 @@ func (m *Monitor) hiringJobs(ctx context.Context, wsID string, roles []string) [
 			}
 			continue
 		}
+		searched = true
 		all = append(all, parseJobs(resp.Body)...)
 	}
-	return onePerCompany(all)
+	return onePerCompany(all), searched
 }
 
 // parseJobs reads {output:{data:{items:[...]}}} (and the unwrapped forms).
