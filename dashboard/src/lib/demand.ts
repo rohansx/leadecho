@@ -55,7 +55,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function peopleLine(t: DemandTheme): string {
   return [
     plural(t.people, "person", "people"),
-    t.buyers > 0 ? plural(t.buyers, "buyer", "buyers") : "",
+    // "Buyer" is a role match, not a sign they are shopping: say so.
+    t.buyers > 0 ? `${t.buyers} ${t.buyers === 1 ? "fits" : "fit"} your buyer profile` : "",
     t.new_this_week > 0 && t.new_this_week < t.people ? `${t.new_this_week} new this week` : "",
   ]
     .filter(Boolean)
@@ -68,10 +69,15 @@ export function followUpEstimate(t: DemandTheme, maxFollowUps: number, costEach:
   return { drafts, credits: drafts * costEach };
 }
 
-/** Open themes several people raised, needs raised once, and what shipped. */
-export function splitThemes(themes: DemandTheme[], minPeople: number): { open: DemandTheme[]; once: DemandTheme[]; shipped: DemandTheme[] } {
-  const live = themes.filter((t) => t.status === "open");
+/** Open themes several people raised, needs raised once, needs for a different kind of product, and what shipped. */
+export function splitThemes(
+  themes: DemandTheme[],
+  minPeople: number,
+): { open: DemandTheme[]; once: DemandTheme[]; outside: DemandTheme[]; shipped: DemandTheme[] } {
+  const open = themes.filter((t) => t.status === "open");
+  const live = open.filter((t) => t.coverage !== "outside");
   return {
+    outside: open.filter((t) => t.coverage === "outside"),
     open: live.filter((t) => t.people >= minPeople),
     once: live.filter((t) => t.people < minPeople),
     shipped: themes.filter((t) => t.status === "shipped"),

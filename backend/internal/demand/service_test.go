@@ -156,7 +156,7 @@ func TestShipMarksThemeAndDraftsFollowUps(t *testing.T) {
 	if st.state.Themes[0].Drafted != 2 {
 		t.Fatalf("the draft count must be saved on the theme, got %d", st.state.Themes[0].Drafted)
 	}
-	for _, want := range []string{"Live AI-usage tracking", "cannot tell who uses AI", "untrusted"} {
+	for _, want := range []string{"Live AI-usage tracking", "cannot tell who uses AI", "untrusted", "first person", "SKIP"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("follow-up prompt is missing %q", want)
 		}

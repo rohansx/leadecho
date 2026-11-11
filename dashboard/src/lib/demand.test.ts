@@ -16,8 +16,8 @@ test("coverageText says how the product stands in plain words", () => {
 });
 
 test("peopleLine counts people, buyers and what is new", () => {
-  assert.equal(peopleLine(theme({ people: 9, buyers: 4, new_this_week: 3 })), "9 people · 4 buyers · 3 new this week");
-  assert.equal(peopleLine(theme({ people: 1, buyers: 1, new_this_week: 0 })), "1 person · 1 buyer");
+  assert.equal(peopleLine(theme({ people: 9, buyers: 4, new_this_week: 3 })), "9 people · 4 fit your buyer profile · 3 new this week");
+  assert.equal(peopleLine(theme({ people: 1, buyers: 1, new_this_week: 0 })), "1 person · 1 fits your buyer profile");
   // "new this week" only says something when some asks are older.
   assert.equal(peopleLine(theme({ people: 2, buyers: 0, new_this_week: 2 })), "2 people");
 });
@@ -30,7 +30,9 @@ test("followUpEstimate counts buyers only, caps the drafts and prices them", () 
 
 test("splitThemes separates themes from needs raised once", () => {
   const all = [theme({ id: "a", people: 3 }), theme({ id: "b", people: 1 }), theme({ id: "c", people: 1, status: "shipped" })];
+  all.push(theme({ id: "d", people: 5, coverage: "outside" }));
   const got = splitThemes(all, 2);
+  assert.deepEqual(got.outside.map((t) => t.id), ["d"]);
   assert.deepEqual(got.open.map((t) => t.id), ["a"]);
   assert.deepEqual(got.once.map((t) => t.id), ["b"]);
   assert.deepEqual(got.shipped.map((t) => t.id), ["c"]);

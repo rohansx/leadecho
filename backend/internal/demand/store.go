@@ -75,7 +75,7 @@ func (d DBStore) UpdateState(ctx context.Context, ws string, fn func(State) (Sta
 }
 
 func (d DBStore) RecentAsks(ctx context.Context, ws string) ([]Ask, error) {
-	rows, err := d.Q.ListMentionAsks(ctx, ws, time.Now().Add(-askWindow), maxAsks)
+	rows, err := d.Q.ListMentionAsks(ctx, ws, time.Now().Add(-askWindow), MinRelevance, maxAsks)
 	if err != nil {
 		return nil, err
 	}

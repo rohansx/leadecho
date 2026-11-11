@@ -117,7 +117,7 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
         </p>
       )}
       {!shipped && theme.coverage === "covered" && (
-        <p className="mt-2 text-xs text-muted-foreground">These people want something you already offer. Open each lead to reply.</p>
+        <p className="mt-2 text-xs text-muted-foreground">This looks close to what you already offer. Read each post before you reply: not everyone here is looking for a product.</p>
       )}
 
       <ul className="mt-3 space-y-2">
@@ -160,7 +160,7 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
                 <p className="text-foreground">{a.quote}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {a.author ? `${a.author}, ` : ""}
-                  {a.buyer ? "buyer" : "role unknown"}, {a.platform}, {daysAgo(a.at)}
+                  {a.buyer ? "fits your buyer profile" : "role unknown"}, {a.platform}, {daysAgo(a.at)}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3 text-xs">
@@ -189,7 +189,7 @@ function DemandPage() {
     onSettled: () => qc.invalidateQueries({ queryKey: DEMAND_KEY }),
   });
   const d = demand.data;
-  const { open, once, shipped } = splitThemes(d?.themes ?? [], d?.min_theme_people ?? 2);
+  const { open, once, outside, shipped } = splitThemes(d?.themes ?? [], d?.min_theme_people ?? 2);
   const canGroup = !!d && d.waiting >= d.min_new_asks;
 
   return (
@@ -243,28 +243,24 @@ function DemandPage() {
         <section aria-label="Raised once">
           <Text as="h3" className="text-sm font-medium text-muted-foreground">Raised once</Text>
           <p className="mt-1 text-xs text-muted-foreground">One person each. Not a pattern yet; they move up when someone else asks for the same thing.</p>
-          <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-card">
-            {once.map((t) => {
-              const a = t.asks[0];
-              return (
-                <li key={t.id} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="text-foreground">{a?.quote ?? t.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {a ? `${askSource(a)}, ${daysAgo(a.at)}. ` : ""}
-                      {coverageText(t.coverage).label}
-                    </p>
-                  </div>
-                  {a && (
-                    <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: a.mention_id }} className="shrink-0 text-xs text-primary-ink underline underline-offset-2">
-                      Open lead
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-3 space-y-3">
+            {once.map((t) => (
+              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
+            ))}
+          </div>
         </section>
+      )}
+
+      {outside.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">Outside your product ({outside.length})</summary>
+          <p className="mt-1 text-xs text-muted-foreground">Needs that call for a different kind of product. Shown so you can check the call, not as a to-do.</p>
+          <div className="mt-3 space-y-3">
+            {outside.map((t) => (
+              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
+            ))}
+          </div>
+        </details>
       )}
 
       {shipped.length > 0 && (

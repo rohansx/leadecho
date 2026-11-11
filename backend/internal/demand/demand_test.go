@@ -130,7 +130,7 @@ func TestFollowUpTargetsAreBuyersNewestFirstAndCapped(t *testing.T) {
 		a.At = t0.Add(-time.Duration(i) * time.Hour)
 		th.Asks = append(th.Asks, a)
 	}
-	got := th.FollowUpTargets(MaxFollowUps)
+	got := th.FollowUpTargets(MaxFollowUps, t0)
 	if len(got) != MaxFollowUps {
 		t.Fatalf("want %d targets, got %d", MaxFollowUps, len(got))
 	}
@@ -142,7 +142,7 @@ func TestFollowUpTargetsAreBuyersNewestFirstAndCapped(t *testing.T) {
 			t.Fatal("targets must be newest first")
 		}
 	}
-	if n := len((Theme{Asks: []Ask{ask("m1", "x", false)}}).FollowUpTargets(MaxFollowUps)); n != 0 {
+	if n := len((Theme{Asks: []Ask{ask("m1", "x", false)}}).FollowUpTargets(MaxFollowUps, t0)); n != 0 {
 		t.Fatalf("someone whose role is unknown gets no follow-up, got %d", n)
 	}
 }
@@ -183,5 +183,17 @@ func TestOutsideCoverageIsKept(t *testing.T) {
 	next := Apply(State{}, []Ask{ask("m1", "an ATS", true)}, as, t0)
 	if got := next.View(t0)[0].Why; got != "The product tests candidates; it does not track applicants." {
 		t.Fatalf("why = %q", got)
+	}
+}
+
+// A reply to a post from months ago is unwelcome: old asks get no follow-up.
+func TestFollowUpTargetsSkipOldPosts(t *testing.T) {
+	old := ask("m1", "x", true)
+	old.At = t0.Add(-MaxFollowUpAge - time.Hour)
+	fresh := ask("m2", "y", true)
+	fresh.At = t0.Add(-24 * time.Hour)
+	got := Theme{Asks: []Ask{old, fresh}}.FollowUpTargets(MaxFollowUps, t0)
+	if len(got) != 1 || got[0].MentionID != "m2" {
+		t.Fatalf("want only the recent ask, got %+v", got)
 	}
 }
