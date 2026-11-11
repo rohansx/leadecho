@@ -134,7 +134,7 @@ func DefaultConfig() Config {
 		},
 		Routing: map[string]string{
 			string(TaskFilter):         TierCheap,
-			string(TaskClassify):       TierCheap,
+			string(TaskClassify):       TierStrong,
 			string(TaskPreFilterReply): TierCheap,
 			string(TaskDraftReply):     TierStrong,
 			string(TaskAnalyzeProduct): TierStrong,
@@ -784,7 +784,7 @@ func providerForTarget(name, key string, target ModelTarget, sys SystemKeys) ai.
 		p.Model = sys.OllamaModel
 	}
 	// Cheap tier on Claude: Sonnet 5.5 (quality over cost) at low effort,
-	// which suits filtering/classification; pinned models keep their default.
+	// which suits the noise filter; pinned models keep their default.
 	if name == "anthropic" && target.Model == "" {
 		p.Effort = "low"
 	}

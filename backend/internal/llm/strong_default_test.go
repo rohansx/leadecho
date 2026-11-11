@@ -3,14 +3,19 @@ package llm
 import "testing"
 
 // With only an Anthropic system key and no pinned models, cheap tasks
-// (filter, classify, chat) run on Sonnet 5.5 at low effort (quality over
-// cost; low effort suits classification) and strong tasks (drafting,
-// product analysis) on Opus 5.5 at its default effort.
+// (the noise filter, chat) run on Sonnet 5.5 at low effort and strong tasks
+// (classification, drafting, product analysis) on Opus 5.5 at its default
+// effort. Classification decides who is a buyer and what becomes a lead, so
+// it gets the stronger model: in a blind comparison on real posts Opus was
+// right more often where the two disagreed.
 func TestAnthropicTierDefaults(t *testing.T) {
 	r := &Router{system: SystemKeys{AnthropicAPIKey: "k"}}
 	cfg := DefaultConfig()
 
-	cheap := r.targetsForTask(TaskClassify, cfg, nil)
+	cheap := r.targetsForTask(TaskFilter, cfg, nil)
+	if c := r.targetsForTask(TaskClassify, cfg, nil); len(c) == 0 || c[0].Model != "claude-opus-5-5" {
+		t.Errorf("classification: want anthropic/claude-opus-5-5, got %+v", c)
+	}
 	strong := r.targetsForTask(TaskDraftReply, cfg, nil)
 	if len(cheap) == 0 || len(strong) == 0 {
 		t.Fatalf("no targets: cheap=%v strong=%v", cheap, strong)

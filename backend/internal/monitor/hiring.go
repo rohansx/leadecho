@@ -64,7 +64,13 @@ const (
 type HiringPlanner interface {
 	PlanHiringSignals(ctx context.Context, workspaceID, product, overview, audience string) (*ai.HiringPlan, error)
 	DraftOutreach(ctx context.Context, workspaceID string, o ai.Outreach) (string, error)
+	// ResearchCompany searches the web for what a company does and what is
+	// happening there now. Every fact it returns carries its source.
+	ResearchCompany(ctx context.Context, workspaceID string, in ai.CompanyResearch) (*ai.ResearchBrief, error)
 }
+
+// researchTimeout bounds one company's web research (several searches).
+const researchTimeout = 3 * time.Minute
 
 // ContactVerifier looks a contact up (title, current employer, company size,
 // email) so a signal is only called a lead when the contact checks out.
@@ -210,7 +216,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			// without spending one of the day's people searches. With a known
 			// website the contact's profile can still supply the size.
 			if id := m.insertHiringSignal(ctx, wsID, pid, job, foundPerson{}, st.Plan,
-				contactCheck{reason: "company size unknown, so it may be outside your market"}, nil); id == "" {
+				contactCheck{reason: "company size unknown, so it may be outside your market"}, nil, nil); id == "" {
 				remember(key)
 			} else {
 				created++
@@ -234,14 +240,27 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			remember(key)
 			continue
 		}
-		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact)
+		// Only a confirmed lead is worth researching: the brief makes the
+		// lead view and the first message specific to this company.
+		var brief *ai.ResearchBrief
+		if check.confirmed {
+			brief = m.researchLead(ctx, wsID, bp, job, person)
+			if ctx.Err() != nil {
+				// Shutting down mid-research: the insert would fail and the
+				// company would be skipped for good. Leave it for tomorrow.
+				m.refundResearch(ctx, wsID, brief)
+				break
+			}
+		}
+		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact, brief)
 		if mentionID == "" {
-			remember(key) // muted or rejected on insert: it would be rejected again tomorrow
+			m.refundResearch(ctx, wsID, brief) // nothing was stored, so nothing is charged
+			remember(key)                      // muted or rejected on insert: it would be rejected again tomorrow
 			continue
 		}
 		created++
 		if check.confirmed {
-			m.draftOutreach(ctx, wsID, mentionID, bp, job, person)
+			m.draftOutreach(ctx, wsID, mentionID, bp, job, person, brief)
 		}
 		if capped {
 			break // today's contact lookups are used up: later companies could not be confirmed either
@@ -659,7 +678,7 @@ func strictCompanyKey(name string) string {
 // the scorer treats job posts as noise, and here the job post is the
 // evidence. Only a confirmed signal is scored as a lead and gets a lead row.
 // It returns the new mention's id ("" when nothing was stored).
-func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan, check contactCheck, contact *enrich.Result) string {
+func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan, check contactCheck, contact *enrich.Result, brief *ai.ResearchBrief) string {
 	title := fmt.Sprintf("%s is hiring: %s", job.Company, job.Title)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s posted a job for %q", job.Company, job.Title)
@@ -684,6 +703,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 	} else {
 		fmt.Fprintf(&b, "\n\nNot confirmed as a lead: %s.", check.reason)
 	}
+	b.WriteString(researchNote(brief))
 	if plan.Why != "" {
 		b.WriteString("\n\nWhy this is a signal: " + plan.Why)
 	}
@@ -697,7 +717,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		Title: pgtextPtr(title), Content: b.String(),
 		AuthorUsername: pgtextPtr(author), AuthorProfileUrl: pgtextPtr(authorURL),
 		Status:            database.MentionStatusNew,
-		PlatformMetadata:  jsonBytes(map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title, "contact_title": contactTitle, "confirmed": check.confirmed, "unconfirmed_reason": check.reason}),
+		PlatformMetadata:  hiringMetadata(job, contactTitle, check, brief),
 		EngagementMetrics: jsonBytes(map[string]any{}),
 		KeywordMatches:    []string{"hiring signal"},
 		PlatformCreatedAt: created,
@@ -731,6 +751,64 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		m.createHiringLead(ctx, *alert, job, person, contact)
 	}
 	return alert.ID
+}
+
+// hiringMetadata is what the lead view reads about a hiring signal. The
+// research (with its source links) is only present when something was found.
+func hiringMetadata(job jobPost, contactTitle string, check contactCheck, brief *ai.ResearchBrief) []byte {
+	meta := map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title,
+		"contact_title": contactTitle, "confirmed": check.confirmed, "unconfirmed_reason": check.reason}
+	if brief != nil {
+		meta["research"] = brief
+	}
+	return jsonBytes(meta)
+}
+
+// researchNote is the research as a paragraph of the lead's text (which the
+// assistant, the digest and search all read). Sources stay in the metadata.
+func researchNote(brief *ai.ResearchBrief) string {
+	if brief == nil {
+		return ""
+	}
+	var parts []string
+	for _, p := range []string{brief.WhatTheyDo, brief.WhyNow} {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "\n\nWhat a web search found about the company (not verified): " + strings.Join(parts, " ")
+}
+
+// refundResearch returns the research credits when its brief is not used.
+func (m *Monitor) refundResearch(ctx context.Context, wsID string, brief *ai.ResearchBrief) {
+	if brief != nil {
+		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostResearch, billing.ReasonResearch)
+	}
+}
+
+// researchLead looks the company up on the web for a confirmed lead. It is
+// best effort: a lead without research is still a lead. Credits are returned
+// when nothing usable comes back.
+func (m *Monitor) researchLead(ctx context.Context, wsID string, bp database.BrandProfile, job jobPost, person foundPerson) *ai.ResearchBrief {
+	if err := m.credits.Spend(ctx, wsID, billing.CostResearch, billing.ReasonResearch); err != nil {
+		return nil
+	}
+	rctx, cancel := context.WithTimeout(ctx, researchTimeout)
+	defer cancel()
+	brief, err := m.hiringPlanner.ResearchCompany(rctx, wsID, ai.CompanyResearch{
+		Product: bp.Product, Overview: bp.Overview,
+		Company: job.Company, CompanyURL: job.CompanyURL, JobTitle: job.Title, ContactTitle: person.Title,
+	})
+	if err != nil || brief == nil {
+		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostResearch, billing.ReasonResearch)
+		m.logger.Info().Err(err).Str("company", job.Company).Str("workspace_id", wsID).Msg("hiring: no company research")
+		return nil
+	}
+	m.logger.Info().Int("searches", brief.Searches).Int("facts", len(brief.Facts)).Str("company", job.Company).Str("workspace_id", wsID).Msg("hiring: company researched")
+	return brief
 }
 
 // hiringLeadScore is a confirmed signal's score: lower when the email could
@@ -773,7 +851,7 @@ func (m *Monitor) createHiringLead(ctx context.Context, alert mentionAlert, job 
 // draftOutreach saves a first message to the contact as the lead's draft, so
 // the inbox and the daily digest show something ready to send. Costs the
 // same as a reply draft; refunded if writing fails.
-func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, bp database.BrandProfile, job jobPost, person foundPerson) {
+func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, bp database.BrandProfile, job jobPost, person foundPerson, brief *ai.ResearchBrief) {
 	if person.Name == "" {
 		return // nobody to write to
 	}
@@ -783,6 +861,7 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, bp 
 	text, err := m.hiringPlanner.DraftOutreach(ctx, wsID, ai.Outreach{
 		Product: bp.Product, Overview: bp.Overview, Positioning: bp.Positioning,
 		ContactName: person.Name, ContactTitle: person.Title, Company: job.Company, JobTitle: job.Title,
+		Research: brief,
 	})
 	if err == nil {
 		_, err = m.q.CreateReply(ctx, database.CreateReplyParams{

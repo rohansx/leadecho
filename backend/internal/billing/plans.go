@@ -37,18 +37,23 @@ const (
 	CostDraft  = 5  // one draft reply
 	CostChat   = 2  // one chat question
 	CostEnrich = 10 // one lead enrichment (several paid lookups)
+	// CostResearch is one company researched on the web for a confirmed lead
+	// (several searches read by the strongest model). Refunded if nothing
+	// with a source is found.
+	CostResearch = 15
 )
 
 // Reasons label spending and grants in the usage breakdown.
 const (
-	ReasonPost   = "post_scored"
-	ReasonSearch = "search"
-	ReasonDraft  = "draft_reply"
-	ReasonChat   = "chat"
-	ReasonEnrich = "enrichment"
-	ReasonPlan   = "plan_allowance"
-	ReasonTopup  = "topup"
-	ReasonAdjust = "adjustment"
+	ReasonPost     = "post_scored"
+	ReasonSearch   = "search"
+	ReasonDraft    = "draft_reply"
+	ReasonChat     = "chat"
+	ReasonEnrich   = "enrichment"
+	ReasonResearch = "research"
+	ReasonPlan     = "plan_allowance"
+	ReasonTopup    = "topup"
+	ReasonAdjust   = "adjustment"
 )
 
 // PlanByID returns the plan with that id.
