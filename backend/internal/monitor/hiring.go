@@ -13,6 +13,7 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/billing"
+	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/enrich"
 	"leadecho/internal/treg"
@@ -33,14 +34,19 @@ const (
 	hiringRetry       = time.Hour // wait after a run in which every job search failed
 	// ponytail: fixed daily budget (jobs: 1 call per role; people: 1 call per
 	// new company). Make it a plan allowance if customers want more volume.
-	maxHiringCompaniesPerRun = 8
+	maxHiringCompaniesPerRun = 8 // Pro
+	starterHiringCompanies   = 3 // Starter: sized so its credits also cover its 15 keywords
 	// Company size lookups per run: most job results are large employers, so
 	// many candidates are checked to find a few that fit.
 	maxHiringSizeChecksPerRun = 30
 	maxHiringSkipped          = 500
 
-	hiringScoreWithPerson = 7.5 // above the lead threshold: a named buyer at a company with the need
-	hiringScoreNoPerson   = 6.0
+	// Confirmed: a decision-maker whose own profile names this company, with a
+	// usable email, at a company of known, fitting size. Only these are leads.
+	hiringScoreConfirmed = 7.5
+	// Unconfirmed signals stay below the lead threshold (6): visible under
+	// "All conversations" with the reason, but not presented as a lead.
+	hiringScoreUnconfirmed = 5.0
 )
 
 // HiringPlanner decides whether job postings signal a need for a product.
@@ -48,6 +54,15 @@ type HiringPlanner interface {
 	PlanHiringSignals(ctx context.Context, workspaceID, product, overview, audience string) (*ai.HiringPlan, error)
 	DraftOutreach(ctx context.Context, workspaceID string, o ai.Outreach) (string, error)
 }
+
+// ContactVerifier looks a contact up (title, current employer, company size,
+// email) so a signal is only called a lead when the contact checks out.
+type ContactVerifier interface {
+	Enrich(ctx context.Context, ws string, s enrich.Subject) (*enrich.Result, error)
+}
+
+// SetContactVerifier enables confirmation; without it no signal is confirmed.
+func (m *Monitor) SetContactVerifier(v ContactVerifier) { m.contactVerifier = v }
 
 // SetHiringPlanner turns the hiring-signal source on.
 func (m *Monitor) SetHiringPlanner(p HiringPlanner) { m.hiringPlanner = p }
@@ -131,6 +146,10 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			st.Skip = append(st.Skip, key)
 		}
 	}
+	dailyCap := maxHiringCompaniesPerRun
+	if bs, err := m.q.GetBillingState(ctx, wsID); err == nil && bs.Plan == "starter" {
+		dailyCap = starterHiringCompanies
+	}
 	created, sizeChecks, lookups := 0, 0, 0
 	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
 	if !searched {
@@ -146,7 +165,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	for _, job := range jobs {
 		// The cap counts paid people searches, not stored leads: a search
 		// whose lead is then rejected still cost money.
-		if lookups >= maxHiringCompaniesPerRun || ctx.Err() != nil {
+		if lookups >= dailyCap || ctx.Err() != nil {
 			break
 		}
 		key := companyKey(job.Company)
@@ -154,6 +173,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if skip[key] || !validHTTPURL(job.URL) || (job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge) {
 			continue
 		}
+		size := 0 // employees, 0 = unknown
 		pid := hiringPlatformID(job.Company, month)
 		if exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeLinkedin), pid); err != nil || exists {
 			continue
@@ -163,7 +183,8 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 				break
 			}
 			sizeChecks++
-			size, err := m.companySize(ctx, wsID, job.Company)
+			var err error
+			size, err = m.companySize(ctx, wsID, job.Company)
 			if err != nil {
 				break // out of credits, paused or provider down: without sizes every company would pass
 			}
@@ -177,13 +198,21 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if err != nil {
 			break // same: don't store "nobody found" leads because a call failed
 		}
-		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan)
+		contact := m.verifyContact(ctx, wsID, job, person)
+		check := confirmContact(job.Company, st.Plan.MaxCompanySize, size, person, contact)
+		if check.tooBig {
+			remember(key)
+			continue
+		}
+		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact)
 		if mentionID == "" {
 			remember(key) // muted or rejected on insert: it would be rejected again tomorrow
 			continue
 		}
 		created++
-		m.draftOutreach(ctx, wsID, mentionID, bp, job, person)
+		if check.confirmed {
+			m.draftOutreach(ctx, wsID, mentionID, bp, job, person)
+		}
 	}
 	// Outlive a shutdown: losing the skip list means paying for the same lookups again.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -396,11 +425,76 @@ func pickBuyer(people []foundPerson, company string) (foundPerson, bool) {
 	return foundPerson{}, false
 }
 
-// insertHiringSignal stores the signal as a scored lead. It skips the LLM
-// scorer on purpose: the scorer treats job posts as noise, and here the job
-// post is the evidence.
+// verifyContact runs the paid lookup on the contact people-search proposed.
+// nil means no contact or no verifier: the signal stays unconfirmed.
+func (m *Monitor) verifyContact(ctx context.Context, wsID string, job jobPost, person foundPerson) *enrich.Result {
+	if person.Name == "" || m.contactVerifier == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	res, err := m.contactVerifier.Enrich(ctx, wsID, enrich.Subject{
+		Name: person.Name, Platform: string(database.PlatformTypeLinkedin), ProfileURL: person.ProfileURL, Company: job.Company,
+	})
+	if err != nil && res == nil {
+		m.logger.Debug().Err(err).Str("company", job.Company).Msg("hiring: contact lookup failed")
+	}
+	return res
+}
+
+type contactCheck struct {
+	confirmed bool
+	tooBig    bool   // over the plan's company-size ceiling: drop the signal
+	reason    string // why it is not confirmed, in plain words
+}
+
+// confirmContact decides whether a signal is a lead. People search and job
+// boards are both wrong often enough (a namesake company, someone who has
+// moved on, an employer too large) that every claim is checked against the
+// contact's own profile before anyone is told to write to them.
+func confirmContact(company string, maxSize, knownSize int, person foundPerson, c *enrich.Result) contactCheck {
+	if person.Name == "" {
+		return contactCheck{reason: "no decision-maker found at this company yet"}
+	}
+	if c == nil || c.FullName == "" {
+		return contactCheck{reason: "could not look up " + person.Name + "'s profile"}
+	}
+	size := c.CompanySize
+	if size == 0 {
+		size = knownSize
+	}
+	switch {
+	case maxSize > 0 && size > maxSize:
+		return contactCheck{tooBig: true}
+	case !sameCompany(company, c.Company):
+		employer := c.Company
+		if employer == "" {
+			employer = "no current employer"
+		}
+		return contactCheck{reason: fmt.Sprintf("%s's profile lists %s, not %s", person.Name, employer, company)}
+	case maxSize > 0 && size == 0:
+		return contactCheck{reason: "company size unknown, so it may be outside your market"}
+	case c.Email == "" || c.EmailStatus == "invalid":
+		return contactCheck{reason: "no working email found for " + person.Name}
+	}
+	return contactCheck{confirmed: true}
+}
+
+// sameCompany compares names loosely: "LVT (LiveView Technologies)" and "LVT"
+// are the same employer.
+func sameCompany(a, b string) bool {
+	ka, kb := companyKey(a), companyKey(b)
+	if ka == "" || kb == "" {
+		return false
+	}
+	return ka == kb || strings.HasPrefix(ka, kb+"-") || strings.HasPrefix(kb, ka+"-")
+}
+
+// insertHiringSignal stores the signal. It skips the LLM scorer on purpose:
+// the scorer treats job posts as noise, and here the job post is the
+// evidence. Only a confirmed signal is scored as a lead and gets a lead row.
 // It returns the new mention's id ("" when nothing was stored).
-func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan) string {
+func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan, check contactCheck, contact *enrich.Result) string {
 	title := fmt.Sprintf("%s is hiring: %s", job.Company, job.Title)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s posted a job for %q", job.Company, job.Title)
@@ -408,12 +502,19 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		fmt.Fprintf(&b, " (%s)", job.Location)
 	}
 	b.WriteString(" this week.")
-	score, author, authorURL := hiringScoreNoPerson, job.Company, job.CompanyURL
+	score, author, authorURL := hiringScoreUnconfirmed, job.Company, job.CompanyURL
 	if person.Name != "" {
-		fmt.Fprintf(&b, "\n\nWho to contact: %s, %s at %s.", person.Name, person.Title, job.Company)
-		score, author, authorURL = hiringScoreWithPerson, person.Name, person.ProfileURL
+		author, authorURL = person.Name, person.ProfileURL
+	}
+	contactTitle := person.Title
+	if check.confirmed {
+		score = hiringScoreConfirmed
+		if contact.Title != "" {
+			contactTitle = contact.Title
+		}
+		fmt.Fprintf(&b, "\n\nWho to contact: %s, %s at %s.", person.Name, contactTitle, job.Company)
 	} else {
-		fmt.Fprintf(&b, "\n\nNo %s found yet for this company.", plan.BuyerTitles)
+		fmt.Fprintf(&b, "\n\nNot confirmed as a lead: %s.", check.reason)
 	}
 	if plan.Why != "" {
 		b.WriteString("\n\nWhy this is a signal: " + plan.Why)
@@ -428,7 +529,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		Title: pgtextPtr(title), Content: b.String(),
 		AuthorUsername: pgtextPtr(author), AuthorProfileUrl: pgtextPtr(authorURL),
 		Status:            database.MentionStatusNew,
-		PlatformMetadata:  jsonBytes(map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title, "contact_title": person.Title}),
+		PlatformMetadata:  jsonBytes(map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title, "contact_title": contactTitle, "confirmed": check.confirmed, "unconfirmed_reason": check.reason}),
 		EngagementMetrics: jsonBytes(map[string]any{}),
 		KeywordMatches:    []string{"hiring signal"},
 		PlatformCreatedAt: created,
@@ -437,9 +538,13 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		return "" // duplicate, muted or too old
 	}
 
+	reasoning := "Company posted a matching job this week. " + plan.Why
+	if !check.confirmed {
+		reasoning = "Company posted a matching job this week, but the contact is not confirmed: " + check.reason + "."
+	}
 	res := &ai.ClassifyResult{
 		Intent: string(database.IntentTypeBuySignal), RelevanceScore: score, ConversionProbability: 0.3,
-		Reasoning: "Company posted a matching job this week. " + plan.Why, AwarenessLevel: "problem_aware",
+		Reasoning: reasoning, AwarenessLevel: "problem_aware",
 		IntentTags: []string{"hiring"}, Sentiment: "neutral", PostType: "other", AuthorRole: "buyer",
 	}
 	if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
@@ -447,15 +552,45 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		Intent:                database.NullIntentType{IntentType: database.IntentTypeBuySignal, Valid: true},
 		ConversionProbability: pgtype.Float4{Float32: float32(res.ConversionProbability), Valid: true},
 		RelevanceScore:        pgtype.Float4{Float32: float32(score), Valid: true},
-		ScoringMetadata:       jsonBytes(map[string]any{"stage": "hiring_signal", "auto_scored": true, "reasoning": res.Reasoning, "author_role": "buyer", "intent_tags": res.IntentTags}),
+		ScoringMetadata:       jsonBytes(map[string]any{"stage": "hiring_signal", "auto_scored": true, "reasoning": res.Reasoning, "author_role": "buyer", "intent_tags": res.IntentTags, "confirmed": check.confirmed}),
 		AwarenessLevel:        pgtype.Text{String: res.AwarenessLevel, Valid: true},
 	}); err != nil {
 		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("hiring: store score")
 		return alert.ID
 	}
 	m.storeIntentTags(ctx, wsID, alert.ID, res)
-	m.qualifyAsLead(ctx, *alert, res) // creates the lead and enriches the LinkedIn profile
+	if check.confirmed {
+		m.createHiringLead(ctx, *alert, job, person, contact)
+	}
 	return alert.ID
+}
+
+// createHiringLead stores the confirmed contact as a lead, carrying the
+// lookup that was already paid for so enrichment does not buy it again.
+func (m *Monitor) createHiringLead(ctx context.Context, alert mentionAlert, job jobPost, person foundPerson, contact *enrich.Result) {
+	lead, err := m.q.CreateLead(ctx, database.CreateLeadParams{
+		WorkspaceID:  alert.WorkspaceID,
+		MentionID:    pgUUID(alert.ID),
+		Stage:        database.LeadStageProspect,
+		ContactName:  pgtextPtr(contact.FullName),
+		ContactEmail: pgtextPtr(contact.Email),
+		Company:      pgtextPtr(job.Company),
+		Username:     pgtextPtr(person.Name),
+		Platform:     database.NullPlatformType{PlatformType: database.PlatformTypeLinkedin, Valid: true},
+		ProfileUrl:   pgtextPtr(person.ProfileURL),
+		Tags:         []string{"auto-qualified", "hiring-signal"},
+		Metadata:     jsonBytes(map[string]any{"auto_scored": true, "relevance": hiringScoreConfirmed, "intent": string(database.IntentTypeBuySignal), "enrichment": contact}),
+	})
+	if err != nil {
+		if !isDuplicateError(err) {
+			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("hiring: create lead")
+		}
+		return
+	}
+	if m.enricher != nil {
+		m.enricher.EnrichLeadAsync(lead.ID, alert.WorkspaceID) // Person360; the paid lookup is skipped (already stored)
+	}
+	m.crm.Emit(alert.WorkspaceID, crmsync.Event{Type: crmsync.EventLeadCreated, LeadID: lead.ID})
 }
 
 // draftOutreach saves a first message to the contact as the lead's draft, so
