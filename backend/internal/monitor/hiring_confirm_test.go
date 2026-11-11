@@ -47,6 +47,11 @@ func TestConfirmContact(t *testing.T) {
 			&enrich.Result{FullName: "C B", Company: "Prophetic Health Systems", CompanyDomain: "prophetic.health", CompanySize: 90000, Email: "c@x.example"}, false, false, "lists Prophetic Health Systems"},
 		{"same name, hiring company's website unknown", "Prophetic", hiringCompany{size: 40}, 5000, person,
 			&enrich.Result{FullName: "C B", Company: "Prophetic", CompanyDomain: "prophetic.health", CompanySize: 40, Email: "c@x.example"}, false, false, "could not verify"},
+		{"company site is the subdomain", "Vista Higher Learning", hiringCompany{size: 210, domain: "careers.vistahigherlearning.com"}, 5000, person, ok(nil), true, false, ""},
+		// A bare public suffix or a shared host must never count as the parent company.
+		{"bare suffix is not an employer", "Acme", hiringCompany{size: 50, domain: "acme.co.uk"}, 5000, person, ok(func(r *enrich.Result) { r.Company = "Acme"; r.CompanyDomain = "co.uk" }), false, false, "could not verify"},
+		{"shared host is not an employer", "Acme", hiringCompany{size: 50, domain: "acme.github.io"}, 5000, person, ok(func(r *enrich.Result) { r.Company = "Acme"; r.CompanyDomain = "github.io" }), false, false, "could not verify"},
+		{"contact has no website on record", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.CompanyDomain = "" }), false, false, "could not verify"},
 		{"subdomain is the same employer", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.CompanyDomain = "eng.vistahigherlearning.com" }), true, false, ""},
 		{"profile names no employer", "Prophetic", hiringCompany{size: 40}, 5000, person, &enrich.Result{FullName: "C B", Email: "c@x.example"}, false, false, "no current employer"},
 		{"no domain on either side: a name match is not enough", "LVT (LiveView Technologies)", hiringCompany{size: 900}, 5000, person,
@@ -109,7 +114,7 @@ func TestCompanyInfoParsing(t *testing.T) {
 	if got := parseCompanyInfo([]byte(`not json`), "Acme"); got != (hiringCompany{}) {
 		t.Fatalf("bad json: got %+v", got)
 	}
-	for in, want := range map[string]string{"WWW.Acme.io": "acme.io", "http://acme.io?x=1": "acme.io", " acme.io ": "acme.io", "": ""} {
+	for in, want := range map[string]string{"acme.io:443": "acme.io", "WWW.Acme.io": "acme.io", "http://acme.io?x=1": "acme.io", " acme.io ": "acme.io", "": ""} {
 		if got := cleanDomain(in); got != want {
 			t.Errorf("cleanDomain(%q) = %q, want %q", in, got, want)
 		}

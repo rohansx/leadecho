@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/net/publicsuffix"
 
 	"leadecho/internal/ai"
 	"leadecho/internal/billing"
@@ -276,7 +277,7 @@ func cleanDomain(d string) string {
 		d = d[i+3:]
 	}
 	d = strings.TrimPrefix(d, "www.")
-	if i := strings.IndexAny(d, "/?#"); i >= 0 {
+	if i := strings.IndexAny(d, "/?#:"); i >= 0 {
 		d = d[:i]
 	}
 	return d
@@ -540,8 +541,18 @@ func sameEmployer(companyDomain string, c *enrich.Result) bool {
 	if d == "" || companyDomain == "" {
 		return false
 	}
-	// eng.acme.com and acme.com are one employer.
-	return d == companyDomain || strings.HasSuffix(d, "."+companyDomain) || strings.HasSuffix(companyDomain, "."+d)
+	return d == companyDomain || subdomainOf(d, companyDomain) || subdomainOf(companyDomain, d)
+}
+
+// subdomainOf reports whether sub is a subdomain of parent (eng.acme.com of
+// acme.com). parent must itself be a registrable domain: "acme.co.uk" is not
+// a subdomain of "co.uk", nor "x.github.io" of "github.io".
+func subdomainOf(sub, parent string) bool {
+	if !strings.HasSuffix(sub, "."+parent) {
+		return false
+	}
+	reg, err := publicsuffix.EffectiveTLDPlusOne(parent)
+	return err == nil && reg == parent
 }
 
 var (
