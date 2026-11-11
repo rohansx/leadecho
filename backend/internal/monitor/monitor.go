@@ -60,6 +60,7 @@ type Monitor struct {
 	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
+	hiringPlanner         HiringPlanner    // optional: company hiring signals
 	credits               *billing.Credits // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).
@@ -238,6 +239,7 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 		}
 	}
 	m.handleNewMentionBatch(ctx, wsID, alerts, "monitor")
+	m.scanHiring(ctx, wsID) // company hiring signals (daily, paid data only)
 	return true
 }
 

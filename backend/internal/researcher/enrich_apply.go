@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -41,7 +42,10 @@ func (s *Service) enrichWithTreg(ctx context.Context, ws string, lead database.L
 	}
 	saved := false
 	res, err := s.enricher.EnrichThen(ctx, ws, enrichSubject(lead, platform, handle, profileURL), func(r *enrich.Result) error {
-		if err := s.saveEnrichment(ctx, ws, lead, personID, r); err != nil {
+		// Save even if the run hit its deadline: the steps that finished are paid for.
+		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		if err := s.saveEnrichment(saveCtx, ws, lead, personID, r); err != nil {
 			return fmt.Errorf("save enrichment: %w", err)
 		}
 		saved = true

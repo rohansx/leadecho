@@ -249,6 +249,10 @@ var sizeRe = regexp.MustCompile(`(\d[\d,]*)\s*([kK])?`)
 
 // parseSize reads a headcount "as the provider states it" (250, "51-200",
 // "1,001-5,000", "10K+") as its lower bound. 0 = unknown.
+// ParseSize reads an employee count from a number or a band like "51-200"
+// (its lower bound) or "10k+".
+func ParseSize(v any) int { return parseSize(v) }
+
 func parseSize(v any) int {
 	switch t := v.(type) {
 	case float64:
