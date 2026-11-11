@@ -8,13 +8,25 @@ import { cn } from "@/lib/utils";
 import type { ChatMessage, LeadCard, MentionCard, ToolCall } from "@/lib/chat";
 
 /** Renders **bold** spans; everything else stays plain text. */
+// RichText renders the small markdown subset the assistant uses: **bold** and
+// [label](https://…) links. Links are http(s) only and open in a new tab;
+// images and raw HTML are never rendered, so answer text cannot load a URL
+// on its own.
 function RichText({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const parts = text.split(/(\*\*[^*]+\*\*|(?<!!)\[[^\]\n]{1,200}\]\(https?:\/\/[^\s)]{1,500}\))/g);
   return (
     <p className="whitespace-pre-wrap text-sm leading-6">
-      {parts.map((p, i) =>
-        p.startsWith("**") && p.endsWith("**") ? <strong key={i}>{p.slice(2, -2)}</strong> : p,
-      )}
+      {parts.map((p, i) => {
+        if (p.startsWith("**") && p.endsWith("**")) return <strong key={i}>{p.slice(2, -2)}</strong>;
+        const link = /^\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(p);
+        if (link)
+          return (
+            <a key={i} href={link[2]} target="_blank" rel="noreferrer noopener" className="text-primary-ink underline underline-offset-2">
+              {link[1]}
+            </a>
+          );
+        return p;
+      })}
     </p>
   );
 }

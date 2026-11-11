@@ -165,7 +165,11 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
       if (!ctrl.signal.aborted) {
         if (threadId) {
           const id = threadId;
-          await qc.fetchQuery({ queryKey: ["lead-chat", id], queryFn: () => listChatMessages(id), staleTime: 0 });
+          try {
+            await qc.fetchQuery({ queryKey: ["lead-chat", id], queryFn: () => listChatMessages(id), staleTime: 0 });
+          } catch {
+            /* the answer is already on screen; the list reloads on the next question */
+          }
           setThread(id);
         }
         setPending([]);
