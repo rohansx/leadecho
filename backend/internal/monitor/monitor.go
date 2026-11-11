@@ -60,6 +60,7 @@ type Monitor struct {
 	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
+	tregState             treg.Cache       // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
 	hiringPlanner         HiringPlanner    // optional: company hiring signals
 	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
 	credits               *billing.Credits // billing: nil or unenforced never blocks

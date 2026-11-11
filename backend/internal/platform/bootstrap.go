@@ -122,6 +122,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	tregClient.SetMeter(billing.NewPaidDataMeter(queries, credits))
 	if c := treg.NewRedisCache(redis); c != nil {
 		tregClient.SetCache(c, cfg.TregCacheTTL)
+		mon.SetTregState(c)
 	}
 	mon.SetCredits(credits)
 	mon.SetRedditCommentsEnabled(cfg.RedditCommentsEnabled)
