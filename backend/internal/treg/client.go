@@ -119,6 +119,10 @@ type Request struct {
 	Tool           string // catalog endpoint id, e.g. treg.x.search.posts
 	Body           any    // JSON body (POST)
 	IdempotencyKey string // optional; generated once per Call and reused on retries
+	// NoWaterfall asks a routed tool to try only its cheapest provider. Use it
+	// when an empty answer is expected (e.g. "nothing new since the last
+	// poll"): otherwise treg tries the dearer providers too, and some bill misses.
+	NoWaterfall bool
 }
 
 type Response struct {
@@ -282,6 +286,9 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 	hr.Header.Set("Idempotency-Key", key)
 	if c.cfg.MaxCostMicro > 0 {
 		hr.Header.Set("X-Treg-Route-Max-Cost", microToUSD(c.cfg.MaxCostMicro))
+	}
+	if req.NoWaterfall {
+		hr.Header.Set("X-Treg-Route-Waterfall", "0")
 	}
 
 	res, err := c.http.Do(hr)

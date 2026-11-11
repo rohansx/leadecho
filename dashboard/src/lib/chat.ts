@@ -89,6 +89,17 @@ export function sendChat(
   threadId: string | undefined,
   onEvent: SSEHandler,
   signal?: AbortSignal,
+  /** Scope the turn to one inbox item: the server adds what it knows about that lead. */
+  mentionId?: string,
 ): Promise<void> {
-  return streamSSE("/chat", { message, thread_id: threadId }, onEvent, signal);
+  return streamSSE("/chat", { message, thread_id: threadId, mention_id: mentionId }, onEvent, signal);
+}
+
+/** The user's own customer list (free text); the lead assistant compares leads against it. */
+export function getChatCustomers(): Promise<{ customers: string }> {
+  return request("/chat/customers");
+}
+
+export function saveChatCustomers(customers: string): Promise<{ customers: string }> {
+  return request("/chat/customers", { method: "PUT", body: JSON.stringify({ customers }) });
 }

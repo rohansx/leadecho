@@ -89,6 +89,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	if replyDrafter != nil { // avoid a typed-nil interface
 		toolDeps.Drafter = replyDrafter
 	}
+	if mon != nil && mon.Treg().Enabled() { // avoid a typed-nil interface
+		toolDeps.Research = mon.Treg()
+	}
 	agentTools := tools.New(toolDeps)
 	var keyLimiter auth.Counter
 	if redis != nil {
@@ -334,7 +337,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/workspace-api-keys/tools", publicAPI.ToolCatalog)
 
 			// chat: "Ask LeadEcho" in-app assistant (P2 #15)
-			chatH := handler.NewChatHandler(queries, agentTools, llmRouter, logger)
+			chatH := handler.NewChatHandler(queries, agentTools.WithResearch(toolDeps), llmRouter, logger)
+			chatH.SetLeadStore(queries)
 			chatH.SetCredits(credits)
 			// ops: operator console, email allowlist only (OPS_ADMIN_EMAILS)
 			var opsTreg handler.TregBalance
@@ -363,6 +367,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/chat/threads/{id}/messages", chatH.Messages)
 			r.Delete("/chat/threads/{id}", chatH.DeleteThread)
 			r.Post("/chat/messages/{id}/confirm", chatH.Confirm)
+			r.Get("/chat/customers", chatH.GetCustomers)
+			r.Put("/chat/customers", chatH.PutCustomers)
 			// end chat
 			// automations (P2 #17): scheduled playbooks + prompt library
 			autoH := handler.NewAutomationHandler(queries, automation.NewService(queries, agentTools,

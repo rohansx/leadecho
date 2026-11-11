@@ -68,6 +68,8 @@ type Deps struct {
 	CRM     CRMEmitter
 	Mutes   MuteStore
 	Credits *billing.Credits // billing: keyword limits (nil = unlimited)
+	// Research runs web and company lookups (nil = those tools answer "not available").
+	Research Researcher
 }
 
 type Registry struct {
@@ -83,6 +85,18 @@ func New(d Deps) *Registry {
 		r.tools = append(r.tools, t)
 	}
 	return r
+}
+
+// WithResearch returns a copy of the registry that also has the web research
+// tools. They make paid lookups, so they are offered to the signed-in app
+// assistant only, not through the public API or MCP catalog.
+func (r *Registry) WithResearch(d Deps) *Registry {
+	out := &Registry{tools: slices.Clone(r.tools), index: map[string]int{}}
+	out.tools = append(out.tools, researchTools(d)...)
+	for i, t := range out.tools {
+		out.index[t.Name] = i
+	}
+	return out
 }
 
 // List returns the tools in a stable order.

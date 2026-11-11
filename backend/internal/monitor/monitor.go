@@ -60,6 +60,7 @@ type Monitor struct {
 	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
+	tregState             treg.Cache       // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
 	hiringPlanner         HiringPlanner    // optional: company hiring signals
 	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
 	credits               *billing.Credits // billing: nil or unenforced never blocks
@@ -370,6 +371,13 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 // insertMention creates a mention if it does not already exist.
 // Returns a mentionAlert if the mention was new, or nil if it was a duplicate.
 func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionParams, keyword string) *mentionAlert {
+	a, _ := m.insertMentionErr(ctx, p, keyword)
+	return a
+}
+
+// insertMentionErr is insertMention that also returns a database error
+// (logged either way). Skipped posts and duplicates are not errors.
+func (m *Monitor) insertMentionErr(ctx context.Context, p database.CreateMentionParams, keyword string) (*mentionAlert, error) {
 	// Defense-in-depth: several authenticated/sidecar crawlers build
 	// CreateMentionParams without a Status; the Go zero value "" is rejected by
 	// the mention_status enum and would fail every insert. Default to "new".
@@ -381,23 +389,23 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
 	if tooOld(ctx, p.PlatformCreatedAt, time.Now()) {
-		return nil
+		return nil, nil
 	}
 	if m.isMuted(ctx, p) { // sources: mute lists
-		return nil
+		return nil, nil
 	}
 	// scoring: drop bots and cross-link / near-duplicate posts before insert
 	keys, drop := m.dropBeforeInsert(ctx, p)
 	if drop {
-		return nil
+		return nil, nil
 	}
 	mention, err := m.q.CreateMention(ctx, p)
 	if err != nil {
 		if isDuplicateError(err) {
-			return nil
+			return nil, nil
 		}
 		m.logger.Error().Err(err).Str("platform_id", p.PlatformID).Msg("failed to insert mention")
-		return nil
+		return nil, err
 	}
 	m.recordDedupeKeys(ctx, p.WorkspaceID, mention.ID, keys)
 
@@ -419,7 +427,7 @@ func (m *Monitor) insertMention(ctx context.Context, p database.CreateMentionPar
 		URL:         p.Url,
 		Author:      author,
 		Content:     p.Content,
-	}
+	}, nil
 }
 
 func isDuplicateError(err error) bool {
