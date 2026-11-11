@@ -70,7 +70,29 @@ func ScoringContextFor(ctx context.Context, q *database.Queries, extra []Example
 		profileID = prof.ID
 	}
 	sources := append([]ExampleSource{FeedbackExamples{Q: q}}, extra...)
-	return buildScoringContext(prof, collectExamples(ctx, sources, wsID, profileID, ai.MaxScoringExamples, onErr))
+	sc := buildScoringContext(prof, collectExamples(ctx, sources, wsID, profileID, ai.MaxScoringExamples, onErr))
+	bp, err := q.GetBrandProfile(ctx, wsID)
+	switch {
+	case err == nil:
+		sc = withBrand(sc, bp)
+	case !errors.Is(err, pgx.ErrNoRows):
+		onErr(err)
+	}
+	return sc
+}
+
+// withBrand adds what the product is and who buys it, so the scorer can tell
+// a buyer from a bystander on the same topic.
+func withBrand(sc ai.ScoringContext, bp database.BrandProfile) ai.ScoringContext {
+	if bp.Product != "" && bp.Overview != "" {
+		brand := "- " + bp.Product + ": " + bp.Overview
+		if sc.Product != "" {
+			brand += "\nThis post was found by the listener:\n" + sc.Product
+		}
+		sc.Product = brand
+	}
+	sc.Buyers = strings.TrimSpace(bp.TargetAudience)
+	return sc
 }
 
 // collectExamples merges sources in order up to limit, skipping failures

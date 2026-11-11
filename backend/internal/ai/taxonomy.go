@@ -70,6 +70,9 @@ func LooksLikeAnnouncement(title string) bool {
 	return false
 }
 
+// maxNonBuyerScore keeps non-buyers under the lead threshold (6).
+const maxNonBuyerScore = 4
+
 // NormalizeClassifyResult cleans a raw model result: canonical tags only,
 // valid sentiment, announcement and skips rules enforced, and the legacy
 // Intent field derived from the tags so existing consumers keep working.
@@ -84,8 +87,17 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 	pt := strings.ToLower(strings.TrimSpace(cr.PostType))
 	announcement := pt == "announcement" || LooksLikeAnnouncement(title)
 	thought := pt == "thought_leadership"
-	if announcement || thought || cr.MatchesSkips {
+	cr.AuthorRole = strings.ToLower(strings.TrimSpace(cr.AuthorRole))
+	if cr.AuthorRole != "buyer" && cr.AuthorRole != "non_buyer" {
+		cr.AuthorRole = "unknown"
+	}
+	nonBuyer := cr.AuthorRole == "non_buyer"
+	if announcement || thought || cr.MatchesSkips || nonBuyer {
 		tags = dropLeadTags(tags)
+	}
+	if nonBuyer { // a candidate or bystander on the right topic is a conversation, not a lead
+		cr.RelevanceScore = min(cr.RelevanceScore, maxNonBuyerScore)
+		cr.ConversionProbability = min(cr.ConversionProbability, 0.15)
 	}
 	if announcement {
 		tags = appendTag(tags, "promotional")
