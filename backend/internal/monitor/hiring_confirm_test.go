@@ -7,36 +7,52 @@ import (
 	"leadecho/internal/enrich"
 )
 
-// Cases are the real outcomes of a live run (2026-11-11).
+// Cases are the real outcomes of live runs (2026-11-11).
 func TestConfirmContact(t *testing.T) {
 	person := foundPerson{Name: "Marty Frenzel", Title: "VP of Engineering", Company: "Vista Higher Learning", ProfileURL: "https://linkedin.com/in/martyfrenzel"}
-	good := &enrich.Result{FullName: "Marty Frenzel", Title: "VP of Engineering", Company: "Vista Higher Learning", CompanySize: 210, Email: "m@vhl.example", EmailStatus: "verified"}
+	vista := hiringCompany{size: 210, domain: "vistahigherlearning.com"}
+	ok := func(mut func(*enrich.Result)) *enrich.Result {
+		r := &enrich.Result{FullName: "Marty Frenzel", Company: "Vista Higher Learning", CompanyDomain: "vistahigherlearning.com", Email: "m@vhl.example", EmailStatus: "verified"}
+		if mut != nil {
+			mut(r)
+		}
+		return r
+	}
 
 	cases := []struct {
-		name       string
-		company    string
-		max, known int
-		person     foundPerson
-		contact    *enrich.Result
-		confirmed  bool
-		tooBig     bool
-		reasonHas  string
+		name      string
+		company   string
+		co        hiringCompany
+		max       int
+		person    foundPerson
+		contact   *enrich.Result
+		confirmed bool
+		tooBig    bool
+		reasonHas string
 	}{
-		{"confirmed", "Vista Higher Learning", 5000, 0, person, good, true, false, ""},
-		{"catch-all email still counts", "Vista Higher Learning", 5000, 0, person, &enrich.Result{FullName: "M", Company: "Vista Higher Learning", CompanySize: 210, Email: "m@vhl.example", EmailStatus: "catchall"}, true, false, ""},
-		{"no size ceiling: unknown size is fine", "Vista Higher Learning", 0, 0, person, &enrich.Result{FullName: "M", Company: "Vista Higher Learning", Email: "m@vhl.example"}, true, false, ""},
-		{"nobody found", "Two Barrels LLC", 5000, 3, foundPerson{}, nil, false, false, "no decision-maker"},
-		{"lookup failed", "TogetherWork", 5000, 278, person, nil, false, false, "could not look up"},
-		{"profile names another employer", "Stock: The Logistics of Inventory Donation", 5000, 60, person, &enrich.Result{FullName: "F R", Company: "The Conversation", CompanySize: 60, Email: "f@x.example"}, false, false, "lists The Conversation"},
-		{"profile names no employer", "Prophetic", 5000, 0, person, &enrich.Result{FullName: "C B", Email: "c@x.example"}, false, false, "no current employer"},
-		{"size unknown", "Choice Hotels International", 5000, 0, person, &enrich.Result{FullName: "T P", Company: "Choice Hotels International", Email: "t@x.example", EmailStatus: "verified"}, false, false, "company size unknown"},
-		{"size known only from the pre-check", "Acme", 5000, 120, person, &enrich.Result{FullName: "A", Company: "Acme", Email: "a@x.example"}, true, false, ""},
-		{"too big after lookup", "Stripe", 5000, 0, person, &enrich.Result{FullName: "T L", Company: "Stripe", CompanySize: 10210, Email: "t@x.example"}, false, true, ""},
-		{"no email", "Vista Higher Learning", 5000, 0, person, &enrich.Result{FullName: "M", Company: "Vista Higher Learning", CompanySize: 210}, false, false, "no working email"},
-		{"invalid email", "Vista Higher Learning", 5000, 0, person, &enrich.Result{FullName: "M", Company: "Vista Higher Learning", CompanySize: 210, Email: "m@vhl.example", EmailStatus: "invalid"}, false, false, "no working email"},
+		{"confirmed", "Vista Higher Learning", vista, 5000, person, ok(nil), true, false, ""},
+		{"catch-all email still counts", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.EmailStatus = "catchall" }), true, false, ""},
+		{"no size ceiling: unknown size is fine", "Vista Higher Learning", hiringCompany{}, 0, person, ok(nil), true, false, ""},
+		{"size known only from the contact lookup", "Vista Higher Learning", hiringCompany{domain: "vistahigherlearning.com"}, 5000, person, ok(func(r *enrich.Result) { r.CompanySize = 210 }), true, false, ""},
+		{"nobody found", "Two Barrels LLC", hiringCompany{size: 3}, 5000, foundPerson{}, nil, false, false, "no decision-maker"},
+		{"lookup failed", "TogetherWork", hiringCompany{size: 278}, 5000, person, nil, false, false, "could not look up"},
+		{"profile names another employer", "Stock: The Logistics of Inventory Donation", hiringCompany{size: 60, domain: "stock.example"}, 5000, person,
+			&enrich.Result{FullName: "F R", Company: "The Conversation", CompanyDomain: "theconversation.com", Email: "f@x.example"}, false, false, "lists The Conversation"},
+		// Same name, different company: only the domain tells them apart.
+		{"namesake company", "Prophetic", hiringCompany{size: 40, domain: "propheticsoftware.com"}, 5000, person,
+			&enrich.Result{FullName: "C B", Company: "Prophetic", CompanyDomain: "prophetic.health", CompanySize: 40, Email: "c@x.example"}, false, false, "lists Prophetic"},
+		{"profile names no employer", "Prophetic", hiringCompany{size: 40}, 5000, person, &enrich.Result{FullName: "C B", Email: "c@x.example"}, false, false, "no current employer"},
+		{"no domain on either side: name decides", "LVT (LiveView Technologies)", hiringCompany{size: 900}, 5000, person,
+			&enrich.Result{FullName: "A", Company: "LVT", Email: "a@x.example"}, true, false, ""},
+		{"size unknown", "Choice Hotels International", hiringCompany{domain: "choicehotels.com"}, 5000, person,
+			&enrich.Result{FullName: "T P", Company: "Choice Hotels International", CompanyDomain: "choicehotels.com", Email: "t@x.example"}, false, false, "company size unknown"},
+		{"too big", "Stripe", hiringCompany{size: 10210, domain: "stripe.com"}, 5000, person,
+			&enrich.Result{FullName: "T L", Company: "Stripe", CompanyDomain: "stripe.com", Email: "t@x.example"}, false, true, ""},
+		{"no email", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.Email = "" }), false, false, "no working email"},
+		{"invalid email", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.EmailStatus = "invalid" }), false, false, "no working email"},
 	}
 	for _, c := range cases {
-		got := confirmContact(c.company, c.max, c.known, c.person, c.contact)
+		got := confirmContact(c.company, c.co, c.max, c.person, c.contact)
 		if got.confirmed != c.confirmed || got.tooBig != c.tooBig {
 			t.Errorf("%s: got %+v", c.name, got)
 		}
@@ -50,10 +66,45 @@ func TestConfirmContact(t *testing.T) {
 }
 
 func TestSameCompany(t *testing.T) {
-	if !sameCompany("LVT (LiveView Technologies)", "LVT") || !sameCompany("Vista Higher Learning", "vista higher learning") {
-		t.Fatal("same employer written differently should match")
+	same := [][2]string{
+		{"LVT (LiveView Technologies)", "LVT"}, {"Vista Higher Learning", "vista higher learning"},
+		{"Acme Inc.", "Acme"}, {"Two Barrels LLC", "Two Barrels"},
 	}
-	if sameCompany("Stock", "The Conversation") || sameCompany("Acme", "") || sameCompany("", "") {
-		t.Fatal("different or missing employers must not match")
+	for _, p := range same {
+		if !sameCompany(p[0], p[1]) {
+			t.Errorf("%q and %q are the same employer", p[0], p[1])
+		}
+	}
+	different := [][2]string{
+		{"Stock", "The Conversation"}, {"Acme", "Acme Health"}, {"JPMorganChase", "JPMorganChase Corporate Challenge"},
+		{"Meta", "Metabase"}, {"Acme", ""}, {"", ""},
+	}
+	for _, p := range different {
+		if sameCompany(p[0], p[1]) {
+			t.Errorf("%q and %q must not match", p[0], p[1])
+		}
+	}
+}
+
+func TestCompanyInfoParsing(t *testing.T) {
+	got := parseCompanyInfo([]byte(`{"output":{"name":"Acme Inc","domain":"https://www.Acme.io/about","employees":"51-200"}}`), "Acme")
+	if got.size != 51 || got.domain != "acme.io" {
+		t.Fatalf("got %+v", got)
+	}
+	if got := parseCompanyInfo([]byte(`{"name":"Stripe","employees":10210,"domain":"stripe.com"}`), "Stripe"); got.size != 10210 || got.domain != "stripe.com" {
+		t.Fatalf("unwrapped: got %+v", got)
+	}
+	// Captured live: asked for JPMorganChase, a provider answered with another company.
+	wrong := `{"output":{"name":"JPMorganChase Corporate Challenge","domain":"jpmorganchasecc.com","employees":1}}`
+	if got := parseCompanyInfo([]byte(wrong), "JPMorganChase"); got != (hiringCompany{}) {
+		t.Fatalf("an answer about another company must be dropped, got %+v", got)
+	}
+	if got := parseCompanyInfo([]byte(`not json`), "Acme"); got != (hiringCompany{}) {
+		t.Fatalf("bad json: got %+v", got)
+	}
+	for in, want := range map[string]string{"WWW.Acme.io": "acme.io", "http://acme.io?x=1": "acme.io", " acme.io ": "acme.io", "": ""} {
+		if got := cleanDomain(in); got != want {
+			t.Errorf("cleanDomain(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

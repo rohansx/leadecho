@@ -39,7 +39,8 @@ const (
 	starterHiringCompanies   = 3 // Starter: sized so its credits also cover its 15 keywords
 	// Company size lookups per run: most job results are large employers, so
 	// many candidates are checked to find a few that fit.
-	maxHiringSizeChecksPerRun = 30
+	maxHiringSizeChecksPerRun = 30 // Pro
+	starterHiringSizeChecks   = 10 // Starter
 	maxHiringSkipped          = 500
 
 	// Confirmed: a decision-maker whose own profile names this company, with a
@@ -149,9 +150,9 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	}
 	// The larger daily budget is Pro's; any other plan, or an unreadable one,
 	// gets the smaller.
-	dailyCap := starterHiringCompanies
+	dailyCap, checkCap := starterHiringCompanies, starterHiringSizeChecks
 	if bs, err := m.q.GetBillingState(ctx, wsID); err == nil && bs.Plan == "pro" {
-		dailyCap = maxHiringCompaniesPerRun
+		dailyCap, checkCap = maxHiringCompaniesPerRun, maxHiringSizeChecksPerRun
 	}
 	created, sizeChecks, lookups := 0, 0, 0
 	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
@@ -176,25 +177,23 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if skip[key] || !validHTTPURL(job.URL) || (job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge) {
 			continue
 		}
-		size := 0 // employees, 0 = unknown
 		pid := hiringPlatformID(job.Company, month)
 		if exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeLinkedin), pid); err != nil || exists {
 			continue
 		}
-		if st.Plan.MaxCompanySize > 0 {
-			if sizeChecks >= maxHiringSizeChecksPerRun {
-				break
-			}
-			sizeChecks++
-			var err error
-			size, err = m.companySize(ctx, wsID, job.Company)
-			if err != nil {
-				break // out of credits, paused or provider down: without sizes every company would pass
-			}
-			if size > st.Plan.MaxCompanySize {
-				remember(key)
-				continue
-			}
+		// Size and website of the hiring company: the size gates the plan's
+		// market, the website is what the contact's employer is checked against.
+		if sizeChecks >= checkCap {
+			break
+		}
+		sizeChecks++
+		co, err := m.companyInfo(ctx, wsID, job)
+		if err != nil {
+			break // out of credits, paused or provider down: without sizes every company would pass
+		}
+		if st.Plan.MaxCompanySize > 0 && co.size > st.Plan.MaxCompanySize {
+			remember(key)
+			continue
 		}
 		lookups++
 		person, err := m.hiringBuyer(ctx, wsID, st.Plan.BuyerTitles, job.Company)
@@ -205,7 +204,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if capped {
 			break // today's contact lookups are used up: later companies could not be confirmed either
 		}
-		check := confirmContact(job.Company, st.Plan.MaxCompanySize, size, person, contact)
+		check := confirmContact(job.Company, co, st.Plan.MaxCompanySize, person, contact)
 		if check.tooBig {
 			remember(key)
 			continue
@@ -227,15 +226,60 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	m.logger.Info().Int("count", created).Int("size_checks", sizeChecks).Int("people_searches", lookups).Str("workspace_id", wsID).Msg("hiring: scan done")
 }
 
-// companySize looks up a company's employee count. 0 with a nil error means
-// the provider doesn't know it: such a company is kept, since small
-// companies are the ones data providers miss.
-func (m *Monitor) companySize(ctx context.Context, wsID, company string) (int, error) {
-	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregCompanyTool, Body: map[string]string{"name": company}})
+// hiringCompany is what the provider knows about the company behind a job.
+type hiringCompany struct {
+	size   int    // employees, 0 = unknown (kept: small companies are the ones providers miss)
+	domain string // website domain, "" = unknown
+}
+
+// companyInfo looks the hiring company up by name. Not by its LinkedIn page:
+// the provider that answers page lookups returned the wrong company in live
+// testing (JPMorganChase came back as a one-person events firm). A result
+// for a differently named company is discarded as unknown.
+func (m *Monitor) companyInfo(ctx context.Context, wsID string, job jobPost) (hiringCompany, error) {
+	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregCompanyTool, Body: map[string]string{"name": job.Company}})
 	if err != nil {
-		return 0, err
+		return hiringCompany{}, err
 	}
-	return parseCompanySize(resp.Body), nil
+	return parseCompanyInfo(resp.Body, job.Company), nil
+}
+
+// parseCompanyInfo reads {output:{name,domain,employees}} (or unwrapped).
+// want is the company asked for: an answer about another company is dropped.
+func parseCompanyInfo(body []byte, want string) hiringCompany {
+	type row struct {
+		Name      string `json:"name"`
+		Employees any    `json:"employees"`
+		Domain    string `json:"domain"`
+	}
+	var v struct {
+		Output *row `json:"output"`
+		row
+	}
+	if json.Unmarshal(body, &v) != nil {
+		return hiringCompany{}
+	}
+	got := v.row
+	if v.Output != nil {
+		got = *v.Output
+	}
+	if !sameCompany(want, got.Name) {
+		return hiringCompany{}
+	}
+	return hiringCompany{size: enrich.ParseSize(got.Employees), domain: cleanDomain(got.Domain)}
+}
+
+// cleanDomain normalises "https://www.Acme.io/about" and "WWW.acme.io" to "acme.io".
+func cleanDomain(d string) string {
+	d = strings.ToLower(strings.TrimSpace(d))
+	if i := strings.Index(d, "://"); i >= 0 {
+		d = d[i+3:]
+	}
+	d = strings.TrimPrefix(d, "www.")
+	if i := strings.IndexAny(d, "/?#"); i >= 0 {
+		d = d[:i]
+	}
+	return d
 }
 
 // validHTTPURL accepts only absolute http(s) URLs: these come from a third
@@ -253,22 +297,6 @@ func linkedInProfileURL(raw string) bool {
 	}
 	host := strings.ToLower(u.Host)
 	return (host == "linkedin.com" || host == "www.linkedin.com") && strings.HasPrefix(u.Path, "/in/")
-}
-
-func parseCompanySize(body []byte) int {
-	var v struct {
-		Output *struct {
-			Employees any `json:"employees"`
-		} `json:"output"`
-		Employees any `json:"employees"`
-	}
-	if json.Unmarshal(body, &v) != nil {
-		return 0
-	}
-	if v.Output != nil {
-		return enrich.ParseSize(v.Output.Employees)
-	}
-	return enrich.ParseSize(v.Employees)
 }
 
 // loadHiringState returns ok=false when the state can't be read: without it
@@ -444,7 +472,9 @@ func (m *Monitor) verifyContact(ctx context.Context, wsID string, job jobPost, p
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	res, err := m.contactVerifier.Enrich(ctx, wsID, enrich.Subject{
-		Name: person.Name, Platform: string(database.PlatformTypeLinkedin), ProfileURL: person.ProfileURL, Company: job.Company,
+		// No Company here: the lookup must report the employer on the
+		// contact's own profile, not echo the one we hope for.
+		Name: person.Name, Platform: string(database.PlatformTypeLinkedin), ProfileURL: person.ProfileURL,
 	})
 	if errors.Is(err, enrich.ErrDailyCap) {
 		return nil, true
@@ -465,21 +495,21 @@ type contactCheck struct {
 // boards are both wrong often enough (a namesake company, someone who has
 // moved on, an employer too large) that every claim is checked against the
 // contact's own profile before anyone is told to write to them.
-func confirmContact(company string, maxSize, knownSize int, person foundPerson, c *enrich.Result) contactCheck {
+func confirmContact(company string, co hiringCompany, maxSize int, person foundPerson, c *enrich.Result) contactCheck {
 	if person.Name == "" {
 		return contactCheck{reason: "no decision-maker found at this company yet"}
 	}
 	if c == nil || c.FullName == "" {
 		return contactCheck{reason: "could not look up " + person.Name + "'s profile"}
 	}
-	size := c.CompanySize
+	size := co.size
 	if size == 0 {
-		size = knownSize
+		size = c.CompanySize
 	}
 	switch {
 	case maxSize > 0 && size > maxSize:
 		return contactCheck{tooBig: true}
-	case !sameCompany(company, c.Company):
+	case !sameEmployer(company, co.domain, c):
 		employer := c.Company
 		if employer == "" {
 			employer = "no current employer"
@@ -493,14 +523,37 @@ func confirmContact(company string, maxSize, knownSize int, person foundPerson, 
 	return contactCheck{confirmed: true}
 }
 
-// sameCompany compares names loosely: "LVT (LiveView Technologies)" and "LVT"
-// are the same employer.
-func sameCompany(a, b string) bool {
-	ka, kb := companyKey(a), companyKey(b)
-	if ka == "" || kb == "" {
-		return false
+// sameEmployer checks the contact's employer against the hiring company.
+// Website domains decide when both are known: two companies can share a name
+// ("Prophetic" the software firm and "Prophetic" the ultrasound firm) but not
+// a domain. Names are only the fallback.
+func sameEmployer(company, companyDomain string, c *enrich.Result) bool {
+	if d := cleanDomain(c.CompanyDomain); d != "" && companyDomain != "" {
+		return d == companyDomain
 	}
-	return ka == kb || strings.HasPrefix(ka, kb+"-") || strings.HasPrefix(kb, ka+"-")
+	return sameCompany(company, c.Company)
+}
+
+var (
+	parenRe     = regexp.MustCompile(`\([^)]*\)`)
+	legalSuffix = map[string]bool{"inc": true, "llc": true, "ltd": true, "limited": true, "corp": true, "corporation": true, "co": true, "company": true, "gmbh": true, "plc": true, "sa": true, "bv": true, "pvt": true}
+)
+
+// sameCompany reports whether two names are the same employer. Bracketed
+// notes and legal suffixes are ignored ("LVT (LiveView Technologies)" = "LVT",
+// "Acme Inc." = "Acme"); anything else must match exactly, so "Acme" is not
+// "Acme Health" and "JPMorganChase" is not "JPMorganChase Corporate Challenge".
+func sameCompany(a, b string) bool {
+	ka, kb := strictCompanyKey(a), strictCompanyKey(b)
+	return ka != "" && ka == kb
+}
+
+func strictCompanyKey(name string) string {
+	words := strings.Split(companyKey(parenRe.ReplaceAllString(name, " ")), "-")
+	for len(words) > 1 && legalSuffix[words[len(words)-1]] {
+		words = words[:len(words)-1]
+	}
+	return strings.Join(words, "-")
 }
 
 // insertHiringSignal stores the signal. It skips the LLM scorer on purpose:

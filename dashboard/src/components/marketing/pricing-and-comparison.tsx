@@ -19,7 +19,7 @@ const plans = [
     name: "Starter",
     for: "For solo founders",
     price: 49,
-    features: ["5,000 credits a month", "15 active keywords", "Adds X, Reddit and LinkedIn", "Ask LeadEcho chat", "Knowledge base for replies"],
+    features: ["5,000 credits a month", "15 active keywords", "Adds X, Reddit and LinkedIn", "Hiring signals: 3 companies a day", "Ask LeadEcho chat", "Knowledge base for replies"],
     cta: "Choose Starter",
     featured: true,
   },
@@ -27,7 +27,7 @@ const plans = [
     name: "Pro",
     for: "For small revenue teams",
     price: 149,
-    features: ["20,000 credits a month", "50 active keywords", "Everything in Starter", "HubSpot and Attio sync", "Signed outbound webhooks"],
+    features: ["20,000 credits a month", "50 active keywords", "Everything in Starter", "Hiring signals: 8 companies a day", "HubSpot and Attio sync", "Signed outbound webhooks"],
     cta: "Choose Pro",
   },
 ];
