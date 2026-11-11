@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 
 interface Enrichment {
   full_name?: string;
+  bio?: string;
   title?: string;
   company?: string;
   company_domain?: string;
@@ -31,6 +32,7 @@ export function EnrichmentCard({ metadata }: { metadata?: Record<string, unknown
   if (!e) return null;
   const rows: [string, string | undefined][] = [
     ["Title", e.title],
+    ["Profile bio", e.bio],
     ["Company", [e.company, e.company_domain && `(${e.company_domain})`].filter(Boolean).join(" ") || undefined],
     ["Industry", e.industry],
     ["Company size", e.employees || (e.company_size ? `${e.company_size}+` : undefined)],

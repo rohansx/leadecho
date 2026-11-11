@@ -29,6 +29,7 @@ type Service struct {
 	mail        auth.Resend
 	frontendURL string
 	logger      zerolog.Logger
+	draft       DraftFunc // optional: drafted replies in the daily digest
 
 	// overridable in tests
 	now         func() time.Time
@@ -184,7 +185,7 @@ func (s *Service) buildAndDeliver(ctx context.Context, wsID string, sched Schedu
 	if d.Empty() {
 		return "skipped", "nothing happened in this period"
 	}
-	return s.deliver(ctx, wsID, sched, s.withSummary(ctx, wsID, d))
+	return s.deliver(ctx, wsID, sched, s.withSummary(ctx, wsID, s.withActionables(ctx, wsID, d)))
 }
 
 // deliver sends on each channel the user chose. A run is "sent" when any

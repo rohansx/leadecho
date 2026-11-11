@@ -48,6 +48,7 @@ type Subject struct {
 // Result is stored as leads.metadata.enrichment and persons.metadata.enrichment.
 type Result struct {
 	FullName      string            `json:"full_name,omitempty"`
+	Bio           string            `json:"bio,omitempty"` // public profile text (X, Hacker News)
 	Title         string            `json:"title,omitempty"`
 	LinkedInURL   string            `json:"linkedin_url,omitempty"`
 	Location      string            `json:"location,omitempty"`
@@ -64,7 +65,7 @@ type Result struct {
 
 // Found reports whether any step produced data.
 func (r *Result) Found() bool {
-	return r.FullName != "" || r.Company != "" || r.Email != ""
+	return r.FullName != "" || r.Company != "" || r.Email != "" || r.Bio != ""
 }
 
 // Caller is the slice of *treg.Client the pipeline uses.
@@ -110,7 +111,12 @@ func (p *Pipeline) Run(ctx context.Context, ws string, s Subject) (*Result, erro
 		}
 	}
 
+	s = p.identify(ctx, s, r, step) // X / Hacker News: public bio, and any email or LinkedIn in it
+	identified := r.FullName
 	step(ToolPerson, personBody(s), r.applyPerson)
+	if r.FullName == "" {
+		r.FullName = identified // a person-lookup miss must not drop the name from the profile
+	}
 	if r.Company == "" {
 		r.Company = strings.TrimSpace(s.Company)
 	}
