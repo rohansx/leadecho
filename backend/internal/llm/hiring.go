@@ -17,3 +17,14 @@ func (r *Router) PlanHiringSignals(ctx context.Context, workspaceID, product, ov
 	})
 	return out, err
 }
+
+// DraftOutreach writes the first message to the buyer behind a hiring signal.
+func (r *Router) DraftOutreach(ctx context.Context, workspaceID string, o ai.Outreach) (string, error) {
+	var out string
+	err := r.withChatProvider(ctx, workspaceID, TaskDraftReply, func(p ai.Provider) error {
+		res, err := ai.DraftOutreach(ctx, p, o)
+		out = res
+		return err
+	})
+	return out, err
+}

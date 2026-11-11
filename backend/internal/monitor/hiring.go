@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"leadecho/internal/ai"
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 	"leadecho/internal/enrich"
 	"leadecho/internal/treg"
@@ -43,6 +45,7 @@ const (
 // HiringPlanner decides whether job postings signal a need for a product.
 type HiringPlanner interface {
 	PlanHiringSignals(ctx context.Context, workspaceID, product, overview, audience string) (*ai.HiringPlan, error)
+	DraftOutreach(ctx context.Context, workspaceID string, o ai.Outreach) (string, error)
 }
 
 // SetHiringPlanner turns the hiring-signal source on.
@@ -52,9 +55,9 @@ func (m *Monitor) SetHiringPlanner(p HiringPlanner) { m.hiringPlanner = p }
 type hiringState struct {
 	Plan    *ai.HiringPlan `json:"plan,omitempty"`
 	LastRun time.Time      `json:"last_run"`
-	// TooBig remembers companies over the plan's size ceiling so they are
-	// not looked up (and paid for) again every day.
-	TooBig []string `json:"too_big,omitempty"`
+	// Skip remembers companies that are over the plan's size ceiling or were
+	// rejected on insert, so they are not looked up (and paid for) again.
+	Skip []string `json:"skip,omitempty"`
 }
 
 type jobPost struct {
@@ -80,41 +83,61 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	if m.hiringPlanner == nil || !m.treg.Enabled() || m.credits.PaidPlatformsLocked(ctx, wsID) {
 		return
 	}
-	st := m.loadHiringState(ctx, wsID)
-	if time.Since(st.LastRun) < hiringInterval {
+	bp, err := m.q.GetBrandProfile(ctx, wsID)
+	if err != nil || bp.Product == "" {
+		return // not onboarded yet: try again next tick
+	}
+	// Atomic claim: the api and the worker can both run the monitor, and only
+	// one of them may spend today's budget. Claiming first also means a
+	// failure below is retried tomorrow, not on every tick.
+	claimed, err := m.q.ClaimSettingsRun(ctx, wsID, hiringSettingsKey, hiringInterval)
+	if err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: claim failed")
+		return
+	}
+	if !claimed {
+		return
+	}
+	st, ok := m.loadHiringState(ctx, wsID)
+	if !ok {
 		return
 	}
 	if st.Plan == nil {
-		bp, err := m.q.GetBrandProfile(ctx, wsID)
-		if err != nil || bp.Product == "" {
-			return // not onboarded yet: try again next tick
-		}
 		plan, err := m.hiringPlanner.PlanHiringSignals(ctx, wsID, bp.Product, bp.Overview, bp.TargetAudience)
 		if err != nil {
 			m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: plan failed")
 			return
 		}
 		st.Plan = plan
+		if !m.saveHiringState(ctx, wsID, st) {
+			return
+		}
 	}
-	st.LastRun = time.Now().UTC()
-	// Saved before the paid calls: if "ran today" can't be recorded, running
-	// would repeat (and bill) on every tick.
-	if !m.saveHiringState(ctx, wsID, st) || !st.Plan.Applies {
+	if !st.Plan.Applies {
 		return
 	}
 
 	month := st.LastRun.Format("2006-01")
-	tooBig := map[string]bool{}
-	for _, k := range st.TooBig {
-		tooBig[k] = true
+	skip := map[string]bool{}
+	for _, k := range st.Skip {
+		skip[k] = true
 	}
-	created, sizeChecks := 0, 0
+	remember := func(key string) { // never look this company up (and pay) again
+		skip[key] = true
+		if len(st.Skip) < maxHiringSkipped {
+			st.Skip = append(st.Skip, key)
+		}
+	}
+	created, sizeChecks, lookups := 0, 0, 0
 	for _, job := range m.hiringJobs(ctx, wsID, st.Plan.Roles) {
-		if created >= maxHiringCompaniesPerRun || ctx.Err() != nil {
+		// The cap counts paid people searches, not stored leads: a search
+		// whose lead is then rejected still cost money.
+		if lookups >= maxHiringCompaniesPerRun || ctx.Err() != nil {
 			break
 		}
 		key := companyKey(job.Company)
-		if tooBig[key] {
+		// Too old would be dropped on insert, after its lookups were paid for.
+		if skip[key] || !validHTTPURL(job.URL) || (job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge) {
 			continue
 		}
 		pid := hiringPlatformID(job.Company, month)
@@ -126,32 +149,61 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 				break
 			}
 			sizeChecks++
-			if m.companySize(ctx, wsID, job.Company) > st.Plan.MaxCompanySize {
-				tooBig[key] = true
-				if len(st.TooBig) < maxHiringSkipped {
-					st.TooBig = append(st.TooBig, key)
-				}
+			size, err := m.companySize(ctx, wsID, job.Company)
+			if err != nil {
+				break // out of credits, paused or provider down: without sizes every company would pass
+			}
+			if size > st.Plan.MaxCompanySize {
+				remember(key)
 				continue
 			}
 		}
-		person, _ := m.hiringBuyer(ctx, wsID, st.Plan.BuyerTitles, job.Company)
-		if m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan) {
-			created++
+		lookups++
+		person, err := m.hiringBuyer(ctx, wsID, st.Plan.BuyerTitles, job.Company)
+		if err != nil {
+			break // same: don't store "nobody found" leads because a call failed
 		}
+		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan)
+		if mentionID == "" {
+			remember(key) // muted or rejected on insert: it would be rejected again tomorrow
+			continue
+		}
+		created++
+		m.draftOutreach(ctx, wsID, mentionID, bp, job, person)
 	}
-	m.saveHiringState(ctx, wsID, st) // remembers the companies that were too big
-	m.logger.Info().Int("count", created).Int("size_checks", sizeChecks).Str("workspace_id", wsID).Msg("hiring: scan done")
+	// Outlive a shutdown: losing the skip list means paying for the same lookups again.
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	m.saveHiringState(saveCtx, wsID, st)
+	m.logger.Info().Int("count", created).Int("size_checks", sizeChecks).Int("people_searches", lookups).Str("workspace_id", wsID).Msg("hiring: scan done")
 }
 
-// companySize looks up a company's employee count (0 when unknown: an
-// unknown company is kept, since small companies are the ones data
-// providers miss).
-func (m *Monitor) companySize(ctx context.Context, wsID, company string) int {
+// companySize looks up a company's employee count. 0 with a nil error means
+// the provider doesn't know it: such a company is kept, since small
+// companies are the ones data providers miss.
+func (m *Monitor) companySize(ctx context.Context, wsID, company string) (int, error) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregCompanyTool, Body: map[string]string{"name": company}})
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return parseCompanySize(resp.Body)
+	return parseCompanySize(resp.Body), nil
+}
+
+// validHTTPURL accepts only absolute http(s) URLs: these come from a third
+// party and end up as links in the app and in email.
+func validHTTPURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
+}
+
+// linkedInProfileURL reports whether raw is an https LinkedIn member profile.
+func linkedInProfileURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Host)
+	return (host == "linkedin.com" || host == "www.linkedin.com") && strings.HasPrefix(u.Path, "/in/")
 }
 
 func parseCompanySize(body []byte) int {
@@ -170,18 +222,22 @@ func parseCompanySize(body []byte) int {
 	return enrich.ParseSize(v.Employees)
 }
 
-func (m *Monitor) loadHiringState(ctx context.Context, wsID string) hiringState {
+// loadHiringState returns ok=false when the state can't be read: without it
+// the skip list is unknown, so nothing is spent.
+func (m *Monitor) loadHiringState(ctx context.Context, wsID string) (hiringState, bool) {
 	var st hiringState
 	raw, err := m.q.GetWorkspaceSettingsKey(ctx, wsID, hiringSettingsKey)
 	if err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: load state")
-		st.LastRun = time.Now() // unknown state: don't spend on a guess
-		return st
+		return st, false
 	}
 	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &st)
+		if err := json.Unmarshal(raw, &st); err != nil {
+			m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: bad state")
+			return st, false
+		}
 	}
-	return st
+	return st, true
 }
 
 func (m *Monitor) saveHiringState(ctx context.Context, wsID string, st hiringState) bool {
@@ -270,16 +326,19 @@ func hiringPlatformID(company, month string) string {
 }
 
 // hiringBuyer finds the person with a buyer title who works at the company now.
-func (m *Monitor) hiringBuyer(ctx context.Context, wsID, titles, company string) (foundPerson, bool) {
+// A person with no Name means the search worked and found nobody suitable;
+// an error means the search itself failed.
+func (m *Monitor) hiringBuyer(ctx context.Context, wsID, titles, company string) (foundPerson, error) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregPeopleTool,
 		Body: map[string]string{"q": titles + " at " + company}})
 	if err != nil {
 		if !treg.IsOperatorError(err) {
 			m.logger.Debug().Err(err).Str("company", company).Msg("hiring: people search failed")
 		}
-		return foundPerson{}, false
+		return foundPerson{}, err
 	}
-	return pickBuyer(parsePeople(resp.Body), company)
+	p, _ := pickBuyer(parsePeople(resp.Body), company)
+	return p, nil
 }
 
 func parsePeople(body []byte) []foundPerson {
@@ -311,7 +370,7 @@ func pickBuyer(people []foundPerson, company string) (foundPerson, bool) {
 	want := companyKey(company)
 	for _, p := range people {
 		got := companyKey(p.Company)
-		if p.Name == "" || !strings.Contains(strings.ToLower(p.ProfileURL), "linkedin.com/in/") || got == "" || !decisionTitleRe.MatchString(p.Title) {
+		if p.Name == "" || !linkedInProfileURL(p.ProfileURL) || got == "" || !decisionTitleRe.MatchString(p.Title) {
 			continue
 		}
 		if got == want || strings.HasPrefix(got, want+"-") || strings.HasPrefix(want, got+"-") {
@@ -324,7 +383,8 @@ func pickBuyer(people []foundPerson, company string) (foundPerson, bool) {
 // insertHiringSignal stores the signal as a scored lead. It skips the LLM
 // scorer on purpose: the scorer treats job posts as noise, and here the job
 // post is the evidence.
-func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan) bool {
+// It returns the new mention's id ("" when nothing was stored).
+func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan) string {
 	title := fmt.Sprintf("%s is hiring: %s", job.Company, job.Title)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s posted a job for %q", job.Company, job.Title)
@@ -358,7 +418,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		PlatformCreatedAt: created,
 	}, "hiring signal")
 	if alert == nil {
-		return false // duplicate, muted or too old
+		return "" // duplicate, muted or too old
 	}
 
 	res := &ai.ClassifyResult{
@@ -375,9 +435,35 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		AwarenessLevel:        pgtype.Text{String: res.AwarenessLevel, Valid: true},
 	}); err != nil {
 		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("hiring: store score")
-		return true
+		return alert.ID
 	}
 	m.storeIntentTags(ctx, wsID, alert.ID, res)
 	m.qualifyAsLead(ctx, *alert, res) // creates the lead and enriches the LinkedIn profile
-	return true
+	return alert.ID
+}
+
+// draftOutreach saves a first message to the contact as the lead's draft, so
+// the inbox and the daily digest show something ready to send. Costs the
+// same as a reply draft; refunded if writing fails.
+func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, bp database.BrandProfile, job jobPost, person foundPerson) {
+	if person.Name == "" {
+		return // nobody to write to
+	}
+	if err := m.credits.Spend(ctx, wsID, billing.CostDraft, billing.ReasonDraft); err != nil {
+		return // out of credits: the lead still stands without a draft
+	}
+	text, err := m.hiringPlanner.DraftOutreach(ctx, wsID, ai.Outreach{
+		Product: bp.Product, Overview: bp.Overview, Positioning: bp.Positioning,
+		ContactName: person.Name, ContactTitle: person.Title, Company: job.Company, JobTitle: job.Title,
+	})
+	if err == nil {
+		_, err = m.q.CreateReply(ctx, database.CreateReplyParams{
+			MentionID: mentionID, WorkspaceID: wsID, Content: text, Status: database.ReplyStatusDraft,
+			TemplateStyle: pgtype.Text{String: "outreach", Valid: true},
+		})
+	}
+	if err != nil {
+		m.credits.Refund(ctx, wsID, billing.CostDraft, billing.ReasonDraft)
+		m.logger.Warn().Err(err).Str("mention_id", mentionID).Msg("hiring: outreach draft failed")
+	}
 }

@@ -66,6 +66,22 @@ func TestPickBuyer(t *testing.T) {
 	}
 }
 
+func TestURLChecks(t *testing.T) {
+	for _, bad := range []string{"", "javascript:alert(1)//linkedin.com/in/a", "https://evil.test/?linkedin.com/in/a", "http://linkedin.com/in/a", "https://linkedin.com/company/acme"} {
+		if linkedInProfileURL(bad) {
+			t.Errorf("%q must not pass as a LinkedIn profile", bad)
+		}
+	}
+	for _, good := range []string{"https://linkedin.com/in/chienkuo", "https://www.linkedin.com/in/jane-doe"} {
+		if !linkedInProfileURL(good) {
+			t.Errorf("%q should pass", good)
+		}
+	}
+	if validHTTPURL("javascript:alert(1)") || validHTTPURL("/jobs/1") || !validHTTPURL("https://www.linkedin.com/jobs/view/1") {
+		t.Error("validHTTPURL accepts only absolute http(s) URLs")
+	}
+}
+
 func TestParseCompanySize(t *testing.T) {
 	cases := map[string]int{
 		`{"output":{"name":"Acme","employees":"51-200"}}`: 51,

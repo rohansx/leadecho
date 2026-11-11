@@ -63,7 +63,9 @@ func (s *Service) draftFor(ctx context.Context, wsID, mentionID string) string {
 		}
 		return r.Content
 	}
-	if s.draft == nil {
+	// Ask once per mention: a "not worth a reply" verdict saves nothing, so a
+	// retried digest would otherwise pay for the same verdict again.
+	if _, asked := s.draftAsked.LoadOrStore(mentionID, struct{}{}); asked || s.draft == nil {
 		return ""
 	}
 	text, err := s.draft(ctx, wsID, mentionID)

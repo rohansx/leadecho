@@ -84,6 +84,12 @@ func TestIdentifyHackerNews(t *testing.T) {
 	}
 }
 
+func TestCleanBioStripsEscapedTags(t *testing.T) {
+	if got := cleanBio("CTO &lt;script&gt;alert(1)&lt;/script&gt; at <b>Acme</b>"); got != "CTO alert(1) at Acme" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestIdentifyLeavesOtherPlatformsAlone(t *testing.T) {
 	f, c := newFake(t, nil)
 	res, err := NewPipeline(c, zerolog.Nop()).Run(context.Background(), ws, Subject{Platform: "reddit", Handle: "someone"})

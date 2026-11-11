@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -30,6 +31,7 @@ type Service struct {
 	frontendURL string
 	logger      zerolog.Logger
 	draft       DraftFunc // optional: drafted replies in the daily digest
+	draftAsked  sync.Map  // mention ids already sent to the drafter (this process)
 
 	// overridable in tests
 	now         func() time.Time

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -95,7 +96,7 @@ func hnAbout(ctx context.Context, handle string) (string, error) {
 	var u *struct {
 		About string `json:"about"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&u); err != nil {
 		return "", err
 	}
 	if u == nil { // unknown user: the API answers null
@@ -106,8 +107,9 @@ func hnAbout(ctx context.Context, handle string) (string, error) {
 
 // cleanBio strips HTML and caps the length: bios are untrusted public text.
 func cleanBio(s string) string {
-	s = strings.ReplaceAll(s, "<p>", "\n")
-	s = strings.TrimSpace(html.UnescapeString(tagRe.ReplaceAllString(s, "")))
+	// Unescape before stripping, so "&lt;script&gt;" can't come out as a tag.
+	s = html.UnescapeString(strings.ReplaceAll(s, "<p>", "\n"))
+	s = strings.TrimSpace(tagRe.ReplaceAllString(s, ""))
 	if r := []rune(s); len(r) > 500 {
 		s = string(r[:500]) + "…"
 	}

@@ -27,7 +27,7 @@ var emailTmpl = template.Must(template.New("digest").Funcs(template.FuncMap{
     <a href="{{.URL}}" style="color:#0d1117;font-weight:600">{{if .Title}}{{trunc .Title 120}}{{else}}(untitled){{end}}</a><br>
     <span style="color:#6a737d;font-size:0.8rem">{{.Platform}} · fit {{printf "%.1f" .Score}}{{if .Intent}} · {{.Intent}}{{end}}{{if .Author}} · {{.Author}}{{end}}</span>
     {{if .Who}}<br><span style="font-size:0.85rem"><strong>Who:</strong> {{.Who}}</span>{{end}}
-    {{if .Draft}}<div style="background:#f6f8fa;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:0.85rem;white-space:pre-wrap"><span style="color:#6a737d">Drafted reply:</span><br>{{.Draft}}</div>{{end}}
+    {{if .Draft}}<div style="background:#f6f8fa;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:0.85rem;white-space:pre-wrap"><span style="color:#6a737d">Drafted message:</span><br>{{.Draft}}</div>{{end}}
   </div>{{else}}<p style="color:#6a737d">No new high-fit leads this period.</p>{{end}}
   {{if .D.Platforms}}<h2 style="font-size:1rem;margin:20px 0 8px">By platform</h2>
   <p style="font-size:0.9rem">{{range $i, $c := .D.Platforms}}{{if $i}} · {{end}}{{$c.Label}} {{$c.N}}{{end}}</p>{{end}}
@@ -83,7 +83,7 @@ func RenderSlack(d Data) string {
 			b.WriteString("   _" + slackEscaper.Replace(l.Who) + "_\n")
 		}
 		if l.Draft != "" {
-			b.WriteString("   Drafted reply: " + slackEscaper.Replace(truncate(strings.Join(strings.Fields(l.Draft), " "), 400)) + "\n")
+			b.WriteString("   Drafted message: " + slackEscaper.Replace(truncate(strings.Join(strings.Fields(l.Draft), " "), 400)) + "\n")
 		}
 	}
 	if len(d.NoisyKeywords) > 0 {

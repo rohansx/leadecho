@@ -29,14 +29,14 @@ func TestRenderShowsWhoAndDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(html, "Jane Doe · VP Engineering · Acme") || !strings.Contains(html, "Drafted reply:") {
+	if !strings.Contains(html, "Jane Doe · VP Engineering · Acme") || !strings.Contains(html, "Drafted message:") {
 		t.Fatalf("email is missing who/draft:\n%s", html)
 	}
 	if strings.Contains(html, "<do>") {
 		t.Fatal("draft text must be HTML-escaped")
 	}
 	slack := RenderSlack(d)
-	if !strings.Contains(slack, "Jane Doe") || !strings.Contains(slack, "Drafted reply: Happy to share how we &lt;do&gt; this.") {
+	if !strings.Contains(slack, "Jane Doe") || !strings.Contains(slack, "Drafted message: Happy to share how we &lt;do&gt; this.") {
 		t.Fatalf("slack is missing who/draft:\n%s", slack)
 	}
 }
