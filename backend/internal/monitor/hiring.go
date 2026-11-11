@@ -47,6 +47,14 @@ const (
 	// Confirmed: a decision-maker whose own profile names this company, with a
 	// usable email, at a company of known, fitting size. Only these are leads.
 	hiringScoreConfirmed = 7.5
+	// A confirmed contact whose email could not be verified (catch-all mail
+	// server) is still a lead, ranked under the ones with a verified address.
+	hiringScoreUnverifiedEmail = 6.5
+	// From this size up, the person to write to is whoever is hiring for the
+	// role, not a company-wide executive who never sees one requisition.
+	hiringTeamContactSize = 500
+	// Candidates tried per company when the first can't be confirmed.
+	maxContactTries = 2
 	// Unconfirmed signals stay below the lead threshold (6): visible under
 	// "All conversations" with the reason, but not presented as a lead.
 	hiringScoreUnconfirmed = 5.0
@@ -196,16 +204,47 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			remember(key)
 			continue
 		}
+		if st.Plan.MaxCompanySize > 0 && co.size == 0 {
+			// Can't tell whether it is in the customer's market, and no contact
+			// could change that: record it without spending one of the day's
+			// people searches.
+			if id := m.insertHiringSignal(ctx, wsID, pid, job, foundPerson{}, st.Plan,
+				contactCheck{reason: "company size unknown, so it may be outside your market"}, nil); id == "" {
+				remember(key)
+			} else {
+				created++
+			}
+			continue
+		}
 		lookups++
-		person, err := m.hiringBuyer(ctx, wsID, st.Plan.BuyerTitles, job.Company)
+		candidates, err := m.hiringBuyers(ctx, wsID, st.Plan.BuyerTitles, job, co.size)
 		if err != nil {
 			break // same: don't store "nobody found" leads because a call failed
 		}
-		contact, capped := m.verifyContact(ctx, wsID, job, person)
+		// The first candidate is not always right (moved on, namesake, no
+		// email): try the next one before giving the company up.
+		var (
+			person  foundPerson
+			contact *enrich.Result
+			check   = confirmContact(job.Company, co, st.Plan.MaxCompanySize, foundPerson{}, nil)
+			capped  bool
+		)
+		for i, cand := range candidates {
+			var c *enrich.Result
+			if c, capped = m.verifyContact(ctx, wsID, job, cand); capped {
+				break
+			}
+			ck := confirmContact(job.Company, co, st.Plan.MaxCompanySize, cand, c)
+			if i == 0 || ck.confirmed || ck.tooBig {
+				person, contact, check = cand, c, ck
+			}
+			if ck.confirmed || ck.tooBig {
+				break
+			}
+		}
 		if capped {
 			break // today's contact lookups are used up: later companies could not be confirmed either
 		}
-		check := confirmContact(job.Company, co, st.Plan.MaxCompanySize, person, contact)
 		if check.tooBig {
 			remember(key)
 			continue
@@ -405,20 +444,31 @@ func hiringPlatformID(company, month string) string {
 	return "hiring-" + companyKey(company) + "-" + month
 }
 
-// hiringBuyer finds the person with a buyer title who works at the company now.
-// A person with no Name means the search worked and found nobody suitable;
-// an error means the search itself failed.
-func (m *Monitor) hiringBuyer(ctx context.Context, wsID, titles, company string) (foundPerson, error) {
+// hiringBuyers finds up to maxContactTries people at the company who could
+// buy, best first. No candidates with a nil error means the search worked and
+// found nobody suitable; an error means the search itself failed.
+func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job jobPost, companySize int) ([]foundPerson, error) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregPeopleTool,
-		Body: map[string]string{"q": titles + " at " + company}})
+		Body: map[string]string{"q": buyerQuery(titles, job, companySize)}})
 	if err != nil {
 		if !treg.IsOperatorError(err) {
-			m.logger.Debug().Err(err).Str("company", company).Msg("hiring: people search failed")
+			m.logger.Debug().Err(err).Str("company", job.Company).Msg("hiring: people search failed")
 		}
-		return foundPerson{}, err
+		return nil, err
 	}
-	p, _ := pickBuyer(parsePeople(resp.Body), company)
-	return p, nil
+	return pickBuyers(parsePeople(resp.Body), job.Company, maxContactTries), nil
+}
+
+// buyerQuery words the people search. At a small company the buyer titles
+// (CTO, VP Engineering) are the people hiring. At a larger one those
+// executives do not handle a single opening, so the search names the role:
+// live, that returned the company's technical recruiters and engineering
+// managers where the plain title search returned an unrelated VP.
+func buyerQuery(titles string, job jobPost, companySize int) string {
+	if companySize >= hiringTeamContactSize && job.Title != "" {
+		return "manager or recruiter hiring for " + job.Title + " at " + job.Company
+	}
+	return titles + " at " + job.Company
 }
 
 func parsePeople(body []byte) []foundPerson {
@@ -447,17 +497,29 @@ var decisionTitleRe = regexp.MustCompile(`(?i)\b(chief|c[etofm]o|founder|owner|p
 // pickBuyer takes the first result whose current company is this one: people
 // search also returns former employees and similarly named companies.
 func pickBuyer(people []foundPerson, company string) (foundPerson, bool) {
+	if got := pickBuyers(people, company, 1); len(got) == 1 {
+		return got[0], true
+	}
+	return foundPerson{}, false
+}
+
+// pickBuyers returns the first n such results, in search order.
+func pickBuyers(people []foundPerson, company string, n int) []foundPerson {
 	want := companyKey(company)
+	var out []foundPerson
 	for _, p := range people {
+		if len(out) == n {
+			break
+		}
 		got := companyKey(p.Company)
 		if p.Name == "" || !linkedInProfileURL(p.ProfileURL) || got == "" || !decisionTitleRe.MatchString(p.Title) {
 			continue
 		}
 		if got == want || strings.HasPrefix(got, want+"-") || strings.HasPrefix(want, got+"-") {
-			return p, true
+			out = append(out, p)
 		}
 	}
-	return foundPerson{}, false
+	return out
 }
 
 // verifyContact runs the paid lookup on the contact people-search proposed.
@@ -595,7 +657,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 	}
 	contactTitle := person.Title
 	if check.confirmed {
-		score = hiringScoreConfirmed
+		score = hiringLeadScore(contact)
 		if contact.Title != "" {
 			contactTitle = contact.Title
 		}
@@ -655,6 +717,15 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 	return alert.ID
 }
 
+// hiringLeadScore is a confirmed signal's score: lower when the email could
+// not be verified.
+func hiringLeadScore(contact *enrich.Result) float64 {
+	if contact != nil && contact.EmailStatus == "catchall" {
+		return hiringScoreUnverifiedEmail
+	}
+	return hiringScoreConfirmed
+}
+
 // createHiringLead stores the confirmed contact as a lead, carrying the
 // lookup that was already paid for so enrichment does not buy it again.
 func (m *Monitor) createHiringLead(ctx context.Context, alert mentionAlert, job jobPost, person foundPerson, contact *enrich.Result) {
@@ -669,7 +740,7 @@ func (m *Monitor) createHiringLead(ctx context.Context, alert mentionAlert, job 
 		Platform:     database.NullPlatformType{PlatformType: database.PlatformTypeLinkedin, Valid: true},
 		ProfileUrl:   pgtextPtr(person.ProfileURL),
 		Tags:         []string{"auto-qualified", "hiring-signal"},
-		Metadata:     jsonBytes(map[string]any{"auto_scored": true, "relevance": hiringScoreConfirmed, "intent": string(database.IntentTypeBuySignal), "enrichment": contact}),
+		Metadata:     jsonBytes(map[string]any{"auto_scored": true, "relevance": hiringLeadScore(contact), "intent": string(database.IntentTypeBuySignal), "enrichment": contact}),
 	})
 	if err != nil {
 		if !isDuplicateError(err) {
