@@ -96,7 +96,7 @@ export function KeywordCadence({ keyword }: { keyword: Keyword }) {
   );
 }
 
-/** Slows every paid platform scanning faster than 4h down to 4h, across all keywords. */
+/** Slows every paid platform scanning faster than 12h down to 12h, across all keywords. */
 export function BulkPaidCadenceButton({ keywords }: { keywords: Keyword[] }) {
   const queryClient = useQueryClient();
   const { data } = useCostPreview();

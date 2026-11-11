@@ -15,7 +15,7 @@ export const LISTENER_PLATFORMS = [
   { value: "hackernews", label: "Hacker News" },
   { value: "devto", label: "Dev.to" },
   { value: "bluesky", label: "Bluesky" }, // sources
-  { value: "twitter", label: "Twitter / X", note: "paid data, every 4h" },
+  { value: "twitter", label: "Twitter / X", note: "paid data, twice a day" },
   { value: "linkedin", label: "LinkedIn", note: "paid data, opt-in" },
   { value: "exa", label: "Web (Exa)", note: "needs EXA_API_KEY" },
 ];

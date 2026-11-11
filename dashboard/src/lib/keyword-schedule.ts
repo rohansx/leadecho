@@ -1,18 +1,18 @@
 // Pure helpers for the Keywords page: effective scan cadence, cost, one-line
-// schedule summary and the "paid sources every 4h" bulk plan. Mirrors
-// backend/internal/cadence (Default=1h, PaidDefault=4h for priced platforms).
+// schedule summary and the "paid sources every 12h" bulk plan. Mirrors
+// backend/internal/cadence (Default=1h, PaidDefault=12h for priced platforms).
 
 export type CadenceMap = Record<string, string>;
 export type Rates = Record<string, number>;
 
-export const PAID_DEFAULT = "4h";
+export const PAID_DEFAULT = "12h";
 const FREE_DEFAULT = "1h";
 const HOURS: Record<string, number> = { "15m": 0.25, "30m": 0.5, "1h": 1, "3h": 3, "4h": 4, "6h": 6, "12h": 12, "24h": 24 };
 const MONTH_HOURS = 30 * 24;
 
 export const isPaid = (platform: string, rates: Rates): boolean => (rates[platform] ?? 0) > 0;
 
-/** Cadence the scheduler actually uses: stored value, else 4h for paid / 1h for free. */
+/** Cadence the scheduler actually uses: stored value, else 12h for paid / 1h for free. */
 export function effectiveCadence(platform: string, stored: CadenceMap, rates: Rates): string {
   const v = stored[platform];
   if (v && HOURS[v]) return v;
@@ -36,7 +36,7 @@ function groupLabel(name: string, platforms: string[], stored: CadenceMap, rates
   return `${name} every ${set.join("/")}`;
 }
 
-/** e.g. "Paid every 4h · free every 1h". Cost is appended by the caller. */
+/** e.g. "Paid every 12h · free every 1h". Cost is appended by the caller. */
 export function scheduleSummary(platforms: string[], stored: CadenceMap, rates: Rates): string {
   const paid = platforms.filter((p) => isPaid(p, rates));
   const free = platforms.filter((p) => !isPaid(p, rates));
