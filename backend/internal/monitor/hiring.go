@@ -502,14 +502,18 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 	if c == nil || c.FullName == "" {
 		return contactCheck{reason: "could not look up " + person.Name + "'s profile"}
 	}
+	// The contact's company size only speaks for the hiring company once we
+	// know they are the same company: a namesake's size must not get the real
+	// one dropped as too big.
+	employerOK := sameEmployer(company, co.domain, c)
 	size := co.size
-	if size == 0 {
+	if size == 0 && employerOK {
 		size = c.CompanySize
 	}
 	switch {
 	case maxSize > 0 && size > maxSize:
 		return contactCheck{tooBig: true}
-	case !sameEmployer(company, co.domain, c):
+	case !employerOK:
 		employer := c.Company
 		if employer == "" {
 			employer = "no current employer"
@@ -529,7 +533,8 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 // a domain. Names are only the fallback.
 func sameEmployer(company, companyDomain string, c *enrich.Result) bool {
 	if d := cleanDomain(c.CompanyDomain); d != "" && companyDomain != "" {
-		return d == companyDomain
+		// eng.acme.com and acme.com are one employer.
+		return d == companyDomain || strings.HasSuffix(d, "."+companyDomain) || strings.HasSuffix(companyDomain, "."+d)
 	}
 	return sameCompany(company, c.Company)
 }

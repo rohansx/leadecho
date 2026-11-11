@@ -41,6 +41,11 @@ func TestConfirmContact(t *testing.T) {
 		// Same name, different company: only the domain tells them apart.
 		{"namesake company", "Prophetic", hiringCompany{size: 40, domain: "propheticsoftware.com"}, 5000, person,
 			&enrich.Result{FullName: "C B", Company: "Prophetic", CompanyDomain: "prophetic.health", CompanySize: 40, Email: "c@x.example"}, false, false, "lists Prophetic"},
+		// The lookup of the hiring company came back empty and the contact works at
+		// a huge namesake: hold it back, but do not drop the real company as too big.
+		{"namesake is large, hiring company unknown", "Prophetic", hiringCompany{}, 5000, person,
+			&enrich.Result{FullName: "C B", Company: "Prophetic Health Systems", CompanyDomain: "prophetic.health", CompanySize: 90000, Email: "c@x.example"}, false, false, "lists Prophetic Health Systems"},
+		{"subdomain is the same employer", "Vista Higher Learning", vista, 5000, person, ok(func(r *enrich.Result) { r.CompanyDomain = "eng.vistahigherlearning.com" }), true, false, ""},
 		{"profile names no employer", "Prophetic", hiringCompany{size: 40}, 5000, person, &enrich.Result{FullName: "C B", Email: "c@x.example"}, false, false, "no current employer"},
 		{"no domain on either side: name decides", "LVT (LiveView Technologies)", hiringCompany{size: 900}, 5000, person,
 			&enrich.Result{FullName: "A", Company: "LVT", Email: "a@x.example"}, true, false, ""},
