@@ -473,8 +473,8 @@ export function LeadList({
                       <span className="font-medium">{m.person.name || m.author_username}</span>
                       {[m.person.title || m.person.bio, [m.person.company, m.person.employees && `(${m.person.employees})`].filter(Boolean).join(" ")]
                         .filter(Boolean)
-                        .map((part) => (
-                          <span key={part} className="text-muted-foreground"> · {part}</span>
+                        .map((part, i) => (
+                          <span key={`${i}-${part}`} className="text-muted-foreground"> · {part}</span>
                         ))}
                       {m.person.has_email && <span className="text-muted-foreground"> · email found</span>}
                     </div>

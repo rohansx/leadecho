@@ -55,6 +55,10 @@ func TestErrorCodeAndMidnight(t *testing.T) {
 	if got := errorCode([]byte(capBody)); got != "tag_spend_cap_reached" {
 		t.Fatalf("nested code: got %q", got)
 	}
+	// A string "detail" (FastAPI style) must not hide the top-level code.
+	if got := errorCode([]byte(`{"error":"insufficient_balance","detail":"top up"}`)); got != "insufficient_balance" {
+		t.Fatalf("string detail: got %q", got)
+	}
 	if got := errorCode([]byte(`{"error":"insufficient_balance"}`)); got != "insufficient_balance" {
 		t.Fatalf("flat code: got %q", got)
 	}

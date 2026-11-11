@@ -183,8 +183,8 @@ function OverviewTab({
               <span className="font-medium">{mention.person.name || mention.author_username}</span>
               {[mention.person.title || mention.person.bio, [mention.person.company, mention.person.employees && `(${mention.person.employees} employees)`].filter(Boolean).join(" ")]
                 .filter(Boolean)
-                .map((part) => (
-                  <span key={part} className="text-muted-foreground"> · {part}</span>
+                .map((part, i) => (
+                  <span key={`${i}-${part}`} className="text-muted-foreground"> · {part}</span>
                 ))}
             </span>
           ) : (
