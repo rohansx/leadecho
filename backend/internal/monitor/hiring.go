@@ -30,6 +30,7 @@ const (
 
 	hiringSettingsKey = "hiring_signals"
 	hiringInterval    = 24 * time.Hour
+	hiringRetry       = time.Hour // wait after a run in which every job search failed
 	// ponytail: fixed daily budget (jobs: 1 call per role; people: 1 call per
 	// new company). Make it a plan allowance if customers want more volume.
 	maxHiringCompaniesPerRun = 8
@@ -134,9 +135,12 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
 	if !searched {
 		// Every job search failed (out of credits, spend cap, provider down):
-		// nothing was bought, so give today's run back and try again later.
-		st.LastRun = time.Time{}
-		m.saveHiringState(ctx, wsID, st)
+		// try again in an hour, not tomorrow. Not sooner: a provider that
+		// bills and then times out would be paid on every tick.
+		st.LastRun = time.Now().UTC().Add(hiringRetry - hiringInterval)
+		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		m.saveHiringState(saveCtx, wsID, st)
 		return
 	}
 	for _, job := range jobs {
