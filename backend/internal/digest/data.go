@@ -64,6 +64,16 @@ func (s *Service) Build(ctx context.Context, wsID string, kind Kind, p Period) (
 		return Data{}, fmt.Errorf("digest attribution: %w", err)
 	}
 	d.Clicks, d.Signups, d.RevenueCents = int(attr.Clicks), int(attr.Signups), attr.RevenueCents
+
+	funnel, err := s.q.ConversionFunnel(ctx, wsID)
+	if err != nil {
+		return Data{}, fmt.Errorf("digest pipeline: %w", err)
+	}
+	byStage := map[string]int{}
+	for _, f := range funnel {
+		byStage[string(f.Stage)] = int(f.Count)
+	}
+	d.Pipeline = PipelineCounts(byStage)
 	return d, nil
 }
 

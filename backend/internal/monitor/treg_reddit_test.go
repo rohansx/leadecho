@@ -73,7 +73,7 @@ func TestCrawlRedditTregRequest(t *testing.T) {
 	if _, ok := m.crawlRedditTreg(context.Background(), tregTestWS, database.ListActiveKeywordsRow{Term: "MCP server"}); !ok {
 		t.Fatal("answered miss must be ok")
 	}
-	if path != "/call/"+tregRedditTool || body["query"] != "MCP server" || body["sort"] != "new" || body["t"] != "week" {
+	if path != "/call/"+tregRedditTool || body["query"] != "MCP server" || body["sort"] != "relevance" || body["timeframe"] != "week" {
 		t.Fatalf("path=%s body=%v", path, body)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,7 @@ const (
 	DefaultBaseURL = "https://treg.to"
 	maxAttempts    = 3
 	pauseOnAlert   = 5 * time.Minute
+	capRecheck     = 30 * time.Minute // how long a capped workspace waits before one more try
 	maxBodyBytes   = 8 << 20
 )
 
@@ -40,6 +42,10 @@ var (
 	ErrPlatformDailyCap    = errors.New("treg: platform daily cap reached")
 	ErrPaused              = errors.New("treg: paused after an account-level refusal")
 )
+
+// ErrCustomerDailyCap: this one workspace reached its daily spend cap at treg.
+// Other workspaces are unaffected; it lifts at the next UTC midnight.
+var ErrCustomerDailyCap = errors.New("treg: workspace daily spend cap reached")
 
 var (
 	ErrNotConfigured = errors.New("treg: not configured")
@@ -81,6 +87,7 @@ type Client struct {
 	logger      zerolog.Logger
 	backoff     func(attempt int) time.Duration
 	pausedUntil atomic.Int64 // unix nano
+	capped      sync.Map     // workspace id -> time.Time its daily spend cap lifts
 	meter       Meter        // nil: calls are not metered
 	cache       Cache        // nil: no response cache
 	cacheTTL    time.Duration
@@ -187,9 +194,26 @@ func (c *Client) Call(ctx context.Context, req Request) (*Response, error) {
 	return resp, err
 }
 
+// isCapped reports whether the workspace is inside a spend-cap pause, clearing
+// an expired one.
+func (c *Client) isCapped(ws string) bool {
+	until, ok := c.capped.Load(ws)
+	if !ok {
+		return false
+	}
+	if time.Now().Before(until.(time.Time)) {
+		return true
+	}
+	c.capped.CompareAndDelete(ws, until)
+	return false
+}
+
 func (c *Client) meteredCall(ctx context.Context, req Request) (*Response, error) {
 	if c == nil || c.meter == nil {
 		return c.call(ctx, req)
+	}
+	if c.isCapped(req.WorkspaceID) { // before the meter: no credit taken and refunded per refused call
+		return nil, ErrCustomerDailyCap
 	}
 	if err := c.meter.Spend(ctx, req.WorkspaceID, 1, "search"); err != nil {
 		return nil, err
@@ -213,6 +237,9 @@ func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 	}
 	if time.Now().UnixNano() < c.pausedUntil.Load() {
 		return nil, ErrPaused
+	}
+	if c.isCapped(req.WorkspaceID) {
+		return nil, ErrCustomerDailyCap // every call would be refused: don't make them
 	}
 	payload, err := json.Marshal(req.Body)
 	if err != nil {
@@ -277,6 +304,20 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 		ServedBy:  res.Header.Get("X-Treg-Served-By"),
 	}
 	callErr, retry := c.classify(res, body)
+	if errors.Is(callErr, ErrCustomerDailyCap) {
+		// Re-probe every capRecheck: the operator may raise the budget, and
+		// treg's "day" may not end exactly at UTC midnight.
+		until := time.Now().Add(capRecheck)
+		if mid := nextUTCMidnight(time.Now()); mid.Before(until) {
+			until = mid
+		}
+		if _, already := c.capped.LoadOrStore(req.WorkspaceID, until); !already {
+			// Once per workspace per day; raise its budget at treg (or
+			// TREG_CUSTOMER_DAILY_CAP_MICRO) if this is a paying customer.
+			c.logger.Warn().Str("alert", "treg").Str("workspace_id", req.WorkspaceID).Time("until", until).
+				Msg("treg: workspace reached its daily spend cap; paid data is off for it until the cap resets or is raised")
+		}
+	}
 	c.record(ctx, req, out, callErr)
 	if callErr != nil {
 		return nil, retry, callErr
@@ -297,6 +338,8 @@ func (c *Client) classify(res *http.Response, body []byte) (error, bool) {
 	case code == "platform_daily_cap_reached":
 		c.alert(ErrPlatformDailyCap)
 		return ErrPlatformDailyCap, false
+	case code == "tag_spend_cap_reached": // one workspace's budget, not the account
+		return ErrCustomerDailyCap, false
 	}
 	isTreg := res.Header.Get("X-Treg-Error") == "1"
 	if code == "" {
@@ -325,6 +368,8 @@ func (c *Client) record(ctx context.Context, req Request, out *Response, callErr
 		status = "insufficient_balance"
 	case errors.Is(callErr, ErrPlatformDailyCap):
 		status = "platform_daily_cap_reached"
+	case errors.Is(callErr, ErrCustomerDailyCap):
+		status = "tag_spend_cap_reached"
 	case errors.As(callErr, &apiErr):
 		status = apiErr.Code
 	}
@@ -338,15 +383,30 @@ func (c *Client) record(ctx context.Context, req Request, out *Response, callErr
 	}
 }
 
+// errorCode reads the refusal code from {"error":"..."} or, for budget
+// refusals, {"detail":{"error":"..."}}.
 func errorCode(body []byte) string {
 	var e struct {
-		Error any `json:"error"`
+		Error  any             `json:"error"`
+		Detail json.RawMessage `json:"detail"` // an object here; a string or array elsewhere
 	}
 	if json.Unmarshal(body, &e) != nil {
 		return ""
 	}
-	s, _ := e.Error.(string)
-	return s
+	if s, _ := e.Error.(string); s != "" {
+		return s
+	}
+	var d struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(e.Detail, &d) // best effort
+	return d.Error
+}
+
+// nextUTCMidnight is when treg's per-day caps reset.
+func nextUTCMidnight(now time.Time) time.Time {
+	y, m, d := now.UTC().Date()
+	return time.Date(y, m, d+1, 0, 0, 0, 0, time.UTC)
 }
 
 func parseMicro(s string) int64 {

@@ -13,7 +13,9 @@ import (
 const (
 	tregXTool        = "treg.x.search.posts"          // routed, $0.00075/hit, misses free
 	tregLinkedInTool = "anyapi.linkedin.search.posts" // $0.002/success, misses free
-	tregRedditTool   = "crawl4ai.reddit.search.posts" // $0.0009/call, misses free
+	// anyapi answers in ~3s. crawl4ai.reddit.search.posts (used before) took
+	// over 90s per search, past our timeout, so Reddit never returned anything.
+	tregRedditTool = "anyapi.reddit.search" // ~$0.0004-0.0012/call
 )
 
 // SetTreg enables the hosted X/LinkedIn sources. nil (TREG_TOKEN unset)
@@ -26,7 +28,7 @@ func (m *Monitor) tregSearch(ctx context.Context, wsID, tool string, body any) (
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tool, Body: body})
 	if err != nil {
 		// Not allowed / paused / out of credits is expected, not an incident.
-		quiet := treg.IsOperatorError(err) || errors.Is(err, billing.ErrNoPaidData) ||
+		quiet := treg.IsOperatorError(err) || errors.Is(err, treg.ErrCustomerDailyCap) || errors.Is(err, billing.ErrNoPaidData) ||
 			errors.Is(err, billing.ErrPaidDataPaused) || errors.Is(err, billing.ErrNoCredits)
 		if !quiet {
 			m.logger.Warn().Err(err).Str("tool", tool).Str("workspace_id", wsID).Msg("treg: search failed, falling back")
@@ -78,7 +80,9 @@ func (m *Monitor) crawlTreg(ctx context.Context, wsID string, kw database.ListAc
 // ponytail: sitewide, not per subreddit: one call instead of one per
 // subreddit, and it finds posts outside the suggested subreddits.
 func (m *Monitor) crawlRedditTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, bool) {
-	body := map[string]any{"query": kw.Term, "sort": "new", "t": "week", "limit": 25}
+	// Relevance, not newest: Reddit's "new" sort matches the words loosely and
+	// returns unrelated posts; the week window keeps results fresh anyway.
+	body := map[string]any{"query": kw.Term, "sort": "relevance", "timeframe": "week"}
 	return m.crawlTreg(ctx, wsID, kw, tregRedditTool, body, tregRedditParams)
 }
 

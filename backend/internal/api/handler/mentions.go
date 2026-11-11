@@ -79,6 +79,8 @@ type MentionResponse struct {
 	UpdatedAt             time.Time       `json:"updated_at"`
 	AwarenessLevel        *string         `json:"awareness_level"`
 	NextAction            *string         `json:"next_action,omitempty"`
+	// Person is who the author is (name, role, company), once enrichment knows.
+	Person *database.MentionPerson `json:"person,omitempty"`
 }
 
 func mentionToResponse(m database.Mention) MentionResponse {
@@ -199,8 +201,19 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 		draftIDs, _ = h.q.MentionIDsWithDraftOrApprovedReply(ctx, workspaceID, ids)
 	}
+	allIDs := make([]string, len(mentions))
+	for i, m := range mentions {
+		allIDs[i] = m.ID
+	}
+	people, err := h.q.MentionPeople(ctx, workspaceID, allIDs)
+	if err != nil { // the list still works without the "who" line
+		people = nil
+	}
 	for i, m := range mentions {
 		resp[i] = mentionToResponse(m)
+		if p, ok := people[m.ID]; ok {
+			resp[i].Person = &p
+		}
 		if params.Queue == "action_required" {
 			action := nextActionFor(m, draftIDs[m.ID])
 			if action != "" {

@@ -69,7 +69,7 @@ function OverviewTab({
   onFeedback: (status: "spam" | "archived", reason?: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<Awaited<ReturnType<typeof draftReply>> | null>(null);
+  const [localDraft, setDraft] = useState<Awaited<ReturnType<typeof draftReply>> | null>(null);
   const [copied, setCopied] = useState(false);
   const [destinationURL, setDestinationURL] = useState("");
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -152,6 +152,22 @@ function OverviewTab({
     setTimeout(() => setCopied(false), 1800);
   };
 
+  // A draft saved earlier (by a workflow, the digest or a hiring signal) shows
+  // without the user asking for a new one.
+  const { data: savedReplies } = useQuery({
+    queryKey: [QUERY_KEYS.replies, mention.id],
+    queryFn: () => listReplies(mention.id),
+  });
+  const savedDraft = savedReplies?.find((r: Reply) => r.status === "draft");
+  const draft =
+    localDraft ??
+    (savedDraft
+      ? ({ reply: savedDraft, should_reply: true, status: "done", reason: "" } as Awaited<ReturnType<typeof draftReply>>)
+      : null);
+  // A hiring signal is a company, not a post: there is nothing to reply to,
+  // and its draft is a first message to the contact.
+  const isHiringSignal = (mention.platform_metadata as { signal?: string } | null)?.signal === "hiring";
+
   const replyBody = draft?.reply
     ? draft.reply.edited_content ?? draft.reply.content
     : "";
@@ -162,7 +178,18 @@ function OverviewTab({
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
           <span className="font-medium text-foreground-soft">{mention.platform}</span>
           <span>·</span>
-          <span>@{mention.author_username ?? "unknown"}</span>
+          {mention.person ? (
+            <span className="text-foreground">
+              <span className="font-medium">{mention.person.name || mention.author_username}</span>
+              {[mention.person.title || mention.person.bio, [mention.person.company, mention.person.employees && `(${mention.person.employees} employees)`].filter(Boolean).join(" ")]
+                .filter(Boolean)
+                .map((part, i) => (
+                  <span key={`${i}-${part}`} className="text-muted-foreground"> · {part}</span>
+                ))}
+            </span>
+          ) : (
+            <span>@{mention.author_username ?? "unknown"}</span>
+          )}
           <a
             href={mention.url}
             target="_blank"
@@ -194,14 +221,16 @@ function OverviewTab({
             Classify
           </Button>
         )}
-        <Button size="sm" onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
-          {draftMutation.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          Draft reply
-        </Button>
+        {!isHiringSignal && (
+          <Button size="sm" onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
+            {draftMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            Draft reply
+          </Button>
+        )}
         {voices.length > 1 && (
           <select
             aria-label="Reply voice"
@@ -313,7 +342,7 @@ function OverviewTab({
                 <>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                      <span className="font-medium text-sm mr-1">AI draft</span>
+                      <span className="font-medium text-sm mr-1">{isHiringSignal ? "First message to send" : "AI draft"}</span>
                       <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{draft.reply.status}</span>
                       {draft.tone && <span className="rounded-full bg-muted px-2 py-0.5">{draft.tone}</span>}
                       {draft.template_style && (
