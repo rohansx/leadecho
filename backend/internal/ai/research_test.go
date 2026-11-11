@@ -11,6 +11,9 @@ func TestResearchPromptNamesTheCompanyAndTreatsTheWebAsUntrusted(t *testing.T) {
 		Company: "Vista Higher Learning", CompanyURL: "https://vistahigherlearning.com", JobTitle: "Senior Backend Engineer",
 		ContactName: "Dana Smith", ContactTitle: "VP Engineering",
 	})
+	if _, long := buildResearchPrompt(CompanyResearch{Company: strings.Repeat("x", 5000)}); len(long) > 1500 {
+		t.Errorf("a scraped company name must be clipped, prompt is %d chars", len(long))
+	}
 	for _, want := range []string{"Vista Higher Learning", "vistahigherlearning.com", "Senior Backend Engineer", "Utkrusht", "VP Engineering"} {
 		if !strings.Contains(user, want) {
 			t.Errorf("user message is missing %q", want)
@@ -43,7 +46,8 @@ func TestParseResearchBriefKeepsOnlyFactsWithASearchedSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.Facts) != 2 || b.Facts[0].URL != "https://techcrunch.com/vista-raises" || b.Facts[1].Text != "Sells to K-12 and universities." {
+	if len(b.Facts) != 2 || b.Facts[0].URL != "https://techcrunch.com/vista-raises" || b.Facts[1].Text != "Sells to K-12 and universities." ||
+		b.Facts[1].URL != "https://vistahigherlearning.com/about" { // the link the search returned, not the model's spelling of it
 		t.Fatalf("facts = %+v", b.Facts)
 	}
 	if !strings.HasPrefix(b.WhatTheyDo, "Publishes") || !strings.HasPrefix(b.WhyNow, "Raised") || !strings.HasPrefix(b.Hook, "Four") {
@@ -80,9 +84,16 @@ func TestOutreachUsesTheResearchBrief(t *testing.T) {
 		Research: &ResearchBrief{WhatTheyDo: "Publishes courseware.", WhyNow: "Hiring four backend engineers.", Hook: "Many interviews for a small team.",
 			Facts: []ResearchFact{{Text: "Raised $40M.", URL: "https://techcrunch.com/x"}}},
 	})
-	for _, want := range []string{"What we found", "Publishes courseware.", "Hiring four backend engineers.", "Many interviews", "Raised $40M."} {
+	for _, want := range []string{"What we found", "Publishes courseware.", "Raised $40M."} {
 		if !strings.Contains(withBrief, want) {
 			t.Errorf("outreach input is missing %q", want)
+		}
+	}
+	// Only what has a source may end up in an email: the model's own
+	// summary lines (why now, the hook) are for the reader of the lead.
+	for _, not := range []string{"Hiring four backend engineers.", "Many interviews"} {
+		if strings.Contains(withBrief, not) {
+			t.Errorf("unsourced line %q must not reach the draft", not)
 		}
 	}
 	if !strings.Contains(outreachPrompt, "found about the company") {

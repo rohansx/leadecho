@@ -607,7 +607,8 @@ function ResearchPanel({ mention }: { mention: Mention }) {
         </ul>
       )}
       <p className="mt-3 text-xs text-muted-foreground">
-        Found by searching the public web when this lead was confirmed. Check a fact at its source before you quote it.
+        Found by searching the public web when this lead was confirmed. The summary above the line is written by AI from the sources below it: check a fact at its
+        source before you quote it.
       </p>
     </div>
   );

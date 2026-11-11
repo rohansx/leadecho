@@ -245,10 +245,17 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		var brief *ai.ResearchBrief
 		if check.confirmed {
 			brief = m.researchLead(ctx, wsID, bp, job, person)
+			if ctx.Err() != nil {
+				// Shutting down mid-research: the insert would fail and the
+				// company would be skipped for good. Leave it for tomorrow.
+				m.refundResearch(ctx, wsID, brief)
+				break
+			}
 		}
 		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact, brief)
 		if mentionID == "" {
-			remember(key) // muted or rejected on insert: it would be rejected again tomorrow
+			m.refundResearch(ctx, wsID, brief) // nothing was stored, so nothing is charged
+			remember(key)                      // muted or rejected on insert: it would be rejected again tomorrow
 			continue
 		}
 		created++
@@ -772,7 +779,14 @@ func researchNote(brief *ai.ResearchBrief) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	return "\n\nWhat we found about the company: " + strings.Join(parts, " ")
+	return "\n\nWhat a web search found about the company (not verified): " + strings.Join(parts, " ")
+}
+
+// refundResearch returns the research credits when its brief is not used.
+func (m *Monitor) refundResearch(ctx context.Context, wsID string, brief *ai.ResearchBrief) {
+	if brief != nil {
+		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostResearch, billing.ReasonResearch)
+	}
 }
 
 // researchLead looks the company up on the web for a confirmed lead. It is
@@ -793,6 +807,7 @@ func (m *Monitor) researchLead(ctx context.Context, wsID string, bp database.Bra
 		m.logger.Info().Err(err).Str("company", job.Company).Str("workspace_id", wsID).Msg("hiring: no company research")
 		return nil
 	}
+	m.logger.Info().Int("searches", brief.Searches).Int("facts", len(brief.Facts)).Str("company", job.Company).Str("workspace_id", wsID).Msg("hiring: company researched")
 	return brief
 }
 

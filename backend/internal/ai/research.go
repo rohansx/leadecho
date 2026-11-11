@@ -45,6 +45,9 @@ type ResearchBrief struct {
 	WhyNow     string         `json:"why_now"`
 	Hook       string         `json:"hook"`
 	Facts      []ResearchFact `json:"facts"`
+	// Searches is how many web searches the brief took (billed per search,
+	// outside token usage).
+	Searches int `json:"searches,omitempty"`
 }
 
 const researchPrompt = `You research one company for a salesperson who is about to write to someone there. Use web search to find out what the company does and what is happening there now, then write a short brief.
@@ -66,17 +69,18 @@ At most 5 facts, the most useful first. If you found nothing reliable about this
 
 func buildResearchPrompt(in CompanyResearch) (system, user string) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "COMPANY: %s\n", in.Company)
+	// Company, job and title come from a scraped job post: bounded, one line each.
+	fmt.Fprintf(&b, "COMPANY: %s\n", clipText(in.Company, 150))
 	if in.CompanyURL != "" {
-		fmt.Fprintf(&b, "Company page: %s\n", in.CompanyURL)
+		fmt.Fprintf(&b, "Company page: %s\n", clipText(in.CompanyURL, 300))
 	}
 	if in.JobTitle != "" {
-		fmt.Fprintf(&b, "Job it posted this week: %s\n", in.JobTitle)
+		fmt.Fprintf(&b, "Job it posted this week: %s\n", clipText(in.JobTitle, 150))
 	}
 	if in.ContactTitle != "" {
-		fmt.Fprintf(&b, "The salesperson will write to its: %s\n", in.ContactTitle)
+		fmt.Fprintf(&b, "The salesperson will write to its: %s\n", clipText(in.ContactTitle, 150))
 	}
-	fmt.Fprintf(&b, "\nPRODUCT BEING OFFERED: %s\nWhat it does: %s\n", in.Product, in.Overview)
+	fmt.Fprintf(&b, "\nPRODUCT BEING OFFERED: %s\nWhat it does: %s\n", clipText(in.Product, 150), clipText(in.Overview, 600))
 	return researchPrompt, b.String()
 }
 
@@ -93,15 +97,16 @@ func parseResearchBrief(raw string, searched map[string]bool) (*ResearchBrief, e
 	if err := json.Unmarshal([]byte(raw), &b); err != nil {
 		return nil, fmt.Errorf("research brief: %w", err)
 	}
-	known := map[string]bool{}
+	known := map[string]string{} // normalised -> the link exactly as the search returned it
 	for u := range searched {
-		known[normalizeURL(u)] = true
+		known[normalizeURL(u)] = u
 	}
 	var facts []ResearchFact
 	for _, f := range b.Facts {
-		text, link := clipText(f.Text, maxBriefField), strings.TrimSpace(f.URL)
+		text := clipText(f.Text, maxBriefField)
+		link, ok := known[normalizeURL(f.URL)]
 		u, err := url.Parse(link)
-		if text == "" || err != nil || (u.Scheme != "http" && u.Scheme != "https") || !known[normalizeURL(link)] {
+		if text == "" || !ok || err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 			continue
 		}
 		if facts = append(facts, ResearchFact{Text: text, URL: link}); len(facts) == maxBriefFacts {
@@ -140,7 +145,8 @@ func clipText(s string, n int) string {
 // search tool. Anthropic only: other providers have no such tool.
 func ResearchCompany(ctx context.Context, p Provider, in CompanyResearch) (_ *ResearchBrief, u Usage, _ error) {
 	if p.Name != "anthropic" {
-		return nil, Usage{}, errors.New("company research needs an Anthropic key")
+		// "temporarily" lets the router move on to its next target, which may be Claude.
+		return nil, Usage{}, errors.New("company research is temporarily unavailable on this provider: it needs Claude's web search")
 	}
 	if strings.TrimSpace(in.Company) == "" {
 		return nil, Usage{}, errors.New("company research: no company")
@@ -155,13 +161,16 @@ func ResearchCompany(ctx context.Context, p Provider, in CompanyResearch) (_ *Re
 		MaxTokens: 16000,
 		System:    []anthropic.TextBlockParam{{Text: system}},
 		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(user))},
-		Tools: []anthropic.ToolUnionParam{{OfWebSearchTool20260209: &anthropic.WebSearchTool20260209Param{
-			MaxUses: anthropic.Int(maxResearchSearches),
-		}}},
 	}
 	searched := map[string]bool{}
 	var text strings.Builder
-	for turn := 0; turn < maxResearchTurns; turn++ {
+	used, paused := 0, false
+	for turn := 0; turn < maxResearchTurns && used < maxResearchSearches; turn++ {
+		// The search limit is per request, so a resumed turn gets only what is
+		// left: the whole research never runs more than maxResearchSearches.
+		params.Tools = []anthropic.ToolUnionParam{{OfWebSearchTool20260209: &anthropic.WebSearchTool20260209Param{
+			MaxUses: anthropic.Int(int64(maxResearchSearches - used)),
+		}}}
 		resp, err := client.Messages.New(ctx, params)
 		if err != nil {
 			return nil, u, fmt.Errorf("anthropic: %w", err)
@@ -171,6 +180,7 @@ func ResearchCompany(ctx context.Context, p Provider, in CompanyResearch) (_ *Re
 		u.CacheReadTokens += int32(resp.Usage.CacheReadInputTokens)
 		u.CacheWriteTokens += int32(resp.Usage.CacheCreationInputTokens)
 		u.TotalTokens = u.PromptTokens + u.CompletionTokens + u.CacheReadTokens + u.CacheWriteTokens
+		used += int(resp.Usage.ServerToolUse.WebSearchRequests)
 		if resp.StopReason == anthropic.StopReasonRefusal {
 			return nil, u, fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
 		}
@@ -185,11 +195,18 @@ func ResearchCompany(ctx context.Context, p Provider, in CompanyResearch) (_ *Re
 				}
 			}
 		}
-		if resp.StopReason != anthropic.StopReasonPauseTurn {
+		if paused = resp.StopReason == anthropic.StopReasonPauseTurn; !paused {
 			break
 		}
 		params.Messages = append(params.Messages, resp.ToParam()) // resume the paused turn
 	}
+	if paused {
+		return nil, u, fmt.Errorf("company research: not finished after %d searches", used)
+	}
 	brief, err := parseResearchBrief(text.String(), searched)
-	return brief, u, err
+	if err != nil {
+		return nil, u, err
+	}
+	brief.Searches = used
+	return brief, u, nil
 }

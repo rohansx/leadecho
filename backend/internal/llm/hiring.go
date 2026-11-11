@@ -34,8 +34,18 @@ func (r *Router) DraftOutreach(ctx context.Context, workspaceID string, o ai.Out
 // so targets on other providers are skipped.
 func (r *Router) ResearchCompany(ctx context.Context, workspaceID string, in ai.CompanyResearch) (*ai.ResearchBrief, error) {
 	var out *ai.ResearchBrief
+	var ran bool
+	var ranErr error
 	err := r.withChatProvider(ctx, workspaceID, TaskDraftReply, func(p ai.Provider) error {
+		if ran {
+			// One paid run per lead: a fallback target must not repeat
+			// several searches because the first run failed.
+			return ranErr
+		}
 		res, _, err := ai.ResearchCompany(ctx, p, in)
+		if p.Name == "anthropic" {
+			ran, ranErr = true, err
+		}
 		out = res
 		return err
 	})

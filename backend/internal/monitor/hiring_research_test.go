@@ -19,7 +19,7 @@ func TestResearchNoteSaysWhatWasFoundAndNothingWhenEmpty(t *testing.T) {
 		Facts:      []ai.ResearchFact{{Text: "Plans to hire 250 people.", URL: "https://news.example/a"}},
 	}
 	got := researchNote(b)
-	for _, want := range []string{"What we found", "Sells vertical software", "Moved its HQ to Austin"} {
+	for _, want := range []string{"What a web search found", "not verified", "Sells vertical software", "Moved its HQ to Austin"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("note is missing %q: %q", want, got)
 		}

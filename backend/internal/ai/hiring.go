@@ -90,10 +90,11 @@ func outreachUserMessage(o Outreach) string {
 		o.Product, o.Overview, o.Positioning, o.ContactName, o.ContactTitle, o.Company, o.JobTitle)
 	if r := o.Research; r != nil {
 		b.WriteString("\n\nWhat we found about the company (from public pages):")
-		for _, line := range []string{r.WhatTheyDo, r.WhyNow, r.Hook} {
-			if line != "" {
-				b.WriteString("\n- " + line)
-			}
+		// Only the description and the facts that carry a source: the
+		// brief's "why now" and hook are the model's own summary, shown to
+		// the person reading the lead but never handed to an email.
+		if r.WhatTheyDo != "" {
+			b.WriteString("\n- " + r.WhatTheyDo)
 		}
 		for _, f := range r.Facts {
 			b.WriteString("\n- " + f.Text)
