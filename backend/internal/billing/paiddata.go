@@ -30,6 +30,16 @@ func (c *Credits) PaidPlatformsLocked(ctx context.Context, wsID string) bool {
 	return err == nil && !access.PaidData
 }
 
+// PaidDataPaused reports whether the operator switched paid data off for
+// everyone in /ops (hosted only).
+func (c *Credits) PaidDataPaused(ctx context.Context) bool {
+	if c == nil || c.q == nil || !c.Enforced() {
+		return false
+	}
+	v, err := c.q.GetOpsSetting(ctx, "paid_data_paused")
+	return err == nil && string(v) == "true"
+}
+
 // PaidDataMeter gates every treg call (it implements treg.Meter): the global
 // /ops switch, then the workspace's paid-data access, then one credit.
 type PaidDataMeter struct {
