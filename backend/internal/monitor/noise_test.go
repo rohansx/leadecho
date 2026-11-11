@@ -33,16 +33,44 @@ func TestKeywordOverlap(t *testing.T) {
 }
 
 func TestOwnAccount(t *testing.T) {
-	own := [][2]string{{"UtkrushtAI", "Utkrusht"}, {"utkrusht_ai", "Utkrusht AI"}, {"Utkrusht", "utkrusht"}}
+	own := [][2]string{{"UtkrushtAI", "Utkrusht"}, {"utkrusht_ai", "Utkrusht AI"}, {"Utkrusht", "utkrusht"}, {"utkrusht", "Utkrusht AI"}, {"acme_hq", "Acme"}}
 	for _, p := range own {
 		if !ownAccount(p[0], p[1]) {
 			t.Errorf("%q should be recognised as %q's own account", p[0], p[1])
 		}
 	}
-	notOwn := [][2]string{{"Frazzlebilt", "Utkrusht"}, {"", "Utkrusht"}, {"golang_fan", "Go"}, {"archer", "Arc"}, {"someone", ""}}
+	// A handle that only contains the name is someone else: a fan, a critic, a customer.
+	notOwn := [][2]string{
+		{"Frazzlebilt", "Utkrusht"}, {"", "Utkrusht"}, {"golang_fan", "Go"}, {"archer", "Arc"}, {"someone", ""},
+		{"notionfan", "Notion"}, {"notionhater", "Notion"}, {"slackerdev", "Slack"}, {"ex_utkrusht_user", "Utkrusht"},
+	}
 	for _, p := range notOwn {
 		if ownAccount(p[0], p[1]) {
 			t.Errorf("%q must not match product %q", p[0], p[1])
 		}
+	}
+}
+
+func TestSignificantWordsIgnoresSearchOperators(t *testing.T) {
+	got := significantWords(`"coding test" cheating -leetcode`)
+	want := []string{"coding", "test", "cheating"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestOnTopic(t *testing.T) {
+	posts := []Post{
+		{Title: "How do you screen experienced engineers for judgment?", Content: "…"},
+		{Title: "Screen protector recommendations", Content: "for my new phone"},
+	}
+	got := onTopic(posts, "how to screen software engineers")
+	if len(got) != 1 || got[0].Title != posts[0].Title {
+		t.Fatalf("got %+v", got)
 	}
 }

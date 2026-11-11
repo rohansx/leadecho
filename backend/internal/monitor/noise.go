@@ -21,7 +21,15 @@ var stopWords = map[string]bool{
 func significantWords(term string) []string {
 	var out []string
 	seen := map[string]bool{}
-	for _, w := range wordRe.FindAllString(strings.ToLower(term), -1) {
+	// Drop search operators: a "-excluded" word is not a topic word.
+	fields := strings.Fields(strings.ToLower(term))
+	kept := fields[:0]
+	for _, f := range fields {
+		if !strings.HasPrefix(f, "-") {
+			kept = append(kept, f)
+		}
+	}
+	for _, w := range wordRe.FindAllString(strings.Join(kept, " "), -1) {
 		if len(w) < 3 || stopWords[w] || seen[w] {
 			continue
 		}
@@ -33,8 +41,7 @@ func significantWords(term string) []string {
 
 // keywordOverlap reports whether text is plausibly about the keyword: at
 // least two of the keyword's topic words, and at least half of them, appear
-// in it, matched
-// by word stem so "screen" finds "screening" and "engineer" finds
+// in it, matched by word stem so "screen" finds "screening" and "engineer" finds
 // "engineers". Search by relevance returns posts that share a single word
 // ("assessment" found karate gradings and a driving assessment for the
 // keyword "technical assessment tool"); those would each cost an AI call
@@ -45,7 +52,9 @@ func significantWords(term string) []string {
 func keywordOverlap(text, term string) bool {
 	words := significantWords(term)
 	if len(words) < 2 {
-		return true // a one-word keyword has nothing to cross-check against
+		// One topic word ("Utkrusht", or "best CRM" once "best" is ignored):
+		// nothing to cross-check against, so the search result stands.
+		return true
 	}
 	have := map[string]bool{}
 	for _, w := range wordRe.FindAllString(strings.ToLower(text), -1) {
@@ -67,14 +76,46 @@ func keywordOverlap(text, term string) bool {
 	return hits >= max(2, (len(words)+1)/2) // at least two, and at least half
 }
 
+// onTopic keeps the search results that pass keywordOverlap. Used for
+// Reddit's site-wide search on both paths (data provider and public API), so
+// the same posts are kept whichever one answers.
+func onTopic(posts []Post, term string) []Post {
+	out := make([]Post, 0, len(posts))
+	for _, p := range posts {
+		if keywordOverlap(p.Title+" "+p.Content, term) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 var nonAlnumLower = regexp.MustCompile(`[^a-z0-9]+`)
 
+// Endings a company's own account commonly adds to its name.
+var brandSuffixes = []string{"", "ai", "hq", "app", "io", "inc", "co", "labs", "team", "official", "dev", "tech"}
+
 // ownAccount reports whether an author handle is the workspace's own brand
-// account ("UtkrushtAI" for the product "Utkrusht"). The customer's own
-// posts are not leads and should not be scored. Short product names are not
-// matched: "Go" or "Arc" would hit unrelated handles.
+// account: the product name exactly, or with a common company ending
+// ("UtkrushtAI", "utkrusht_hq"). The customer's own posts are not leads.
+// A handle that merely contains the name ("notionfan", "slackerdev") is
+// somebody else, often a customer or critic worth hearing, and is scored
+// as usual.
 func ownAccount(author, product string) bool {
 	a := nonAlnumLower.ReplaceAllString(strings.ToLower(author), "")
 	p := nonAlnumLower.ReplaceAllString(strings.ToLower(product), "")
-	return len(p) >= 5 && a != "" && strings.Contains(a, p)
+	if len(p) < 4 || a == "" {
+		return false
+	}
+	for _, suffix := range brandSuffixes {
+		if a == p+suffix {
+			return true
+		}
+	}
+	// "Utkrusht AI" as the product name and "utkrusht" as the handle.
+	for _, suffix := range brandSuffixes[1:] {
+		if strings.HasSuffix(p, suffix) && a == strings.TrimSuffix(p, suffix) && len(a) >= 4 {
+			return true
+		}
+	}
+	return false
 }
