@@ -17,8 +17,9 @@ type MentionAsk struct {
 }
 
 // ListMentionAsks returns the asks from posts scored since `since`, newest
-// first. Spam and the workspace's hiring signals are left out: a hiring
-// signal is a company, not a person stating a need.
+// first. Left out: spam, the workspace's hiring signals (a company, not a
+// person stating a need), and authors the scorer judged not to be buyers
+// (job seekers, vendors): their needs are not demand for the product.
 // Hand-written (no sqlc codegen needed).
 func (q *Queries) ListMentionAsks(ctx context.Context, workspaceID string, since time.Time, limit int32) ([]MentionAsk, error) {
 	rows, err := q.db.Query(ctx, `
@@ -28,6 +29,7 @@ FROM mentions
 WHERE workspace_id = $1 AND created_at >= $2
   AND COALESCE(scoring_metadata->>'ask', '') <> ''
   AND status <> 'spam'
+  AND COALESCE(scoring_metadata->>'author_role', '') <> 'non_buyer'
   AND COALESCE(platform_metadata->>'signal', '') <> 'hiring'
 ORDER BY created_at DESC
 LIMIT $3`, workspaceID, since, limit)

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { INBOX_QUEUES } from "@/lib/constants";
 import { DEMAND_KEY, getDemand, refreshDemand, shipTheme } from "@/lib/demand-api";
-import { coverageText, followUpEstimate, peopleLine, type CoverageTone, type DemandResponse, type DemandTheme } from "@/lib/demand";
+import { askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandResponse, type DemandTheme } from "@/lib/demand";
 
 export const Route = createFileRoute("/_dashboard/demand")({
   component: DemandPage,
@@ -20,6 +20,7 @@ const toneClass: Record<CoverageTone, string> = {
   good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   warn: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   gap: "border-foreground/30 bg-foreground/5 text-foreground",
+  muted: "border-border bg-transparent text-muted-foreground",
 };
 
 function daysAgo(iso: string): string {
@@ -34,10 +35,9 @@ function ShipPanel({ theme, meta, onDone }: { theme: DemandTheme; meta: DemandRe
   const est = followUpEstimate(theme, meta.max_follow_ups, meta.follow_up_cost);
   const ship = useMutation({
     mutationFn: () => shipTheme(theme.id, note.trim(), drafts && est.drafts > 0),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: DEMAND_KEY });
-      onDone();
-    },
+    onSuccess: onDone,
+    // Also on failure: "already shipped" means the page is out of date.
+    onSettled: () => qc.invalidateQueries({ queryKey: DEMAND_KEY }),
   });
 
   return (
@@ -57,8 +57,11 @@ function ShipPanel({ theme, meta, onDone }: { theme: DemandTheme; meta: DemandRe
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={drafts} onChange={(e) => setDrafts(e.target.checked)} />
           <span>
-            Draft a follow-up for {est.drafts === theme.people ? `all ${est.drafts}` : `${est.drafts} of the ${theme.people}`} people who asked, buyers first ({est.credits} credits).
-            <span className="block text-xs text-muted-foreground">Drafts are saved on each lead for you to review and send. Nothing is sent automatically.</span>
+            Draft a follow-up for the {est.drafts === 1 ? "buyer" : `${est.drafts} buyers`} who asked (up to {est.credits} credits).
+            <span className="block text-xs text-muted-foreground">
+              A person is skipped, at no charge, when what you shipped does not answer what they asked. Drafts are saved on each lead for you to review. Nothing is sent
+              automatically, and a reply to an old post can read as unwelcome, so check the post and the community's rules first.
+            </span>
           </span>
         </label>
       )}
@@ -96,10 +99,25 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
       </div>
 
       {theme.summary && <p className="mt-3 text-sm leading-relaxed text-foreground-soft">{theme.summary}</p>}
+      {!shipped && theme.why && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {cov.label}: {theme.why}
+        </p>
+      )}
       {shipped && theme.shipped_note && (
         <p className="mt-2 text-sm text-foreground-soft">
           <span className="font-medium text-foreground">What you shipped:</span> {theme.shipped_note}
         </p>
+      )}
+      {shipped && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {theme.drafted > 0
+            ? `${theme.drafted} follow-up ${theme.drafted === 1 ? "draft" : "drafts"} saved. Open each lead below to review and send.`
+            : "No follow-ups were drafted."}
+        </p>
+      )}
+      {!shipped && theme.coverage === "covered" && (
+        <p className="mt-2 text-xs text-muted-foreground">These people want something you already offer. Open each lead to reply.</p>
       )}
 
       <ul className="mt-3 space-y-2">
@@ -107,7 +125,7 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
           <li key={a.mention_id} className="border-l-2 border-border pl-3 text-sm">
             <span className="text-foreground">{a.quote}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              {a.buyer ? "Buyer" : "Not a buyer"} on {a.platform}, {daysAgo(a.at)}
+              {askSource(a)}, {daysAgo(a.at)}
             </span>
           </li>
         ))}
@@ -124,7 +142,7 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           {open ? "Hide" : "See"} who asked ({theme.people})
         </Button>
-        {!shipped && !shipping && (
+        {!shipped && !shipping && theme.coverage !== "covered" && (
           <Button size="sm" variant="ghost" onClick={() => setShipping(true)}>
             <Rocket className="h-3.5 w-3.5" />
             We shipped this
@@ -142,7 +160,7 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
                 <p className="text-foreground">{a.quote}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {a.author ? `${a.author}, ` : ""}
-                  {a.buyer ? "buyer" : "not a buyer"}, {a.platform}, {daysAgo(a.at)}
+                  {a.buyer ? "buyer" : "role unknown"}, {a.platform}, {daysAgo(a.at)}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3 text-xs">
@@ -171,8 +189,7 @@ function DemandPage() {
     onSettled: () => qc.invalidateQueries({ queryKey: DEMAND_KEY }),
   });
   const d = demand.data;
-  const open = d?.themes.filter((t) => t.status === "open") ?? [];
-  const shipped = d?.themes.filter((t) => t.status === "shipped") ?? [];
+  const { open, once, shipped } = splitThemes(d?.themes ?? [], d?.min_theme_people ?? 2);
   const canGroup = !!d && d.waiting >= d.min_new_asks;
 
   return (
@@ -181,7 +198,7 @@ function DemandPage() {
         <div>
           <Text as="h2">Demand</Text>
           <Text as="p" className="mt-1 text-muted-foreground">
-            What people in your market are asking for, from the posts LeadEcho reads. Use it to decide what to build, then tell the people who asked.
+            What people in your market are asking for, summarised from the posts LeadEcho reads. See what keeps coming up, and tell the buyers who asked once you ship it.
           </Text>
         </div>
         {d && (
@@ -219,6 +236,34 @@ function DemandPage() {
           {open.map((t) => (
             <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
           ))}
+        </section>
+      )}
+
+      {once.length > 0 && (
+        <section aria-label="Raised once">
+          <Text as="h3" className="text-sm font-medium text-muted-foreground">Raised once</Text>
+          <p className="mt-1 text-xs text-muted-foreground">One person each. Not a pattern yet; they move up when someone else asks for the same thing.</p>
+          <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-card">
+            {once.map((t) => {
+              const a = t.asks[0];
+              return (
+                <li key={t.id} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-foreground">{a?.quote ?? t.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {a ? `${askSource(a)}, ${daysAgo(a.at)}. ` : ""}
+                      {coverageText(t.coverage).label}
+                    </p>
+                  </div>
+                  {a && (
+                    <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: a.mention_id }} className="shrink-0 text-xs text-primary-ink underline underline-offset-2">
+                      Open lead
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 

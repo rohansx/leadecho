@@ -57,6 +57,8 @@ func coverageLabel(c string) string {
 		return "you already do this"
 	case "partial":
 		return "partly covered"
+	case "outside":
+		return "outside your product"
 	}
 	return "not covered yet"
 }

@@ -8,6 +8,7 @@ type ThemeView struct {
 	Title       string    `json:"title"`
 	Summary     string    `json:"summary"`
 	Coverage    string    `json:"coverage"`
+	Why         string    `json:"why,omitempty"`
 	Status      string    `json:"status"`
 	Competitors []string  `json:"competitors"`
 	People      int       `json:"people"`
@@ -15,6 +16,7 @@ type ThemeView struct {
 	NewThisWeek int       `json:"new_this_week"`
 	ShippedAt   time.Time `json:"shipped_at,omitzero"`
 	ShippedNote string    `json:"shipped_note,omitempty"`
+	Drafted     int       `json:"drafted"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Asks        []Ask     `json:"asks"` // newest first, capped
 }
@@ -40,9 +42,9 @@ func (s State) View(now time.Time) []ThemeView {
 			competitors = []string{}
 		}
 		out = append(out, ThemeView{
-			ID: t.ID, Title: t.Title, Summary: t.Summary, Coverage: t.Coverage, Status: t.Status, Competitors: competitors,
+			ID: t.ID, Title: t.Title, Summary: t.Summary, Coverage: t.Coverage, Why: t.Why, Status: t.Status, Competitors: competitors,
 			People: t.People(), Buyers: t.Buyers(), NewThisWeek: t.NewSince(weekAgo),
-			ShippedAt: t.ShippedAt, ShippedNote: t.ShippedNote, UpdatedAt: t.UpdatedAt, Asks: asks,
+			ShippedAt: t.ShippedAt, ShippedNote: t.ShippedNote, Drafted: t.Drafted, UpdatedAt: t.UpdatedAt, Asks: asks,
 		})
 	}
 	return out

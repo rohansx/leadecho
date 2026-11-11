@@ -32,10 +32,11 @@ type demandResponse struct {
 	LastRun *time.Time         `json:"last_run"`
 	// Waiting is how many asks are not in a theme yet; grouping runs daily,
 	// or on request once at least MinNewAsks are waiting.
-	Waiting      int `json:"waiting"`
-	MinNewAsks   int `json:"min_new_asks"`
-	FollowUpCost int `json:"follow_up_cost"`
-	MaxFollowUps int `json:"max_follow_ups"`
+	Waiting        int `json:"waiting"`
+	MinNewAsks     int `json:"min_new_asks"`
+	MinThemePeople int `json:"min_theme_people"`
+	FollowUpCost   int `json:"follow_up_cost"`
+	MaxFollowUps   int `json:"max_follow_ups"`
 }
 
 // Get (GET /demand) returns the workspace's themes.
@@ -48,7 +49,7 @@ func (h *DemandHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := demandResponse{
-		Themes: state.View(time.Now()), MinNewAsks: demand.MinNewAsks,
+		Themes: state.View(time.Now()), MinNewAsks: demand.MinNewAsks, MinThemePeople: demand.MinThemePeople,
 		FollowUpCost: demand.FollowUpCost, MaxFollowUps: demand.MaxFollowUps,
 	}
 	if !state.LastRun.IsZero() {
@@ -92,6 +93,10 @@ func (h *DemandHandler) Ship(w http.ResponseWriter, r *http.Request) {
 	theme, drafted, err := h.svc.Ship(r.Context(), ws, chi.URLParam(r, "id"), body.Note, body.Drafts, time.Now().UTC())
 	if errors.Is(err, demand.ErrNoTheme) {
 		writeError(w, http.StatusNotFound, "theme not found")
+		return
+	}
+	if errors.Is(err, demand.ErrShipped) {
+		writeError(w, http.StatusConflict, "this theme is already marked as shipped")
 		return
 	}
 	if err != nil {

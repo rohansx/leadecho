@@ -123,10 +123,10 @@ func TestUnassignedSkipsKnownMentions(t *testing.T) {
 	}
 }
 
-func TestFollowUpTargetsBuyersFirstAndCapped(t *testing.T) {
+func TestFollowUpTargetsAreBuyersNewestFirstAndCapped(t *testing.T) {
 	th := Theme{}
-	for i := 0; i < 14; i++ {
-		a := ask(string(rune('a'+i)), "x", i%3 == 0)
+	for i := 0; i < 30; i++ {
+		a := ask(string(rune('A'+i)), "x", i%2 == 0)
 		a.At = t0.Add(-time.Duration(i) * time.Hour)
 		th.Asks = append(th.Asks, a)
 	}
@@ -134,13 +134,54 @@ func TestFollowUpTargetsBuyersFirstAndCapped(t *testing.T) {
 	if len(got) != MaxFollowUps {
 		t.Fatalf("want %d targets, got %d", MaxFollowUps, len(got))
 	}
-	buyers := 0
-	for _, a := range got[:5] {
-		if a.Buyer {
-			buyers++
+	for i, a := range got {
+		if !a.Buyer {
+			t.Fatalf("target %d is not a buyer", i)
+		}
+		if i > 0 && a.At.After(got[i-1].At) {
+			t.Fatal("targets must be newest first")
 		}
 	}
-	if buyers != 5 {
-		t.Fatalf("the 5 buyers come first, got %d in the first five", buyers)
+	if n := len((Theme{Asks: []Ask{ask("m1", "x", false)}}).FollowUpTargets(MaxFollowUps)); n != 0 {
+		t.Fatalf("someone whose role is unknown gets no follow-up, got %d", n)
+	}
+}
+
+func TestSeenAsksAreNotUnassignedAndTheListIsCapped(t *testing.T) {
+	state := State{Seen: []string{"m2"}}
+	got := state.Unassigned([]Ask{ask("m1", "x", true), ask("m2", "y", false)})
+	if len(got) != 1 || got[0].MentionID != "m1" {
+		t.Fatalf("m2 was already considered, got %+v", got)
+	}
+	// An ask pushed out of a full theme is remembered too, so it is not regrouped.
+	full := Theme{ID: "t1", Status: StatusOpen}
+	var more []Ask
+	idx := []int{}
+	for i := 0; i < MaxAsksPerTheme+2; i++ {
+		more = append(more, ask("n"+string(rune('0'+i%10))+string(rune('a'+i/10)), "x", true))
+		idx = append(idx, i)
+	}
+	next := Apply(State{Themes: []Theme{full}}, more, []Assignment{{ThemeID: "t1", Asks: idx}}, t0)
+	if next.Themes[0].People() != MaxAsksPerTheme || len(next.Unassigned(more)) != 0 {
+		t.Fatalf("people=%d unassigned=%d", next.Themes[0].People(), len(next.Unassigned(more)))
+	}
+	var many []Ask
+	for i := 0; i < MaxSeen+50; i++ {
+		many = append(many, ask("s"+string(rune(i)), "x", false))
+	}
+	if n := len(next.WithSeen(many).Seen); n != MaxSeen {
+		t.Fatalf("seen list must be capped at %d, got %d", MaxSeen, n)
+	}
+}
+
+func TestOutsideCoverageIsKept(t *testing.T) {
+	as, err := ParseAssignment(`{"themes":[{"id":"","title":"A team ATS","summary":"s","why":"The product tests candidates; it does not track applicants.","coverage":"outside","asks":[0]}]}`, nil, 1)
+	if err != nil || len(as) != 1 || as[0].Coverage != CoverageOutside {
+		t.Fatalf("got %+v, %v", as, err)
+	}
+	// The reason is kept and shown, so the customer can check the label.
+	next := Apply(State{}, []Ask{ask("m1", "an ATS", true)}, as, t0)
+	if got := next.View(t0)[0].Why; got != "The product tests candidates; it does not track applicants." {
+		t.Fatalf("why = %q", got)
 	}
 }

@@ -114,7 +114,9 @@ func (s *Service) demandThemes(ctx context.Context, wsID string, now time.Time) 
 	}
 	var out []DemandTheme
 	for _, t := range state.View(now) {
-		if t.Status != demand.StatusOpen || t.NewThisWeek == 0 {
+		// One person is not a theme, and a need for a different kind of
+		// product is not news for this team.
+		if t.Status != demand.StatusOpen || t.NewThisWeek == 0 || t.People < demand.MinThemePeople || t.Coverage == demand.CoverageOutside {
 			continue
 		}
 		out = append(out, DemandTheme{Title: t.Title, People: t.People, Buyers: t.Buyers, NewThisWeek: t.NewThisWeek, Coverage: t.Coverage})
