@@ -194,6 +194,10 @@ func (m *Monitor) insertTregPosts(ctx context.Context, wsID string, kw database.
 		if !filterContent(p.Text, kw) {
 			continue
 		}
+		// Reddit's relevance search matches on any one word of the keyword.
+		if tool == tregRedditTool && !keywordOverlap(p.Title+" "+p.Text, kw.Term) {
+			continue
+		}
 		params, ok := toParams(wsID, kw, p)
 		if !ok {
 			continue

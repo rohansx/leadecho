@@ -26,12 +26,21 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		return
 	}
 
+	// The customer's own posts are not leads: don't pay to score them.
+	product := ""
+	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
+		product = bp.Product
+	}
+
 	// Collect scoreable mentions (pass Stage 0 rules filter)
 	var scoreable []mentionAlert
 	for _, a := range alerts {
-		if scoreStage1Rules(a.Content) {
+		switch {
+		case ownAccount(a.Author, product):
+			m.markStageFiltered(ctx, a, "stage0_own_post", "posted by your own account")
+		case scoreStage1Rules(a.Content):
 			scoreable = append(scoreable, a)
-		} else {
+		default:
 			m.markStageFiltered(ctx, a, "stage0_rules", "failed rules pre-filter")
 		}
 	}

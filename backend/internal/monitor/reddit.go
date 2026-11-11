@@ -55,7 +55,7 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 		if m.handleRedditErr(err, "search") {
 			return nil
 		}
-		return m.insertPosts(ctx, wsID, kw, posts)
+		return m.insertPosts(ctx, wsID, kw, onTopic(posts, kw.Term))
 	}
 
 	var alerts []mentionAlert
