@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { companyMismatch, mailtoHref, splitSubject } from "./outreach.ts";
+import { companyMismatch, mailtoHref, safeHttpUrl, splitSubject } from "./outreach.ts";
 
 test("splitSubject", () => {
   assert.deepEqual(splitSubject("Subject: Your Sr Full Stack opening\n\nHi Marty,\n\nSaw the role."), {
@@ -22,4 +22,11 @@ test("companyMismatch", () => {
   assert.equal(companyMismatch("Vista Higher Learning", "vista higher learning, inc."), false);
   assert.equal(companyMismatch("Acme", ""), false);
   assert.equal(companyMismatch(undefined, "Acme"), false);
+});
+
+test("safeHttpUrl only passes http(s)", () => {
+  assert.equal(safeHttpUrl("https://www.linkedin.com/in/jane"), "https://www.linkedin.com/in/jane");
+  assert.equal(safeHttpUrl("javascript:alert(1)"), undefined);
+  assert.equal(safeHttpUrl("/in/jane"), undefined);
+  assert.equal(safeHttpUrl(null), undefined);
 });

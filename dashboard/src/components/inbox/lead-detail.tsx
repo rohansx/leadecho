@@ -36,7 +36,7 @@ import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
-import { companyMismatch, mailtoHref } from "@/lib/outreach";
+import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -172,6 +172,8 @@ function OverviewTab({
 
   const signalCompany = (mention.platform_metadata as { company?: string } | null)?.company;
   const contactMismatch = isHiringSignal && companyMismatch(signalCompany, mention.person?.company);
+
+  const profileUrl = safeHttpUrl(mention.person?.linkedin_url) ?? safeHttpUrl(mention.author_profile_url);
 
   const replyBody = draft?.reply
     ? draft.reply.edited_content ?? draft.reply.content
@@ -371,9 +373,9 @@ function OverviewTab({
                           Open in email
                         </a>
                       )}
-                      {isHiringSignal && (mention.person?.linkedin_url || mention.author_profile_url) && (
+                      {isHiringSignal && profileUrl && (
                         <a
-                          href={mention.person?.linkedin_url || mention.author_profile_url || undefined}
+                          href={profileUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground hover:bg-muted"

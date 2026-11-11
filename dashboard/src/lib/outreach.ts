@@ -27,3 +27,8 @@ export function companyMismatch(signalCompany: string | undefined, profileCompan
   if (!a || !b) return false;
   return !(a.includes(b) || b.includes(a));
 }
+
+/** Returns the URL only if it is http(s): profile links come from third parties. */
+export function safeHttpUrl(url: string | null | undefined): string | undefined {
+  return url && /^https?:\/\//i.test(url) ? url : undefined;
+}
