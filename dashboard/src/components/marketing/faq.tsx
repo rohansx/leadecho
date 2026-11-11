@@ -1,86 +1,52 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import { Plus } from "lucide-react";
-import { Reveal } from "./reveal";
+import { Section, Eyebrow, H2 } from "./section";
+import { Reveal } from "./fx";
 
 const faqs = [
   {
     q: "How is this different from keyword alerts?",
-    a: "Keyword alerts match strings and fire on everything. LeadEcho matches meaning, scores intent, tells you who's asking, and tracks what converts. You'd rather miss 5 mentions than wade through 50 false positives.",
+    a: "Keyword alerts match strings and fire on everything. LeadEcho matches meaning, scores intent, tells you who is asking, and tracks which replies convert. You'd rather see 5 real buyers than wade through 50 false positives.",
   },
   {
-    q: "Isn't this just another AI SDR?",
-    a: "No. The crowded part is reply-drafting. The hard, valuable part is discovering and qualifying real intent across communities — that's our core. Drafting sits on top, and you always approve the send.",
+    q: "Do you post replies automatically?",
+    a: "No. LeadEcho drafts the reply; you click post in the platform's own page, in your own browser session. A person approves every reply.",
   },
   {
-    q: "Do you auto-post replies?",
-    a: "No. We draft; you click post in the platform's real UI, in your own browser session. Human-in-the-loop by design — no platform-ToS risk.",
-  },
-  {
-    q: "What AI providers do you support?",
-    a: "BYOK across Anthropic, OpenAI, Gemini, OpenRouter, and local models via Ollama, routed per-stage. Self-hosting means you pay only your own API cost.",
+    q: "Which AI providers can I use?",
+    a: "Anthropic, OpenAI, Gemini, OpenRouter, and local models through Ollama. Each stage of the pipeline can use a different one.",
   },
   {
     q: "Can I really self-host the whole thing?",
-    a: "Yes. MIT licensed, docker compose up, full product, no feature gates and no seat tax. A managed cloud is coming for teams that don't want to run infra.",
+    a: "Yes. It's MIT licensed and starts with docker compose. It's the full product, with no feature gates and no per-seat pricing.",
   },
   {
-    q: "How much does intent scoring cost in practice?",
-    a: "At default settings — 7 communities, continuous scanning — typical workspaces land at $2–8/mo in inference. The cheap pass rejects ~95% of posts before any expensive call.",
+    q: "What does intent scoring cost to run?",
+    a: "With default settings, most self-hosted workspaces spend $2–8 a month on AI. The cheap first pass removes about 95% of posts before any expensive model runs.",
   },
 ];
 
-function FaqItem({ q, a, defaultOpen }: { q: string; a: string; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(!!defaultOpen);
-  return (
-    <div className="border-b border-border">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between gap-4 py-5 text-left cursor-pointer"
-      >
-        <h3 className="font-medium">{q}</h3>
-        <motion.span animate={{ rotate: open ? 45 : 0 }} transition={{ duration: 0.2 }} className="shrink-0">
-          <Plus className="h-4 w-4 text-muted-foreground" />
-        </motion.span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
-          >
-            <p className="pb-5 text-sm text-foreground-soft leading-relaxed max-w-2xl">{a}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 export function FaqSection() {
   return (
-    <section id="faq" className="py-24">
-      <div className="max-w-6xl mx-auto px-6 grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-16">
-        <Reveal className="lg:sticky lg:top-28 lg:self-start">
-          <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground font-[family-name:var(--font-mono)]">
-            FAQ
-          </div>
-          <h2 className="mt-3 font-[family-name:var(--font-head)] text-3xl lg:text-4xl font-medium tracking-tight">
-            Common <em className="font-[family-name:var(--font-serif)] italic font-normal text-primary-ink">questions.</em>
-          </h2>
+    <Section id="faq">
+      <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+        <Reveal>
+          <Eyebrow>Questions</Eyebrow>
+          <H2 className="mt-4">Answers before you ask.</H2>
         </Reveal>
-
-        <Reveal delay={0.1} className="border-t border-border">
+        <Reveal delay={0.08} className="border-t border-border">
           {faqs.map((f, i) => (
-            <FaqItem key={f.q} q={f.q} a={f.a} defaultOpen={i === 0} />
+            <details key={f.q} open={i === 0} className="group border-b border-border">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-[18px] font-semibold tracking-[-0.01em] [&::-webkit-details-marker]:hidden">
+                {f.q}
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border transition-transform group-open:rotate-45">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+              </summary>
+              <p className="max-w-2xl pb-6 text-[16px] leading-relaxed text-foreground-soft">{f.a}</p>
+            </details>
           ))}
         </Reveal>
       </div>
-    </section>
+    </Section>
   );
 }
