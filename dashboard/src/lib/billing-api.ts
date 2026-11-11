@@ -57,4 +57,5 @@ export const USAGE_LABELS: Record<string, string> = {
   draft_reply: "Reply drafts",
   chat: "Chat questions",
   enrichment: "Enrichment",
+  research: "Company research",
 };

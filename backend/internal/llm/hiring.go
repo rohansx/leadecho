@@ -28,3 +28,16 @@ func (r *Router) DraftOutreach(ctx context.Context, workspaceID string, o ai.Out
 	})
 	return out, err
 }
+
+// ResearchCompany searches the web for a confirmed lead's company. Routed
+// like reply drafting (the strong tier); it needs Claude's web search tool,
+// so targets on other providers are skipped.
+func (r *Router) ResearchCompany(ctx context.Context, workspaceID string, in ai.CompanyResearch) (*ai.ResearchBrief, error) {
+	var out *ai.ResearchBrief
+	err := r.withChatProvider(ctx, workspaceID, TaskDraftReply, func(p ai.Provider) error {
+		res, _, err := ai.ResearchCompany(ctx, p, in)
+		out = res
+		return err
+	})
+	return out, err
+}

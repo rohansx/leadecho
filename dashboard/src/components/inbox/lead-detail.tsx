@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { parseResearch, sourceHost } from "@/lib/research";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -574,6 +575,44 @@ function ThreadTab({ mentionId }: { mentionId: string }) {
   );
 }
 
+function ResearchPanel({ mention }: { mention: Mention }) {
+  const research = parseResearch(mention.platform_metadata);
+  if (!research) return null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">About the company</h5>
+      {research.whatTheyDo && <p className="text-sm leading-relaxed">{research.whatTheyDo}</p>}
+      {research.whyNow && (
+        <p className="mt-2 text-sm leading-relaxed">
+          <span className="font-medium">Why now: </span>
+          {research.whyNow}
+        </p>
+      )}
+      {research.hook && (
+        <p className="mt-2 text-sm leading-relaxed text-foreground-soft">
+          <span className="font-medium text-foreground">A way in: </span>
+          {research.hook}
+        </p>
+      )}
+      {research.facts.length > 0 && (
+        <ul className="mt-3 space-y-2 border-t border-border pt-3">
+          {research.facts.map((f) => (
+            <li key={f.url + f.text} className="text-sm leading-relaxed text-foreground-soft">
+              {f.text}{" "}
+              <a href={f.url} target="_blank" rel="noreferrer noopener" className="whitespace-nowrap text-xs text-primary-ink underline underline-offset-2">
+                {sourceHost(f.url)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-3 text-xs text-muted-foreground">
+        Found by searching the public web when this lead was confirmed. Check a fact at its source before you quote it.
+      </p>
+    </div>
+  );
+}
+
 function SignalsPanel({ mention }: { mention: Mention }) {
   const meta = mention.platform_metadata as Record<string, unknown>;
   const subreddit = typeof meta?.subreddit === "string" ? meta.subreddit : null;
@@ -729,6 +768,7 @@ export function LeadDetail({
             )}
           </motion.div>
         </AnimatePresence>
+        <ResearchPanel mention={mention} />
         <SignalsPanel mention={mention} />
       </div>
     </section>
