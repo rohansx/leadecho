@@ -204,10 +204,11 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			remember(key)
 			continue
 		}
-		if st.Plan.MaxCompanySize > 0 && co.size == 0 {
-			// Can't tell whether it is in the customer's market, and no contact
-			// could change that: record it without spending one of the day's
-			// people searches.
+		if st.Plan.MaxCompanySize > 0 && co.size == 0 && co.domain == "" {
+			// Nothing is known about the company, so its size can't come from
+			// a contact either (that needs the websites to match): record it
+			// without spending one of the day's people searches. With a known
+			// website the contact's profile can still supply the size.
 			if id := m.insertHiringSignal(ctx, wsID, pid, job, foundPerson{}, st.Plan,
 				contactCheck{reason: "company size unknown, so it may be outside your market"}, nil); id == "" {
 				remember(key)
@@ -221,29 +222,13 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if err != nil {
 			break // same: don't store "nobody found" leads because a call failed
 		}
-		// The first candidate is not always right (moved on, namesake, no
-		// email): try the next one before giving the company up.
-		var (
-			person  foundPerson
-			contact *enrich.Result
-			check   = confirmContact(job.Company, co, st.Plan.MaxCompanySize, foundPerson{}, nil)
-			capped  bool
-		)
-		for i, cand := range candidates {
-			var c *enrich.Result
-			if c, capped = m.verifyContact(ctx, wsID, job, cand); capped {
-				break
-			}
-			ck := confirmContact(job.Company, co, st.Plan.MaxCompanySize, cand, c)
-			if i == 0 || ck.confirmed || ck.tooBig {
-				person, contact, check = cand, c, ck
-			}
-			if ck.confirmed || ck.tooBig {
-				break
-			}
-		}
-		if capped {
-			break // today's contact lookups are used up: later companies could not be confirmed either
+		person, contact, check, capped := chooseContact(candidates,
+			func(c foundPerson) (*enrich.Result, bool) { return m.verifyContact(ctx, wsID, job, c) },
+			func(c foundPerson, res *enrich.Result) contactCheck {
+				return confirmContact(job.Company, co, st.Plan.MaxCompanySize, c, res)
+			})
+		if capped && person.Name == "" {
+			break // today's contact lookups ran out before anyone was checked: retry tomorrow
 		}
 		if check.tooBig {
 			remember(key)
@@ -257,6 +242,9 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		created++
 		if check.confirmed {
 			m.draftOutreach(ctx, wsID, mentionID, bp, job, person)
+		}
+		if capped {
+			break // today's contact lookups are used up: later companies could not be confirmed either
 		}
 	}
 	// Outlive a shutdown: losing the skip list means paying for the same lookups again.
@@ -459,6 +447,30 @@ func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job job
 	return pickBuyers(parsePeople(resp.Body), job.Company, maxContactTries), nil
 }
 
+// chooseContact checks candidates in order until one is confirmed. The first
+// is not always right (moved on, a namesake, no email), so the next is tried
+// before the company is given up; if none confirms, the first one's result is
+// kept. capped reports that the day's contact lookups ran out: whatever was
+// already checked (and paid for) is still returned so it can be stored.
+// With no candidates the check carries the "nobody found" reason.
+func chooseContact(candidates []foundPerson, verify func(foundPerson) (*enrich.Result, bool), confirm func(foundPerson, *enrich.Result) contactCheck) (person foundPerson, contact *enrich.Result, check contactCheck, capped bool) {
+	check = confirm(foundPerson{}, nil)
+	for i, cand := range candidates {
+		res, hitCap := verify(cand)
+		if hitCap {
+			return person, contact, check, true
+		}
+		ck := confirm(cand, res)
+		if i == 0 || ck.confirmed || ck.tooBig {
+			person, contact, check = cand, res, ck
+		}
+		if ck.confirmed || ck.tooBig {
+			break
+		}
+	}
+	return person, contact, check, false
+}
+
 // buyerQuery words the people search. At a small company the buyer titles
 // (CTO, VP Engineering) are the people hiring. At a larger one those
 // executives do not handle a single opening, so the search names the role:
@@ -466,7 +478,11 @@ func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job job
 // managers where the plain title search returned an unrelated VP.
 func buyerQuery(titles string, job jobPost, companySize int) string {
 	if companySize >= hiringTeamContactSize && job.Title != "" {
-		return "manager or recruiter hiring for " + job.Title + " at " + job.Company
+		title := job.Title // third-party text: keep the query short
+		if rs := []rune(title); len(rs) > 120 {
+			title = string(rs[:120])
+		}
+		return "manager or recruiter hiring for " + title + " at " + job.Company
 	}
 	return titles + " at " + job.Company
 }

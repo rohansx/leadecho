@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"strings"
 	"testing"
 
 	"leadecho/internal/enrich"
@@ -58,5 +59,67 @@ func TestHiringLeadScore(t *testing.T) {
 	}
 	if hiringScoreUnconfirmed >= leadScoreThreshold {
 		t.Error("an unconfirmed signal must stay below the lead threshold")
+	}
+}
+
+func TestChooseContact(t *testing.T) {
+	a := foundPerson{Name: "A"}
+	b := foundPerson{Name: "B"}
+	okRes := &enrich.Result{FullName: "ok"}
+	type step struct {
+		capped bool
+		check  contactCheck
+	}
+	run := func(cands []foundPerson, steps map[string]step) (foundPerson, contactCheck, bool, []string) {
+		var verified []string
+		p, _, ck, capped := chooseContact(cands,
+			func(c foundPerson) (*enrich.Result, bool) {
+				verified = append(verified, c.Name)
+				return okRes, steps[c.Name].capped
+			},
+			func(c foundPerson, _ *enrich.Result) contactCheck {
+				if c.Name == "" {
+					return contactCheck{reason: "nobody"}
+				}
+				return steps[c.Name].check
+			})
+		return p, ck, capped, verified
+	}
+
+	// No candidates: the "nobody found" reason, no lookups.
+	if p, ck, capped, v := run(nil, nil); p.Name != "" || ck.reason != "nobody" || capped || len(v) != 0 {
+		t.Fatalf("empty: %+v %+v %v %v", p, ck, capped, v)
+	}
+	// First confirmed: the second is never paid for.
+	if p, ck, _, v := run([]foundPerson{a, b}, map[string]step{"A": {check: contactCheck{confirmed: true}}}); p.Name != "A" || !ck.confirmed || len(v) != 1 {
+		t.Fatalf("first confirmed: %+v %+v %v", p, ck, v)
+	}
+	// First unconfirmed, second confirmed: everything is the second's.
+	if p, ck, _, v := run([]foundPerson{a, b}, map[string]step{"A": {check: contactCheck{reason: "moved"}}, "B": {check: contactCheck{confirmed: true}}}); p.Name != "B" || !ck.confirmed || len(v) != 2 {
+		t.Fatalf("second confirmed: %+v %+v %v", p, ck, v)
+	}
+	// Neither confirms: the first one's result is kept.
+	if p, ck, _, _ := run([]foundPerson{a, b}, map[string]step{"A": {check: contactCheck{reason: "moved"}}, "B": {check: contactCheck{reason: "no email"}}}); p.Name != "A" || ck.reason != "moved" {
+		t.Fatalf("neither: %+v %+v", p, ck)
+	}
+	// Too big on the first stops immediately.
+	if p, ck, _, v := run([]foundPerson{a, b}, map[string]step{"A": {check: contactCheck{tooBig: true}}}); p.Name != "A" || !ck.tooBig || len(v) != 1 {
+		t.Fatalf("too big: %+v %+v %v", p, ck, v)
+	}
+	// Cap before anyone was checked: nothing to store.
+	if p, _, capped, _ := run([]foundPerson{a, b}, map[string]step{"A": {capped: true}}); !capped || p.Name != "" {
+		t.Fatalf("cap on first: %+v %v", p, capped)
+	}
+	// Cap on the second: the first one's paid-for result is kept so it can be stored.
+	if p, ck, capped, _ := run([]foundPerson{a, b}, map[string]step{"A": {check: contactCheck{reason: "moved"}}, "B": {capped: true}}); !capped || p.Name != "A" || ck.reason != "moved" {
+		t.Fatalf("cap on second: %+v %+v %v", p, ck, capped)
+	}
+}
+
+func TestBuyerQueryCapsLongTitles(t *testing.T) {
+	long := strings.Repeat("é", 400)
+	got := buyerQuery("CTO", jobPost{Company: "Acme", Title: long}, 900)
+	if n := len([]rune(got)); n > 120+len([]rune("manager or recruiter hiring for  at Acme")) {
+		t.Fatalf("query not capped: %d runes", n)
 	}
 }
