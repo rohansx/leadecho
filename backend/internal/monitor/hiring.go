@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -146,9 +147,11 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			st.Skip = append(st.Skip, key)
 		}
 	}
-	dailyCap := maxHiringCompaniesPerRun
-	if bs, err := m.q.GetBillingState(ctx, wsID); err == nil && bs.Plan == "starter" {
-		dailyCap = starterHiringCompanies
+	// The larger daily budget is Pro's; any other plan, or an unreadable one,
+	// gets the smaller.
+	dailyCap := starterHiringCompanies
+	if bs, err := m.q.GetBillingState(ctx, wsID); err == nil && bs.Plan == "pro" {
+		dailyCap = maxHiringCompaniesPerRun
 	}
 	created, sizeChecks, lookups := 0, 0, 0
 	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
@@ -198,7 +201,10 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if err != nil {
 			break // same: don't store "nobody found" leads because a call failed
 		}
-		contact := m.verifyContact(ctx, wsID, job, person)
+		contact, capped := m.verifyContact(ctx, wsID, job, person)
+		if capped {
+			break // today's contact lookups are used up: later companies could not be confirmed either
+		}
 		check := confirmContact(job.Company, st.Plan.MaxCompanySize, size, person, contact)
 		if check.tooBig {
 			remember(key)
@@ -426,20 +432,27 @@ func pickBuyer(people []foundPerson, company string) (foundPerson, bool) {
 }
 
 // verifyContact runs the paid lookup on the contact people-search proposed.
-// nil means no contact or no verifier: the signal stays unconfirmed.
-func (m *Monitor) verifyContact(ctx context.Context, wsID string, job jobPost, person foundPerson) *enrich.Result {
+// A nil result means no contact or no verifier: the signal stays unconfirmed.
+// capped reports that the workspace's daily enrichment cap is reached.
+//
+// Lookups that end unconfirmed are not stored, so they do not count toward
+// ENRICH_DAILY_CAP; this path is bounded by the per-run company cap instead.
+func (m *Monitor) verifyContact(ctx context.Context, wsID string, job jobPost, person foundPerson) (res *enrich.Result, capped bool) {
 	if person.Name == "" || m.contactVerifier == nil {
-		return nil
+		return nil, false
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	res, err := m.contactVerifier.Enrich(ctx, wsID, enrich.Subject{
 		Name: person.Name, Platform: string(database.PlatformTypeLinkedin), ProfileURL: person.ProfileURL, Company: job.Company,
 	})
+	if errors.Is(err, enrich.ErrDailyCap) {
+		return nil, true
+	}
 	if err != nil && res == nil {
 		m.logger.Debug().Err(err).Str("company", job.Company).Msg("hiring: contact lookup failed")
 	}
-	return res
+	return res, false
 }
 
 type contactCheck struct {
