@@ -39,6 +39,28 @@ type KeywordStat struct {
 	AvgScore float64
 }
 
+// DemandTheme is one thing the market asked for (see package demand).
+type DemandTheme struct {
+	Title       string
+	People      int
+	Buyers      int
+	NewThisWeek int
+	Coverage    string // covered | partial | gap
+}
+
+const maxDigestThemes = 3
+
+// coverageLabel says in plain words how the product stands on a theme.
+func coverageLabel(c string) string {
+	switch c {
+	case "covered":
+		return "you already do this"
+	case "partial":
+		return "partly covered"
+	}
+	return "not covered yet"
+}
+
 // Data is everything a digest shows for one period. It is pure data so the
 // builder, summary and renderers are testable without a database.
 type Data struct {
@@ -58,7 +80,10 @@ type Data struct {
 	RevenueCents    int64
 	// Pipeline is where every lead stands today (not just this period): the
 	// running proof of what the leads turned into.
-	Pipeline     []Count
+	Pipeline []Count
+	// Demand is what the market asked for: the themes with the most new
+	// asks this week (weekly digest only).
+	Demand       []DemandTheme
 	Summary      string // weekly AI (or template) paragraph
 	DashboardURL string
 }

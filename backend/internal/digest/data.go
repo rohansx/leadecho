@@ -3,9 +3,12 @@ package digest
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"leadecho/internal/database"
+	"leadecho/internal/demand"
 )
 
 // Build loads a workspace's digest data for one period. Every query is
@@ -70,6 +73,10 @@ func (s *Service) Build(ctx context.Context, wsID string, kind Kind, p Period) (
 		return Data{}, fmt.Errorf("digest hiring signals: %w", err)
 	}
 
+	if kind == KindWeekly {
+		d.Demand = s.demandThemes(ctx, wsID, p.End)
+	}
+
 	funnel, err := s.q.ConversionFunnel(ctx, wsID)
 	if err != nil {
 		return Data{}, fmt.Errorf("digest pipeline: %w", err)
@@ -96,4 +103,25 @@ func leadIntent(intent string, tags []string) string {
 		return strings.Join(tags, ", ")
 	}
 	return intent
+}
+
+// demandThemes returns the open themes with the most new asks this week.
+// A read failure leaves the section out; the digest still goes.
+func (s *Service) demandThemes(ctx context.Context, wsID string, now time.Time) []DemandTheme {
+	state, err := demand.DBStore{Q: s.q}.LoadState(ctx, wsID)
+	if err != nil {
+		return nil
+	}
+	var out []DemandTheme
+	for _, t := range state.View(now) {
+		if t.Status != demand.StatusOpen || t.NewThisWeek == 0 {
+			continue
+		}
+		out = append(out, DemandTheme{Title: t.Title, People: t.People, Buyers: t.Buyers, NewThisWeek: t.NewThisWeek, Coverage: t.Coverage})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].NewThisWeek > out[j].NewThisWeek })
+	if len(out) > maxDigestThemes {
+		out = out[:maxDigestThemes]
+	}
+	return out
 }
