@@ -129,7 +129,8 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	crm := crmsync.NewDispatcher(queries, encKey, logger)
 	mon.SetCRMSync(crm)
 	// enrich: treg enrichment of qualified leads + tracked profile polling.
-	researcherSvc.SetEnricher(enrich.New(tregClient, queries, cfg.EnrichDailyCap, cfg.TregCustomerDailyCapMicro, logger))
+	enricher := enrich.New(tregClient, queries, cfg.EnrichDailyCap, cfg.TregCustomerDailyCapMicro, logger)
+	researcherSvc.SetEnricher(enricher)
 	researcherSvc.SetCRM(crm)
 	mon.SetTrackedProfilesInterval(time.Duration(cfg.TrackedProfilesPollHours) * time.Hour)
 	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
@@ -148,6 +149,9 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	mon.SetWorkflows(workflowEngine) // real-time workflows run inline after scoring
 	if llmRouter != nil {
 		mon.SetHiringPlanner(llmRouter)
+	}
+	if enricher.Enabled() {
+		mon.SetContactVerifier(enricher)
 	}
 
 	return &Shared{

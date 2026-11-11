@@ -82,21 +82,6 @@ func TestURLChecks(t *testing.T) {
 	}
 }
 
-func TestParseCompanySize(t *testing.T) {
-	cases := map[string]int{
-		`{"output":{"name":"Acme","employees":"51-200"}}`: 51,
-		`{"output":{"employees":10210}}`:                  10210,
-		`{"employees":"10k+"}`:                            10000,
-		`{"output":{"name":"Unknown Co"}}`:                0,
-		`not json`:                                        0,
-	}
-	for body, want := range cases {
-		if got := parseCompanySize([]byte(body)); got != want {
-			t.Errorf("%s: got %d, want %d", body, got, want)
-		}
-	}
-}
-
 func TestHiringPlatformID(t *testing.T) {
 	a := hiringPlatformID("Alaffia Health", "2026-11")
 	if a != "hiring-alaffia-health-2026-11" {

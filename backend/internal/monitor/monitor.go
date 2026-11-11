@@ -61,6 +61,7 @@ type Monitor struct {
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
 	hiringPlanner         HiringPlanner    // optional: company hiring signals
+	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
 	credits               *billing.Credits // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).

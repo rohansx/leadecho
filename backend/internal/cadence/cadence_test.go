@@ -86,25 +86,25 @@ func TestPreview(t *testing.T) {
 	if got := byPlatform["linkedin"].USDPerMonth; math.Abs(got-0.06) > 1e-9 {
 		t.Errorf("linkedin usd = %v, want 0.06", got)
 	}
-	// Reddit goes through treg now: paid, default 12h -> 60 calls * $0.0009.
-	if r := byPlatform["reddit"]; r.CallsPerMonth != 60 || math.Abs(r.USDPerMonth-0.054) > 1e-9 || r.Cadence != "12h" {
-		t.Errorf("reddit = %+v, want 60 calls, $0.054, 12h", r)
+	// Reddit goes through treg now: paid, default 24h -> 30 calls * $0.0009.
+	if r := byPlatform["reddit"]; r.CallsPerMonth != 30 || math.Abs(r.USDPerMonth-0.027) > 1e-9 || r.Cadence != "24h" {
+		t.Errorf("reddit = %+v, want 30 calls, $0.027, 24h", r)
 	}
 	if b := byPlatform["bluesky"]; b.USDPerMonth != 0 || b.Cadence != "1h" {
 		t.Errorf("bluesky = %+v, want free at 1h", b)
 	}
-	if math.Abs(p.USDPerMonth-0.654) > 1e-9 {
-		t.Errorf("total = %v, want 0.654", p.USDPerMonth)
+	if math.Abs(p.USDPerMonth-0.627) > 1e-9 {
+		t.Errorf("total = %v, want 0.627", p.USDPerMonth)
 	}
 }
 
-// Paid sources (treg) default to twice a day so a plan's credits cover its
+// Paid sources (treg) default to once a day so a plan's credits cover its
 // keywords; free sources stay hourly.
 func TestPaidDefaults(t *testing.T) {
 	var none Map
 	for _, p := range []string{"twitter", "linkedin", "reddit"} {
-		if got := none.Interval(p); got != 12*time.Hour {
-			t.Errorf("%s default = %v, want 12h", p, got)
+		if got := none.Interval(p); got != 24*time.Hour {
+			t.Errorf("%s default = %v, want 24h", p, got)
 		}
 	}
 	for _, p := range []string{"hackernews", "devto", "bluesky"} {

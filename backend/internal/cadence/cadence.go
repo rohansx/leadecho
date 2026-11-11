@@ -14,11 +14,12 @@ import (
 const Default = time.Hour
 
 // PaidDefault applies to paid platforms (searched through treg). Each search
-// costs the customer a credit, and searches cover the past week, so twice a
-// day finds the same posts as every 4h for a third of the credits: at 4h a
-// plan's own keyword limit cost more credits than the plan includes
-// (Starter: 15 keywords x 3 platforms x 6/day x 30 = 8,100 of 5,000).
-const PaidDefault = 12 * time.Hour
+// costs the customer a credit and covers the past week, so once a day finds
+// the same posts as every 4h for a sixth of the credits. At 4h a plan's own
+// keyword limit cost more than the plan includes (Starter: 15 keywords x 3
+// platforms x 6/day x 30 = 8,100 of 5,000); at 24h it is 1,350, which leaves
+// room for scoring, hiring signals and drafts.
+const PaidDefault = 24 * time.Hour
 
 // defaultFor is the cadence a platform gets when none is set.
 func defaultFor(platform string) time.Duration {
@@ -30,7 +31,7 @@ func defaultFor(platform string) time.Duration {
 
 func defaultLabel(platform string) string {
 	if CostPerCall[platform] > 0 {
-		return "12h"
+		return "24h"
 	}
 	return "1h"
 }

@@ -149,9 +149,9 @@ func TestKeywordCostPreview(t *testing.T) {
 		t.Fatalf("resp = %+v", resp)
 	}
 	// Inactive keywords are listed but do not count toward the total.
-	// twitter @1h: 720 x $0.00075 = 0.54; reddit (treg, default 12h): 60 x $0.0009 = 0.054.
-	if math.Abs(resp.USDPerMonth-0.594) > 1e-9 {
-		t.Errorf("total = %v, want 0.594", resp.USDPerMonth)
+	// twitter @1h: 720 x $0.00075 = 0.54; reddit (treg, default 24h): 30 x $0.0009 = 0.027.
+	if math.Abs(resp.USDPerMonth-0.567) > 1e-9 {
+		t.Errorf("total = %v, want 0.567", resp.USDPerMonth)
 	}
 	if resp.Rates["linkedin"] != 0.002 || len(resp.Options) == 0 {
 		t.Errorf("rates/options missing: %+v", resp)
