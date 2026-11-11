@@ -10,6 +10,9 @@ type MentionPerson struct {
 	Company   string `json:"company,omitempty"`
 	Employees string `json:"employees,omitempty"`
 	HasEmail  bool   `json:"has_email,omitempty"`
+	// Email is the deliverable contact address (enrichment drops invalid ones).
+	Email       string `json:"email,omitempty"`
+	LinkedInURL string `json:"linkedin_url,omitempty"`
 }
 
 // MentionPeople returns the enriched author for each of the given mentions
@@ -26,7 +29,8 @@ SELECT l.mention_id::text,
        COALESCE(l.metadata->'enrichment'->>'bio', ''),
        COALESCE(NULLIF(l.metadata->'enrichment'->>'company', ''), l.company, ''),
        COALESCE(l.metadata->'enrichment'->>'employees', ''),
-       COALESCE(l.contact_email, '') <> ''
+       COALESCE(l.contact_email, ''),
+       COALESCE(l.metadata->'enrichment'->>'linkedin_url', '')
 FROM leads l
 WHERE l.workspace_id = $1 AND l.mention_id = ANY($2::uuid[]) AND l.metadata ? 'enrichment'`,
 		workspaceID, mentionIDs)
@@ -37,9 +41,10 @@ WHERE l.workspace_id = $1 AND l.mention_id = ANY($2::uuid[]) AND l.metadata ? 'e
 	for rows.Next() {
 		var id string
 		var p MentionPerson
-		if err := rows.Scan(&id, &p.Name, &p.Title, &p.Bio, &p.Company, &p.Employees, &p.HasEmail); err != nil {
+		if err := rows.Scan(&id, &p.Name, &p.Title, &p.Bio, &p.Company, &p.Employees, &p.Email, &p.LinkedInURL); err != nil {
 			return nil, err
 		}
+		p.HasEmail = p.Email != ""
 		if p.Name != "" || p.Title != "" || p.Bio != "" || p.Company != "" {
 			out[id] = p
 		}
