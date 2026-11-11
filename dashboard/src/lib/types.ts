@@ -17,7 +17,7 @@ export interface Mention {
   content: string;
   author_username: string | null;
   /** Who the author is, once enrichment has found them. */
-  person?: { name?: string; title?: string; bio?: string; company?: string; employees?: string; has_email?: boolean };
+  person?: { name?: string; title?: string; bio?: string; company?: string; employees?: string; has_email?: boolean; email?: string; linkedin_url?: string };
   author_profile_url: string | null;
   author_karma: number | null;
   author_account_age_days: number | null;

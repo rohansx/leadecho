@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Sparkles,
   Users,
+  Mail,
 } from "lucide-react";
 import { MuteAuthorButton } from "@/components/sources/mute-author-button"; // sources
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
+import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -167,6 +169,11 @@ function OverviewTab({
   // A hiring signal is a company, not a post: there is nothing to reply to,
   // and its draft is a first message to the contact.
   const isHiringSignal = (mention.platform_metadata as { signal?: string } | null)?.signal === "hiring";
+
+  const signalCompany = (mention.platform_metadata as { company?: string } | null)?.company;
+  const contactMismatch = isHiringSignal && companyMismatch(signalCompany, mention.person?.company);
+
+  const profileUrl = safeHttpUrl(mention.person?.linkedin_url) ?? safeHttpUrl(mention.author_profile_url);
 
   const replyBody = draft?.reply
     ? draft.reply.edited_content ?? draft.reply.content
@@ -356,11 +363,38 @@ function OverviewTab({
                         </span>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => handleCopy(replyBody)}>
-                      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copied ? "Copied" : "Copy"}
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {isHiringSignal && mention.person?.email && (
+                        <a
+                          href={mailtoHref(mention.person.email, replyBody)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground hover:bg-muted"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          Open in email
+                        </a>
+                      )}
+                      {isHiringSignal && profileUrl && (
+                        <a
+                          href={profileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground hover:bg-muted"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          LinkedIn profile
+                        </a>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => handleCopy(replyBody)}>
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
                   </div>
+                  {contactMismatch && (
+                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+                      Check this contact before sending: their profile lists {mention.person?.company}, not {signalCompany}. They may have moved, or this may be a different person.
+                    </p>
+                  )}
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{replyBody}</p>
 
                   {draft.reply.status === "draft" && (
