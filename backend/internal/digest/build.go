@@ -17,12 +17,15 @@ const (
 
 // Lead is one high-fit mention in the digest.
 type Lead struct {
-	Title    string
-	URL      string
-	Platform string
-	Author   string
-	Intent   string
-	Score    float64
+	MentionID string
+	Who       string // name · role · company, when enrichment found them
+	Draft     string // ready-to-post reply (daily digest, top leads only)
+	Title     string
+	URL       string
+	Platform  string
+	Author    string
+	Intent    string
+	Score     float64
 }
 
 type Count struct {

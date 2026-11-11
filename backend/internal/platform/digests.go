@@ -21,5 +21,14 @@ func (s *Shared) StartDigests(ctx context.Context) {
 	svc := digest.NewService(s.Queries, s.LLMRouter,
 		s.Config.ResendAPIKey, s.Config.DigestFromEmail,
 		s.Config.FrontendURL, s.Logger)
+	if s.ReplyDrafter != nil {
+		svc.SetDrafter(func(ctx context.Context, wsID, mentionID string) (string, error) {
+			res, err := s.ReplyDrafter.DraftForMention(ctx, wsID, mentionID)
+			if err != nil || res == nil || !res.ShouldReply {
+				return "", err
+			}
+			return res.Reply.Content, nil
+		})
+	}
 	go svc.Run(ctx, DigestCheckInterval)
 }

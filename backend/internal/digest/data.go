@@ -21,7 +21,8 @@ func (s *Service) Build(ctx context.Context, wsID string, kind Kind, p Period) (
 	}
 	for _, m := range top {
 		d.TopLeads = append(d.TopLeads, Lead{
-			Title: firstNonEmpty(m.Title.String, truncate(m.Content, 120)), URL: m.Url, Platform: m.Platform,
+			MentionID: m.ID,
+			Title:     firstNonEmpty(m.Title.String, truncate(m.Content, 120)), URL: m.Url, Platform: m.Platform,
 			Author: m.AuthorUsername.String, Intent: leadIntent(string(m.Intent.IntentType), m.IntentTags), Score: float64(m.RelevanceScore.Float32),
 		})
 	}

@@ -93,11 +93,15 @@ func NewService(q *database.Queries, logger zerolog.Logger) *Service {
 // queue ~200 at once); excess callers wait for a slot.
 var enrichSlots = make(chan struct{}, 4)
 
+// enrichTimeout covers up to five provider calls in a row; the email finder
+// alone can take 30s+.
+const enrichTimeout = 2 * time.Minute
+
 func (s *Service) EnrichLeadAsync(leadID, workspaceID string) {
 	go func() {
 		enrichSlots <- struct{}{}
 		defer func() { <-enrichSlots }()
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), enrichTimeout)
 		defer cancel()
 		if err := s.EnrichLead(ctx, leadID, workspaceID); err != nil {
 			s.logger.Warn().Err(err).Str("lead_id", leadID).Msg("enrichment failed")

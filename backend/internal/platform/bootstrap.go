@@ -146,6 +146,9 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	workflowEngine.SetMail(cfg.ResendAPIKey, cfg.DigestFromEmail)
 	workflowEngine.SetAppURL(cfg.FrontendURL)
 	mon.SetWorkflows(workflowEngine) // real-time workflows run inline after scoring
+	if llmRouter != nil {
+		mon.SetHiringPlanner(llmRouter)
+	}
 
 	return &Shared{
 		Config:         cfg,
