@@ -24,7 +24,12 @@ export interface BillingState {
   costs: { post: number; search: number; draft: number; chat: number };
   enforced: boolean;
   can_checkout: boolean;
+  /** X, Reddit and LinkedIn need a paid plan on this workspace. */
+  paid_platforms_locked: boolean;
 }
+
+/** Platforms searched with paid data (mirrors billing.PaidPlatforms). */
+export const PAID_PLATFORMS: readonly string[] = ["twitter", "linkedin", "reddit"];
 
 export const BILLING_QUERY = ["billing"];
 

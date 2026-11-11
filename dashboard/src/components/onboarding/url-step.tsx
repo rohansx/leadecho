@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { AIKeySetup } from "./ai-key-setup";
 import { streamSSE } from "./sse";
 import { GOALS, type AnalysisResult, type Goal } from "./types";
+import { LockedChip, PaidPlatformsNote } from "@/components/billing/paid-platforms";
+import { useLockedPlatforms } from "@/lib/use-locked-platforms";
 
 // Platforms the listener builder can target. Testable ones are live-tested
 // against free public APIs; the rest are kept on the listener for later.
@@ -36,6 +38,7 @@ export function UrlStep({ goals, onGoalsChange, platforms, onPlatformsChange, on
   const [error, setError] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const isLocked = useLockedPlatforms();
   useEffect(() => () => abort.current?.abort(), []);
 
   async function analyze() {
@@ -130,7 +133,9 @@ export function UrlStep({ goals, onGoalsChange, platforms, onPlatformsChange, on
 
       <p className="block text-xs text-muted-foreground uppercase tracking-wider mb-2 font-medium">Where?</p>
       <div className="flex flex-wrap gap-2 mb-6">
-        {LISTENER_PLATFORMS.map((p) => (
+        {LISTENER_PLATFORMS.map((p) => isLocked(p.value) ? (
+          <LockedChip key={p.value} label={p.label} />
+        ) : (
           <button
             key={p.value}
             type="button"
@@ -145,6 +150,11 @@ export function UrlStep({ goals, onGoalsChange, platforms, onPlatformsChange, on
           </button>
         ))}
       </div>
+      {LISTENER_PLATFORMS.some((p) => isLocked(p.value)) && (
+        <div className="-mt-4 mb-6">
+          <PaidPlatformsNote />
+        </div>
+      )}
 
       <Button className="w-full" disabled={!ready} onClick={() => result && onAnalyzed(result)}>
         {!result ? (running ? "Reading your site..." : "Analyze your URL to continue") : goals.length === 0 ? "Pick at least one goal" : "Review brand profile →"}

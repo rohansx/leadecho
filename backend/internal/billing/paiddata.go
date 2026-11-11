@@ -15,6 +15,21 @@ var (
 	ErrPaidDataPaused = errors.New("paid data is paused")
 )
 
+// PaidPlatforms are the sources searched with paid data. Hosted Free plans
+// can't use them; the app shows them locked and the monitor skips them.
+var PaidPlatforms = map[string]bool{"twitter": true, "linkedin": true, "reddit": true}
+
+// PaidPlatformsLocked reports whether this workspace can't use PaidPlatforms:
+// hosted (credits enforced) with paid data off. Self-host is never locked,
+// and a lookup error fails open so monitoring doesn't stop.
+func (c *Credits) PaidPlatformsLocked(ctx context.Context, wsID string) bool {
+	if !c.Enforced() {
+		return false
+	}
+	access, err := c.q.GetWorkspaceAccess(ctx, wsID)
+	return err == nil && !access.PaidData
+}
+
 // PaidDataMeter gates every treg call (it implements treg.Meter): the global
 // /ops switch, then the workspace's paid-data access, then one credit.
 type PaidDataMeter struct {

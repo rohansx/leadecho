@@ -22,6 +22,8 @@ import {
 } from "@/components/sources/keyword-cadence";
 import { isPaid, truncate, type Rates } from "@/lib/keyword-schedule";
 import { MuteListCard } from "@/components/sources/mute-list-card";
+import { LockedChip, PaidPlatformsNote } from "@/components/billing/paid-platforms";
+import { useLockedPlatforms } from "@/lib/use-locked-platforms";
 import { Plus, Trash2, Power, PowerOff, Search, X, DollarSign } from "lucide-react";
 
 export const Route = createFileRoute("/_dashboard/keywords")({
@@ -42,6 +44,7 @@ function KeywordsPage() {
   const [subreddits, setSubreddits] = useState("");
 
   const [filter, setFilter] = useState("");
+  const isLocked = useLockedPlatforms();
 
   const { data: keywords, isLoading } = useQuery({
     queryKey: ["keywords"],
@@ -58,7 +61,7 @@ function KeywordsPage() {
     mutationFn: () =>
       createKeyword({
         term: newTerm,
-        platforms: selectedPlatforms,
+        platforms: selectedPlatforms.filter((p) => !isLocked(p)),
         match_type: matchType,
         negative_terms: negativeTerms
           .split(",")
@@ -102,7 +105,7 @@ function KeywordsPage() {
       <div>
         <Text as="h2">Keywords</Text>
         <Text as="p" className="text-muted-foreground mt-1">
-          Terms to monitor across social platforms. The system crawls Reddit, Hacker News, Twitter, and LinkedIn for these.
+          Terms to monitor across social platforms. LeadEcho searches each platform you pick for these.
         </Text>
       </div>
 
@@ -209,7 +212,9 @@ function KeywordsPage() {
           <div className="space-y-1.5">
             <Text as="p" className="text-sm font-medium">Platforms</Text>
             <div className="flex flex-wrap gap-1.5">
-              {platformOptions.map((p) => (
+              {platformOptions.map((p) => isLocked(p) ? (
+                <LockedChip key={p} label={p} />
+              ) : (
                 <button
                   key={p}
                   type="button"
@@ -224,6 +229,7 @@ function KeywordsPage() {
                 </button>
               ))}
             </div>
+            {platformOptions.some(isLocked) && <PaidPlatformsNote />}
           </div>
 
           {/* Match type */}

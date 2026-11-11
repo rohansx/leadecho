@@ -10,12 +10,12 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Sparkles, Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
+import { Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
-import { ReplyVoiceCard } from "@/components/settings/reply-voice-card"; // voice
 import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
 import { BillingCard } from "@/components/settings/billing-card"; // billing
+import { BILLING_QUERY, getBilling } from "@/lib/billing-api";
 import {
   getExtensionToken,
   rotateExtensionToken,
@@ -598,12 +598,14 @@ function ChromeExtensionCard() {
 }
 
 function SettingsPage() {
+  const { data: billing } = useQuery({ queryKey: BILLING_QUERY, queryFn: getBilling, staleTime: 60_000 });
+  const hosted = !!billing?.enforced;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Text as="h2">Settings</Text>
         <Text as="p" className="text-muted-foreground mt-1">
-          Manage your account configuration.
+          Plan, integrations and access for this workspace.
         </Text>
       </div>
 
@@ -611,68 +613,20 @@ function SettingsPage() {
         <BillingCard />
       </ErrorBoundary>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-foreground-soft" />
-            </div>
-            <div>
-              <CardTitle>AI Features</CardTitle>
-              <CardDescription>
-                Intent classification and reply drafting are included for all
-                users — no plan upgrade required.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* This card is a billing statement, not a status one. Saying the
-              features are "available on every mention" read as a contradiction
-              next to the router below reporting "Needs setup". */}
-          <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-background">
-            <Badge variant="surface" size="sm" className="shrink-0">Included</Badge>
-            <Text as="p" className="text-sm text-muted-foreground">
-              Classify and draft reply are unlocked on every mention. They run on your
-              own provider keys — configure those in the AI Router below before they work.
-            </Text>
-          </div>
-        </CardContent>
-      </Card>
-
-      <ErrorBoundary>
-        <LLMRouterCard />
-      </ErrorBoundary>
+      {/* Hosted AI is paid for with credits; bring-your-own-keys is a self-host setting. */}
+      {!hosted && (
+        <ErrorBoundary>
+          <LLMRouterCard />
+        </ErrorBoundary>
+      )}
 
       <ChromeExtensionCard />
 
       <IntegrationsCard />
 
-      {/* voice: response profiles */}
-      <ReplyVoiceCard />
       {/* mcp: workspace API keys + MCP connect */}
       <ApiMcpCard />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="size-9 shrink-0 rounded-lg border border-border bg-secondary flex items-center justify-center">
-              <SettingsIcon className="h-4 w-4 text-foreground-soft" />
-            </div>
-            <div>
-              <CardTitle>Account</CardTitle>
-              <CardDescription>
-                Account settings and billing.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-8 text-center">
-          <Text as="p" className="text-muted-foreground">
-            Billing, plan upgrades, and custom API keys coming in Pro plan.
-          </Text>
-        </CardContent>
-      </Card>
     </div>
   );
 }
