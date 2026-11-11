@@ -35,7 +35,7 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-[var(--header-height)] shrink-0 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur">
+    <header className="flex h-[var(--header-height)] shrink-0 items-center gap-4 border-b border-border bg-background/80 px-5 backdrop-blur">
       <div className="relative max-w-sm flex-1">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -43,7 +43,7 @@ export function Header() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submitSearch()}
           placeholder="Search mentions…"
-          className="h-8 w-full rounded-lg border border-border bg-card pl-9 pr-10 text-[13px] placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-3 focus:ring-ring/20"
+          className="h-7 w-full rounded-lg border border-border bg-card pl-9 pr-10 text-[13px] placeholder:text-muted-foreground focus:border-ring focus:outline-hidden focus:ring-3 focus:ring-ring/20"
         />
         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-[family-name:var(--font-mono)] text-muted-foreground border border-border rounded px-1.5 py-0.5">
           ⏎
@@ -55,7 +55,7 @@ export function Header() {
           type="button"
           onClick={toggleTheme}
           aria-label="Toggle theme"
-          className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
+          className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
@@ -63,7 +63,7 @@ export function Header() {
           type="button"
           onClick={() => pathname !== "/inbox" && navigate({ to: "/inbox" })}
           aria-label="New mentions"
-          className="relative flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="relative flex size-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Bell className="h-4 w-4" />
           {newCount > 0 && (
@@ -80,7 +80,7 @@ export function Header() {
             <button
               type="button"
               onClick={logout}
-              className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
+              className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
               title="Log out"
             >
               <LogOut className="h-4 w-4" />

@@ -67,12 +67,12 @@ export function Sidebar() {
         <Logo to="/inbox" />
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2">
+      <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 pb-4 pt-2">
         {isOps?.ops && (
           <Link
             to="/ops"
             className={cn(
-              "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px]",
+              "flex h-7 items-center gap-2 rounded-md px-2 text-[13px]",
               pathname.startsWith("/ops") ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
@@ -93,7 +93,7 @@ export function Sidebar() {
                     key={item.label}
                     to={item.to}
                     className={cn(
-                      "relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors duration-150",
+                      "relative flex h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors duration-150",
                       isActive
                         ? "font-medium text-foreground"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground",

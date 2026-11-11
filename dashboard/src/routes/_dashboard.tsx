@@ -70,7 +70,7 @@ function DashboardLayout() {
               pathname.startsWith("/inbox")
                 ? "h-full"
                 : cn(
-                    "w-full px-6 py-6 md:px-8 md:py-8",
+                    "w-full px-5 py-5 md:px-6 md:py-6",
                     // Kanban needs every column visible; other pages read better in a container.
                     !pathname.startsWith("/pipeline") && "mx-auto max-w-[1200px]",
                   )
