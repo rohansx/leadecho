@@ -97,8 +97,9 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		st.Plan = plan
 	}
 	st.LastRun = time.Now().UTC()
-	m.saveHiringState(ctx, wsID, st) // before the paid calls: a crash must not repeat them
-	if !st.Plan.Applies {
+	// Saved before the paid calls: if "ran today" can't be recorded, running
+	// would repeat (and bill) on every tick.
+	if !m.saveHiringState(ctx, wsID, st) || !st.Plan.Applies {
 		return
 	}
 
@@ -183,10 +184,12 @@ func (m *Monitor) loadHiringState(ctx context.Context, wsID string) hiringState 
 	return st
 }
 
-func (m *Monitor) saveHiringState(ctx context.Context, wsID string, st hiringState) {
+func (m *Monitor) saveHiringState(ctx context.Context, wsID string, st hiringState) bool {
 	if err := m.q.SetWorkspaceSettingsKey(ctx, wsID, hiringSettingsKey, jsonBytes(st)); err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: save state")
+		return false
 	}
+	return true
 }
 
 // hiringJobs searches each role and returns one job per company, newest first.
