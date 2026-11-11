@@ -93,12 +93,15 @@ var cursorKW = database.ListActiveKeywordsRow{ID: "8a3c3b7e-8c1d-4c9e-9f1a-1b2c3
 
 func TestCrawlTwitterTregAsksOnlyForNewerPosts(t *testing.T) {
 	var queries, waterfall []string
-	status := 200
+	status, tregRefusal := 200, false
 	m := tregMonitor(t, func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		queries = append(queries, body["q"])
 		waterfall = append(waterfall, r.Header.Get("X-Treg-Route-Waterfall"))
+		if tregRefusal {
+			w.Header().Set("X-Treg-Error", "1")
+		}
 		w.WriteHeader(status)
 		if len(queries) == 1 {
 			_, _ = w.Write([]byte(`{"output":{"posts":[{"id":"900","text":"an unrelated post"},{"id":"1000","text":"another unrelated post"}]}}`))
@@ -118,11 +121,22 @@ func TestCrawlTwitterTregAsksOnlyForNewerPosts(t *testing.T) {
 	if queries[0] != "zebra-unmatched-term" || queries[1] != cursorQ || queries[2] != cursorQ {
 		t.Fatalf("queries=%q", queries)
 	}
-	if waterfall[0] != "" || waterfall[1] != "0" {
-		t.Fatalf("waterfall headers=%q, want only cursor polls to send 0", waterfall)
+	if waterfall[0] != "" || waterfall[1] != "0" || waterfall[2] != "0" {
+		t.Fatalf("waterfall headers=%q, want every cursor poll to send 0", waterfall)
 	}
 
-	// A failed cursor poll drops the cursor: the next poll is a plain search.
+	// A treg-side refusal (cap, block, billing) keeps the cursor.
+	status, tregRefusal = 403, true
+	if _, ok := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); ok {
+		t.Fatal("refused poll must report ok=false")
+	}
+	status, tregRefusal = 200, false
+	m.crawlTwitterTreg(ctx, tregTestWS, cursorKW)
+	if got := queries[len(queries)-1]; got != cursorQ {
+		t.Fatalf("after a treg refusal the query was %q, want the cursor kept", got)
+	}
+
+	// A provider rejecting the cursor query drops the cursor: the next poll is a plain search.
 	status = 400
 	if _, ok := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); ok {
 		t.Fatal("failed poll must report ok=false")
@@ -149,16 +163,29 @@ func TestNewestTweetID(t *testing.T) {
 
 func TestCrawlLinkedInTregPollWindow(t *testing.T) {
 	var windows []string
+	status := 200
 	m := tregMonitor(t, func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		windows = append(windows, body["datePosted"])
+		w.WriteHeader(status)
 		_, _ = w.Write([]byte(`{"output":{"posts":[]}}`))
 	})
 	state := memState{}
 	m.SetTregState(state)
 	ctx := context.Background()
 	key := tregStateKey("li_polled", tregTestWS, cursorKW)
+
+	// A failed call doesn't count as a poll: the next tick tries again.
+	status = 400
+	if _, ok := m.crawlLinkedInTreg(ctx, tregTestWS, cursorKW); ok {
+		t.Fatal("failed poll must report ok=false")
+	}
+	if _, polled := state[key]; polled {
+		t.Fatal("a failed call must not record a poll")
+	}
+	status = 200
+	windows = nil
 
 	// First poll searches the week; a second one right after makes no call.
 	for i := 0; i < 2; i++ {
