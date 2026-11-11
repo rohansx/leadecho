@@ -21,8 +21,8 @@ func TestKeywordsDue(t *testing.T) {
 	}
 	cad := map[string]cadence.Map{"k1": {"twitter": "6h"}}
 	last := map[string]map[string]time.Time{
-		// reddit is a paid (treg) source: default every 4h, so 5h ago is due.
-		"k1": {"reddit": now.Add(-5 * time.Hour), "twitter": now.Add(-time.Hour)},
+		// reddit is a paid (treg) source: default every 12h, so 13h ago is due.
+		"k1": {"reddit": now.Add(-13 * time.Hour), "twitter": now.Add(-time.Hour)},
 		"k2": {"hackernews": now.Add(-10 * time.Minute)},
 	}
 	got := keywordsDue(kws, cad, last, now)

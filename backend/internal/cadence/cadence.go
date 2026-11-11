@@ -13,9 +13,12 @@ import (
 // Default applies to free platforms without an explicit cadence.
 const Default = time.Hour
 
-// PaidDefault applies to paid platforms (searched through treg): every 4h
-// keeps the operator's data balance from draining.
-const PaidDefault = 4 * time.Hour
+// PaidDefault applies to paid platforms (searched through treg). Each search
+// costs the customer a credit, and searches cover the past week, so twice a
+// day finds the same posts as every 4h for a third of the credits: at 4h a
+// plan's own keyword limit cost more credits than the plan includes
+// (Starter: 15 keywords x 3 platforms x 6/day x 30 = 8,100 of 5,000).
+const PaidDefault = 12 * time.Hour
 
 // defaultFor is the cadence a platform gets when none is set.
 func defaultFor(platform string) time.Duration {
@@ -27,7 +30,7 @@ func defaultFor(platform string) time.Duration {
 
 func defaultLabel(platform string) string {
 	if CostPerCall[platform] > 0 {
-		return "4h"
+		return "12h"
 	}
 	return "1h"
 }
