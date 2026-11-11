@@ -173,7 +173,12 @@ function OpsPage() {
                           className="h-7 rounded-md border border-border bg-background px-1.5 text-xs"
                           value={w.plan}
                           disabled={act.isPending}
-                          onChange={(e) => act.mutate(() => setWorkspacePlan(w.id, e.target.value))}
+                          onChange={(e) => {
+                            // Read the choice now: by the time the mutation runs, React
+                            // has reset this controlled select to the old plan.
+                            const plan = e.target.value;
+                            act.mutate(() => setWorkspacePlan(w.id, plan));
+                          }}
                         >
                           <option value="free">Free</option>
                           <option value="starter">Starter</option>

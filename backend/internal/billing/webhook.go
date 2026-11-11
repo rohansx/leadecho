@@ -172,8 +172,15 @@ func (s *Service) setPlan(ctx context.Context, ws string, plan Plan, customerID,
 	if renews != nil {
 		params.PlanRenewsAt = pgtype.Timestamptz{Time: *renews, Valid: true}
 	}
+	before, berr := s.q.GetBillingState(ctx, ws)
 	if err := s.q.SetWorkspacePlan(ctx, params); err != nil {
 		return fmt.Errorf("set plan: %w", err)
+	}
+	// An upgrade (not a renewal) starts the keywords the old limit left paused.
+	if berr == nil && params.KeywordLimit > before.KeywordLimit {
+		if _, err := s.q.ActivateKeywordsUpTo(ctx, ws, params.KeywordLimit); err != nil {
+			return fmt.Errorf("activate keywords: %w", err)
+		}
 	}
 	return nil
 }

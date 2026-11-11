@@ -57,7 +57,7 @@ Goals:
 
 Return ONLY valid JSON (no markdown, no code fences):
 - "name": short listener name (max 6 words)
-- "keywords": 3-6 short search phrases (1-4 words each) that real people type in posts, not marketing copy
+- "keywords": 3-6 short search phrases (2-4 words each) that real people type in posts, not marketing copy, ordered best first. For find_buyers and competitor_switchers use phrases a BUYER writes when they need this ("recommend a <category>", "<competitor> alternative", "switching from <competitor>", "<category> for <their situation>"), not the name of a topic: a topic phrase ("technical interviews", "email marketing") mostly finds people chatting about the subject, not people who need the product
 - "looks_for": one or two plain-English sentences describing posts to keep
 - "skips": one plain-English sentence describing posts to ignore (vendors self-promoting, job posts, news, unrelated meanings)`
 

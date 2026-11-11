@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -201,6 +202,7 @@ func (h *OnboardingHandler) completeListeners(ctx context.Context, wsID string, 
 	}
 	created := 0
 	var profileIDs []string
+	var pending []listenerKeywords
 	// A retry after a partial failure reuses the listeners the earlier attempt
 	// left behind instead of duplicating them: same name, same (or not yet
 	// set) goal, created in the last hour. A user's own profiles are left alone.
@@ -239,20 +241,64 @@ func (h *OnboardingHandler) completeListeners(ctx context.Context, wsID string, 
 		if err := h.q.LinkSampleFeedbackToProfile(ctx, database.LinkSampleFeedbackToProfileParams{ProfileID: pid, WorkspaceID: wsID, Goal: l.Goal}); err != nil {
 			h.logger.Warn().Err(err).Msg("onboarding: link sample feedback")
 		}
-		for _, term := range l.Keywords {
-			if _, err := h.q.CreateKeyword(ctx, database.CreateKeywordParams{
-				WorkspaceID: wsID, ProfileID: profile.ID, Term: term, Platforms: l.Platforms,
-				IsActive: h.credits.KeywordActive(ctx, wsID), MatchType: "contains", NegativeTerms: []string{}, Subreddits: body.Subreddits,
-			}); err != nil {
-				if isUniqueViolation(err) {
-					continue
-				}
-				return created, profileIDs, fmt.Errorf("create keyword: %w", err)
+		pending = append(pending, listenerKeywords{profileID: profile.ID, goal: l.Goal, terms: l.Keywords, platforms: l.Platforms})
+	}
+	// Created in priority order because a plan's keyword limit activates only
+	// the first few: every listener's best keyword before anyone's second.
+	for _, k := range keywordOrder(pending) {
+		if _, err := h.q.CreateKeyword(ctx, database.CreateKeywordParams{
+			WorkspaceID: wsID, ProfileID: k.profileID, Term: k.term, Platforms: k.platforms,
+			IsActive: h.credits.KeywordActive(ctx, wsID), MatchType: "contains", NegativeTerms: []string{}, Subreddits: body.Subreddits,
+		}); err != nil {
+			if isUniqueViolation(err) {
+				continue
 			}
-			created++
+			return created, profileIDs, fmt.Errorf("create keyword: %w", err)
 		}
+		created++
 	}
 	return created, profileIDs, nil
+}
+
+type listenerKeywords struct {
+	profileID, goal string
+	terms           []string
+	platforms       []string
+}
+
+type orderedKeyword struct {
+	profileID, term string
+	platforms       []string
+}
+
+// goalPriority: listeners that find buyers get their keywords activated first.
+var goalPriority = map[string]int{"find_buyers": 0, "competitor_switchers": 1, "brand_mentions": 2, "content_ideas": 3}
+
+// keywordOrder interleaves listeners' keywords round-robin (each listener's
+// first keyword, then each one's second, ...), buyer-finding goals first.
+func keywordOrder(ls []listenerKeywords) []orderedKeyword {
+	sorted := append([]listenerKeywords(nil), ls...)
+	sort.SliceStable(sorted, func(i, j int) bool { return goalRank(sorted[i].goal) < goalRank(sorted[j].goal) })
+	var out []orderedKeyword
+	for round := 0; ; round++ {
+		added := false
+		for _, l := range sorted {
+			if round < len(l.terms) {
+				out = append(out, orderedKeyword{profileID: l.profileID, term: l.terms[round], platforms: l.platforms})
+				added = true
+			}
+		}
+		if !added {
+			return out
+		}
+	}
+}
+
+func goalRank(goal string) int {
+	if r, ok := goalPriority[goal]; ok {
+		return r
+	}
+	return len(goalPriority)
 }
 
 // retryableProfile finds a profile a failed onboarding attempt created.

@@ -9,6 +9,9 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/v2/option"
 )
 
+// maxCacheBreakpoints is the API's limit on cache_control markers per request.
+const maxCacheBreakpoints = 4
+
 // callAnthropic sends a chat through the official Anthropic SDK (Messages API).
 // System messages become the top-level system prompt; temperature is not sent
 // because current Claude models reject sampling parameters.
@@ -31,11 +34,13 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		}
 	}
 
-	// Cache the instructions: they repeat on every filter/classify call for a
-	// workspace, and the post (the part that varies) comes after them.
+	// Cache the instructions: they repeat on every filter/classify call, and
+	// the post (the part that varies) comes after them. Each system block is a
+	// breakpoint, so a caller can send the part shared by every workspace
+	// first and the per-workspace part second, and both get reused.
 	// Silently a no-op below the model's minimum prefix (512 on Sonnet 5.5).
-	if len(system) > 0 {
-		system[len(system)-1].CacheControl = anthropic.NewCacheControlEphemeralParam()
+	for i := max(0, len(system)-maxCacheBreakpoints); i < len(system); i++ {
+		system[i].CacheControl = anthropic.NewCacheControlEphemeralParam()
 	}
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(p.Model),

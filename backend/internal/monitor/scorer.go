@@ -494,6 +494,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		"sentiment":     result.Sentiment,
 		"post_type":     result.PostType,
 		"matches_skips": result.MatchesSkips,
+		"author_role":   result.AuthorRole,
 	}
 
 	// Update mention with classification + awareness level
