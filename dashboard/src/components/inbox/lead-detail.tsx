@@ -36,6 +36,7 @@ import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
+import { LeadAssistant } from "./lead-assistant";
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 
 const awarenessLabels: Record<string, string> = {
@@ -456,6 +457,8 @@ function OverviewTab({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <LeadAssistant key={mention.id} mention={mention} />
     </div>
   );
 }
@@ -577,10 +580,12 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   const feedback = mention.scoring_metadata?.last_feedback as
     | { label?: string; reason?: string }
     | undefined;
+  const reasoning = typeof mention.scoring_metadata?.reasoning === "string" ? mention.scoring_metadata.reasoning : null;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Signals</h5>
+      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Why this is here</h5>
+      {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{reasoning}</p>}
       <SignalRow label="Platform" value={<span className="capitalize">{mention.platform}</span>} />
       {subreddit && <SignalRow label="Community" value={subreddit} />}
       <SignalRow label="Author" value={mention.author_username ? `@${mention.author_username}` : null} />
@@ -589,22 +594,10 @@ function SignalsPanel({ mention }: { mention: Mention }) {
         label="Account age"
         value={mention.author_account_age_days != null ? `${mention.author_account_age_days}d` : null}
       />
-      <SignalRow label="Intent" value={mention.intent ? mention.intent.replace(/_/g, " ") : null} />
+      <SignalRow label="Type" value={mention.intent ? mention.intent.replace(/_/g, " ") : null} />
       <SignalRow
-        label="Awareness"
-        value={mention.awareness_level ? awarenessLabels[mention.awareness_level] : null}
-      />
-      <SignalRow
-        label="Relevance"
+        label="Fit score"
         value={mention.relevance_score != null ? `${mention.relevance_score.toFixed(1)} / 10` : null}
-      />
-      <SignalRow
-        label="Conversion prob."
-        value={
-          mention.conversion_probability != null
-            ? `${Math.round(mention.conversion_probability * 100)}%`
-            : null
-        }
       />
       {feedback?.label && (
         <SignalRow
@@ -614,7 +607,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
       )}
       {mention.keyword_matches?.length > 0 && (
         <div className="pt-2">
-          <div className="text-xs text-muted-foreground mb-1.5">Keyword matches</div>
+          <div className="text-xs text-muted-foreground mb-1.5">Found by</div>
           <div className="flex flex-wrap gap-1">
             {mention.keyword_matches.map((k) => (
               <span key={k} className="text-xs rounded-full bg-muted px-2 py-0.5">

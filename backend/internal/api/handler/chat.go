@@ -51,6 +51,7 @@ type ChatHandler struct {
 	model   func(ctx context.Context, ws string) chat.Model
 	logger  zerolog.Logger
 	credits *billing.Credits // billing: one chat question costs billing.CostChat
+	leads   leadStore        // optional: lead-scoped chat (mention_id on the request)
 }
 
 // SetCredits meters chat questions.
@@ -100,6 +101,11 @@ func chatPrincipal(w http.ResponseWriter, r *http.Request) (string, string, bool
 type chatSendRequest struct {
 	ThreadID string `json:"thread_id"`
 	Message  string `json:"message"`
+	// MentionID scopes the turn to one inbox item: the server adds what it
+	// knows about that lead, so the question can say "they".
+	MentionID string `json:"mention_id"`
+
+	threadTitle string // set by the server for a new lead-scoped thread
 }
 
 // Send (POST /chat) streams one assistant turn as SSE events:
@@ -120,6 +126,24 @@ func (h *ChatHandler) Send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	var leadCtx string
+	if req.MentionID != "" {
+		if h.leads == nil || !validUUID(req.MentionID) {
+			writeError(w, http.StatusBadRequest, "mention_id must be a UUID")
+			return
+		}
+		lc, title, err := h.leadContext(ctx, ws, req.MentionID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "lead not found")
+			return
+		}
+		if err != nil {
+			h.logger.Error().Err(err).Msg("chat: build lead context")
+			writeError(w, http.StatusInternalServerError, "failed to load the lead")
+			return
+		}
+		leadCtx, req.threadTitle = lc, title
+	}
 	if writeOutOfCredits(w, h.credits.Spend(ctx, ws, billing.CostChat, billing.ReasonChat)) {
 		return
 	}
@@ -147,6 +171,9 @@ func (h *ChatHandler) Send(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(chatStreamWindow))
 	s.send("thread", map[string]string{"thread_id": thread.ID, "title": thread.Title})
+	if leadCtx != "" { // not stored: rebuilt each turn so it reflects the lead as it is now
+		history = append([]ai.ChatMessage{{Role: "system", Content: leadCtx}}, history...)
+	}
 	h.runTurn(ctx, s, ws, thread.ID, history)
 }
 
@@ -181,6 +208,9 @@ func (h *ChatHandler) runTurn(ctx context.Context, s *sse, ws, threadID string, 
 func (h *ChatHandler) thread(ctx context.Context, ws, uid string, req chatSendRequest) (database.ChatThread, int, error) {
 	if req.ThreadID == "" {
 		title := req.Message
+		if req.threadTitle != "" {
+			title = req.threadTitle
+		}
 		if utf8.RuneCountInString(title) > chatTitleLen {
 			title = string([]rune(title)[:chatTitleLen]) + "…"
 		}
