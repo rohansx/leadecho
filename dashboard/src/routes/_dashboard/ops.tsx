@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { canRequestScan, manualScanStatus, type ScanKind } from "@/lib/ops-scan";
 import { cn } from "@/lib/utils";
 import {
   OPS_KEYS,
@@ -16,6 +17,7 @@ import {
   getOpsOverview,
   listOpsAudit,
   listOpsWorkspaces,
+  scanNow,
   setPaidData,
   setPaidDataPaused,
   setScanning,
@@ -23,6 +25,27 @@ import {
   usd,
   type OpsWorkspace,
 } from "@/lib/ops-api";
+
+// "Scan now": runs the same scan as the schedule, without waiting for it.
+// Spend caps and the customer's credits apply as on any scan.
+function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; onScan: (kind: ScanKind) => void }) {
+  const now = new Date();
+  const blocked = busy || !canRequestScan(ws.manual_scan, now);
+  const status = manualScanStatus(ws.manual_scan, now);
+  return (
+    <div className="mt-1.5 space-y-1">
+      <div className="flex gap-1">
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("posts")} title="Crawl every keyword on every platform now">
+          Scan posts
+        </Button>
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("hiring")} title="Run the hiring-signal scan now, without waiting for tomorrow">
+          Scan hiring
+        </Button>
+      </div>
+      {status && <p className="max-w-56 text-xs text-muted-foreground">{status}</p>}
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/_dashboard/ops")({ component: OpsPage });
 
@@ -195,6 +218,7 @@ function OpsPage() {
                     </td>
                     <td className="py-2 pr-3">
                       <Toggle on={!w.scanning_paused} label={`Scanning for ${w.name}`} disabled={act.isPending} onChange={(on) => act.mutate(() => setScanning(w.id, !on))} />
+                      <ScanNowCell ws={w} busy={act.isPending} onScan={(kind) => act.mutate(() => scanNow(w.id, kind))} />
                     </td>
                     <td className="py-2 pr-3 tabular-nums">{w.active_keywords} / {w.keyword_limit}</td>
                     <td className="py-2 pr-3 tabular-nums text-muted-foreground">

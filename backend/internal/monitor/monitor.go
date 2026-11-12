@@ -119,6 +119,8 @@ func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
 	engagementTicker := time.NewTicker(30 * time.Minute)
 	defer engagementTicker.Stop()
 
+	go m.watchManualScans(ctx) // ops: "scan now" requests
+
 	// Run immediately on start
 	m.tick(ctx)
 
@@ -226,7 +228,9 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	if m.credits.PaidPlatformsLocked(ctx, wsID) { // billing: X/Reddit/LinkedIn need a paid plan
 		kws = withoutPaidPlatforms(kws)
 	}
-	kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
+	if forcedScan(ctx) != ScanPosts { // an operator's "scan now" covers every platform, due or not
+		kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
+	}
 	var alerts []mentionAlert
 	for i, kw := range kws {
 		alerts = append(alerts, m.crawlKeyword(ctx, wsID, kw)...)

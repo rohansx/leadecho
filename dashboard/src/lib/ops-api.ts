@@ -1,5 +1,6 @@
 // ops: operator console API (server-side email allowlist; 403 for everyone else).
 import { request } from "./api";
+import type { ManualScan, ScanKind } from "./ops-scan";
 
 export interface Spend {
   treg_usd: number;
@@ -28,6 +29,7 @@ export interface OpsWorkspace {
   active_keywords: number;
   paid_data: boolean;
   scanning_paused: boolean;
+  manual_scan: ManualScan | null;
   dodo_subscription: boolean;
   plan_renews_at: string | null;
   last_post_at: string;
@@ -64,5 +66,6 @@ export const setWorkspacePlan = (id: string, plan: string) => post(`/ops/workspa
 export const adjustCredits = (id: string, delta: number, note: string) => post(`/ops/workspaces/${id}/credits`, { delta, note });
 export const setPaidData = (id: string, enabled: boolean) => post(`/ops/workspaces/${id}/paid-data`, { enabled });
 export const setScanning = (id: string, paused: boolean) => post(`/ops/workspaces/${id}/scanning`, { paused });
+export const scanNow = (id: string, kind: ScanKind) => post(`/ops/workspaces/${id}/scan`, { kind });
 
 export const usd = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(3)}`);

@@ -125,7 +125,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	// Atomic claim: the api and the worker can both run the monitor, and only
 	// one of them may spend today's budget. Claiming first also means a
 	// failure below is retried tomorrow, not on every tick.
-	claimed, err := m.q.ClaimSettingsRun(ctx, wsID, hiringSettingsKey, hiringInterval)
+	claimed, err := m.q.ClaimSettingsRun(ctx, wsID, hiringSettingsKey, hiringClaimInterval(ctx))
 	if err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: claim failed")
 		return
