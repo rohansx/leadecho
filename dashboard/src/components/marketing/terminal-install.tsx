@@ -33,7 +33,7 @@ export function TerminalInstall() {
   const [tab, setTab] = useState<Tab>("docker");
 
   return (
-    <section id="self-host" className="scroll-mt-20 bg-band py-24 text-[#f2f2f0] sm:py-28" style={band}>
+    <section id="self-host" className="scroll-mt-20 bg-band py-16 text-[#f2f2f0] sm:py-20" style={band}>
       <div className={cn(container, "grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:gap-20 [&>*]:min-w-0")}>
         <Reveal>
           <p className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] text-white/55">

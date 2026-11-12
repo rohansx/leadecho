@@ -147,7 +147,7 @@ function Results() {
 
 export function FeatureRows() {
   return (
-    <Section className="space-y-28 sm:space-y-36">
+    <Section className="space-y-20 sm:space-y-24">
       <Row
         figure={<Sieve play className="mx-auto max-w-[380px]" intensity={0.7} label="Stacked sieves sorting what passes through" />}
         eyebrow="Filters"
