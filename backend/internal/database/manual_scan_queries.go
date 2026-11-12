@@ -63,3 +63,32 @@ func (q *Queries) ListManualScans(ctx context.Context) (map[string][]byte, error
 	}
 	return out, rows.Err()
 }
+
+// RequestManualScan stores a new request unless one is already waiting or
+// running and is newer than staleBefore. It reports whether it was stored.
+// One statement, so two operators clicking together cannot both win.
+func (q *Queries) RequestManualScan(ctx context.Context, workspaceID string, scan []byte, staleBefore time.Time) (bool, error) {
+	tag, err := q.db.Exec(ctx, `
+UPDATE workspaces
+SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['manual_scan'], $2::jsonb, true)
+WHERE id = $1
+  AND NOT (COALESCE(settings->'manual_scan'->>'state', '') IN ('requested', 'running')
+           AND COALESCE(settings->'manual_scan'->>'started_at', settings->'manual_scan'->>'requested_at', '1970-01-01T00:00:00Z')::timestamptz > $3)`,
+		workspaceID, string(scan), staleBefore)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// SaveManualScan stores a manual scan's new state. With requestedAt set it
+// only does so while that same request is still the one on record, so a
+// finished run cannot overwrite a newer request.
+func (q *Queries) SaveManualScan(ctx context.Context, workspaceID string, scan []byte, requestedAt string) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE workspaces
+SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['manual_scan'], $2::jsonb, true)
+WHERE id = $1 AND ($3 = '' OR settings->'manual_scan'->>'requested_at' = $3)`,
+		workspaceID, string(scan), requestedAt)
+	return err
+}

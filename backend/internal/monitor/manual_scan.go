@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"leadecho/internal/database"
 )
 
 // Manual scans: an operator asks, in the ops console, for one workspace to
@@ -60,6 +58,17 @@ func (s ManualScan) CanRequest(now time.Time) bool {
 		return now.Sub(s.StartedAt) > manualScanStale
 	}
 	return true
+}
+
+// StaleBefore is the time before which a waiting or running scan counts as
+// abandoned.
+func StaleBefore(now time.Time) time.Time { return now.Add(-manualScanStale) }
+
+// Requeue returns the scan waiting again: it was claimed but another scan
+// held the workspace. The request time is kept, so it still goes stale.
+func (s ManualScan) Requeue() ManualScan {
+	s.State, s.StartedAt = ScanRequested, time.Time{}
+	return s
 }
 
 // Finish returns the scan marked done; note says why it did nothing, if so.
@@ -121,41 +130,50 @@ func (m *Monitor) startManualScans(ctx context.Context) {
 			continue
 		}
 		var scan ManualScan
-		if err := json.Unmarshal(raw, &scan); err != nil {
-			m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("manual scan: bad request")
+		var id struct {
+			RequestedAt string `json:"requested_at"` // exactly as stored: it identifies this request
+		}
+		if json.Unmarshal(raw, &scan) != nil || json.Unmarshal(raw, &id) != nil {
+			m.logger.Warn().Str("workspace_id", ws).Msg("manual scan: unreadable request, dropped")
+			m.saveManualScan(ws, ManualScan{State: ScanDone, FinishedAt: time.Now().UTC(), Note: "the request could not be read"}, "")
 			continue
 		}
-		go m.runManualScan(ws, scan)
+		go m.runManualScan(ws, scan, id.RequestedAt)
 	}
 }
 
-func (m *Monitor) runManualScan(ws string, scan ManualScan) {
+func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 	ctx, cancel := context.WithTimeout(withForcedScan(context.Background(), scan.Kind), manualScanTimeout)
 	defer cancel()
-	note := ""
+	note, busy := "", false
 	defer func() {
 		if r := recover(); r != nil {
 			m.logger.Error().Interface("panic", r).Str("workspace_id", ws).Msg("manual scan: recovered from panic")
-			note = "the scan failed; see the server log"
+			note, busy = "the scan failed; see the server log", false
 		}
-		raw, _ := json.Marshal(scan.Finish(time.Now().UTC(), note))
-		saveCtx, done := context.WithTimeout(context.Background(), 10*time.Second)
-		defer done()
-		if err := m.q.SetWorkspaceSettingsKey(saveCtx, ws, database.ManualScanKey, raw); err != nil {
-			m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("manual scan: save result")
+		if busy { // another scan held the workspace: wait for it instead of dropping the request
+			m.saveManualScan(ws, scan.Requeue(), requestID)
+			return
 		}
+		m.saveManualScan(ws, scan.Finish(time.Now().UTC(), note), requestID)
 	}()
 	m.logger.Info().Str("workspace_id", ws).Str("kind", scan.Kind).Str("by", scan.By).Msg("manual scan: started")
+	// The same gate as a scheduled scan: paused in the ops console, or out of credits.
+	if !m.credits.ScanAllowed(ctx, ws) {
+		note = "scanning is paused for this workspace, or it is out of credits"
+		return
+	}
 	switch scan.Kind {
 	case ScanHiring:
-		if _, busy := m.scanning.LoadOrStore(ws, struct{}{}); busy {
-			note = "another scan of this workspace was running"
+		if note = m.hiringBlocked(ctx, ws); note != "" {
+			return
+		}
+		if _, taken := m.scanning.LoadOrStore(ws, struct{}{}); taken {
+			busy = true
 			return
 		}
 		defer m.scanning.Delete(ws)
-		if note = m.hiringBlocked(ctx, ws); note == "" {
-			m.scanHiring(ctx, ws)
-		}
+		m.scanHiring(ctx, ws)
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)
 		switch {
@@ -164,8 +182,19 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan) {
 		case len(kws) == 0:
 			note = "the workspace has no active keywords"
 		case !m.scanWorkspace(ctx, ws, kws):
-			note = "nothing ran: another scan was running, scanning is paused, or the workspace is out of credits"
+			busy = true // allowed (checked above), so the only reason is a scan already running
 		}
+	}
+}
+
+// saveManualScan stores a manual scan's new state, unless a newer request
+// has replaced it meanwhile (requestID "" = whatever is stored).
+func (m *Monitor) saveManualScan(ws string, scan ManualScan, requestID string) {
+	raw, _ := json.Marshal(scan)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := m.q.SaveManualScan(ctx, ws, raw, requestID); err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("manual scan: save state")
 	}
 }
 

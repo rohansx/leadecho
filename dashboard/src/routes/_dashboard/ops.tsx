@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
-import { canRequestScan, manualScanStatus, type ScanKind } from "@/lib/ops-scan";
+import { canRequestScan, manualScanStatus, scanPending, type ScanKind } from "@/lib/ops-scan";
 import { cn } from "@/lib/utils";
 import {
   OPS_KEYS,
@@ -106,7 +106,13 @@ function CreditsCell({ ws, onAdjust, busy }: { ws: OpsWorkspace; onAdjust: (delt
 function OpsPage() {
   const qc = useQueryClient();
   const overview = useQuery({ queryKey: OPS_KEYS.overview, queryFn: getOpsOverview, retry: false });
-  const workspaces = useQuery({ queryKey: OPS_KEYS.workspaces, queryFn: listOpsWorkspaces, retry: false });
+  const workspaces = useQuery({
+    queryKey: OPS_KEYS.workspaces,
+    queryFn: listOpsWorkspaces,
+    retry: false,
+    // While a manual scan is waiting or running, keep its status current.
+    refetchInterval: (query) => (scanPending(query.state.data?.data ?? []) ? 15_000 : false),
+  });
   const audit = useQuery({ queryKey: OPS_KEYS.audit, queryFn: listOpsAudit, retry: false });
   const [filter, setFilter] = useState("");
 

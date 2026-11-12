@@ -279,21 +279,12 @@ func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `kind must be "posts" or "hiring"`)
 		return
 	}
-	raw, err := h.q.GetWorkspaceSettingsKey(r.Context(), ws, database.ManualScanKey)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load the workspace")
-		return
-	}
-	var last monitor.ManualScan
-	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &last) // unreadable = no scan on record
-	}
-	if !last.CanRequest(now) {
+	raw, _ := json.Marshal(scan)
+	stored, err := h.q.RequestManualScan(r.Context(), ws, raw, monitor.StaleBefore(now))
+	if err == nil && !stored {
 		writeError(w, http.StatusConflict, "a manual scan of this workspace is already waiting or running")
 		return
 	}
-	next, _ := json.Marshal(scan)
-	err = h.q.SetWorkspaceSettingsKey(r.Context(), ws, database.ManualScanKey, next)
 	h.finish(w, r, ws, "scan_now", map[string]any{"kind": scan.Kind}, err)
 }
 

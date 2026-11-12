@@ -55,6 +55,12 @@ func TestManualScanFinishRecordsTheOutcome(t *testing.T) {
 	if got := s.Finish(scanT0, "scanning is paused for this workspace").Note; got == "" {
 		t.Fatal("a skipped run must say why")
 	}
+	// A run that could not start because another scan held the workspace
+	// goes back to waiting, with its original request time (so it still
+	// goes stale an hour after it was asked for).
+	if again := s.Requeue(); again.State != ScanRequested || !again.StartedAt.IsZero() || again.Kind != ScanHiring {
+		t.Fatalf("requeued = %+v", again)
+	}
 	// It round-trips through the settings JSON without zero timestamps.
 	raw, _ := json.Marshal(ManualScan{Kind: ScanPosts, State: ScanRequested, RequestedAt: scanT0})
 	if string(raw) != `{"kind":"posts","state":"requested","requested_at":"2026-11-12T09:00:00Z"}` {

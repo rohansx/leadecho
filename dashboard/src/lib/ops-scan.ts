@@ -28,7 +28,8 @@ export function manualScanStatus(scan: ManualScan | null | undefined, now: Date)
   if (scan.state === "requested") return `${name} requested. It starts within a minute.`;
   if (scan.state === "running") return `${name} running for ${ago(scan.started_at, now)}.`;
   if (scan.note) return `${name} did not run ${ago(scan.finished_at, now)} ago: ${scan.note}.`;
-  return `${name} finished ${ago(scan.finished_at, now)} ago.`;
+  // "ran", not "found something": the result is in the workspace's inbox.
+  return `${name} ran, finished ${ago(scan.finished_at, now)} ago.`;
 }
 
 /** Whether a new manual scan may be asked for (the server checks this too). */
@@ -36,4 +37,9 @@ export function canRequestScan(scan: ManualScan | null | undefined, now: Date): 
   if (!scan || scan.state === "done") return true;
   const since = scan.state === "running" ? scan.started_at : scan.requested_at;
   return now.getTime() - new Date(since ?? scan.requested_at).getTime() > STALE_MS;
+}
+
+/** Whether any workspace has a manual scan waiting or running (the console then refreshes itself). */
+export function scanPending(workspaces: { manual_scan: ManualScan | null }[]): boolean {
+  return workspaces.some((w) => w.manual_scan != null && w.manual_scan.state !== "done");
 }
