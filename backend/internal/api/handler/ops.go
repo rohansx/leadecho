@@ -19,6 +19,7 @@ import (
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/billing"
 	"leadecho/internal/database"
+	"leadecho/internal/monitor"
 )
 
 // TregBalance reads the operator's prepaid treg balance (micro-USD).
@@ -114,8 +115,16 @@ func (h *OpsHandler) Workspaces(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list workspaces")
 		return
 	}
+	scans, err := h.q.ListManualScans(r.Context())
+	if err != nil {
+		h.logger.Warn().Err(err).Msg("ops: list manual scans") // the list still loads without them
+	}
 	out := make([]map[string]any, 0, len(rows))
 	for _, ws := range rows {
+		var manual any // null when the workspace was never scanned by hand
+		if raw, ok := scans[ws.ID]; ok {
+			manual = json.RawMessage(raw)
+		}
 		var renews *time.Time
 		if ws.PlanRenewsAt.Valid {
 			renews = &ws.PlanRenewsAt.Time
@@ -124,7 +133,7 @@ func (h *OpsHandler) Workspaces(w http.ResponseWriter, r *http.Request) {
 			"id": ws.ID, "name": ws.Name, "owner_email": ws.OwnerEmail, "created_at": ws.CreatedAt,
 			"plan": ws.Plan, "plan_source": ws.PlanSource, "credit_balance": ws.CreditBalance,
 			"keyword_limit": ws.KeywordLimit, "active_keywords": ws.ActiveKeywords,
-			"paid_data": ws.PaidData, "scanning_paused": ws.ScanningPaused,
+			"paid_data": ws.PaidData, "scanning_paused": ws.ScanningPaused, "manual_scan": manual,
 			"dodo_subscription": ws.DodoSubscriptionID.Valid, "plan_renews_at": renews,
 			"last_post_at": ws.LastPostAt, "credits_used_30d": ws.CreditsUsed30d,
 			"treg_usd_30d": float64(ws.TregMicro30d) / 1e6, "ai_usd_30d": ws.AiUsd30d,
@@ -246,6 +255,37 @@ func (h *OpsHandler) SetScanning(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.q.OpsSetScanningPaused(r.Context(), database.OpsSetScanningPausedParams{WorkspaceID: ws, ScanningPaused: body.Paused})
 	h.finish(w, r, ws, "set_scanning", map[string]any{"paused": body.Paused}, err)
+}
+
+// ScanNow asks for one workspace to be scanned now ("posts" or "hiring")
+// without waiting for the schedule. The request is picked up by whichever
+// process runs the monitor (the worker in production). It runs the normal
+// scan: the workspace's credits, plan and paid-data caps all still apply.
+func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Kind string `json:"kind"`
+	}
+	ws, ok := h.target(w, r, &body)
+	if !ok {
+		return
+	}
+	actor := ""
+	if c := middleware.ClaimsFromContext(r.Context()); c != nil {
+		actor = c.Email
+	}
+	now := time.Now().UTC()
+	scan, err := monitor.NewManualScan(body.Kind, actor, now)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, `kind must be "posts" or "hiring"`)
+		return
+	}
+	raw, _ := json.Marshal(scan)
+	stored, err := h.q.RequestManualScan(r.Context(), ws, raw, monitor.StaleBefore(now))
+	if err == nil && !stored {
+		writeError(w, http.StatusConflict, "a manual scan of this workspace is already waiting or running")
+		return
+	}
+	h.finish(w, r, ws, "scan_now", map[string]any{"kind": scan.Kind}, err)
 }
 
 // SetPaidDataPaused is the global kill switch for all paid data (treg).

@@ -357,6 +357,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Post("/workspaces/{id}/credits", ops.AdjustCredits)
 				r.Post("/workspaces/{id}/paid-data", ops.SetPaidData)
 				r.Post("/workspaces/{id}/scanning", ops.SetScanning)
+				r.Post("/workspaces/{id}/scan", ops.ScanNow)
 			})
 			// billing: plan, balance, checkout and customer portal
 			r.Get("/billing", billingH.Get)
