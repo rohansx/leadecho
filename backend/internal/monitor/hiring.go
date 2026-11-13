@@ -43,7 +43,10 @@ const (
 	maxHiringSizeChecksPerRun = 30 // Pro
 	starterHiringSizeChecks   = 10 // Starter
 	maxHiringSkipped          = 500
-	maxHiringScreened         = 60 // postings handed to the screen in one call
+	// Postings handed to the screen in one call. Three role searches return
+	// well under this many companies.
+	// ponytail: one call; screen in chunks if a plan ever searches more roles.
+	maxHiringScreened = 120
 
 	// Confirmed: a decision-maker whose own profile names this company, with a
 	// usable email, at a company of known, fitting size. Only these are leads.
@@ -175,14 +178,17 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	}
 	created, sizeChecks, lookups := 0, 0, 0
 	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
-	if !searched {
-		// Every job search failed (out of credits, spend cap, provider down):
-		// try again in an hour, not tomorrow. Not sooner: a provider that
-		// bills and then times out would be paid on every tick.
+	// retrySoon ends a run that could not do its work: try again in an hour,
+	// not tomorrow. Not sooner: a provider that bills and then times out
+	// would be paid on every tick.
+	retrySoon := func() {
 		st.LastRun = time.Now().UTC().Add(hiringRetry - hiringInterval)
 		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 		m.saveHiringState(saveCtx, wsID, st)
+	}
+	if !searched {
+		retrySoon() // every job search failed (out of credits, spend cap, provider down)
 		return
 	}
 	var fresh []jobPost
@@ -207,8 +213,9 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	})
 	if err != nil {
 		// Unscreened postings are what filled the inbox with non-buyers:
-		// better no leads today than those. Tomorrow's run tries again.
+		// better no leads this hour than those.
 		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: screen failed")
+		retrySoon()
 		return
 	}
 	jobs, dropped := screenedJobs(fresh, fits)
@@ -283,8 +290,10 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		if ruled := afterResearch(check, brief); !ruled.confirmed && check.confirmed {
 			// The company's own pages show it would not buy: kept as a
 			// record, not charged, not written to.
+			m.logger.Info().Str("company", job.Company).Str("why", brief.NotABuyer).Str("workspace_id", wsID).Msg("hiring: research ruled the company out")
 			m.refundResearch(ctx, wsID, brief)
 			check, brief = ruled, nil
+			remember(key) // the archived row only dedups this month; this verdict does not change
 		}
 		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact, brief)
 		if mentionID == "" {
@@ -887,7 +896,9 @@ func afterResearch(check contactCheck, brief *ai.ResearchBrief) contactCheck {
 	if !check.confirmed || brief == nil || brief.NotABuyer == "" {
 		return check
 	}
-	return contactCheck{reason: "a web search suggests this company is not a buyer: " + strings.TrimRight(brief.NotABuyer, ". ")}
+	// A fixed sentence: the model's wording came from web pages, and this
+	// reason is stored in the lead's text, which later prompts read.
+	return contactCheck{reason: "a web search suggests this company is not a buyer (it hires for clients, sells a similar product, or is outside your market)"}
 }
 
 // hiringSignalStatus keeps unconfirmed signals out of the inbox: they have no
