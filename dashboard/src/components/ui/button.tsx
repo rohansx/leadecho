@@ -22,10 +22,10 @@ const buttonVariants = cva(
           "bg-destructive text-destructive-foreground shadow-sm hover:opacity-90",
       },
       size: {
-        sm: "h-8 px-3 text-[13px]",
-        md: "h-9 px-4 text-sm",
-        lg: "h-11 px-6 text-[15px]",
-        icon: "size-9",
+        sm: "h-7 px-2.5 text-xs",
+        md: "h-8 px-3 text-[13px]",
+        lg: "h-10 px-5 text-sm",
+        icon: "size-8",
       },
     },
     defaultVariants: {

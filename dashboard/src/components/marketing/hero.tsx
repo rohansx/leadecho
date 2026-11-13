@@ -83,7 +83,7 @@ function LiveFeed() {
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div className={cn(container, "grid gap-14 pt-12 pb-20 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pt-20 lg:pb-28 [&>*]:min-w-0")}>
+      <div className={cn(container, "grid gap-14 pt-12 pb-20 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pt-14 lg:pb-20 [&>*]:min-w-0")}>
         <div>
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[13px] text-foreground-soft">
             <span className="mkt-live size-2 rounded-full bg-dot" aria-hidden="true" />

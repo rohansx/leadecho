@@ -47,8 +47,8 @@
   --chart-4: #e6636b;
   --chart-5: #a78bfa;
 
-  --sidebar-width: 232px;
-  --header-height: 56px;
+  --sidebar-width: 220px;
+  --header-height: 48px;
 }
 
 .dark {
@@ -167,6 +167,12 @@
 .mkt-score { animation: mkt-in 0.4s ease 1.9s both; }
 
 @theme inline {
+  /* Softer radius scale: every rounded-* in the app rounds a step smoother. */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
   --font-inst: "Instrument Sans", "Geist", system-ui, sans-serif;
   --color-primary-bg: var(--primary-bg);
   --color-primary-fg: var(--primary-fg);

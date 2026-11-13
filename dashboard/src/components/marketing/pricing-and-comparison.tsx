@@ -105,7 +105,7 @@ export function PricingSection() {
         ))}
       </div>
 
-      <Reveal className="mt-20">
+      <Reveal className="mt-14">
         <h3 className="text-[20px] font-semibold tracking-[-0.01em]">Compared with Common Room and Trigify</h3>
         <div className="mt-6 overflow-x-auto rounded-[20px] border border-border bg-card">
           <table className="w-full min-w-[34rem] text-left text-[15px]">

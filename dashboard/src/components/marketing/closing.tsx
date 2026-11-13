@@ -9,7 +9,7 @@ import { Reveal } from "./fx";
 export function FinalCta() {
   return (
     <section className="border-t border-border">
-      <div className={cn(container, "grid gap-10 py-24 sm:py-28 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16 [&>*]:min-w-0")}>
+      <div className={cn(container, "grid gap-10 py-16 sm:py-20 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16 [&>*]:min-w-0")}>
         <Reveal>
           <h2 className="text-[clamp(2.5rem,5.4vw,4.2rem)] leading-[0.98] font-semibold tracking-[-0.045em] text-balance [font-stretch:90%]">
             Someone is describing your problem in public right now.
@@ -63,7 +63,7 @@ const columns = [
 export function MarketingFooter() {
   return (
     <footer className="border-t border-border bg-card">
-      <div className={cn(container, "py-14")}>
+      <div className={cn(container, "py-10")}>
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
             <Logo />
