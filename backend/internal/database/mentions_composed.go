@@ -102,7 +102,11 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 		add("intent = $%d", p.Intent)
 	}
 	if p.Search != "" {
-		add("content_tsv @@ plainto_tsquery('english', $%d)", p.Search)
+		// The text of the post, and also its title and author: a company or a
+		// person is what people look for ("toku"), and neither is in the body
+		// of a hiring signal. ILIKE also finds names the English dictionary
+		// search would stem away.
+		add("(content_tsv @@ plainto_tsquery('english', $%[1]d) OR title ILIKE '%%' || $%[1]d || '%%' OR author_username ILIKE '%%' || $%[1]d || '%%')", p.Search)
 	}
 	// scoring: tag + sentiment filters
 	if p.Tag != "" {

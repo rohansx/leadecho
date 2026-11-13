@@ -108,3 +108,17 @@ func TestListMentionsComposedParams_buildWhere_tagAndSentiment(t *testing.T) {
 		t.Fatalf("args = %v", args)
 	}
 }
+
+// Search looks in the post, its title and its author with one parameter, so
+// a company or a person can be found by name.
+func TestListMentionsComposedParams_buildWhere_searchCoversTitleAndAuthor(t *testing.T) {
+	where, args := (ListMentionsComposedParams{WorkspaceID: "ws-1", Queue: "all", Search: "toku"}).buildWhere()
+	if len(args) != 2 || args[1] != "toku" {
+		t.Fatalf("args = %v, want the workspace id and the search text once", args)
+	}
+	for _, want := range []string{"plainto_tsquery('english', $2)", "title ILIKE '%' || $2 || '%'", "author_username ILIKE '%' || $2 || '%'"} {
+		if !strings.Contains(where, want) {
+			t.Fatalf("where missing %q: %s", want, where)
+		}
+	}
+}
