@@ -63,6 +63,7 @@ type Monitor struct {
 	tregState             treg.Cache       // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
 	hiringPlanner         HiringPlanner    // optional: company hiring signals
 	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
+	prospectJudge         ProspectJudge    // optional: companies that fit a customer segment
 	credits               *billing.Credits // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).
@@ -245,7 +246,8 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 		}
 	}
 	m.handleNewMentionBatch(ctx, wsID, alerts, "monitor")
-	m.scanHiring(ctx, wsID) // company hiring signals (daily, paid data only)
+	m.scanHiring(ctx, wsID)    // company hiring signals (daily, paid data only)
+	m.scanProspects(ctx, wsID) // companies in the customer segments (daily, paid data only)
 	return true
 }
 

@@ -257,7 +257,7 @@ func (h *OpsHandler) SetScanning(w http.ResponseWriter, r *http.Request) {
 	h.finish(w, r, ws, "set_scanning", map[string]any{"paused": body.Paused}, err)
 }
 
-// ScanNow asks for one workspace to be scanned now ("posts" or "hiring")
+// ScanNow asks for one workspace to be scanned now ("posts", "hiring" or "prospects")
 // without waiting for the schedule. The request is picked up by whichever
 // process runs the monitor (the worker in production). It runs the normal
 // scan: the workspace's credits, plan and paid-data caps all still apply.
@@ -276,7 +276,7 @@ func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	scan, err := monitor.NewManualScan(body.Kind, actor, now)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, `kind must be "posts" or "hiring"`)
+		writeError(w, http.StatusBadRequest, `kind must be "posts", "hiring" or "prospects"`)
 		return
 	}
 	raw, _ := json.Marshal(scan)

@@ -244,7 +244,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		// lead view and the first message specific to this company.
 		var brief *ai.ResearchBrief
 		if check.confirmed {
-			brief = m.researchLead(ctx, wsID, bp, job, person)
+			brief = m.researchLead(ctx, wsID, hiringResearch(bp, job, person))
 			if ctx.Err() != nil {
 				// Shutting down mid-research: the insert would fail and the
 				// company would be skipped for good. Leave it for tomorrow.
@@ -260,7 +260,11 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		}
 		created++
 		if check.confirmed {
-			m.draftOutreach(ctx, wsID, mentionID, bp, job, person, brief)
+			m.draftOutreach(ctx, wsID, mentionID, ai.Outreach{
+				Product: bp.Product, Overview: bp.Overview, Positioning: bp.Positioning,
+				ContactName: person.Name, ContactTitle: person.Title, Company: job.Company, JobTitle: job.Title,
+				Research: brief,
+			})
 		}
 		if capped {
 			break // today's contact lookups are used up: later companies could not be confirmed either
@@ -748,7 +752,8 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 	}
 	m.storeIntentTags(ctx, wsID, alert.ID, res)
 	if check.confirmed {
-		m.createHiringLead(ctx, *alert, job, person, contact)
+		m.createCompanyLead(ctx, *alert, companyLead{company: job.Company, person: person, contact: contact,
+			tag: "hiring-signal", score: score, intent: database.IntentTypeBuySignal})
 	}
 	return alert.ID
 }
@@ -792,23 +797,28 @@ func (m *Monitor) refundResearch(ctx context.Context, wsID string, brief *ai.Res
 // researchLead looks the company up on the web for a confirmed lead. It is
 // best effort: a lead without research is still a lead. Credits are returned
 // when nothing usable comes back.
-func (m *Monitor) researchLead(ctx context.Context, wsID string, bp database.BrandProfile, job jobPost, person foundPerson) *ai.ResearchBrief {
+func (m *Monitor) researchLead(ctx context.Context, wsID string, in ai.CompanyResearch) *ai.ResearchBrief {
 	if err := m.credits.Spend(ctx, wsID, billing.CostResearch, billing.ReasonResearch); err != nil {
 		return nil
 	}
 	rctx, cancel := context.WithTimeout(ctx, researchTimeout)
 	defer cancel()
-	brief, err := m.hiringPlanner.ResearchCompany(rctx, wsID, ai.CompanyResearch{
-		Product: bp.Product, Overview: bp.Overview,
-		Company: job.Company, CompanyURL: job.CompanyURL, JobTitle: job.Title, ContactTitle: person.Title,
-	})
+	brief, err := m.hiringPlanner.ResearchCompany(rctx, wsID, in)
 	if err != nil || brief == nil {
 		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostResearch, billing.ReasonResearch)
-		m.logger.Info().Err(err).Str("company", job.Company).Str("workspace_id", wsID).Msg("hiring: no company research")
+		m.logger.Info().Err(err).Str("company", in.Company).Str("workspace_id", wsID).Msg("lead research: nothing found")
 		return nil
 	}
-	m.logger.Info().Int("searches", brief.Searches).Int("facts", len(brief.Facts)).Str("company", job.Company).Str("workspace_id", wsID).Msg("hiring: company researched")
+	m.logger.Info().Int("searches", brief.Searches).Int("facts", len(brief.Facts)).Str("company", in.Company).Str("workspace_id", wsID).Msg("lead research: company researched")
 	return brief
+}
+
+// hiringResearch is the research request for a hiring signal's company.
+func hiringResearch(bp database.BrandProfile, job jobPost, person foundPerson) ai.CompanyResearch {
+	return ai.CompanyResearch{
+		Product: bp.Product, Overview: bp.Overview,
+		Company: job.Company, CompanyURL: job.CompanyURL, JobTitle: job.Title, ContactTitle: person.Title,
+	}
 }
 
 // hiringLeadScore is a confirmed signal's score: lower when the email could
@@ -820,25 +830,36 @@ func hiringLeadScore(contact *enrich.Result) float64 {
 	return hiringScoreConfirmed
 }
 
-// createHiringLead stores the confirmed contact as a lead, carrying the
+// companyLead is a confirmed contact at a company found by a signal
+// (hiring or prospecting) rather than by a post they wrote.
+type companyLead struct {
+	company string
+	person  foundPerson
+	contact *enrich.Result
+	tag     string // "hiring-signal" | "prospect"
+	score   float64
+	intent  database.IntentType
+}
+
+// createCompanyLead stores the confirmed contact as a lead, carrying the
 // lookup that was already paid for so enrichment does not buy it again.
-func (m *Monitor) createHiringLead(ctx context.Context, alert mentionAlert, job jobPost, person foundPerson, contact *enrich.Result) {
+func (m *Monitor) createCompanyLead(ctx context.Context, alert mentionAlert, l companyLead) {
 	lead, err := m.q.CreateLead(ctx, database.CreateLeadParams{
 		WorkspaceID:  alert.WorkspaceID,
 		MentionID:    pgUUID(alert.ID),
 		Stage:        database.LeadStageProspect,
-		ContactName:  pgtextPtr(contact.FullName),
-		ContactEmail: pgtextPtr(contact.Email),
-		Company:      pgtextPtr(job.Company),
-		Username:     pgtextPtr(person.Name),
+		ContactName:  pgtextPtr(l.contact.FullName),
+		ContactEmail: pgtextPtr(l.contact.Email),
+		Company:      pgtextPtr(l.company),
+		Username:     pgtextPtr(l.person.Name),
 		Platform:     database.NullPlatformType{PlatformType: database.PlatformTypeLinkedin, Valid: true},
-		ProfileUrl:   pgtextPtr(person.ProfileURL),
-		Tags:         []string{"auto-qualified", "hiring-signal"},
-		Metadata:     jsonBytes(map[string]any{"auto_scored": true, "relevance": hiringLeadScore(contact), "intent": string(database.IntentTypeBuySignal), "enrichment": contact}),
+		ProfileUrl:   pgtextPtr(l.person.ProfileURL),
+		Tags:         []string{"auto-qualified", l.tag},
+		Metadata:     jsonBytes(map[string]any{"auto_scored": true, "relevance": l.score, "intent": string(l.intent), "enrichment": l.contact}),
 	})
 	if err != nil {
 		if !isDuplicateError(err) {
-			m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("hiring: create lead")
+			m.logger.Error().Err(err).Str("mention_id", alert.ID).Str("tag", l.tag).Msg("create company lead")
 		}
 		return
 	}
@@ -851,18 +872,14 @@ func (m *Monitor) createHiringLead(ctx context.Context, alert mentionAlert, job 
 // draftOutreach saves a first message to the contact as the lead's draft, so
 // the inbox and the daily digest show something ready to send. Costs the
 // same as a reply draft; refunded if writing fails.
-func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, bp database.BrandProfile, job jobPost, person foundPerson, brief *ai.ResearchBrief) {
-	if person.Name == "" {
+func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o ai.Outreach) {
+	if o.ContactName == "" {
 		return // nobody to write to
 	}
 	if err := m.credits.Spend(ctx, wsID, billing.CostDraft, billing.ReasonDraft); err != nil {
 		return // out of credits: the lead still stands without a draft
 	}
-	text, err := m.hiringPlanner.DraftOutreach(ctx, wsID, ai.Outreach{
-		Product: bp.Product, Overview: bp.Overview, Positioning: bp.Positioning,
-		ContactName: person.Name, ContactTitle: person.Title, Company: job.Company, JobTitle: job.Title,
-		Research: brief,
-	})
+	text, err := m.hiringPlanner.DraftOutreach(ctx, wsID, o)
 	if err == nil {
 		_, err = m.q.CreateReply(ctx, database.CreateReplyParams{
 			MentionID: mentionID, WorkspaceID: wsID, Content: text, Status: database.ReplyStatusDraft,
@@ -870,7 +887,7 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, bp 
 		})
 	}
 	if err != nil {
-		m.credits.Refund(ctx, wsID, billing.CostDraft, billing.ReasonDraft)
-		m.logger.Warn().Err(err).Str("mention_id", mentionID).Msg("hiring: outreach draft failed")
+		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostDraft, billing.ReasonDraft) // a cancelled draft must still be refunded
+		m.logger.Warn().Err(err).Str("mention_id", mentionID).Msg("outreach draft failed")
 	}
 }

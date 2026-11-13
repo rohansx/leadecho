@@ -14,6 +14,13 @@ export const goalLabel = (g: string): string => GOALS.find((x) => x.value === g)
 export interface CustomerSegment {
   name: string;
   why_they_buy: string;
+  // Prospecting searches for companies with these (needs criteria + buyer_titles).
+  pain?: string;
+  criteria?: string[];
+  negative_criteria?: string[];
+  example_companies?: string[];
+  buyer_titles?: string;
+  country?: string; // ISO 3166-1 alpha-2, "" = any
 }
 
 export interface PainPointDetail {

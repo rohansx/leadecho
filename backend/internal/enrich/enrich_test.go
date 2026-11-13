@@ -51,6 +51,7 @@ func (f *fakeTreg) handler(w http.ResponseWriter, r *http.Request) {
 		ans = `{"output":{}}`
 	}
 	w.Header().Set("X-Treg-Cost-Micro", "1000")
+	w.Header().Set("X-Treg-Served-By", "provider-for-"+tool)
 	_, _ = w.Write([]byte(ans))
 }
 
@@ -83,7 +84,7 @@ func TestPipelineFullChain(t *testing.T) {
 	want := Result{
 		FullName: "Jane Doe", Title: "VP Engineering", LinkedInURL: "https://www.linkedin.com/in/janedoe", Location: "Berlin",
 		Company: "Acme Inc", CompanyDomain: "acme.io", Industry: "Computer Software", Employees: "51-200", CompanySize: 51,
-		Email: "jane@acme.io", EmailStatus: "verified",
+		Email: "jane@acme.io", EmailStatus: "verified", EmailSource: "provider-for-" + ToolEmailFind,
 	}
 	got := *res
 	got.Steps, got.EnrichedAt = nil, time.Time{}

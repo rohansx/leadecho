@@ -29,6 +29,18 @@ func (r *Router) DraftOutreach(ctx context.Context, workspaceID string, o ai.Out
 	return out, err
 }
 
+// FitProspects checks a segment search's companies against the segment.
+// Routed like classification (the strong tier): it decides who is contacted.
+func (r *Router) FitProspects(ctx context.Context, workspaceID string, in ai.ProspectCheck) ([]ai.ProspectFit, error) {
+	var out []ai.ProspectFit
+	err := r.withChatProvider(ctx, workspaceID, TaskClassify, func(p ai.Provider) error {
+		res, err := ai.FitProspects(ctx, p, in)
+		out = res
+		return err
+	})
+	return out, err
+}
+
 // ResearchCompany searches the web for a confirmed lead's company. Routed
 // like reply drafting (the strong tier); it needs Claude's web search tool,
 // so targets on other providers are skipped.

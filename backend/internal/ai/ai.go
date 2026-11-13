@@ -385,7 +385,15 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "suggested_subreddits": array of 3-8 relevant subreddit names (without r/ prefix) where the target audience hangs out
 - "suggested_platforms": array of platforms where the BUYERS in target_audience post about this problem, from: "reddit", "hackernews", "twitter", "devto", "bluesky", "lobsters", "indiehackers". Choose by who buys, not by topic: "devto" and "lobsters" only when the buyers are developers picking a developer tool; "indiehackers" only for founders and solo builders; "hackernews" for technical or startup buyers; business buyers (recruiters, sales, marketing, operations, managers) are mostly on "reddit" and "twitter"
 - "positioning": one sentence on how the product differs from alternatives
-- "customer_segments": array of 2-5 objects {"name": segment name, "why_they_buy": one sentence}
+- "customer_segments": array of 3-6 distinct groups of companies that buy, each an object:
+  {"name": short segment name,
+   "why_they_buy": one sentence,
+   "pain": the problem as this buyer would say it,
+   "criteria": 2-4 facts about a company in this segment that can be seen on its website or company profile (business model, industry, size, what it sells),
+   "negative_criteria": 1-3 facts about companies that look similar but would not buy (e.g. "single-location business"),
+   "example_companies": up to 5 real companies in this segment that you are sure exist, [] if unsure,
+   "buyer_titles": the job titles of the person there who buys, as a short phrase ("Practice Director or Managing Partner"),
+   "country": the ISO 3166-1 alpha-2 code of the segment's main market, "" when it is global}
 - "pain_point_details": array of objects {"problem": short problem, "explanation": one sentence}, one per pain point
 - "keyword_groups": object with arrays "brand" (product/company names), "product" (product + feature phrases), "category" (category phrases like "crm for agencies"), "problem" (problem phrases people post)
 

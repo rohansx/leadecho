@@ -8,6 +8,28 @@ import (
 	"leadecho/internal/database"
 )
 
+func TestNormalizedKeepsSegmentDetail(t *testing.T) {
+	bp, err := BrandProfile{Product: "P", CustomerSegments: []ai.CustomerSegment{
+		{Name: "  Franchise networks ", Pain: " messy packs ", Criteria: []string{"Multi-site", "multi-site", " "},
+			NegativeCriteria: []string{}, BuyerTitles: "Finance Director", Country: "gb"},
+		{Name: "Bad country", Country: "United Kingdom"},
+		{Name: "  "},
+	}}.Normalized()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bp.CustomerSegments) != 2 {
+		t.Fatalf("segments = %+v", bp.CustomerSegments)
+	}
+	s := bp.CustomerSegments[0]
+	if s.Name != "Franchise networks" || s.Pain != "messy packs" || len(s.Criteria) != 1 || s.NegativeCriteria != nil || s.Country != "GB" || !s.Prospectable() {
+		t.Fatalf("segment = %+v", s)
+	}
+	if bp.CustomerSegments[1].Country != "" || bp.CustomerSegments[1].Prospectable() {
+		t.Fatalf("segment = %+v", bp.CustomerSegments[1])
+	}
+}
+
 func TestFromAnalysisBackfillsOldShape(t *testing.T) {
 	pa := &ai.ProductAnalysis{
 		ProductName:       "Acme",
