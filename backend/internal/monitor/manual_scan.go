@@ -14,8 +14,9 @@ import (
 // one and skips only its timer.
 
 const (
-	ScanPosts  = "posts"  // the keyword crawl
-	ScanHiring = "hiring" // company hiring signals
+	ScanPosts     = "posts"     // the keyword crawl
+	ScanHiring    = "hiring"    // company hiring signals
+	ScanProspects = "prospects" // companies in the customer segments
 
 	ScanRequested = "requested"
 	ScanRunning   = "running"
@@ -42,7 +43,7 @@ type ManualScan struct {
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring {
+	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects {
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -174,6 +175,20 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		}
 		defer m.scanning.Delete(ws)
 		m.scanHiring(ctx, ws)
+	case ScanProspects:
+		if note = m.prospectBlocked(ctx, ws); note != "" {
+			return
+		}
+		if len(m.prospectSegments(ctx, ws)) == 0 {
+			note = "no customer segment has criteria and buyer titles to search with"
+			return
+		}
+		if _, taken := m.scanning.LoadOrStore(ws, struct{}{}); taken {
+			busy = true
+			return
+		}
+		defer m.scanning.Delete(ws)
+		m.scanProspects(ctx, ws)
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)
 		switch {

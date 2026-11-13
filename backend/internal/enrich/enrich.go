@@ -59,6 +59,7 @@ type Result struct {
 	CompanySize   int               `json:"company_size,omitempty"`
 	Email         string            `json:"email,omitempty"`
 	EmailStatus   string            `json:"email_status,omitempty"` // verified|invalid|catchall|risky|unknown
+	EmailSource   string            `json:"email_source,omitempty"` // the data provider that found the email
 	Steps         map[string]string `json:"steps"`
 	EnrichedAt    time.Time         `json:"enriched_at"`
 }
@@ -99,13 +100,16 @@ func (p *Pipeline) Run(ctx context.Context, ws string, s Subject) (*Result, erro
 			r.Steps[tool] = StepSkipped
 			return
 		}
-		out, err := p.call(ctx, ws, tool, body)
+		out, servedBy, err := p.call(ctx, ws, tool, body)
 		switch {
 		case err != nil:
 			r.Steps[tool] = StepError
 			stop = treg.IsOperatorError(err)
 		case apply(out):
 			r.Steps[tool] = StepHit
+			if tool == ToolEmailFind && servedBy != "cache" {
+				r.EmailSource = servedBy
+			}
 		default:
 			r.Steps[tool] = StepMiss
 		}
@@ -134,22 +138,24 @@ func (p *Pipeline) Run(ctx context.Context, ws string, s Subject) (*Result, erro
 	return r, nil
 }
 
-func (p *Pipeline) call(ctx context.Context, ws, tool string, body map[string]any) (map[string]any, error) {
+// call runs one step; servedBy is the provider that answered (treg's
+// X-Treg-Served-By), "" when unknown.
+func (p *Pipeline) call(ctx context.Context, ws, tool string, body map[string]any) (out map[string]any, servedBy string, err error) {
 	resp, err := p.c.Call(ctx, treg.Request{WorkspaceID: ws, Tool: tool, Body: body})
 	if err != nil {
 		if !treg.IsOperatorError(err) { // operator errors are alerted by the client
 			p.logger.Debug().Err(err).Str("tool", tool).Str("workspace_id", ws).Msg("enrich: step failed")
 		}
-		return nil, err
+		return nil, "", err
 	}
 	var v map[string]any
 	if json.Unmarshal(resp.Body, &v) != nil {
-		return map[string]any{}, nil
+		return map[string]any{}, resp.ServedBy, nil
 	}
 	if o, ok := v["output"].(map[string]any); ok {
-		return o, nil
+		return o, resp.ServedBy, nil
 	}
-	return v, nil
+	return v, resp.ServedBy, nil
 }
 
 func isLinkedInProfile(u string) bool {

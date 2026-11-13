@@ -1,6 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseResearch, sourceHost } from "./research.ts";
+import { isCompanySignal, parseResearch, parseSegmentFit, sourceHost } from "./research.ts";
+
+test("company signals are hiring signals and prospects", () => {
+  assert.equal(isCompanySignal({ signal: "hiring" }), true);
+  assert.equal(isCompanySignal({ signal: "prospect" }), true);
+  assert.equal(isCompanySignal({ signal: "other" }), false);
+  assert.equal(isCompanySignal(null), false);
+});
+
+test("parseSegmentFit reads a prospect's segment", () => {
+  assert.deepEqual(parseSegmentFit({ signal: "prospect", segment: " Franchise networks ", fit_reason: "Runs 70 sites." }), {
+    segment: "Franchise networks",
+    reason: "Runs 70 sites.",
+  });
+  assert.equal(parseSegmentFit({ signal: "hiring", segment: "x" }), null);
+  assert.equal(parseSegmentFit({ signal: "prospect" }), null);
+});
 
 test("parseResearch reads a stored brief and keeps only web links", () => {
   const got = parseResearch({

@@ -120,6 +120,9 @@ func (h *OnboardingHandler) runAnalysis(ctx context.Context, wsID, rawURL string
 	}
 	h.fillCompetitors(ctx, res.Analysis, pageURL, step)
 	step(fmt.Sprintf("Found %d pain points and %d competitors", len(res.Analysis.PainPoints), len(res.Analysis.Competitors)))
+	if n := len(res.Analysis.CustomerSegments); n > 0 {
+		step(fmt.Sprintf("Found %d customer segments to prospect in", n))
+	}
 
 	resultJSON, _ := json.Marshal(res.Analysis)
 	_, _ = h.q.UpdateOnboardingAnalysis(ctx, database.UpdateOnboardingAnalysisParams{ID: rec.ID, Analysis: resultJSON, Status: "completed"})

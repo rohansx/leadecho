@@ -15,10 +15,16 @@ import {
   type ToolCall,
 } from "@/lib/chat";
 import type { Mention } from "@/lib/types";
+import { isCompanySignal } from "@/lib/research";
 
 const HIRING_PROMPTS = [
   "Do they hire often?",
   "Is this company like our customers?",
+  "What should I know before I write to them?",
+];
+const PROSPECT_PROMPTS = [
+  "Is this company like our customers?",
+  "Who else there could I write to?",
   "What should I know before I write to them?",
 ];
 const POST_PROMPTS = ["Is this person a real buyer?", "What does their company do?", "How should I reply?"];
@@ -126,7 +132,8 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
   }, [messages.isError, thread, mention.id]);
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const isHiring = (mention.platform_metadata as { signal?: string } | null)?.signal === "hiring";
+  const signal = (mention.platform_metadata as { signal?: string } | null)?.signal;
+  const isCompany = isCompanySignal(mention.platform_metadata);
   const shown = [...(messages.data?.data ?? []), ...pending];
 
   const patchAssistant = (fn: (m: ChatMessage) => ChatMessage) =>
@@ -198,7 +205,7 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
 
       {shown.length === 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
-          {(isHiring ? HIRING_PROMPTS : POST_PROMPTS).map((p) => (
+          {(signal === "prospect" ? PROSPECT_PROMPTS : isCompany ? HIRING_PROMPTS : POST_PROMPTS).map((p) => (
             <button
               key={p}
               type="button"
@@ -232,7 +239,7 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
           }}
           rows={1}
           maxLength={4000}
-          placeholder={isHiring ? "Ask about this company or contact…" : "Ask about this person or post…"}
+          placeholder={isCompany ? "Ask about this company or contact…" : "Ask about this person or post…"}
           aria-label="Question about this lead"
           className="min-h-[38px] flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
         />

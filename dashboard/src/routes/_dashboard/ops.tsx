@@ -41,6 +41,9 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("hiring")} title="Run the hiring-signal scan now, without waiting for tomorrow">
           Scan hiring
         </Button>
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("prospects")} title="Search the next customer segment for companies to contact now">
+          Find prospects
+        </Button>
       </div>
       {status && <p className="max-w-56 text-xs text-muted-foreground">{status}</p>}
     </div>

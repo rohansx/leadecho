@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -130,8 +131,8 @@ func (bp BrandProfile) Normalized() (BrandProfile, error) {
 	}
 	out.CustomerSegments = nil
 	for _, s := range bp.CustomerSegments {
-		if name := capLen(strings.TrimSpace(s.Name), maxItemLen); name != "" && len(out.CustomerSegments) < maxListLen {
-			out.CustomerSegments = append(out.CustomerSegments, ai.CustomerSegment{Name: name, WhyTheyBuy: capLen(strings.TrimSpace(s.WhyTheyBuy), maxTextLen)})
+		if seg, ok := normalizeSegment(s); ok && len(out.CustomerSegments) < maxListLen {
+			out.CustomerSegments = append(out.CustomerSegments, seg)
 		}
 	}
 	out.PainPoints = nil
@@ -141,6 +142,41 @@ func (bp BrandProfile) Normalized() (BrandProfile, error) {
 		}
 	}
 	return out, nil
+}
+
+const maxSegmentList = 5 // criteria, negative criteria, examples per segment
+
+var countryCodeRe = regexp.MustCompile(`^[A-Z]{2}$`)
+
+// normalizeSegment trims and caps one segment; ok is false without a name.
+// The fields reach search providers and prompts, so each is bounded.
+func normalizeSegment(s ai.CustomerSegment) (ai.CustomerSegment, bool) {
+	name := capLen(strings.TrimSpace(s.Name), maxItemLen)
+	if name == "" {
+		return ai.CustomerSegment{}, false
+	}
+	country := strings.ToUpper(strings.TrimSpace(s.Country))
+	if !countryCodeRe.MatchString(country) {
+		country = ""
+	}
+	return ai.CustomerSegment{
+		Name:             name,
+		WhyTheyBuy:       capLen(strings.TrimSpace(s.WhyTheyBuy), maxTextLen),
+		Pain:             capLen(strings.TrimSpace(s.Pain), maxTextLen),
+		Criteria:         omitEmpty(cleanList(s.Criteria, maxSegmentList)),
+		NegativeCriteria: omitEmpty(cleanList(s.NegativeCriteria, maxSegmentList)),
+		ExampleCompanies: omitEmpty(cleanList(s.ExampleCompanies, maxSegmentList)),
+		BuyerTitles:      capLen(strings.TrimSpace(s.BuyerTitles), maxItemLen),
+		Country:          country,
+	}, true
+}
+
+// omitEmpty keeps an empty list out of the stored JSON (omitempty needs nil).
+func omitEmpty(s []string) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	return s
 }
 
 // Params converts to the upsert parameters (nil slices become empty).

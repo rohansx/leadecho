@@ -8,10 +8,27 @@ import (
 	"strings"
 )
 
-// CustomerSegment is one buyer group from the product analysis.
+// CustomerSegment is one buyer group from the product analysis. The fields
+// after WhyTheyBuy describe the segment well enough to search for companies
+// in it and check each one: profiles saved before they existed have only
+// the name, and are not used for prospecting.
 type CustomerSegment struct {
 	Name       string `json:"name"`
 	WhyTheyBuy string `json:"why_they_buy"`
+	Pain       string `json:"pain,omitempty"` // the problem, in the buyer's words
+	// Criteria are facts visible on a company's website or profile that put
+	// it in the segment; NegativeCriteria look similar but rule it out.
+	Criteria         []string `json:"criteria,omitempty"`
+	NegativeCriteria []string `json:"negative_criteria,omitempty"`
+	ExampleCompanies []string `json:"example_companies,omitempty"`
+	BuyerTitles      string   `json:"buyer_titles,omitempty"` // "Practice Director or Managing Partner"
+	Country          string   `json:"country,omitempty"`      // ISO 3166-1 alpha-2; "" = any
+}
+
+// Prospectable reports whether the segment says enough to search for
+// companies in it.
+func (s CustomerSegment) Prospectable() bool {
+	return s.Name != "" && len(s.Criteria) > 0 && s.BuyerTitles != ""
 }
 
 // PainPointDetail is a pain point with a short explanation.

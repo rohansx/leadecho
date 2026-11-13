@@ -150,6 +150,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	mon.SetWorkflows(workflowEngine) // real-time workflows run inline after scoring
 	if llmRouter != nil {
 		mon.SetHiringPlanner(llmRouter)
+		mon.SetProspectJudge(llmRouter)
 	}
 	if enricher.Enabled() {
 		mon.SetContactVerifier(enricher)

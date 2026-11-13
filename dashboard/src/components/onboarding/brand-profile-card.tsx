@@ -91,11 +91,30 @@ function SegmentsEditor({ profile, onChange }: BrandProfileCardProps) {
   return (
     <div className="space-y-2">
       <Label>Customer segments</Label>
+      <p className="text-xs text-muted-foreground">
+        Segments with criteria and buyer titles are used to find companies to contact each day.
+      </p>
       {segs.map((s, i) => (
-        <div key={i} className="flex gap-2 items-start">
+        <div key={i} className="flex gap-2 items-start rounded-md border p-2">
           <div className="flex-1 space-y-1">
             <Input value={s.name} placeholder="Segment" onChange={(e) => update(i, { name: e.target.value })} />
             <Input value={s.why_they_buy} placeholder="Why they buy" onChange={(e) => update(i, { why_they_buy: e.target.value })} />
+            <Input value={s.pain ?? ""} placeholder="Their problem, in their words" onChange={(e) => update(i, { pain: e.target.value })} />
+            <div className="flex gap-1">
+              <Input className="flex-1" value={s.buyer_titles ?? ""} placeholder="Who buys (job titles)" onChange={(e) => update(i, { buyer_titles: e.target.value })} />
+              <Input
+                className="w-20"
+                value={s.country ?? ""}
+                maxLength={2}
+                placeholder="GB"
+                aria-label="Country code"
+                title="Two-letter country code; empty for any country"
+                onChange={(e) => update(i, { country: e.target.value.toUpperCase() })}
+              />
+            </div>
+            <ChipList items={s.criteria ?? []} onChange={(items) => update(i, { criteria: items })} placeholder="Add a criterion (visible on their website)..." />
+            <ChipList items={s.negative_criteria ?? []} onChange={(items) => update(i, { negative_criteria: items })} placeholder="Add an exclusion..." />
+            <ChipList items={s.example_companies ?? []} onChange={(items) => update(i, { example_companies: items })} placeholder="Add an example company..." />
           </div>
           <Button variant="ghost" size="icon" aria-label="Remove segment" onClick={() => onChange({ ...profile, customer_segments: segs.filter((_, j) => j !== i) })}>
             <X className="size-4" />

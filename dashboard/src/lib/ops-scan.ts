@@ -1,7 +1,9 @@
 // ops: an operator's "scan now" request for one workspace and its outcome
 // (workspaces.settings.manual_scan). Pure helpers for the console.
 
-export type ScanKind = "posts" | "hiring";
+export type ScanKind = "posts" | "hiring" | "prospects";
+
+const SCAN_NAMES: Record<ScanKind, string> = { posts: "Posts scan", hiring: "Hiring scan", prospects: "Prospect scan" };
 
 export interface ManualScan {
   kind: ScanKind;
@@ -24,7 +26,7 @@ const ago = (iso: string | undefined, now: Date): string => {
 /** One line on what the workspace's last manual scan is doing. "" when there was none. */
 export function manualScanStatus(scan: ManualScan | null | undefined, now: Date): string {
   if (!scan) return "";
-  const name = scan.kind === "hiring" ? "Hiring scan" : "Posts scan";
+  const name = SCAN_NAMES[scan.kind] ?? "Posts scan";
   if (scan.state === "requested") return `${name} requested. It starts within a minute.`;
   if (scan.state === "running") return `${name} running for ${ago(scan.started_at, now)}.`;
   if (scan.note) return `${name} did not run ${ago(scan.finished_at, now)} ago: ${scan.note}.`;

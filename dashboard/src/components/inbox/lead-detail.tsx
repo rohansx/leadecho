@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { parseResearch, sourceHost } from "@/lib/research";
+import { isCompanySignal, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -168,12 +168,12 @@ function OverviewTab({
     (savedDraft
       ? ({ reply: savedDraft, should_reply: true, status: "done", reason: "" } as Awaited<ReturnType<typeof draftReply>>)
       : null);
-  // A hiring signal is a company, not a post: there is nothing to reply to,
+  // A hiring signal or prospect is a company, not a post: there is nothing to reply to,
   // and its draft is a first message to the contact.
-  const isHiringSignal = (mention.platform_metadata as { signal?: string } | null)?.signal === "hiring";
+  const companySignal = isCompanySignal(mention.platform_metadata);
 
   const signalCompany = (mention.platform_metadata as { company?: string } | null)?.company;
-  const contactMismatch = isHiringSignal && companyMismatch(signalCompany, mention.person?.company);
+  const contactMismatch = companySignal && companyMismatch(signalCompany, mention.person?.company);
 
   const profileUrl = safeHttpUrl(mention.person?.linkedin_url) ?? safeHttpUrl(mention.author_profile_url);
 
@@ -230,7 +230,7 @@ function OverviewTab({
             Classify
           </Button>
         )}
-        {!isHiringSignal && (
+        {!companySignal && (
           <Button size="sm" onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
             {draftMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -351,7 +351,7 @@ function OverviewTab({
                 <>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                      <span className="font-medium text-sm mr-1">{isHiringSignal ? "First message to send" : "AI draft"}</span>
+                      <span className="font-medium text-sm mr-1">{companySignal ? "First message to send" : "AI draft"}</span>
                       <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{draft.reply.status}</span>
                       {draft.tone && <span className="rounded-full bg-muted px-2 py-0.5">{draft.tone}</span>}
                       {draft.template_style && (
@@ -366,7 +366,7 @@ function OverviewTab({
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {isHiringSignal && mention.person?.email && (
+                      {companySignal && mention.person?.email && (
                         <a
                           href={mailtoHref(mention.person.email, replyBody)}
                           className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground hover:bg-muted"
@@ -375,7 +375,7 @@ function OverviewTab({
                           Open in email
                         </a>
                       )}
-                      {isHiringSignal && profileUrl && (
+                      {companySignal && profileUrl && (
                         <a
                           href={profileUrl}
                           target="_blank"
@@ -575,6 +575,22 @@ function ThreadTab({ mentionId }: { mentionId: string }) {
   );
 }
 
+// A prospect has no post behind it: this says which customer segment it was
+// picked for and what in its description matched.
+function SegmentFitPanel({ mention }: { mention: Mention }) {
+  const fit = parseSegmentFit(mention.platform_metadata);
+  if (!fit) return null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Why this company</h5>
+      <p className="text-sm leading-relaxed">
+        <span className="font-medium">Fits your segment “{fit.segment}”</span>
+        {fit.reason && <>: {fit.reason}</>}
+      </p>
+    </div>
+  );
+}
+
 function ResearchPanel({ mention }: { mention: Mention }) {
   const research = parseResearch(mention.platform_metadata);
   if (!research) return null;
@@ -769,6 +785,7 @@ export function LeadDetail({
             )}
           </motion.div>
         </AnimatePresence>
+        <SegmentFitPanel mention={mention} />
         <ResearchPanel mention={mention} />
         <SignalsPanel mention={mention} />
       </div>

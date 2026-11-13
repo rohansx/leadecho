@@ -15,6 +15,29 @@ export interface Research {
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
+/**
+ * True for a lead found as a company (a hiring signal or a segment
+ * prospect) rather than a post: there is nothing to reply to, and its draft
+ * is a first message to the contact.
+ */
+export function isCompanySignal(meta: unknown): boolean {
+  const signal = (meta as { signal?: unknown } | null)?.signal;
+  return signal === "hiring" || signal === "prospect";
+}
+
+export interface SegmentFit {
+  segment: string;
+  reason: string;
+}
+
+/** Why a prospect was picked: its segment and the criteria it met. */
+export function parseSegmentFit(meta: unknown): SegmentFit | null {
+  const m = meta as Record<string, unknown> | null;
+  if (m?.signal !== "prospect") return null;
+  const segment = str(m.segment);
+  return segment ? { segment, reason: str(m.fit_reason) } : null;
+}
+
 /** Reads the stored brief. Null when nothing usable is there. */
 export function parseResearch(meta: unknown): Research | null {
   const raw = (meta as { research?: unknown } | null)?.research;
