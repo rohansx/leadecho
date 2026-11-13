@@ -43,6 +43,10 @@ const (
 	maxHiringSizeChecksPerRun = 30 // Pro
 	starterHiringSizeChecks   = 10 // Starter
 	maxHiringSkipped          = 500
+	// Postings handed to the screen in one call. Three role searches return
+	// well under this many companies.
+	// ponytail: one call; screen in chunks if a plan ever searches more roles.
+	maxHiringScreened = 120
 
 	// Confirmed: a decision-maker whose own profile names this company, with a
 	// usable email, at a company of known, fitting size. Only these are leads.
@@ -64,6 +68,9 @@ const (
 type HiringPlanner interface {
 	PlanHiringSignals(ctx context.Context, workspaceID, product, overview, audience string) (*ai.HiringPlan, error)
 	DraftOutreach(ctx context.Context, workspaceID string, o ai.Outreach) (string, error)
+	// ScreenHiringJobs returns the postings worth a paid lookup: the right
+	// role, an employer hiring for itself, in the customer's market.
+	ScreenHiringJobs(ctx context.Context, workspaceID string, in ai.HiringScreen) ([]ai.ProspectFit, error)
 	// ResearchCompany searches the web for what a company does and what is
 	// happening there now. Every fact it returns carries its source.
 	ResearchCompany(ctx context.Context, workspaceID string, in ai.CompanyResearch) (*ai.ResearchBrief, error)
@@ -171,16 +178,51 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	}
 	created, sizeChecks, lookups := 0, 0, 0
 	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
-	if !searched {
-		// Every job search failed (out of credits, spend cap, provider down):
-		// try again in an hour, not tomorrow. Not sooner: a provider that
-		// bills and then times out would be paid on every tick.
+	// retrySoon ends a run that could not do its work: try again in an hour,
+	// not tomorrow. Not sooner: a provider that bills and then times out
+	// would be paid on every tick.
+	retrySoon := func() {
 		st.LastRun = time.Now().UTC().Add(hiringRetry - hiringInterval)
 		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 		m.saveHiringState(saveCtx, wsID, st)
+	}
+	if !searched {
+		retrySoon() // every job search failed (out of credits, spend cap, provider down)
 		return
 	}
+	var fresh []jobPost
+	for _, job := range jobs {
+		// Too old would be dropped on insert, after its lookups were paid for.
+		if skip[companyKey(job.Company)] || !validHTTPURL(job.URL) || (job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge) {
+			continue
+		}
+		if exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeLinkedin), hiringPlatformID(job.Company, month)); err != nil || exists {
+			continue
+		}
+		if fresh = append(fresh, job); len(fresh) == maxHiringScreened {
+			break
+		}
+	}
+	// One model call over the whole list, before anything is paid for: job
+	// search returns agencies, internships, other functions and postings in
+	// other languages, and every one of them used to cost a company lookup.
+	fits, err := m.hiringPlanner.ScreenHiringJobs(ctx, wsID, ai.HiringScreen{
+		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
+		Roles: st.Plan.Roles, MaxCompanySize: st.Plan.MaxCompanySize, Jobs: screenInput(fresh),
+	})
+	if err != nil {
+		// Unscreened postings are what filled the inbox with non-buyers:
+		// better no leads this hour than those.
+		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: screen failed")
+		retrySoon()
+		return
+	}
+	jobs, dropped := screenedJobs(fresh, fits)
+	// Dropped postings are not remembered: a company that posted an internship
+	// today may post a real opening next week, and screening again costs no
+	// paid data.
+	m.logger.Info().Int("kept", len(jobs)).Int("dropped", len(dropped)).Str("workspace_id", wsID).Msg("hiring: postings screened")
 	for _, job := range jobs {
 		// The cap counts paid people searches, not stored leads: a search
 		// whose lead is then rejected still cost money.
@@ -188,14 +230,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			break
 		}
 		key := companyKey(job.Company)
-		// Too old would be dropped on insert, after its lookups were paid for.
-		if skip[key] || !validHTTPURL(job.URL) || (job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge) {
-			continue
-		}
 		pid := hiringPlatformID(job.Company, month)
-		if exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeLinkedin), pid); err != nil || exists {
-			continue
-		}
 		// Size and website of the hiring company: the size gates the plan's
 		// market, the website is what the contact's employer is checked against.
 		if sizeChecks >= checkCap {
@@ -244,13 +279,21 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		// lead view and the first message specific to this company.
 		var brief *ai.ResearchBrief
 		if check.confirmed {
-			brief = m.researchLead(ctx, wsID, hiringResearch(bp, job, person))
+			brief = m.researchLead(ctx, wsID, hiringResearch(bp, st.Plan, job, person))
 			if ctx.Err() != nil {
 				// Shutting down mid-research: the insert would fail and the
 				// company would be skipped for good. Leave it for tomorrow.
 				m.refundResearch(ctx, wsID, brief)
 				break
 			}
+		}
+		if ruled := afterResearch(check, brief); !ruled.confirmed && check.confirmed {
+			// The company's own pages show it would not buy: kept as a
+			// record, not charged, not written to.
+			m.logger.Info().Str("company", job.Company).Str("why", brief.NotABuyer).Str("workspace_id", wsID).Msg("hiring: research ruled the company out")
+			m.refundResearch(ctx, wsID, brief)
+			check, brief = ruled, nil
+			remember(key) // the archived row only dedups this month; this verdict does not change
 		}
 		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact, brief)
 		if mentionID == "" {
@@ -720,7 +763,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		WorkspaceID: wsID, Platform: string(database.PlatformTypeLinkedin), PlatformID: pid, Url: job.URL,
 		Title: pgtextPtr(title), Content: b.String(),
 		AuthorUsername: pgtextPtr(author), AuthorProfileUrl: pgtextPtr(authorURL),
-		Status:            database.MentionStatusNew,
+		Status:            hiringSignalStatus(check),
 		PlatformMetadata:  hiringMetadata(job, contactTitle, check, brief),
 		EngagementMetrics: jsonBytes(map[string]any{}),
 		KeywordMatches:    []string{"hiring signal"},
@@ -814,11 +857,58 @@ func (m *Monitor) researchLead(ctx context.Context, wsID string, in ai.CompanyRe
 }
 
 // hiringResearch is the research request for a hiring signal's company.
-func hiringResearch(bp database.BrandProfile, job jobPost, person foundPerson) ai.CompanyResearch {
+func hiringResearch(bp database.BrandProfile, plan *ai.HiringPlan, job jobPost, person foundPerson) ai.CompanyResearch {
 	return ai.CompanyResearch{
-		Product: bp.Product, Overview: bp.Overview,
+		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience, MaxCompanySize: plan.MaxCompanySize,
 		Company: job.Company, CompanyURL: job.CompanyURL, JobTitle: job.Title, ContactTitle: person.Title,
 	}
+}
+
+// screenInput is the postings as the screen reads them.
+func screenInput(jobs []jobPost) []ai.HiringJob {
+	out := make([]ai.HiringJob, len(jobs))
+	for i, j := range jobs {
+		out[i] = ai.HiringJob{Company: j.Company, Title: j.Title, Location: j.Location}
+	}
+	return out
+}
+
+// screenedJobs splits the postings into those the screen kept (in their
+// original, newest-first order) and those it dropped.
+func screenedJobs(jobs []jobPost, fits []ai.ProspectFit) (kept, dropped []jobPost) {
+	keep := map[int]bool{}
+	for _, f := range fits {
+		keep[f.Index] = true
+	}
+	for i, j := range jobs {
+		if keep[i] {
+			kept = append(kept, j)
+		} else {
+			dropped = append(dropped, j)
+		}
+	}
+	return kept, dropped
+}
+
+// afterResearch withdraws a confirmed lead when the research found that the
+// company would not buy.
+func afterResearch(check contactCheck, brief *ai.ResearchBrief) contactCheck {
+	if !check.confirmed || brief == nil || brief.NotABuyer == "" {
+		return check
+	}
+	// A fixed sentence: the model's wording came from web pages, and this
+	// reason is stored in the lead's text, which later prompts read.
+	return contactCheck{reason: "a web search suggests this company is not a buyer (it hires for clients, sells a similar product, or is outside your market)"}
+}
+
+// hiringSignalStatus keeps unconfirmed signals out of the inbox: they have no
+// contact, email or draft, so there is nothing to act on. They are still
+// stored (archived), which is what stops the company being looked up again.
+func hiringSignalStatus(check contactCheck) database.MentionStatus {
+	if check.confirmed {
+		return database.MentionStatusNew
+	}
+	return database.MentionStatusArchived
 }
 
 // hiringLeadScore is a confirmed signal's score: lower when the email could

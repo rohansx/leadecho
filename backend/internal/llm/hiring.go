@@ -29,6 +29,18 @@ func (r *Router) DraftOutreach(ctx context.Context, workspaceID string, o ai.Out
 	return out, err
 }
 
+// ScreenHiringJobs picks the day's job postings worth a paid lookup. Routed
+// like classification (the strong tier): it decides who is contacted.
+func (r *Router) ScreenHiringJobs(ctx context.Context, workspaceID string, in ai.HiringScreen) ([]ai.ProspectFit, error) {
+	var out []ai.ProspectFit
+	err := r.withChatProvider(ctx, workspaceID, TaskClassify, func(p ai.Provider) error {
+		res, err := ai.ScreenHiringJobs(ctx, p, in)
+		out = res
+		return err
+	})
+	return out, err
+}
+
 // FitProspects checks a segment search's companies against the segment.
 // Routed like classification (the strong tier): it decides who is contacted.
 func (r *Router) FitProspects(ctx context.Context, workspaceID string, in ai.ProspectCheck) ([]ai.ProspectFit, error) {
