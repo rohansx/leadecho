@@ -1,6 +1,8 @@
-FROM golang:1.25-alpine AS builder
+# Debian-based builder: it already has git and the CA bundle, so the build
+# does not depend on Alpine's package mirror (which hung production deploys
+# for over an hour on 2026-11-13).
+FROM golang:1.25 AS builder
 
-RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
 COPY go.mod go.sum ./
