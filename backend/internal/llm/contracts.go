@@ -10,7 +10,7 @@ import (
 
 // MentionScorer covers LLM calls used by the mention scoring pipeline.
 type MentionScorer interface {
-	FilterMention(ctx context.Context, workspaceID, title, content, platform string) (*ai.FilterResult, error)
+	FilterMention(ctx context.Context, workspaceID, title, content, platform, about string) (*ai.FilterResult, error)
 	EmbedTexts(ctx context.Context, workspaceID string, task Task, texts []string) ([]pgvector.Vector, error)
 	// ClassifyIntent scores one mention. sc carries the listener's Looks for /
 	// Skips and few-shot examples (scoring); an empty sc.Product is filled

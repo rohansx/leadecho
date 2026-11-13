@@ -311,10 +311,10 @@ func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content
 	return out, err
 }
 
-func (r *Router) FilterMention(ctx context.Context, workspaceID, title, content, platform string) (*ai.FilterResult, error) {
+func (r *Router) FilterMention(ctx context.Context, workspaceID, title, content, platform, about string) (*ai.FilterResult, error) {
 	var out *ai.FilterResult
 	err := r.withChatProvider(ctx, workspaceID, TaskFilter, func(p ai.Provider) error {
-		res, err := ai.FilterMention(ctx, p, title, content, platform)
+		res, err := ai.FilterMention(ctx, p, title, content, platform, about)
 		out = res
 		return err
 	})

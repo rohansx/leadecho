@@ -17,7 +17,7 @@ type Stub struct {
 	EmbedDimensions int
 }
 
-func (s *Stub) FilterMention(ctx context.Context, workspaceID, title, content, platform string) (*ai.FilterResult, error) {
+func (s *Stub) FilterMention(ctx context.Context, workspaceID, title, content, platform, about string) (*ai.FilterResult, error) {
 	if s.FilterResult != nil {
 		return s.FilterResult, nil
 	}

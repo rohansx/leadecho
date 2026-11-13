@@ -17,9 +17,12 @@ type MentionAsk struct {
 }
 
 // ListMentionAsks returns the asks from posts scored since `since`, newest
-// first, whose relevance is at least minRelevance. Left out: spam, the workspace's hiring signals (a company, not a
-// person stating a need), and authors the scorer judged not to be buyers
-// (job seekers, vendors): their needs are not demand for the product.
+// first. Left out: spam and the workspace's company signals (a company, not
+// a person stating a need). A buyer's or an unknown author's post needs a
+// relevance of at least minRelevance. A non-buyer's post (a job seeker, say)
+// is scored low by rule however much it says about the market, so it is
+// taken on its ask alone: the scorer only writes one for a non-buyer when
+// the need is about the problem the product solves.
 // Hand-written (no sqlc codegen needed).
 func (q *Queries) ListMentionAsks(ctx context.Context, workspaceID string, since time.Time, minRelevance float64, limit int32) ([]MentionAsk, error) {
 	rows, err := q.db.Query(ctx, `
@@ -29,9 +32,8 @@ FROM mentions
 WHERE workspace_id = $1 AND created_at >= $2
   AND COALESCE(scoring_metadata->>'ask', '') <> ''
   AND status <> 'spam'
-  AND COALESCE(relevance_score, 0) >= $4
-  AND COALESCE(scoring_metadata->>'author_role', '') <> 'non_buyer'
-  AND COALESCE(platform_metadata->>'signal', '') <> 'hiring'
+  AND (COALESCE(relevance_score, 0) >= $4 OR COALESCE(scoring_metadata->>'author_role', '') = 'non_buyer')
+  AND COALESCE(platform_metadata->>'signal', '') = ''
 ORDER BY created_at DESC
 LIMIT $3`, workspaceID, since, limit, minRelevance)
 	if err != nil {

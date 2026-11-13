@@ -5,6 +5,8 @@ export interface DemandAsk {
   mention_id: string;
   quote: string;
   buyer: boolean;
+  /** Affected by the problem but would not buy (a candidate, for a hiring product). */
+  non_buyer?: boolean;
   platform: string;
   url: string;
   author?: string;
@@ -85,6 +87,13 @@ export function splitThemes(
 }
 
 /** Where an ask came from. The text shown is LeadEcho's summary, not a quote. */
-export function askSource(a: Pick<DemandAsk, "buyer" | "platform">): string {
-  return a.buyer ? `Summary of a post by a buyer on ${a.platform}` : `Summary of a post on ${a.platform}, role unknown`;
+export function askSource(a: Pick<DemandAsk, "buyer" | "non_buyer" | "platform">): string {
+  if (a.buyer) return `Summary of a post by a buyer on ${a.platform}`;
+  return `Summary of a post on ${a.platform}, ${askRole(a)}`;
+}
+
+/** Who wrote the post, as far as the scorer could tell. */
+export function askRole(a: Pick<DemandAsk, "buyer" | "non_buyer">): string {
+  if (a.buyer) return "fits your buyer profile";
+  return a.non_buyer ? "not a buyer" : "role unknown";
 }

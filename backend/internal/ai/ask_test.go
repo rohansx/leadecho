@@ -7,8 +7,8 @@ import (
 
 func TestClassifyPromptAsksForTheNeed(t *testing.T) {
 	p := buildClassifyPrompt(ScoringContext{})
-	if !strings.Contains(p, `"ask"`) || !strings.Contains(p, "what the author wants") {
-		t.Fatal(`the classifier must return "ask": the author's need in one line`)
+	if !strings.Contains(p, `"ask"`) || !strings.Contains(p, "the other side of the problem") {
+		t.Fatal(`the classifier must return "ask": the need voiced, by a buyer or by someone on the other side`)
 	}
 }
 

@@ -48,7 +48,7 @@ func TestFilterModelAgreement(t *testing.T) {
 		sem <- struct{}{}
 		go func(i int) {
 			defer func() { <-sem; wg.Done() }()
-			fr, err := FilterMention(ctx, p, posts[i].Title, posts[i].Content, posts[i].Platform)
+			fr, err := FilterMention(ctx, p, posts[i].Title, posts[i].Content, posts[i].Platform, "")
 			if err == nil {
 				got[i] = &fr.Pass
 			}

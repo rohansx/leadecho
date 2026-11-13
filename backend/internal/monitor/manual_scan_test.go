@@ -18,6 +18,9 @@ func TestNewManualScanValidatesTheKind(t *testing.T) {
 	if _, err := NewManualScan(ScanHiring, "", scanT0); err != nil {
 		t.Fatalf("hiring is a valid kind: %v", err)
 	}
+	if _, err := NewManualScan(ScanRescore, "", scanT0); err != nil {
+		t.Fatalf("rescore is a valid kind: %v", err)
+	}
 	if _, err := NewManualScan("everything", "", scanT0); !errors.Is(err, ErrScanKind) {
 		t.Fatalf("unknown kind must be rejected, got %v", err)
 	}

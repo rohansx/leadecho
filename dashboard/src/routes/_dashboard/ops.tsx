@@ -34,7 +34,7 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
   const status = manualScanStatus(ws.manual_scan, now);
   return (
     <div className="mt-1.5 space-y-1">
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("posts")} title="Crawl every keyword on every platform now">
           Scan posts
         </Button>
@@ -43,6 +43,9 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
         </Button>
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("prospects")} title="Search the next customer segment for companies to contact now">
           Find prospects
+        </Button>
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescore")} title="Score the last 30 days of posts again with the current rules. No credits are taken from the customer.">
+          Re-score
         </Button>
       </div>
       {status && <p className="max-w-56 text-xs text-muted-foreground">{status}</p>}

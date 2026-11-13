@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { INBOX_QUEUES } from "@/lib/constants";
 import { DEMAND_KEY, getDemand, refreshDemand, shipTheme } from "@/lib/demand-api";
-import { askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandResponse, type DemandTheme } from "@/lib/demand";
+import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandResponse, type DemandTheme } from "@/lib/demand";
 
 export const Route = createFileRoute("/_dashboard/demand")({
   component: DemandPage,
@@ -160,7 +160,7 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
                 <p className="text-foreground">{a.quote}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {a.author ? `${a.author}, ` : ""}
-                  {a.buyer ? "fits your buyer profile" : "role unknown"}, {a.platform}, {daysAgo(a.at)}
+                  {askRole(a)}, {a.platform}, {daysAgo(a.at)}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3 text-xs">

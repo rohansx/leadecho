@@ -26,7 +26,7 @@ func TestAnthropicLive(t *testing.T) {
 	content := "We connected the Lucidchart MCP server to our agent but it can only read diagrams. Is there an alternative that lets agents edit, with proper permission controls?"
 
 	start := time.Now()
-	fr, err := FilterMention(ctx, p, title, content, "reddit")
+	fr, err := FilterMention(ctx, p, title, content, "reddit", "")
 	if err != nil {
 		t.Fatalf("filter: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestAnthropicLive(t *testing.T) {
 	for i, post := range []string{"Any good alternative to Lakera Guard for agent tool calls?", "Just shipped my portfolio site, feedback welcome!"} {
 		var u Usage
 		p.UsageSink = &u
-		if _, err := FilterMention(ctx, p, "", post, "reddit"); err != nil {
+		if _, err := FilterMention(ctx, p, "", post, "reddit", ""); err != nil {
 			t.Fatalf("filter %d: %v", i, err)
 		}
 		t.Logf("filter %d usage: in=%d cache_write=%d cache_read=%d out=%d", i, u.PromptTokens, u.CacheWriteTokens, u.CacheReadTokens, u.CompletionTokens)

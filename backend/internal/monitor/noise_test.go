@@ -74,3 +74,27 @@ func TestOnTopic(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+// A keyword that names the product is for finding mentions of it: a result
+// that only shares the keyword's other word is dropped before any paid step.
+func TestBrandNotNamed(t *testing.T) {
+	post := func(kw, text string) mentionAlert { return mentionAlert{Keyword: kw, Content: text} }
+	if !brandNotNamed(post("Utkrusht interview", "My Amazon interview went badly"), "Utkrusht") {
+		t.Error("a brand keyword's result that never names the brand is noise")
+	}
+	for _, keep := range []mentionAlert{
+		post("Utkrusht interview", "Took the utkrusht.ai assessment yesterday"),
+		post("coding test", "My Amazon interview went badly"),               // not a brand keyword
+		{Keyword: "Utkrusht", Content: "great post", Author: "utkrusht_hq"}, // named by the author
+	} {
+		if brandNotNamed(keep, "Utkrusht") {
+			t.Errorf("kept post dropped: %+v", keep)
+		}
+	}
+	if brandNotNamed(post("utkrusht ai interview", "I tried Utkrusht last week"), "Utkrusht AI") {
+		t.Error("the name's first word is enough to name the product")
+	}
+	if brandNotNamed(post("Arc review", "nothing here"), "Arc") {
+		t.Error("a name too short to match safely is never used")
+	}
+}
