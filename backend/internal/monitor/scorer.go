@@ -505,6 +505,9 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		"matches_skips": result.MatchesSkips,
 		"author_role":   result.AuthorRole,
 	}
+	if result.Ask != "" { // demand: what the author is asking for
+		meta["ask"] = result.Ask
+	}
 
 	// Update mention with classification + awareness level
 	if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{

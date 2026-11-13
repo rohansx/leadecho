@@ -36,6 +36,7 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "sentiment": one of "positive", "neutral", "negative"
 - "post_type": one of "question", "discussion", "announcement", "thought_leadership", "other"
 - "author_role": one of "buyer", "non_buyer", "unknown" (see Author role)
+- "ask": what the author wants or is struggling with, as one plain sentence in their terms (max 25 words), e.g. "A way to tell which candidates are using AI during a live interview". Use "" unless the author wants something a product or service could provide: no ask for venting or asking for moral support, asking peers for opinions, news, jokes, pure opinion, or someone promoting or building their own tool
 - "matches_skips": boolean (true if the post matches anything the listener SKIPS; false when no SKIPS are given)
 - "conversion_probability": float 0.0-1.0 (how likely this person will buy/convert)
 - "relevance_score": float 0.0-10.0 (how relevant this is for a B2B SaaS product)

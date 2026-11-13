@@ -11,6 +11,7 @@ import (
 var emailTmpl = template.Must(template.New("digest").Funcs(template.FuncMap{
 	"usd":   FormatUSD,
 	"trunc": truncate,
+	"cover": coverageLabel,
 }).Parse(`<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#0d1117">
   <h1 style="font-size:1.3rem;font-weight:800;margin:0 0 4px">{{.Heading}}</h1>
   <p style="color:#6a737d;font-size:0.85rem;margin:0 0 20px">{{.D.Period.Start.Format "Jan 2 15:04"}} – {{.D.Period.End.Format "Jan 2 15:04 MST"}}</p>
@@ -35,6 +36,8 @@ var emailTmpl = template.Must(template.New("digest").Funcs(template.FuncMap{
   <p style="font-size:0.9rem">{{range $i, $c := .D.Platforms}}{{if $i}} · {{end}}{{$c.Label}} {{$c.N}}{{end}}</p>{{end}}
   {{if .D.Intents}}<h2 style="font-size:1rem;margin:20px 0 8px">By intent</h2>
   <p style="font-size:0.9rem">{{range $i, $c := .D.Intents}}{{if $i}} · {{end}}{{$c.Label}} {{$c.N}}{{end}}</p>{{end}}
+  {{if .D.Demand}}<h2 style="font-size:1rem;margin:20px 0 8px">What your market asked for</h2>
+  {{range .D.Demand}}<p style="font-size:0.9rem;margin:4px 0"><strong>{{.Title}}</strong><br><span style="color:#6a737d;font-size:0.8rem">{{.People}} people{{if .Buyers}} · {{.Buyers}} buyers{{end}}{{if .NewThisWeek}} · {{.NewThisWeek}} new this week{{end}} · {{cover .Coverage}}</span></p>{{end}}{{end}}
   {{if .D.NoisyKeywords}}<h2 style="font-size:1rem;margin:20px 0 8px">Noisy keywords</h2>
   <p style="font-size:0.9rem;color:#6a737d">Many mentions, low fit — consider tightening or muting:</p>
   <p style="font-size:0.9rem">{{range $i, $k := .D.NoisyKeywords}}{{if $i}} · {{end}}{{$k.Term}} ({{$k.Mentions}}, avg fit {{printf "%.1f" $k.AvgScore}}){{end}}</p>{{end}}
@@ -94,6 +97,13 @@ func RenderSlack(d Data) string {
 		if l.Draft != "" {
 			b.WriteString("   Drafted message: " + slackEscaper.Replace(truncate(strings.Join(strings.Fields(l.Draft), " "), 400)) + "\n")
 		}
+	}
+	if len(d.Demand) > 0 {
+		parts := make([]string, 0, len(d.Demand))
+		for _, t := range d.Demand {
+			parts = append(parts, fmt.Sprintf("%s (%d people, %s)", slackEscaper.Replace(t.Title), t.People, coverageLabel(t.Coverage)))
+		}
+		b.WriteString("_Asked for:_ " + strings.Join(parts, "; ") + "\n")
 	}
 	if len(d.NoisyKeywords) > 0 {
 		terms := make([]string, 0, len(d.NoisyKeywords))

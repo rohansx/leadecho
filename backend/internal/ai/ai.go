@@ -37,6 +37,9 @@ type ClassifyResult struct {
 	PostType     string   `json:"post_type"`     // question|discussion|announcement|thought_leadership|other
 	MatchesSkips bool     `json:"matches_skips"` // post matches the listener's Skips
 	AuthorRole   string   `json:"author_role"`   // buyer|non_buyer|unknown
+	// Ask is what the author wants or is struggling with, in one line ("" if
+	// the post expresses no need). Grouped into demand themes.
+	Ask string `json:"ask"`
 }
 
 // ProductAnalysis holds the output from analyzing a product URL.

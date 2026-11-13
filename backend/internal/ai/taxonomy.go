@@ -70,6 +70,22 @@ func LooksLikeAnnouncement(title string) bool {
 	return false
 }
 
+// maxAskLen caps the stored ask: it is one line, shown in lists.
+const maxAskLen = 240
+
+// normalizeAsk trims the ask to one line and treats placeholders as empty.
+func normalizeAsk(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	switch strings.ToLower(s) {
+	case "", "none", "n/a", "na", "-", "null":
+		return ""
+	}
+	if r := []rune(s); len(r) > maxAskLen {
+		s = string(r[:maxAskLen]) + "…"
+	}
+	return s
+}
+
 // maxNonBuyerScore keeps non-buyers under the lead threshold (6).
 const maxNonBuyerScore = 4
 
@@ -110,6 +126,11 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 	if cr.MatchesSkips {
 		cr.RelevanceScore = min(cr.RelevanceScore, 2)
 		cr.ConversionProbability = min(cr.ConversionProbability, 0.1)
+	}
+
+	cr.Ask = normalizeAsk(cr.Ask)
+	if announcement {
+		cr.Ask = "" // someone selling, not asking
 	}
 
 	cr.IntentTags = tags

@@ -24,6 +24,7 @@ import (
 	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
 	"leadecho/internal/database"
+	"leadecho/internal/demand"
 	"leadecho/internal/digest" // digests (P1 #13)
 	"leadecho/internal/engagers"
 	"leadecho/internal/events/publishers"
@@ -368,6 +369,15 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/chat/threads/{id}/messages", chatH.Messages)
 			r.Delete("/chat/threads/{id}", chatH.DeleteThread)
 			r.Post("/chat/messages/{id}/confirm", chatH.Confirm)
+			// demand: what the market is asking for
+			if llmRouter != nil {
+				demandH := handler.NewDemandHandler(&demand.Service{
+					Store: demand.DBStore{Q: queries}, Model: llmRouter, Credits: credits, Logger: logger,
+				}, logger)
+				r.Get("/demand", demandH.Get)
+				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/demand/refresh", demandH.Refresh)
+				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/demand/themes/{id}/ship", demandH.Ship)
+			}
 			r.Get("/chat/customers", chatH.GetCustomers)
 			r.Put("/chat/customers", chatH.PutCustomers)
 			// end chat
