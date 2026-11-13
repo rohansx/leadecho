@@ -43,3 +43,19 @@ func TestResearchBriefCarriesNotABuyer(t *testing.T) {
 		t.Fatalf("the research must know who buys the product:\n%s", user)
 	}
 }
+
+// A buyer who describes the problem in their own team, without asking for a
+// tool, is a lead (6+): in production these were scored 3 to 5.5 and lost.
+func TestRubricScoresABuyerDescribingTheirOwnProblemAsALead(t *testing.T) {
+	rules := productFitRules("P")
+	for _, want := range []string{"6-7.5", "their own team or company", "workaround they built"} {
+		if !strings.Contains(rules, want) {
+			t.Errorf("rubric lacks %q", want)
+		}
+	}
+	for _, want := range []string{"bears on this hire", "Never name the site a fact came from", "who looks after it"} {
+		if !strings.Contains(outreachPrompt, want) {
+			t.Errorf("outreach prompt lacks %q", want)
+		}
+	}
+}

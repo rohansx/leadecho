@@ -65,6 +65,7 @@ Rules:
 - Every fact needs the exact URL of the search result it came from.
 - Run several different searches before you answer: the company's own site, recent news about it, and its open jobs. Prefer news, press releases and the careers page over marketing copy, and take each fact from a different page where you can. Do not give two facts that say the same thing.
 - Put the date (month and year) in any fact about an event.
+- A fact earns its place only if the salesperson could mention it to explain why they are writing now. Best: how many roles like this one are open, how large the engineering or product team is, recent funding, growth, layoffs or a move, and what this role will work on. Do not spend a fact on the company's industry label, its website address, or a restatement of what it sells: that belongs in "what_they_do".
 - Research the company only. Do not search for, or write about, any individual person.
 - "hook" is one sentence the salesperson could build an opening on: the company's situation as it relates to the product. No flattery, no selling.
 - "not_a_buyer": the salesperson only wants companies that could buy the product for their own use. If the pages you found show this company is not one (it is a staffing, recruiting or outsourcing firm that hires for its clients; it sells a product like this one; it is clearly larger than the size limit given; or it is a different kind of organisation from "Who buys it"), say why in one sentence. Otherwise "". Do not guess: without a page that shows it, leave it "".
