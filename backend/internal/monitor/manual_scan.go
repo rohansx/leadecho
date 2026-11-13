@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -17,6 +18,7 @@ const (
 	ScanPosts     = "posts"     // the keyword crawl
 	ScanHiring    = "hiring"    // company hiring signals
 	ScanProspects = "prospects" // companies in the customer segments
+	ScanRescore   = "rescore"   // score recent posts again with the current rules
 
 	ScanRequested = "requested"
 	ScanRunning   = "running"
@@ -43,7 +45,7 @@ type ManualScan struct {
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects {
+	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore {
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -189,6 +191,22 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		}
 		defer m.scanning.Delete(ws)
 		m.scanProspects(ctx, ws)
+	case ScanRescore:
+		if m.llmRouter == nil {
+			note = "no AI provider is set up on this server"
+			return
+		}
+		if _, taken := m.scanning.LoadOrStore(ws, struct{}{}); taken {
+			busy = true
+			return
+		}
+		defer m.scanning.Delete(ws)
+		switch done, finished := m.rescore(ctx, ws); {
+		case !finished:
+			note = fmt.Sprintf("it stopped after %d posts with more to go; ask again to carry on", done)
+		case done == 0:
+			note = "no recent post was scored under older rules"
+		}
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)
 		switch {

@@ -44,13 +44,17 @@ const (
 
 // Ask is one person's need, taken from a post LeadEcho scored.
 type Ask struct {
-	MentionID string    `json:"mention_id"`
-	Quote     string    `json:"quote"` // the ask in one line
-	Buyer     bool      `json:"buyer"` // the scorer judged the author a buyer
-	Platform  string    `json:"platform"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author,omitempty"`
-	At        time.Time `json:"at"`
+	MentionID string `json:"mention_id"`
+	Quote     string `json:"quote"` // the ask in one line
+	Buyer     bool   `json:"buyer"` // the scorer judged the author a buyer
+	// NonBuyer: the author is affected by the problem but would not buy (a
+	// candidate, for a hiring product). Their need shapes the product; they
+	// are never written to.
+	NonBuyer bool      `json:"non_buyer,omitempty"`
+	Platform string    `json:"platform"`
+	URL      string    `json:"url"`
+	Author   string    `json:"author,omitempty"`
+	At       time.Time `json:"at"`
 }
 
 type Theme struct {
@@ -222,8 +226,11 @@ func BuildPrompt(p Product, themes []Theme, asks []Ask) (system, user string) {
 	b.WriteString("\nNEW ASKS:\n")
 	for i, a := range asks {
 		who := ""
-		if a.Buyer {
+		switch {
+		case a.Buyer:
 			who = " (buyer)"
+		case a.NonBuyer:
+			who = " (not a buyer)"
 		}
 		fmt.Fprintf(&b, "[%d]%s %s\n", i, who, clip(a.Quote, 300))
 	}

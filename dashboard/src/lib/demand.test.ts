@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type DemandTheme } from "./demand.ts";
+import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type DemandTheme } from "./demand.ts";
 
 const theme = (over: Partial<DemandTheme>): DemandTheme => ({
   id: "t1", title: "T", summary: "", coverage: "gap", status: "open", competitors: [],
@@ -41,4 +41,7 @@ test("splitThemes separates themes from needs raised once", () => {
 test("askSource says where a summary came from without guessing the role", () => {
   assert.equal(askSource({ buyer: true, platform: "reddit" }), "Summary of a post by a buyer on reddit");
   assert.equal(askSource({ buyer: false, platform: "twitter" }), "Summary of a post on twitter, role unknown");
+  // Someone affected by the problem who would not buy (a candidate) is said to be so.
+  assert.equal(askSource({ buyer: false, non_buyer: true, platform: "reddit" }), "Summary of a post on reddit, not a buyer");
+  assert.equal(askRole({ buyer: true }), "fits your buyer profile");
 });

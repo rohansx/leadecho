@@ -85,7 +85,7 @@ func (d DBStore) RecentAsks(ctx context.Context, ws string) ([]Ask, error) {
 		if len(url) > maxURLLen { // a clipped link is a broken link
 			url = ""
 		}
-		out[i] = Ask{MentionID: r.MentionID, Quote: clip(r.Ask, 240), Buyer: r.AuthorRole == "buyer", Platform: r.Platform, URL: url, Author: clip(r.Author, 80), At: r.At}
+		out[i] = Ask{MentionID: r.MentionID, Quote: clip(r.Ask, 240), Buyer: r.AuthorRole == "buyer", NonBuyer: r.AuthorRole == "non_buyer", Platform: r.Platform, URL: url, Author: clip(r.Author, 80), At: r.At}
 	}
 	return out, nil
 }

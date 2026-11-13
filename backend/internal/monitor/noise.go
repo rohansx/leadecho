@@ -119,3 +119,21 @@ func ownAccount(author, product string) bool {
 	}
 	return false
 }
+
+// brandNotNamed reports whether a post found by a keyword that names the
+// product ("Utkrusht interview") never mentions the product. Searches match
+// the keyword's other words, so most results for such a keyword are about
+// interviews in general (589 of 593 for one customer); a brand keyword
+// exists to find mentions of the brand, and these are not that.
+func brandNotNamed(a mentionAlert, product string) bool {
+	// The name's first word: a post that says "Utkrusht" names "Utkrusht AI".
+	p := ""
+	if f := strings.Fields(product); len(f) > 0 {
+		p = nonAlnumLower.ReplaceAllString(strings.ToLower(f[0]), "")
+	}
+	if len(p) < 4 || !strings.Contains(nonAlnumLower.ReplaceAllString(strings.ToLower(a.Keyword), ""), p) {
+		return false
+	}
+	text := strings.ToLower(a.Title + " " + a.Content + " " + a.Author + " " + a.URL)
+	return !strings.Contains(nonAlnumLower.ReplaceAllString(text, ""), p)
+}

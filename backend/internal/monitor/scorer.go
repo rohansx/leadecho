@@ -27,9 +27,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	}
 
 	// The customer's own posts are not leads: don't pay to score them.
-	product := ""
+	product, about := "", ""
 	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
-		product = bp.Product
+		product, about = bp.Product, filterAbout(bp)
 	}
 
 	// Collect scoreable mentions (pass Stage 0 rules filter)
@@ -38,6 +38,8 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		switch {
 		case ownAccount(a.Author, product):
 			m.markStageFiltered(ctx, a, "stage0_own_post", "posted by your own account")
+		case brandNotNamed(a, product):
+			m.markStageFiltered(ctx, a, "stage0_brand_not_named", "found by a keyword with your product's name, but the post does not mention it")
 		case scoreStage1Rules(a.Content):
 			scoreable = append(scoreable, a)
 		default:
@@ -50,7 +52,8 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 	// billing: one credit per post sent to the AI. Posts beyond the balance
 	// stay unscored (no stage) and the backfill scores them once credits return.
-	if m.llmRouter != nil && m.credits.Enforced() {
+	// An operator's re-score is not the customer's spend: no credits taken.
+	if m.llmRouter != nil && m.credits.Enforced() && forcedScan(ctx) != ScanRescore {
 		taken, err := m.credits.Take(ctx, wsID, len(scoreable), billing.ReasonPost)
 		if err != nil {
 			m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("scorer: credit check failed, not scoring")
@@ -70,7 +73,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		keep := make([]bool, len(scoreable))
 		m.forEachConcurrent(ctx, len(scoreable), func(i int) {
 			a := scoreable[i]
-			fr, err := m.llmRouter.FilterMention(ctx, wsID, a.Title, a.Content, a.Platform)
+			fr, err := m.llmRouter.FilterMention(ctx, wsID, a.Title, a.Content, a.Platform, about)
 			if err != nil {
 				m.logger.Warn().Err(err).Str("mention_id", a.ID).Msg("scorer: stage1 filter failed, fail-open")
 				keep[i] = true
@@ -163,7 +166,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 					if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 						ID:              a.ID,
 						WorkspaceID:     wsID,
-						ScoringMetadata: jsonBytes(map[string]any{"stage": "stage2_low_similarity", "best_similarity": bestSim, "auto_scored": true}),
+						ScoringMetadata: jsonBytes(map[string]any{"stage": "stage2_low_similarity", "best_similarity": bestSim, "auto_scored": true, "rubric": ScoringRubric}),
 						AwarenessLevel:  pgtype.Text{},
 					}); err != nil {
 						m.logger.Error().Err(err).Str("mention_id", a.ID).Msg("scorer: failed to record stage2 filter")
@@ -377,6 +380,20 @@ func lowPainPointSimilarity(matches int, best float64) bool {
 	return matches > 0 && best < minPainPointSimilarity
 }
 
+// filterAbout tells the noise filter what the product is and who buys it.
+func filterAbout(bp database.BrandProfile) string {
+	if bp.Product == "" || bp.Overview == "" {
+		return ""
+	}
+	// Clip the overview, not the whole line: who buys it is the part the
+	// filter needs most.
+	about := bp.Product + ": " + truncateRunes(bp.Overview, 450)
+	if who := strings.TrimSpace(bp.TargetAudience); who != "" {
+		about += " Bought by: " + who
+	}
+	return about
+}
+
 func scoreStage1Rules(content string) bool {
 	if len(content) < 50 {
 		return false
@@ -403,6 +420,10 @@ func scoreStage1Rules(content string) bool {
 }
 
 func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, stage, reason string) {
+	if forcedScan(ctx) == ScanRescore {
+		// A post that was classified before keeps its tags otherwise.
+		_ = m.q.UpdateMentionTags(ctx, database.UpdateMentionTagsParams{IntentTags: []string{}, ID: alert.ID, WorkspaceID: alert.WorkspaceID})
+	}
 	_, _ = m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 		ID:          alert.ID,
 		WorkspaceID: alert.WorkspaceID,
@@ -411,6 +432,7 @@ func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, sta
 			"auto_scored": true,
 			"reason":      reason,
 			"filtered":    true,
+			"rubric":      ScoringRubric,
 		}),
 		AwarenessLevel: pgtype.Text{},
 	})
@@ -485,6 +507,11 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		// metadata, which is indistinguishable from "never reached stage 3":
 		// it is not retried, not surfaced as filtered, and silently stalls.
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
+		if forcedScan(ctx) == ScanRescore {
+			// The post already has a verdict: a failed second opinion must not
+			// erase it. Left unstamped, the next re-score tries it again.
+			return
+		}
 		m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
 		return
 	}
@@ -504,6 +531,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		"post_type":     result.PostType,
 		"matches_skips": result.MatchesSkips,
 		"author_role":   result.AuthorRole,
+		"rubric":        ScoringRubric,
 	}
 	if result.Ask != "" { // demand: what the author is asking for
 		meta["ask"] = result.Ask

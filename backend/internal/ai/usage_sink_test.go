@@ -19,13 +19,13 @@ func TestUsageSinkCollectsTokens(t *testing.T) {
 
 	var sink Usage
 	p := Provider{Name: "openai", APIKey: "k", BaseURL: srv.URL, Model: "m", UsageSink: &sink}
-	if _, err := FilterMention(context.Background(), p, "t", "c", "reddit"); err != nil {
+	if _, err := FilterMention(context.Background(), p, "t", "c", "reddit", ""); err != nil {
 		t.Fatal(err)
 	}
 	if sink.PromptTokens != 600 || sink.CompletionTokens != 40 || sink.TotalTokens != 640 {
 		t.Fatalf("sink after one call = %+v", sink)
 	}
-	if _, err := FilterMention(context.Background(), p, "t", "c", "reddit"); err != nil {
+	if _, err := FilterMention(context.Background(), p, "t", "c", "reddit", ""); err != nil {
 		t.Fatal(err)
 	}
 	if sink.TotalTokens != 1280 {
@@ -33,7 +33,7 @@ func TestUsageSinkCollectsTokens(t *testing.T) {
 	}
 	// No sink: still works.
 	p.UsageSink = nil
-	if _, err := FilterMention(context.Background(), p, "t", "c", "reddit"); err != nil {
+	if _, err := FilterMention(context.Background(), p, "t", "c", "reddit", ""); err != nil {
 		t.Fatal(err)
 	}
 }
