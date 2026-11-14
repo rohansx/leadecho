@@ -1,57 +1,64 @@
 name: meat reading diff
 
+# Posts an abridged "reading diff" on every PR — mechanical noise elided,
+# behavior-bearing changes kept (the boldsoftware/meat concept).
+# Auth: OAuth token from a Claude subscription (Pro/Max/Team), stored as the
+# repository secret CLAUDE_CODE_OAUTH_TOKEN. Generate with `claude setup-token`.
+
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: meat-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 jobs:
   meat:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: Pick LLM backend
-        run: |
-          if [ -n "${{ secrets.OLLAMA_API_KEY }}" ]; then
-            echo "OPENAI_API_KEY=${{ secrets.OLLAMA_API_KEY }}" >> "$GITHUB_ENV"
-            echo "OPENAI_BASE_URL=https://ollama.com/v1" >> "$GITHUB_ENV"
-            echo "MEAT_MODEL=gpt-oss:120b" >> "$GITHUB_ENV"
-          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> "$GITHUB_ENV"
-            echo "MEAT_MODEL=claude-sonnet-5" >> "$GITHUB_ENV"
-          else
-            echo "::error::No LLM key set — add one with: gh secret set OLLAMA_API_KEY (or ANTHROPIC_API_KEY)"
-            exit 1
-          fi
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
-      - name: Install meat
-        run: go install meat.dev/cmd/meat@latest
-
       - name: Generate reading diff
-        run: |
-          git diff "origin/${{ github.base_ref }}...HEAD" | meat > /tmp/meat-raw.txt
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
-      - name: Post comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          {
-            echo "## 🥩 Reading diff"
-            echo
-            echo '```diff'
-            head -c 60000 /tmp/meat-raw.txt
-            echo '```'
-            echo
-            echo "_Abridged by [meat](https://github.com/boldsoftware/meat) (model: \`$MEAT_MODEL\`) — mechanical noise elided, behavior-bearing changes kept._"
-          } > /tmp/meat-comment.md
-          gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --edit-last --body-file /tmp/meat-comment.md \
-            || gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body-file /tmp/meat-comment.md
+            Produce a "reading diff" of this PR: the diff reduced to only its
+            behavior-bearing changes, so a human reviewer reads concepts, not noise.
+
+            1. Get the full diff with `gh pr diff`.
+            2. Elide mechanical noise: import shuffles, batch field copies,
+               error-message construction, forced zero-value returns, generated
+               code, lockfiles, formatting-only hunks, boilerplate config.
+            3. Keep everything that changes behavior: logic, algorithm choices,
+               API contracts, data shapes, security-relevant code. When unsure
+               whether a hunk is load-bearing, read the surrounding file — keep
+               it if still unsure.
+            4. Post ONE comment on the PR, structured as:
+               - "## 🥩 Reading diff" header
+               - a one-line summary of what the PR does
+               - "kept N/M changed lines in X/Y files"
+               - the abridged diff in a ```diff fence (collapse elided regions
+                 to `...`; omit fully-elided files, listing them in one line)
+               - footer: "_Abridged reading diff — mechanical noise elided,
+                 behavior-bearing changes kept._"
+               If you already posted a reading-diff comment on this PR, update
+               it with `gh pr comment --edit-last` instead of adding a new one.
+
+            Do not review, judge, or suggest changes — only abridge.
+
+          claude_args: |
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Read,Grep,Glob"
