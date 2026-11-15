@@ -57,7 +57,7 @@ func TestRescreenCompanyLeadsDB(t *testing.T) {
 	m := &Monitor{q: q, logger: zerolog.Nop()}
 
 	// Without a profile there is nothing to screen against.
-	if _, _, err := m.rescreen(ctx, ws); err == nil {
+	if _, _, _, err := m.rescreen(ctx, ws); err == nil {
 		t.Fatal("a workspace without a profile must not be re-screened")
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO brand_profiles (workspace_id, product, overview, target_audience) VALUES ($1, 'Skill tests', 'Assessments for hiring engineers', 'Engineering leaders')`, ws); err != nil {
@@ -97,7 +97,7 @@ RETURNING id::text`, ws, pid, status, platformMeta, foundDaysAgo).Scan(&id); err
 		}
 	}
 	setPlan(`{"applies":false,"roles":[]}`)
-	if _, archived, err := m.rescreen(ctx, ws); err == nil || archived != 0 || planner.calls != 0 {
+	if _, archived, _, err := m.rescreen(ctx, ws); err == nil || archived != 0 || planner.calls != 0 {
 		t.Fatalf("without an applying plan: %d archived, %d screen calls, err %v; want an error and nothing done", archived, planner.calls, err)
 	}
 	var gone int
@@ -105,7 +105,7 @@ RETURNING id::text`, ws, pid, status, platformMeta, foundDaysAgo).Scan(&id); err
 		t.Fatalf("without an applying plan %d leads were archived (%v)", gone, err)
 	}
 	setPlan(`{"applies":true,"roles":["software engineer"],"max_company_size":5000}`)
-	checked, archived, err := m.rescreen(ctx, ws)
+	checked, archived, _, err := m.rescreen(ctx, ws)
 	if err != nil || checked != 3 || archived != 2 {
 		t.Fatalf("rescreen = %d checked, %d archived, %v; want 3 and 2", checked, archived, err)
 	}
@@ -138,7 +138,7 @@ FROM mentions WHERE id = $1 AND scoring_metadata->>'stage' = 'hiring_signal'`, i
 	}
 
 	// Again: only the lead that passed is still there to check.
-	checked, archived, err = m.rescreen(ctx, ws)
+	checked, archived, _, err = m.rescreen(ctx, ws)
 	if err != nil || checked != 1 || archived != 0 {
 		t.Fatalf("second run = %d checked, %d archived, %v; want 1 and 0", checked, archived, err)
 	}

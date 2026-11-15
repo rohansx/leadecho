@@ -21,7 +21,7 @@ func TestRescreenReasons(t *testing.T) {
 		{ID: "no-title", Signal: "hiring", Company: "Old Row"},
 	}
 	var screened []ai.HiringJob
-	got, err := rescreenReasons(leads, func(jobs []ai.HiringJob) ([]ai.ProspectFit, error) {
+	got, _, err := rescreenReasons(leads, func(jobs []ai.HiringJob) ([]ai.ProspectFit, error) {
 		screened = append(screened, jobs...)
 		return []ai.ProspectFit{{Index: 0}}, nil // keeps Acme, drops Staffing Co
 	})
@@ -41,7 +41,7 @@ func TestRescreenReasons(t *testing.T) {
 	}
 
 	// A screen that fails drops nobody.
-	if got, err := rescreenReasons(leads[:2], func([]ai.HiringJob) ([]ai.ProspectFit, error) {
+	if got, _, err := rescreenReasons(leads[:2], func([]ai.HiringJob) ([]ai.ProspectFit, error) {
 		return nil, errors.New("model down")
 	}); err == nil || got != nil {
 		t.Fatalf("a failed screen must fail the run, got %v, %v", got, err)
@@ -54,7 +54,7 @@ func TestRescreenReasons(t *testing.T) {
 		many[i] = database.CompanyLead{ID: string(rune('a'+i%26)) + string(rune('a'+i/26)), Signal: "hiring", JobTitle: "Engineer"}
 	}
 	calls := 0
-	got, err = rescreenReasons(many, func(jobs []ai.HiringJob) ([]ai.ProspectFit, error) {
+	got, _, err = rescreenReasons(many, func(jobs []ai.HiringJob) ([]ai.ProspectFit, error) {
 		calls++
 		if len(jobs) > maxHiringScreened {
 			t.Fatalf("batch of %d, limit %d", len(jobs), maxHiringScreened)
@@ -67,5 +67,21 @@ func TestRescreenReasons(t *testing.T) {
 	})
 	if err != nil || calls != 2 || len(got) != 2 || got[many[0].ID] == "" || got[many[maxHiringScreened].ID] == "" {
 		t.Fatalf("calls = %d, reasons = %v, err = %v; want the first lead of each of 2 batches dropped", calls, got, err)
+	}
+
+	// A valid but empty verdict on a batch of five or more archives nobody:
+	// the batch is reported for review. A smaller batch is taken at its word.
+	five := make([]database.CompanyLead, rescreenReviewBatch)
+	for i := range five {
+		five[i] = database.CompanyLead{ID: string(rune('a' + i)), Signal: "hiring", JobTitle: "Engineer"}
+	}
+	five = append(five, database.CompanyLead{ID: "ruled-out", Signal: "hiring", JobTitle: "Engineer", NotABuyer: "Sells a rival product."})
+	none := func([]ai.HiringJob) ([]ai.ProspectFit, error) { return nil, nil }
+	got, review, err := rescreenReasons(five, none)
+	if err != nil || review != rescreenReviewBatch || len(got) != 1 || got["ruled-out"] == "" {
+		t.Fatalf("empty verdict on %d: reasons = %v, review = %d, err = %v; want only the researched one archived", rescreenReviewBatch, got, review, err)
+	}
+	if got, review, err := rescreenReasons(five[:rescreenReviewBatch-1], none); err != nil || review != 0 || len(got) != rescreenReviewBatch-1 {
+		t.Fatalf("a small batch: reasons = %v, review = %d, err = %v", got, review, err)
 	}
 }
