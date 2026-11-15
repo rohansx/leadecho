@@ -182,7 +182,7 @@ func (h *CompetitorsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err, "remove competitor")
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // AddSource (POST /competitors/{id}/sources) adds a place to watch by hand.
@@ -235,7 +235,7 @@ func (h *CompetitorsHandler) DeleteSource(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusNotFound, "source not found")
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // People (GET /competitors/{id}/people) lists who is unhappy with them.

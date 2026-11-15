@@ -176,7 +176,7 @@ func TestCompetitorsAPIDB(t *testing.T) {
 	if code, out := call(tokenA, "GET", "/competitors/"+acme+"/people", nil); code != 200 || len(out["data"].([]any)) != 0 {
 		t.Fatalf("people: %d %v", code, out)
 	}
-	if code, _ := call(tokenA, "DELETE", "/competitors/"+acme, nil); code != 204 {
+	if code, _ := call(tokenA, "DELETE", "/competitors/"+acme, nil); code != 200 {
 		t.Fatalf("delete: %d", code)
 	}
 	var left int
