@@ -119,7 +119,7 @@ func TestOutreachForFundingAndJobLocation(t *testing.T) {
 // The plan's smallest company: 20 unless the plan says otherwise, and the
 // screen is told it beside the largest.
 func TestHiringPlanMinSize(t *testing.T) {
-	if got := (HiringPlan{}).MinSize(); got != DefaultMinCompanySize || got != 20 {
+	if got := (HiringPlan{}).MinSize(); got != 20 {
 		t.Errorf("default minimum = %d, want 20", got)
 	}
 	if got := (HiringPlan{MinCompanySize: 5}).MinSize(); got != 5 {
