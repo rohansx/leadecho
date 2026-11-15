@@ -95,8 +95,11 @@ func shortCode() string {
 
 // attachTrackingLink creates the reply's UTM link and puts its short URL in the
 // draft. A failure keeps the unlinked draft — the link is a bonus, not a gate.
+// Only for a workspace that switched links in public replies on (draft
+// settings): a short link under a helpful comment reads as spam, and gets
+// the customer's account flagged, so the default is none.
 func (d *Drafter) attachTrackingLink(ctx context.Context, r database.Reply, v Voice) database.Reply {
-	if v.BrandPlug == "none" {
+	if v.BrandPlug == "none" || !d.q.GetDraftSettings(ctx, r.WorkspaceID).PublicReplyLinks {
 		return r
 	}
 	dest := d.destinationFor(ctx, r.WorkspaceID, v)

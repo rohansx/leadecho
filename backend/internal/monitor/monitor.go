@@ -64,6 +64,7 @@ type Monitor struct {
 	hiringPlanner         HiringPlanner    // optional: company hiring signals
 	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
 	prospectJudge         ProspectJudge    // optional: companies that fit a customer segment
+	autoDrafter           AutoDrafter      // optional: strong post leads get their reply drafted unasked
 	credits               *billing.Credits // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).

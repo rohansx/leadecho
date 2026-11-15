@@ -107,7 +107,12 @@ type DraftReplyOptions struct {
 	ThreadContext  string
 	KBContext      string
 	ProductName    string
-	TemplateStyle  string
+	// What the product does and how it differs from the alternatives (the
+	// brand profile). The reply is written on the product's behalf, so it
+	// must not argue for the approach the product replaces.
+	ProductDescription string
+	Positioning        string
+	TemplateStyle      string
 	// voice: response-profile instructions (reply.VoiceInstructions) and the
 	// platform-matched example reply used as a style sample.
 	Voice        string
@@ -544,15 +549,28 @@ Challenge conventional wisdom constructively, then present the product's approac
 Structure: "Actually, I'd push back on..." → alternative viewpoint → product as example of different approach.`,
 }
 
-// DraftReplyEnhanced generates a reply using template-based prompts and thread context.
-func DraftReplyEnhanced(ctx context.Context, p Provider, opts DraftReplyOptions) (*EnhancedDraftResult, error) {
+// replyAlwaysRules come last in the system prompt: no style or voice setting
+// overrides them.
+const replyAlwaysRules = `
+
+ALWAYS (nothing above overrides these):
+- Help first. The first sentence answers the question or speaks to the problem. Never name the product, hint at it or pitch anything in the first sentence.
+- No links or URLs of any kind in the reply, and no "link in bio" or "DM me".`
+
+// replyPositionRule keeps a reply from arguing against the product it is
+// written for (a take-home how-to from a product that replaces take-homes).
+const replyPositionRule = `
+- You write on behalf of the product described in the user message. Never contradict its position: do not recommend, praise or coach the reader on the approach the product exists to replace (see "How the product differs"), even when they ask how to do that approach well and even when you are told not to mention the product. Say briefly and honestly what that approach misses, then what to do instead, in general terms. Do not attack the reader's choice, and state nothing about the product that its description does not say.`
+
+// draftReplyPrompts assembles the system and user messages for a public reply.
+func draftReplyPrompts(opts DraftReplyOptions) (system, user string) {
 	templateGuide := templatePrompts[opts.TemplateStyle]
 	if templateGuide == "" {
 		templateGuide = templatePrompts["value_first"]
 		opts.TemplateStyle = "value_first"
 	}
 
-	systemPrompt := fmt.Sprintf(`You are a helpful community member drafting a reply to a social media post.
+	system = fmt.Sprintf(`You are a helpful community member drafting a reply to a social media post.
 
 STYLE: %s
 
@@ -570,19 +588,37 @@ RULES (apply to ALL styles):
 Return ONLY valid JSON (no markdown, no code fences) with:
 - "reply": the drafted reply text
 - "tone": one of "helpful", "empathetic", "technical", "casual"
-- "template_style": "%s"`, templateGuide, opts.TemplateStyle) + voicePromptSection(opts)
+- "template_style": "%s"`, templateGuide, opts.TemplateStyle) + voicePromptSection(opts) + replyAlwaysRules
 
-	userMsg := fmt.Sprintf("Platform: %s\nIntent: %s\nAwareness: %s\nTitle: %s\nContent: %s",
+	user = fmt.Sprintf("Platform: %s\nIntent: %s\nAwareness: %s\nTitle: %s\nContent: %s",
 		opts.Platform, opts.Intent, opts.AwarenessLevel, opts.Title, opts.Content)
 	if opts.ThreadContext != "" {
-		userMsg += fmt.Sprintf("\n\nThread context (other comments in this thread):\n%s", opts.ThreadContext)
+		user += fmt.Sprintf("\n\nThread context (other comments in this thread):\n%s", opts.ThreadContext)
 	}
 	if opts.KBContext != "" {
-		userMsg += fmt.Sprintf("\n\nProduct knowledge (use to inform your reply):\n%s", opts.KBContext)
+		user += fmt.Sprintf("\n\nProduct knowledge (use to inform your reply):\n%s", opts.KBContext)
 	}
 	if opts.ProductName != "" {
-		userMsg += fmt.Sprintf("\n\nProduct name: %s", opts.ProductName)
+		user += fmt.Sprintf("\n\nProduct name: %s", opts.ProductName)
 	}
+	if desc, pos := clipText(opts.ProductDescription, 700), clipText(opts.Positioning, 400); desc != "" || pos != "" {
+		system += replyPositionRule
+		if desc != "" {
+			user += "\nWhat the product does: " + desc
+		}
+		if pos != "" {
+			user += "\nHow the product differs: " + pos
+		}
+	}
+	return system, user
+}
+
+// DraftReplyEnhanced generates a reply using template-based prompts and thread context.
+func DraftReplyEnhanced(ctx context.Context, p Provider, opts DraftReplyOptions) (*EnhancedDraftResult, error) {
+	if templatePrompts[opts.TemplateStyle] == "" {
+		opts.TemplateStyle = "value_first"
+	}
+	systemPrompt, userMsg := draftReplyPrompts(opts)
 
 	// Vary temperature per call for diversity
 	temp := 0.7 + float64(time.Now().UnixNano()%3)*0.1 // 0.7, 0.8, or 0.9

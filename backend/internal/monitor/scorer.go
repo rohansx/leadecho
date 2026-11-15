@@ -564,6 +564,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		m.qualifyAsLead(ctx, c.alert, result)
 	}
 	m.runWorkflows(ctx, c.alert, result)
+	m.autoDraft(ctx, c.alert, result) // after workflows: one of them may have drafted already
 }
 
 // runWorkflows runs the workspace's real-time workflows inline, unless the
