@@ -102,6 +102,25 @@ RETURNING id::text`, ws, pid, status, score, platformMeta, posted, found).Scan(&
 	same("ready to send", ready, []string{"fresh-posting", "drafted-low"})
 	same("needs draft", needsDraft, []string{"best", "found-recently", "same-score-newer"})
 
+	// Hiring signals share a score and often a posting date. Read a page at
+	// a time, every lead must still come up exactly once.
+	for _, pid := range []string{"tie-a", "tie-b", "tie-c", "tie-d", "tie-e", "tie-f"} {
+		add(pid, "new", 7.5, 9, 9, hiring, true)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE mentions SET platform_created_at = date_trunc('day', now()) - interval '3 days' WHERE workspace_id = $1 AND relevance_score = 7.5 AND status = 'new' AND platform_metadata->>'signal' = 'hiring' AND platform_created_at > now() - interval '10 days'`, ws); err != nil {
+		t.Fatal(err)
+	}
+	whole := list("")
+	for off := range whole {
+		page, err := q.ListMentionsComposed(ctx, ListMentionsComposedParams{WorkspaceID: ws, Queue: "action_required", Lim: 1, Off: int32(off)})
+		if err != nil || len(page) != 1 || page[0].PlatformID != whole[off] {
+			t.Fatalf("page %d = %d rows (%v), want %s as in the whole list %v", off, len(page), err, whole[off], whole)
+		}
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM mentions WHERE workspace_id = $1 AND platform_id LIKE 'tie-%'`, ws); err != nil {
+		t.Fatal(err)
+	}
+
 	counts, err := q.CountMentionsByQueue(ctx, ws)
 	if err != nil {
 		t.Fatal(err)

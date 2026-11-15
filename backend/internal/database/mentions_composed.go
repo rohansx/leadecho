@@ -328,13 +328,15 @@ const mentionColumns = `id, workspace_id, keyword_id, platform, platform_id, url
 
 // ListMentionsComposed applies all provided filters together (ANDed), with
 // pagination. The action queue and browse-all list the best score first, then
-// the most recent post: having a draft does not move a lead up.
+// the most recent post: having a draft does not move a lead up. Many leads
+// share a score and a post time, so the id settles ties: without it a lead
+// can repeat on, or be missing from, the next page.
 func (q *Queries) ListMentionsComposed(ctx context.Context, p ListMentionsComposedParams) ([]Mention, error) {
 	where, args := p.buildWhere()
 	orderBy := "created_at DESC"
 	switch p.Queue {
 	case "action_required":
-		orderBy = "COALESCE(relevance_score, 0) DESC, COALESCE(platform_created_at, created_at) DESC"
+		orderBy = "COALESCE(relevance_score, 0) DESC, COALESCE(platform_created_at, created_at) DESC, id"
 	case "all":
 		if p.Search == "" {
 			orderBy = "COALESCE(relevance_score, 0) DESC, created_at DESC"
