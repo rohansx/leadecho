@@ -28,6 +28,8 @@ export interface BillingState {
   paid_platforms_locked: boolean;
   /** The daily prospect scan runs for this workspace (Pro, not switched off). */
   prospect_daily: boolean;
+  /** This workspace may switch daily prospecting on (Pro, or self-host). */
+  prospect_allowed: boolean;
   /** The plan that includes daily prospecting. */
   prospect_daily_plan: PlanId;
 }

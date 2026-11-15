@@ -117,7 +117,7 @@ func (m *Monitor) prospectDailyOn(ctx context.Context, wsID string) bool {
 		return false
 	}
 	stored, err := m.q.GetWorkspaceSettingsKey(ctx, wsID, billing.ProspectDailyKey)
-	return err == nil && billing.ProspectDaily(bs.Plan, stored)
+	return err == nil && billing.ProspectDaily(bs.Plan, m.credits.Enforced(), stored)
 }
 
 func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
@@ -330,9 +330,10 @@ func parseCompanies(body []byte) []ai.ProspectCandidate {
 	var v struct {
 		Output *struct {
 			Companies []map[string]any `json:"companies"`
+			Results   []map[string]any `json:"results"`
 		} `json:"output"`
 		Companies []map[string]any `json:"companies"`
-		Results   []map[string]any `json:"results"` // Exa
+		Results   []map[string]any `json:"results"` // Exa (unwrapped live, 2026-11-15)
 	}
 	if json.Unmarshal(body, &v) != nil {
 		return nil
@@ -343,6 +344,9 @@ func parseCompanies(body []byte) []ai.ProspectCandidate {
 	}
 	if len(rows) == 0 {
 		rows = v.Results
+	}
+	if len(rows) == 0 && v.Output != nil {
+		rows = v.Output.Results
 	}
 	var out []ai.ProspectCandidate
 	byDomain := map[string]bool{}

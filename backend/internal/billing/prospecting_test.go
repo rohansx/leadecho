@@ -4,20 +4,23 @@ import "testing"
 
 func TestProspectDaily(t *testing.T) {
 	cases := []struct {
-		plan   string
-		stored []byte
-		want   bool
+		plan     string
+		enforced bool
+		stored   []byte
+		want     bool
 	}{
-		{"pro", nil, true},
-		{"pro", []byte("true"), true},
-		{"pro", []byte("false"), false},
-		{"starter", nil, false},
-		{"starter", []byte("true"), false},
-		{"free", nil, false},
+		{"pro", true, nil, true},
+		{"pro", true, []byte("true"), true},
+		{"pro", true, []byte("false"), false},
+		{"starter", true, nil, false},
+		{"starter", true, []byte("true"), false},
+		{"free", true, nil, false},
+		{"free", false, nil, true}, // self-host: credits not enforced
+		{"free", false, []byte("false"), false},
 	}
 	for _, c := range cases {
-		if got := ProspectDaily(c.plan, c.stored); got != c.want {
-			t.Errorf("ProspectDaily(%q, %q) = %v, want %v", c.plan, c.stored, got, c.want)
+		if got := ProspectDaily(c.plan, c.enforced, c.stored); got != c.want {
+			t.Errorf("ProspectDaily(%q, %v, %q) = %v, want %v", c.plan, c.enforced, c.stored, got, c.want)
 		}
 	}
 }

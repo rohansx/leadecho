@@ -12,7 +12,13 @@ const (
 )
 
 // ProspectDaily reports whether the daily prospect scan runs for a workspace
-// on plan, given its stored switch (nil when never set).
-func ProspectDaily(plan string, stored []byte) bool {
-	return plan == ProspectDailyPlan && string(stored) != "false"
+// on plan, given its stored switch (nil when never set). With credits not
+// enforced (self-host) every plan has it, like the other paid-data gates.
+func ProspectDaily(plan string, enforced bool, stored []byte) bool {
+	return ProspectAllowed(plan, enforced) && string(stored) != "false"
+}
+
+// ProspectAllowed reports whether the plan may switch daily prospecting on.
+func ProspectAllowed(plan string, enforced bool) bool {
+	return !enforced || plan == ProspectDailyPlan
 }

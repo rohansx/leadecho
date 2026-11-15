@@ -61,6 +61,10 @@ func TestParseCompaniesExa(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("exa:\n got %+v\nwant %+v", got, want)
 	}
+	wrapped := parseCompanies([]byte(`{"output":{"results":[{"url":"https://a.io","title":"A"}]}}`))
+	if len(wrapped) != 1 || wrapped[0].Domain != "a.io" {
+		t.Fatalf("wrapped exa: %+v", wrapped)
+	}
 	if countryName("in") != "India" || countryName("ZZ") != "ZZ" {
 		t.Fatal("countryName")
 	}

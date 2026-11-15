@@ -52,9 +52,11 @@ func (h *BillingHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if st.PlanRenewsAt.Valid {
 		renews = &st.PlanRenewsAt.Time
 	}
-	prospectStored, _ := h.q.GetWorkspaceSettingsKey(ctx, wsID, billing.ProspectDailyKey)
+	prospectStored, err := h.q.GetWorkspaceSettingsKey(ctx, wsID, billing.ProspectDailyKey)
+	prospectDaily := err == nil && billing.ProspectDaily(st.Plan, h.credits.Enforced(), prospectStored)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"prospect_daily":      billing.ProspectDaily(st.Plan, prospectStored),
+		"prospect_daily":      prospectDaily,
+		"prospect_allowed":    billing.ProspectAllowed(st.Plan, h.credits.Enforced()),
 		"prospect_daily_plan": billing.ProspectDailyPlan,
 		"plan":                st.Plan,
 		"credit_balance":      st.CreditBalance,
@@ -97,7 +99,7 @@ func (h *BillingHandler) SetProspectDaily(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "failed to load billing")
 		return
 	}
-	if *body.On && st.Plan != billing.ProspectDailyPlan {
+	if *body.On && !billing.ProspectAllowed(st.Plan, h.credits.Enforced()) {
 		writeError(w, http.StatusPaymentRequired, "daily prospecting is part of the Pro plan")
 		return
 	}

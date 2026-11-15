@@ -84,7 +84,7 @@ function ProspectDailyRow({ data, onUpgrade }: ProspectDailyRowProps) {
     mutationFn: setProspectDaily,
     onSuccess: () => qc.invalidateQueries({ queryKey: BILLING_QUERY }),
   });
-  const included = data.plan === data.prospect_daily_plan;
+  const included = data.prospect_allowed;
   const planName = data.plans.find((p) => p.id === data.prospect_daily_plan)?.name ?? data.prospect_daily_plan;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
