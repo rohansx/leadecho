@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Logo } from "@/components/marketing/logo";
 import { Text } from "@/components/ui/text";
 import { GITHUB_URL } from "@/lib/constants";
 
@@ -21,12 +22,7 @@ function PrivacyPage() {
       {/* Nav */}
       <nav className="border-b-2 border-border bg-card">
         <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-primary border border-border rounded-lg flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-xs font-bold">
-              LE
-            </div>
-            <span className="font-[family-name:var(--font-head)] text-base">LeadEcho</span>
-          </Link>
+          <Logo className="text-base" />
           <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back</Link>
         </div>
       </nav>

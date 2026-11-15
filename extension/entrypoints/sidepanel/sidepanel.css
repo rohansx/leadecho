@@ -13,7 +13,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; c
   flex-shrink: 0;
 }
 
-.sp-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+.sp-logo { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 15px; letter-spacing: -0.3px; }
+.sp-mark { width: 18px; height: 18px; color: #e0a800; }
 
 .sp-dot {
   width: 8px; height: 8px;

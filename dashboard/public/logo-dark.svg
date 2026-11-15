@@ -1,8 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" width="168" height="32">
-  <g transform="translate(2 4)" fill="none" stroke="#facc15" stroke-width="1.6">
-    <circle cx="6" cy="12" r="2" fill="#facc15" stroke="none"/>
-    <path d="M10 7 a 7 7 0 0 1 0 10"/><path d="M14 4 a 11 11 0 0 1 0 16"/>
-    <path d="M18 1 a 15 15 0 0 1 0 22" stroke-opacity="0.5"/>
-  </g>
-  <text x="34" y="23" font-size="21" fill="#fafafa" font-family="Geist, Inter, system-ui, sans-serif" font-weight="600">Lead<tspan fill="#facc15" font-family="'Instrument Serif', Georgia, serif" font-style="italic" font-weight="400">Echo</tspan></text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 32" width="148" height="32"><g transform="translate(2 4)" fill="none" stroke="#ffd43b" stroke-width="2.4" stroke-linecap="round" color="#ffd43b"><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/><path d="M4.12 13.39A8 8 0 1 1 10.61 19.88"/><circle cx="4.9" cy="19.1" r="1.7" fill="currentColor" stroke="none"/></g><text x="34" y="22.5" font-size="20" fill="#f2f2f0" font-family="Geist, Inter, system-ui, sans-serif" font-weight="600" letter-spacing="-0.4">LeadEcho</text></svg>

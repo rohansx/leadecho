@@ -85,9 +85,9 @@ function HeroVideo() {
   const reduce = useReducedMotion();
   return (
     <div className={cn(container, "pb-16")}>
-      <div className="overflow-hidden rounded-[18px] border border-border bg-card">
+      <div className="mkt-glass overflow-hidden rounded-[22px] border border-border p-1.5">
         <video
-          className="block h-auto w-full bg-[#0b0b0c]"
+          className="block h-auto w-full rounded-[16px] bg-[#0b0b0c]"
           width={1600}
           height={1000}
           autoPlay={!reduce}
@@ -128,7 +128,7 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className={cn(container, "grid gap-14 pt-12 pb-12 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pt-14 lg:pb-14 [&>*]:min-w-0")}>
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[13px] text-foreground-soft">
+          <p className="inline-flex items-center gap-2 mkt-glass rounded-full border border-border px-3 py-1 text-[13px] text-foreground-soft">
             <span className="mkt-live size-2 rounded-full bg-foreground" aria-hidden="true" />
             Listening on 7 communities, open source
           </p>
@@ -160,7 +160,7 @@ export function Hero() {
 
         <div className="relative">
           <Dish className="on-page mx-auto w-full max-w-[460px]" play intensity={0.7} label="A dish antenna turning to listen" />
-          <div className="relative -mt-16 overflow-hidden rounded-[20px] border border-border bg-card sm:mx-6">
+          <div className="relative -mt-16 mkt-glass overflow-hidden rounded-[20px] border border-border sm:mx-6">
             <div className="flex items-center justify-between border-b border-border px-5 py-3 text-[13px]">
               <span className="inline-flex items-center gap-2 font-medium">
                 <span className="mkt-live size-1.5 rounded-full bg-foreground" aria-hidden="true" />

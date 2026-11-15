@@ -104,7 +104,7 @@ function ReplyBody({ r }: { r: Reply }) {
 
 function ThreadCard({ t }: { t: Thread }) {
   return (
-    <figure className="overflow-hidden rounded-[18px] border border-border bg-card">
+    <figure className="mkt-glass overflow-hidden rounded-[18px] border border-border">
       <div className="flex min-w-0 items-center gap-2 border-b border-border px-5 py-3 text-[13px] text-muted-foreground">
         <t.Icon className="size-4 shrink-0" />
         <span className="shrink-0 font-medium text-foreground">{t.where}</span>
@@ -137,7 +137,7 @@ function ThreadCard({ t }: { t: Thread }) {
 export function ThreadDemo() {
   const [i, setI] = useState(0);
   return (
-    <Section id="product" className="border-y border-border bg-card">
+    <Section id="product" className="mkt-veil border-y border-border">
       <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16 [&>*]:min-w-0">
         <Reveal>
           <Eyebrow>Reads every reply</Eyebrow>

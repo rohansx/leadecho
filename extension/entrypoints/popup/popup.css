@@ -11,7 +11,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; c
   margin-bottom: 16px;
 }
 
-.popup-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+.popup-logo { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 15px; letter-spacing: -0.3px; }
+.popup-mark { width: 18px; height: 18px; color: #e0a800; }
 
 .popup-status { font-size: 12px; font-weight: 500; }
 

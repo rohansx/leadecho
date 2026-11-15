@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, Navigate } from "@tanstack/react-router";
+import { Logo } from "@/components/marketing/logo";
 import { useAuth } from "@/lib/auth";
 import { Text } from "@/components/ui/text";
 
@@ -26,10 +27,8 @@ function AuthLayout() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <span className="font-[family-name:var(--font-head)] text-3xl">
-            LeadEcho
-          </span>
+        <div className="mb-8 flex justify-center">
+          <Logo className="text-2xl [&>svg]:size-8" />
         </div>
         <Outlet />
       </div>

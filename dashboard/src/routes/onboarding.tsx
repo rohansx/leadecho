@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Logo } from "@/components/marketing/logo";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -100,11 +101,8 @@ function OnboardingPage() {
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center p-6 bg-background overflow-hidden">
       <div className="relative z-10 w-full max-w-[680px] bg-card border border-border shadow-lg p-8 max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-9 h-9 bg-primary border border-border shadow-xs flex items-center justify-center font-[family-name:var(--font-head)] text-primary-foreground text-sm font-bold">
-            LE
-          </div>
-          <span className="font-[family-name:var(--font-head)] text-xl">LeadEcho</span>
+        <div className="mb-6">
+          <Logo className="text-xl [&>svg]:size-7" />
         </div>
         <div className="h-1 bg-muted border border-border mb-6 overflow-hidden">
           <div className="h-full bg-primary transition-all duration-500 ease-out" style={{ width: `${PROGRESS[step]}%` }} />

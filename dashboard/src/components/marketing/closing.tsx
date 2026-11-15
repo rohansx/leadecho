@@ -62,7 +62,7 @@ const columns = [
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-border bg-card">
+    <footer className="mkt-veil border-t border-border">
       <div className={cn(container, "py-10")}>
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
