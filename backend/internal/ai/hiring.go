@@ -222,6 +222,9 @@ func outreachUserMessage(o Outreach) string {
 	} else if o.SegmentPain != "" {
 		fmt.Fprintf(&b, "\nA problem companies like theirs often have: %s", o.SegmentPain)
 	}
+	if o.JobTitle == "" && o.Funding == "" { // a prospect: the opening fact's date is read against today
+		fmt.Fprintf(&b, "\nToday is %s", today.UTC().Format(outreachDate))
+	}
 	if o.Funding != "" {
 		fmt.Fprintf(&b, "\nThey just raised: %s", clipText(o.Funding, 200))
 		if o.JobTitle == "" { // the round is the opening: its date is read against today
@@ -288,9 +291,9 @@ const prospectOutreachPrompt = `You write a first cold message from a founder to
 Rules:
 - Plain text. First line "Subject: ..." (max 7 words, no hype, not the product's name), then a blank line, then the message.
 - 50-80 words, 3 short paragraphs at most. Greet by first name.
-- Open with the one fact from what we found that best explains why this matters to them now: how much they are hiring, how fast the team is growing, funding, an acquisition or merger, a new market or office. Say it plainly as something public ("I saw you are hiring across several teams") and tie it in the same or next sentence to the problem below. Prefer a fact from the last 12 months; skip one that is older.
-- Never open by telling them what their own company does or sells: they know. If no fact explains why now, open with the problem as a short question to them instead.
-- The problem: the one companies like theirs often have, as a likely issue, not a claim about them ("that usually means ..."). Never say you know they have it. Pick the consequence that fits this recipient's role: an engineering leader loses the team's time to interviews; a recruiter cannot judge technical skill from a CV.
+- Open with the one fact from what we found that best explains why this matters to them now: funding, an acquisition or merger, a new technology or people leader, how much they are hiring, a new market or office. Only a fact that names its month and year, within 12 months of today, may open the message; an undated fact or an estimate never opens it. Say it plainly as something public ("I saw you raised a Series B in July") and tie it in the same or next sentence to the problem below.
+- Never open by telling them what their own company does or sells: they know. If no dated fact explains why now, open with the problem as a short question to them instead.
+- The problem: the one companies like theirs often have, as a likely issue, not a claim about them ("that usually means ..."). Never say you know they have it. Let the opening fact decide it, so that no two companies get the same argument: a round means many hires in a few months and interviewers stretched thin; a new technology leader is rebuilding how the team hires; a people leader is judged on time-to-hire and has no way to check technical skill; many open engineering roles mean the team's own engineers spend their weeks interviewing. Fit it to the recipient's role.
 - One sentence on what the product does about it, in your own plain words. Never copy a sentence from the product description, and avoid its jargon.
 - End with one question answerable in a few words (an either/or or a yes/no). Ask "who looks after this?" only of a senior executive at a company of several hundred people or more; a founder or CTO of a smaller company owns hiring, so ask them about it directly. Not an open "how do you ...".
 - Never name the site a fact came from.
