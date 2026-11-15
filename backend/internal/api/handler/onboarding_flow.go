@@ -27,13 +27,21 @@ const (
 	sseWriteWindow          = 3 * time.Minute
 )
 
-var errBadURL = errors.New("bad url")
+var (
+	errBadURL = errors.New("bad url")
+	// errUnreadableSite: the site answered but gave no text to analyse.
+	errUnreadableSite = errors.New("it loads its content in the browser and gave us no text. Fill in the profile manually")
+)
 
 // SetKnowledge enables the KB seed from the crawled product site. Optional.
 func (h *OnboardingHandler) SetKnowledge(kb *knowledge.Service) { h.kb = kb }
 
 // SetCompetitorFinder enables the empty-competitors fallback. Optional (nil-safe).
 func (h *OnboardingHandler) SetCompetitorFinder(f onboarding.CompetitorFinder) { h.finder = f }
+
+// SetPageReader enables reading a JavaScript-only site with a real browser
+// when the plain fetch finds almost nothing. Optional (nil-safe).
+func (h *OnboardingHandler) SetPageReader(r onboarding.PageReader) { h.reader = r }
 
 func (h *OnboardingHandler) pageFetcher() onboarding.PageFetcher {
 	if h.fetch != nil {
@@ -103,9 +111,13 @@ func (h *OnboardingHandler) runAnalysis(ctx context.Context, wsID, rawURL string
 		return fmt.Errorf("%s: %w", msg, cause)
 	}
 
-	pages, err := h.crawlSite(ctx, pageURL, step)
+	pages, err := h.crawlSite(ctx, wsID, pageURL, step)
 	if err != nil {
 		return nil, fail("failed to fetch URL", err)
+	}
+	if len(onboarding.AnalysisText(pages)) < onboarding.MinPageText {
+		// Analysing a bare title only yields an empty profile that looks like a result.
+		return nil, fail("could not read your site", errUnreadableSite)
 	}
 	step(fmt.Sprintf("Read %d page(s), analysing your product", len(pages)))
 
@@ -143,9 +155,9 @@ func (h *OnboardingHandler) runAnalysis(ctx context.Context, wsID, rawURL string
 
 // crawlSite crawls via the SSRF-safe fetcher, falling back to Scrapling for
 // the homepage alone (JS-heavy sites).
-func (h *OnboardingHandler) crawlSite(ctx context.Context, pageURL string, step func(string)) ([]onboarding.Page, error) {
+func (h *OnboardingHandler) crawlSite(ctx context.Context, wsID, pageURL string, step func(string)) ([]onboarding.Page, error) {
 	pages, err := onboarding.Crawl(ctx, h.pageFetcher(), pageURL, onboarding.MaxCrawlPages, step)
-	if err == nil && len(pages) > 0 && len(pages[0].Text) > 200 {
+	if err == nil && len(pages) > 0 && len(pages[0].Text) > onboarding.MinPageText {
 		return pages, nil
 	}
 	// Fall back to the sidecar only for a JS-heavy page the guarded crawl
@@ -159,6 +171,17 @@ func (h *OnboardingHandler) crawlSite(ctx context.Context, pageURL string, step 
 			if text, terr := h.scrapling.GetText(ctx); terr == nil && text != "" {
 				return append([]onboarding.Page{{URL: pageURL, Text: text}}, tail(pages)...), nil
 			}
+		}
+	}
+	// No sidecar (production): the same page through the data provider's
+	// browser. It fetches from its own network, so only the URL is validated.
+	if err == nil && h.reader != nil && netsafe.ValidatePublicURL(ctx, pageURL) == nil {
+		step("Your site builds its page in the browser, reading it that way")
+		text, rerr := h.reader(ctx, wsID, pageURL)
+		if rerr != nil {
+			h.logger.Warn().Err(rerr).Str("workspace_id", wsID).Msg("onboarding: rendered page read failed")
+		} else if text != "" {
+			return append([]onboarding.Page{{URL: pageURL, Text: text}}, tail(pages)...), nil
 		}
 	}
 	if err != nil {
