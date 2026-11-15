@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"leadecho/internal/monitor"
 	"leadecho/internal/platform"
 )
 
@@ -24,7 +24,7 @@ func main() {
 		logger.Fatal().Msg("set PROCESS_ROLE=worker to run cmd/worker")
 	}
 
-	shared.StartMonitor(ctx, 5*time.Minute)
+	shared.StartMonitor(ctx, monitor.TickInterval)
 	shared.StartDigests(ctx)     // digests (P1 #13)
 	shared.StartDemand(ctx)      // demand themes (daily)
 	shared.StartCompetitors(ctx) // competitor watch

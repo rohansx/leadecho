@@ -198,6 +198,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	m.forEachConcurrent(ctx, len(candidates), func(i int) {
 		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity)
 	})
+	m.notifyFirstLeads(ctx, wsID)
 
 	m.logger.Info().
 		Int("total", len(alerts)).

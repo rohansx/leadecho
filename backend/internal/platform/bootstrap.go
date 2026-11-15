@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"leadecho/internal/api/handler"
+	"leadecho/internal/auth"
 	"leadecho/internal/billing"
 	"leadecho/internal/browser"
 	"leadecho/internal/config"
@@ -149,6 +150,8 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	workflowEngine.SetAppURL(cfg.FrontendURL)
 	mon.SetWorkflows(workflowEngine) // real-time workflows run inline after scoring
 	mon.SetAutoDrafter(replyDrafter) // strong post leads arrive with a draft (free, capped per day)
+	// "your first leads are ready": one email per workspace
+	mon.SetMail(auth.Resend{APIKey: cfg.ResendAPIKey, From: cfg.DigestFromEmail}, cfg.FrontendURL)
 	if llmRouter != nil {
 		mon.SetHiringPlanner(llmRouter)
 		mon.SetProspectJudge(llmRouter)
