@@ -149,14 +149,38 @@ func TestRankByTitles(t *testing.T) {
 
 func TestConfirmProspectContactRejectsCatchAll(t *testing.T) {
 	co := hiringCompany{domain: "credgenics.com", size: 900}
-	p := foundPerson{Name: "S R"}
+	p := foundPerson{Name: "S R", Title: "VP Engineering"}
 	res := &enrich.Result{FullName: "S R", Company: "Credgenics", CompanyDomain: "credgenics.com", Email: "s@credgenics.com", EmailStatus: "catchall"}
-	if ck := confirmProspectContact("Credgenics", co, p, res); ck.confirmed {
+	if ck := confirmProspectContact("Credgenics", co, p, res, "VP Engineering"); ck.confirmed {
 		t.Fatal("a catch-all email must not confirm a prospect")
 	}
 	ok := *res
 	ok.EmailStatus = "verified"
-	if ck := confirmProspectContact("Credgenics", co, p, &ok); !ck.confirmed {
+	if ck := confirmProspectContact("Credgenics", co, p, &ok, "VP Engineering"); !ck.confirmed {
 		t.Fatalf("verified email should confirm: %+v", ck)
+	}
+}
+
+func TestTitleOwnsBuying(t *testing.T) {
+	cases := []struct {
+		title, buyers string
+		size          int
+		want          bool
+	}{
+		{"VP & Head of Business Engineering solutions and Super Enterprise", "VP Engineering or Director of Talent Acquisition", 1000, false},
+		{"Director of Engineering", "VP Engineering or Director of Talent Acquisition", 400, true},
+		{"Vice President & Head of Human Resources & Administration", "VP Engineering or Director of Talent Acquisition", 400, true},
+		{"Chief Technology Officer", "CTO, VP Engineering or Head of Engineering", 900, true},
+		{"Head of Finance", "CTO, VP Engineering or Head of Engineering", 900, false},
+		{"Co-founder & CEO", "CTO, VP Engineering", 60, true},
+		{"Co-founder & CEO", "CTO, VP Engineering", 900, false},
+		{"Head of HR", "CTO, VP Engineering", 400, false}, // HR only where recruiting is asked for
+		{"VP Sales", "VP Sales or CRO", 300, true},        // the selling side, when it is the buyer
+		{"Director", "CTO", 300, false},                   // cto is not in director
+	}
+	for _, c := range cases {
+		if got := titleOwnsBuying(c.title, c.buyers, c.size); got != c.want {
+			t.Errorf("titleOwnsBuying(%q, %q, %d) = %v, want %v", c.title, c.buyers, c.size, got, c.want)
+		}
 	}
 }

@@ -36,6 +36,10 @@ type CompanyResearch struct {
 	// Fit is why a prospect (a company with no job behind it) was picked:
 	// the segment and its criteria. The research checks it.
 	Fit string
+	// Employees is the headcount we already hold (0 = unknown). When set,
+	// the brief gives no other headcount: three different numbers for one
+	// company read as research nobody checked (live, 2026-11-15).
+	Employees int
 }
 
 // ResearchFact is one thing found, with the page it came from.
@@ -63,11 +67,15 @@ const researchPrompt = `You research one company for a salesperson who is about 
 
 Search for: what the company sells and to whom; anything from the last 12 months that bears on the job it just posted (funding, growth, layoffs, a product launch, an acquisition, a new office, how many similar roles are open); and anything that connects its situation to the product being offered.
 
+When no job was posted (a "Why we think it fits" line is given instead), the brief must find a dated reason to write now. Search for each of these, with the company's name: a funding round or acquisition in the last 12 months; a new technology, engineering or people leader who joined in the last 12 months; and its open engineering jobs on its careers page or a job board. Put those first among the facts.
+
 Rules:
 - State only what a page you found says. If you cannot find something, leave it out. Never guess a number, a date or a name.
 - Every fact needs the exact URL of the search result it came from.
 - Run several different searches before you answer: the company's own site, recent news about it, and its open jobs. Prefer news, press releases and the careers page over marketing copy, and take each fact from a different page where you can. Do not give two facts that say the same thing.
-- Put the date (month and year) in any fact about an event.
+- Put the date (month and year) in any fact about an event or a count, taken from the page. A count or a "now" with no date you can find (an estimated headcount, "currently hiring") is not a fact: leave it out.
+- Never let a fact say more than its page. If a count of open jobs covers every team, say "across all teams", never "engineering roles"; if a page estimates, say "about"; never add "first", "largest" or "fastest" unless the page says it.
+- When a headcount is given below, use that number and give no other headcount: no fact may state a different employee count.
 - A fact earns its place only if the salesperson could mention it to explain why they are writing now. Best: how many roles like this one are open, how large the engineering or product team is, recent funding, growth, layoffs or a move, and what this role will work on. Do not spend a fact on the company's industry label, its website address, or a restatement of what it sells: that belongs in "what_they_do".
 - Research the company only. Do not search for, or write about, any individual person.
 - "hook" is one sentence the salesperson could build an opening on: the company's situation as it relates to the product. No flattery, no selling.
@@ -97,6 +105,9 @@ func buildResearchPrompt(in CompanyResearch) (system, user string) {
 	fmt.Fprintf(&b, "\nPRODUCT BEING OFFERED: %s\nWhat it does: %s\n", clipText(in.Product, 150), clipText(in.Overview, 600))
 	if in.Audience != "" {
 		fmt.Fprintf(&b, "Who buys it: %s\n", clipText(in.Audience, 400))
+	}
+	if in.Employees > 0 {
+		fmt.Fprintf(&b, "Headcount (ours; use it, give no other): about %d employees\n", in.Employees)
 	}
 	if in.MaxCompanySize > 0 {
 		fmt.Fprintf(&b, "Size limit: %d employees\n", in.MaxCompanySize)

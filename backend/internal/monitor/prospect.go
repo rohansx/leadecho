@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -273,7 +274,7 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 	person, contact, check, capped := chooseContact(candidates,
 		func(p foundPerson) (*enrich.Result, bool) { return m.verifyContact(ctx, wsID, job, p) },
 		func(p foundPerson, res *enrich.Result) contactCheck {
-			return confirmProspectContact(c.Name, co, p, res)
+			return confirmProspectContact(c.Name, co, p, res, seg.BuyerTitles)
 		})
 	if capped && !check.confirmed {
 		return false, true, "daily contact lookups used up; tried again on a later run"
@@ -287,7 +288,7 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 	brief, researchErr := m.researchLeadErr(ctx, wsID, ai.CompanyResearch{
 		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
 		Company: c.Name, CompanyURL: job.CompanyURL, ContactTitle: person.Title,
-		Fit: seg.Name + ": " + strings.Join(seg.Criteria, "; "),
+		Fit: seg.Name + ": " + strings.Join(seg.Criteria, "; "), Employees: c.Employees,
 	})
 	if ctx.Err() != nil {
 		m.refundResearch(ctx, wsID, brief)
@@ -368,13 +369,89 @@ func (m *Monitor) searchCompanies(ctx context.Context, wsID, query, country stri
 
 // confirmProspectContact is confirmContact, but a catch-all email does not
 // count: with no event behind the lead, a message that may bounce is not
-// worth sending, so the next candidate is tried instead.
-func confirmProspectContact(company string, co hiringCompany, p foundPerson, res *enrich.Result) contactCheck {
+// worth sending, so the next candidate is tried instead. Nor does a title
+// that does not own the segment's buyer decision (see titleOwnsBuying).
+func confirmProspectContact(company string, co hiringCompany, p foundPerson, res *enrich.Result, buyerTitles string) contactCheck {
 	ck := confirmContact(company, co, 0, p, res)
 	if ck.confirmed && res.EmailStatus == "catchall" {
 		return contactCheck{reason: "could not verify " + p.Name + "'s email (the company's mail server accepts any address)"}
 	}
+	title := p.Title
+	if res != nil && res.Title != "" {
+		title = res.Title
+	}
+	if ck.confirmed && !titleOwnsBuying(title, buyerTitles, co.size) {
+		return contactCheck{reason: p.Name + "'s title (" + truncateRunes(title, 80) + ") is not one that buys this"}
+	}
 	return ck
+}
+
+// titleAliases spell out the long forms of titles so they match the short
+// keys buyer titles use ("Chief Technology Officer" is a CTO).
+var titleAliases = strings.NewReplacer(
+	"chief technology officer", "cto", "chief technical officer", "cto",
+	"chief product and technology officer", "cto cpto", "chief product & technology officer", "cto cpto",
+	"chief executive officer", "ceo", "vice president", "vp",
+	"human resources", "hr",
+)
+
+// hiringWords widen a buyer title about recruiting to the other names that
+// role goes by: "Head of HR" owns hiring where "Talent Acquisition" is asked for.
+var hiringWords = []string{"talent", "acquisition", "recruiting", "recruitment", "recruiter", "hiring", "hr", "people"}
+
+// sellingWords mark a title on the selling side of a company: "VP & Head of
+// Business Engineering solutions" ends in Engineering but sells (live,
+// Cashfree 2026-11-15). Ignored when the buyer titles ask for that side.
+var sellingWords = []string{"sales", "presales", "business", "account", "accounts", "customer", "solutions", "marketing", "revenue", "partnerships"}
+
+// titleOwnsBuying reports whether a contact's title matches one of the
+// segment's buyer titles, and is not a selling-side title. At a company
+// under 200 people a founder or CEO owns every buying decision.
+// ponytail: word lists; use the model to judge titles if these misfire.
+func titleOwnsBuying(title, buyerTitles string, employees int) bool {
+	words := titleWords(title)
+	asked := titleWords(buyerTitles)
+	for _, w := range sellingWords {
+		if words[w] && !asked[w] {
+			return false
+		}
+	}
+	keys := titleKeys(buyerTitles)
+	for _, k := range keys {
+		if slices.Contains(hiringWords, k) {
+			keys = append(keys, hiringWords...)
+			break
+		}
+	}
+	if employees > 0 && employees < 200 {
+		keys = append(keys, "founder", "cofounder", "ceo")
+	}
+	for _, k := range keys {
+		if words[k] {
+			return true
+		}
+	}
+	return false
+}
+
+func titleWords(s string) map[string]bool {
+	words := map[string]bool{}
+	for _, w := range nonWordRe.Split(titleAliases.Replace(strings.ToLower(s)), -1) {
+		words[w] = true
+	}
+	return words
+}
+
+// titleKeys are the last words of each buyer title phrase (Engineering,
+// Talent, CTO), in order.
+func titleKeys(titles string) []string {
+	var keys []string
+	for _, ph := range titleSplitRe.Split(titles, -1) {
+		if f := strings.Fields(titleAliases.Replace(strings.ToLower(ph))); len(f) > 0 {
+			keys = append(keys, strings.Trim(f[len(f)-1], ".:()"))
+		}
+	}
+	return keys
 }
 
 // rankByTitles puts the people whose title matches an earlier buyer title
@@ -387,17 +464,9 @@ var (
 )
 
 func rankByTitles(people []foundPerson, titles string) []foundPerson {
-	var keys []string
-	for _, ph := range titleSplitRe.Split(titles, -1) {
-		if f := strings.Fields(ph); len(f) > 0 {
-			keys = append(keys, strings.Trim(strings.ToLower(f[len(f)-1]), ".:()"))
-		}
-	}
+	keys := titleKeys(titles)
 	rank := func(title string) int {
-		words := map[string]bool{}
-		for _, w := range nonWordRe.Split(strings.ToLower(title), -1) {
-			words[w] = true
-		}
+		words := titleWords(title)
 		for i, k := range keys {
 			if words[k] { // whole words: "cto" must not match "director"
 				return i
