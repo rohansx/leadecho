@@ -158,7 +158,7 @@ func blueskyPostURL(uri, handle string) string {
 }
 
 func (m *Monitor) crawlBluesky(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) []mentionAlert {
-	posts, err := m.fetchBluesky(ctx, kw.Term)
+	posts, err := m.fetchBluesky(ctx, brandFrom(ctx).quote(kw.Term))
 	if err != nil {
 		m.logger.Warn().Err(err).Str("keyword", kw.Term).Msg("bluesky: search failed")
 		return nil

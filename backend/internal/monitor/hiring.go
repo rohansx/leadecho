@@ -1069,6 +1069,13 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o a
 	if o.ContactName == "" {
 		return // nobody to write to
 	}
+	// What the message may open on comes from the stored signal, and its
+	// proof point and sign-off from what the customer wrote: nothing else.
+	if mention, err := m.q.GetMention(ctx, database.GetMentionParams{ID: mentionID, WorkspaceID: wsID}); err == nil {
+		o = withSignalFacts(o, mention.PlatformMetadata, mention.PlatformCreatedAt)
+	}
+	ds := m.q.GetDraftSettings(ctx, wsID)
+	o.ProofPoint, o.SignOff = ds.ProofPoint, ds.SignOff
 	if err := m.credits.Spend(ctx, wsID, billing.CostDraft, billing.ReasonDraft); err != nil {
 		return // out of credits: the lead still stands without a draft
 	}
@@ -1083,4 +1090,26 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o a
 		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostDraft, billing.ReasonDraft) // a cancelled draft must still be refunded
 		m.logger.Warn().Err(err).Str("mention_id", mentionID).Msg("outreach draft failed")
 	}
+}
+
+// withSignalFacts fills in the facts stored with the signal: where the job
+// is, when it was posted, and the funding round when the signal carries one
+// (metadata keys funding_type, funding_amount, funding_date: fundingRound).
+func withSignalFacts(o ai.Outreach, metadata []byte, posted pgtype.Timestamptz) ai.Outreach {
+	var meta struct {
+		JobLocation string `json:"job_location"`
+		fundingRound
+	}
+	_ = json.Unmarshal(metadata, &meta)
+	if o.JobTitle != "" {
+		o.JobLocation = meta.JobLocation
+		if posted.Valid {
+			o.JobPosted = posted.Time
+		}
+	}
+	o.Funding = ""
+	if meta.Type != "" {
+		o.Funding = meta.fundingRound.fact()
+	}
+	return o
 }

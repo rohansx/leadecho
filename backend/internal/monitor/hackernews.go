@@ -28,7 +28,7 @@ type hnHit struct {
 }
 
 func (m *Monitor) crawlHackerNews(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) []mentionAlert {
-	posts, err := m.sources().SearchHackerNews(ctx, kw.Term, sinceFrom(ctx))
+	posts, err := m.sources().SearchHackerNews(ctx, brandFrom(ctx).quote(kw.Term), sinceFrom(ctx))
 	if err != nil {
 		m.logger.Warn().Err(err).Str("keyword", kw.Term).Msg("hn: search failed")
 		return nil

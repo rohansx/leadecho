@@ -172,6 +172,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Put("/response-profiles/{id}", responseProfiles.Update)
 			r.Delete("/response-profiles/{id}", responseProfiles.Delete)
 			r.Post("/response-profiles/{id}/default", responseProfiles.SetDefault)
+			r.Get("/settings/drafts", responseProfiles.GetDraftSettings)
+			r.Put("/settings/drafts", responseProfiles.PutDraftSettings)
 
 			// Leads
 			leads := handler.NewLeadHandler(queries, crm)

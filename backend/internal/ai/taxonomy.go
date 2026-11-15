@@ -103,12 +103,15 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 	pt := strings.ToLower(strings.TrimSpace(cr.PostType))
 	announcement := pt == "announcement" || LooksLikeAnnouncement(title)
 	thought := pt == "thought_leadership"
+	// A buyer showing how they already solved the problem: a proof point for
+	// the customer, not someone to sell to. Its ask is kept for Demand.
+	proof := pt == "proof_point"
 	cr.AuthorRole = strings.ToLower(strings.TrimSpace(cr.AuthorRole))
 	if cr.AuthorRole != "buyer" && cr.AuthorRole != "non_buyer" {
 		cr.AuthorRole = "unknown"
 	}
 	nonBuyer := cr.AuthorRole == "non_buyer"
-	if announcement || thought || cr.MatchesSkips || nonBuyer {
+	if announcement || thought || proof || cr.MatchesSkips || nonBuyer {
 		tags = dropLeadTags(tags)
 	}
 	if nonBuyer { // a candidate or bystander on the right topic is a conversation, not a lead
@@ -120,7 +123,7 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 	} else if thought {
 		tags = appendTag(tags, "content_opportunity")
 	}
-	if announcement || thought {
+	if announcement || thought || proof {
 		cr.RelevanceScore = min(cr.RelevanceScore, 3)
 	}
 	if cr.MatchesSkips {

@@ -81,6 +81,21 @@ export interface Keyword {
   subreddits: string[];
   created_at: string;
   updated_at: string;
+  /** What the keyword brought in lately. On the list only. */
+  yield?: KeywordYield;
+}
+
+export interface KeywordYield {
+  posts: number;
+  /** Kept by the first (noise) filter. */
+  passed: number;
+  leads: number;
+  asks: number;
+  days: number;
+  /** Many posts and not one lead. */
+  low_yield: boolean;
+  /** Searched once a day until they produce a lead. */
+  throttled_platforms: string[];
 }
 
 export interface PersonIdentity {

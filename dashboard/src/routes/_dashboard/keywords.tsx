@@ -20,7 +20,7 @@ import {
   MonthlyCostSummary,
   useCostPreview,
 } from "@/components/sources/keyword-cadence";
-import { isPaid, truncate, type Rates } from "@/lib/keyword-schedule";
+import { isPaid, truncate, yieldLine, type Rates } from "@/lib/keyword-schedule";
 import { MuteListCard } from "@/components/sources/mute-list-card";
 import { LockedChip, PaidPlatformsNote } from "@/components/billing/paid-platforms";
 import { useLockedPlatforms } from "@/lib/use-locked-platforms";
@@ -326,6 +326,11 @@ function KeywordRow({ kw, rates, onToggle, onDelete }: KeywordRowProps) {
             paused
           </Badge>
         )}
+        {kw.is_active && kw.yield?.low_yield && (
+          <Badge variant="outline" size="sm" className="shrink-0 border-amber-500/50 text-amber-700 dark:text-amber-300">
+            low yield
+          </Badge>
+        )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <Button
             variant="ghost"
@@ -388,6 +393,23 @@ function KeywordRow({ kw, rates, onToggle, onDelete }: KeywordRowProps) {
           <Text as="span" className="min-w-0 break-words text-xs text-muted-foreground">
             {kw.negative_terms.join(", ")}
           </Text>
+        </div>
+      )}
+
+      {kw.yield && (
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>{yieldLine(kw.yield)}</span>
+          {kw.is_active && kw.yield.low_yield && (
+            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onToggle}>
+              <PowerOff className="h-3 w-3" />
+              Pause
+            </Button>
+          )}
+          {kw.is_active && kw.yield.throttled_platforms.length > 0 && (
+            <span className="basis-full">
+              Searched once a day on {kw.yield.throttled_platforms.join(", ")}: many posts and no lead there yet. Back to its normal schedule as soon as one turns up.
+            </span>
+          )}
         </div>
       )}
 

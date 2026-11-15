@@ -89,10 +89,29 @@ func TestOutreachForFundingAndJobLocation(t *testing.T) {
 	}
 	both := Outreach{Product: "P", ContactName: "Dana", Company: "Drillbit", JobTitle: "Software Engineer", JobLocation: "Rio de Janeiro, Brazil", Funding: round}
 	msg := outreachUserMessage(both)
-	if !strings.Contains(msg, "Job they posted this week: Software Engineer (Rio de Janeiro, Brazil)") || !strings.Contains(msg, "They just raised: "+round) {
+	if !strings.Contains(msg, "Job they posted this week: Software Engineer\nWhere the job is: Rio de Janeiro, Brazil") || !strings.Contains(msg, "They just raised: "+round) {
 		t.Errorf("hiring message:\n%s", msg)
 	}
 	if outreachSystemPrompt(both) != outreachPrompt || outreachSystemPrompt(Outreach{SegmentPain: "x"}) != prospectOutreachPrompt {
 		t.Error("a posting is the reason to write when there is one; nothing at all is a prospect")
+	}
+	// All three briefs carry the same promises, and a round's own figures pass
+	// the number guard while a figure from research does not.
+	for name, p := range map[string]string{"job": outreachPrompt, "funding": fundingOutreachPrompt, "prospect": prospectOutreachPrompt} {
+		if !strings.Contains(p, outreachHonestyRules) {
+			t.Errorf("the %s prompt lacks the shared honesty rules", name)
+		}
+	}
+	if !strings.Contains(fundingOutreachPrompt, "You do not know that they are hiring") {
+		t.Error("a funding message must not claim the company is hiring")
+	}
+	funded.Research = &ResearchBrief{Facts: []ResearchFact{{Text: "About 57 open roles.", URL: "https://example.com/jobs"}}}
+	facts := funded
+	facts.Research = nil
+	if got := ungroundedNumbers("I saw you raised a $4.4 million Seed round on 13 November. You have 57 roles open.", outreachUserMessage(facts)); len(got) != 1 || got[0] != "57" {
+		t.Errorf("ungrounded numbers in a funding draft = %v, want [57]", got)
+	}
+	if system, _ := outreachPrompts(Outreach{Funding: round, JobLocation: "Santiago, Chile"}); system != fundingOutreachPrompt {
+		t.Error("without a job title there is no posting language to match")
 	}
 }
