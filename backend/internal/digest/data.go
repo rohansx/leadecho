@@ -75,6 +75,7 @@ func (s *Service) Build(ctx context.Context, wsID string, kind Kind, p Period) (
 
 	if kind == KindWeekly {
 		d.Demand = s.demandThemes(ctx, wsID, p.End)
+		d.CompetitorMoves = s.competitorMoves(ctx, wsID, p)
 	}
 
 	funnel, err := s.q.ConversionFunnel(ctx, wsID)
@@ -126,4 +127,23 @@ func (s *Service) demandThemes(ctx context.Context, wsID string, now time.Time) 
 		out = out[:maxDigestThemes]
 	}
 	return out
+}
+
+// competitorMoves loads the period's competitor moves. A failure leaves the
+// section out; it never stops the digest.
+func (s *Service) competitorMoves(ctx context.Context, wsID string, p Period) []CompetitorMove {
+	rows, err := s.q.ListCompetitorMovesBetween(ctx, database.ListCompetitorMovesBetweenParams{WorkspaceID: wsID, FromAt: p.Start, ToAt: p.End})
+	if err != nil {
+		s.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("digest: competitor moves")
+		return nil
+	}
+	all := make([]CompetitorMove, 0, len(rows))
+	for _, r := range rows {
+		m := CompetitorMove{Competitor: r.CompetitorName, Kind: r.Kind, Title: r.Title, Impact: r.Impact, High: r.Importance == "high"}
+		if len(r.Urls) > 0 {
+			m.URL = r.Urls[0]
+		}
+		all = append(all, m)
+	}
+	return TopCompetitorMoves(all)
 }

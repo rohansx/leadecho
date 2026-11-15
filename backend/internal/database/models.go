@@ -492,6 +492,69 @@ type ChatThread struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type Competitor struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Website     string             `json:"website"`
+	Status      string             `json:"status"`
+	Summary     string             `json:"summary"`
+	SummaryAt   pgtype.Timestamptz `json:"summary_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+}
+
+type CompetitorItem struct {
+	ID           string             `json:"id"`
+	SourceID     string             `json:"source_id"`
+	CompetitorID string             `json:"competitor_id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	ItemKey      string             `json:"item_key"`
+	Title        string             `json:"title"`
+	Body         string             `json:"body"`
+	Url          string             `json:"url"`
+	HappenedAt   time.Time          `json:"happened_at"`
+	ProcessedAt  pgtype.Timestamptz `json:"processed_at"`
+	Attempts     int32              `json:"attempts"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+type CompetitorMove struct {
+	ID           string             `json:"id"`
+	CompetitorID string             `json:"competitor_id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	Kind         string             `json:"kind"`
+	Title        string             `json:"title"`
+	Summary      string             `json:"summary"`
+	Urls         []string           `json:"urls"`
+	HappenedAt   time.Time          `json:"happened_at"`
+	Impact       string             `json:"impact"`
+	Action       string             `json:"action"`
+	ThemeID      string             `json:"theme_id"`
+	Importance   string             `json:"importance"`
+	AlertedAt    pgtype.Timestamptz `json:"alerted_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+type CompetitorSetup struct {
+	WorkspaceID string    `json:"workspace_id"`
+	Unresolved  []string  `json:"unresolved"`
+	SetupAt     time.Time `json:"setup_at"`
+}
+
+type CompetitorSource struct {
+	ID            string             `json:"id"`
+	CompetitorID  string             `json:"competitor_id"`
+	WorkspaceID   string             `json:"workspace_id"`
+	Kind          string             `json:"kind"`
+	Url           string             `json:"url"`
+	LastCheckedAt pgtype.Timestamptz `json:"last_checked_at"`
+	LastHash      string             `json:"last_hash"`
+	LastText      string             `json:"last_text"`
+	Failures      int32              `json:"failures"`
+	Broken        bool               `json:"broken"`
+	CreatedAt     time.Time          `json:"created_at"`
+}
+
 type ConsumerCheckpoint struct {
 	ID                 string      `json:"id"`
 	StreamName         string      `json:"stream_name"`

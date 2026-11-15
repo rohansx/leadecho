@@ -18,6 +18,7 @@ import {
   Users,
   // enrich,
   Lightbulb,
+  Binoculars,
 } from "lucide-react";
 import { ShieldCheck, Sparkles } from "lucide-react"; // chat (P2 #15), ops
 import { opsMe } from "@/lib/ops-api";
@@ -30,6 +31,7 @@ const navGroups = [
       { to: "/pipeline", label: "Pipeline", icon: GitBranch },
       { to: "/analytics", label: "Analytics", icon: BarChart3 },
       { to: "/demand", label: "Demand", icon: Lightbulb }, // what the market is asking for
+      { to: "/competitors", label: "Competitors", icon: Binoculars }, // competitor watch
       { to: "/chat", label: "Ask LeadEcho", icon: Sparkles }, // chat (P2 #15)
     ],
   },

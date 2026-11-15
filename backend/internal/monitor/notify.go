@@ -133,13 +133,17 @@ func (m *Monitor) sendDiscord(ctx context.Context, wsID, url string, alerts []me
 		summary += fmt.Sprintf("• [%s] **%s** — [%s](%s) by %s\n", a.Platform, a.Keyword, title, a.URL, a.Author)
 	}
 
-	payload, _ := json.Marshal(map[string]string{"content": summary})
+	m.sendDiscordText(ctx, wsID, url, summary, sentAt)
+}
+
+func (m *Monitor) sendDiscordText(ctx context.Context, wsID, url, text string, sentAt time.Time) {
+	payload, _ := json.Marshal(map[string]string{"content": text})
 	if err := m.postWebhook(url, payload); err != nil {
 		m.logger.Warn().Err(err).Msg("notify: discord webhook failed")
-		m.logNotification(ctx, wsID, database.NotificationChannelDiscord, url, summary, payload, pgtype.Timestamptz{})
+		m.logNotification(ctx, wsID, database.NotificationChannelDiscord, url, text, payload, pgtype.Timestamptz{})
 		return
 	}
-	m.logNotification(ctx, wsID, database.NotificationChannelDiscord, url, summary, payload, pgtype.Timestamptz{Time: sentAt, Valid: true})
+	m.logNotification(ctx, wsID, database.NotificationChannelDiscord, url, text, payload, pgtype.Timestamptz{Time: sentAt, Valid: true})
 }
 
 func (m *Monitor) sendEmail(ctx context.Context, wsID, to string, alerts []mentionAlert, sentAt time.Time) {

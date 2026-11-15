@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { INBOX_QUEUES } from "@/lib/constants";
 import { DEMAND_KEY, getDemand, refreshDemand, shipTheme } from "@/lib/demand-api";
+import { COMPETITORS_KEY, getCompetitors, movesForTheme, type Competitor } from "@/lib/competitors-api";
 import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandResponse, type DemandTheme } from "@/lib/demand";
 
 export const Route = createFileRoute("/_dashboard/demand")({
@@ -79,7 +80,8 @@ function ShipPanel({ theme, meta, onDone }: { theme: DemandTheme; meta: DemandRe
   );
 }
 
-function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }) {
+function ThemeCard({ theme, meta, competitors }: { theme: DemandTheme; meta: DemandResponse; competitors: Competitor[] }) {
+  const rivalMoves = movesForTheme(competitors, theme.id).slice(0, 3);
   const [open, setOpen] = useState(false);
   const [shipping, setShipping] = useState(false);
   const cov = coverageText(theme.coverage);
@@ -137,6 +139,15 @@ function ThemeCard({ theme, meta }: { theme: DemandTheme; meta: DemandResponse }
         </p>
       )}
 
+      {rivalMoves.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {rivalMoves.map(({ competitor, move }) => `${competitor} moved on this ${daysAgo(move.at)}: ${move.title}`).join(". ")}.{" "}
+          <Link to="/competitors" className="text-primary-ink underline underline-offset-2">
+            See competitors
+          </Link>
+        </p>
+      )}
+
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -189,6 +200,8 @@ function DemandPage() {
     onSettled: () => qc.invalidateQueries({ queryKey: DEMAND_KEY }),
   });
   const d = demand.data;
+  // Competitor moves linked to a theme. Optional: the page works without them.
+  const rivals = useQuery({ queryKey: COMPETITORS_KEY, queryFn: getCompetitors, retry: false }).data?.data ?? [];
   const { open, once, outside, shipped } = splitThemes(d?.themes ?? [], d?.min_theme_people ?? 2);
   const canGroup = !!d && d.waiting >= d.min_new_asks;
 
@@ -234,7 +247,7 @@ function DemandPage() {
       {open.length > 0 && (
         <section className="space-y-3" aria-label="Open themes">
           {open.map((t) => (
-            <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
+            <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} competitors={rivals} />
           ))}
         </section>
       )}
@@ -245,7 +258,7 @@ function DemandPage() {
           <p className="mt-1 text-xs text-muted-foreground">One person each. Not a pattern yet; they move up when someone else asks for the same thing.</p>
           <div className="mt-3 space-y-3">
             {once.map((t) => (
-              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
+              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} competitors={rivals} />
             ))}
           </div>
         </section>
@@ -257,7 +270,7 @@ function DemandPage() {
           <p className="mt-1 text-xs text-muted-foreground">Needs that call for a different kind of product. Shown so you can check the call, not as a to-do.</p>
           <div className="mt-3 space-y-3">
             {outside.map((t) => (
-              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
+              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} competitors={rivals} />
             ))}
           </div>
         </details>
@@ -267,7 +280,7 @@ function DemandPage() {
         <section className="space-y-3" aria-label="Shipped themes">
           <Text as="h3" className="text-sm font-medium text-muted-foreground">Shipped</Text>
           {shipped.map((t) => (
-            <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} />
+            <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} competitors={rivals} />
           ))}
         </section>
       )}

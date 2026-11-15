@@ -13,11 +13,14 @@ import (
 
 type Querier interface {
 	AddCreditUsage(ctx context.Context, arg AddCreditUsageParams) error
+	AppendCompetitorMoveURL(ctx context.Context, arg AppendCompetitorMoveURLParams) error
 	ApproveReply(ctx context.Context, arg ApproveReplyParams) (Reply, error)
 	AssignMention(ctx context.Context, arg AssignMentionParams) (Mention, error)
 	// Per keyword over mentions created in the last @days days: volume, posted
 	// replies and the clicks/signups/revenue of those replies' tracked links.
 	AutomationKeywordValue(ctx context.Context, arg AutomationKeywordValueParams) ([]AutomationKeywordValueRow, error)
+	// A failed read: count it, and stop retrying at max_attempts.
+	BumpCompetitorItemAttempts(ctx context.Context, arg BumpCompetitorItemAttemptsParams) error
 	// Returns a row only when this caller owns the (workspace, kind, period) slot:
 	// a fresh insert, a retry of a failed run (max 5 attempts, backoff of
 	// 10 min x attempts so a provider outage is ridden out inside the due window),
@@ -31,6 +34,9 @@ type Querier interface {
 	ClaimScheduledAutomationRun(ctx context.Context, arg ClaimScheduledAutomationRunParams) (AutomationRun, error)
 	ConversionFunnel(ctx context.Context, workspaceID string) ([]ConversionFunnelRow, error)
 	CountActiveKeywords(ctx context.Context, workspaceID string) (int32, error)
+	CountCompetitorPeople(ctx context.Context, arg CountCompetitorPeopleParams) (int32, error)
+	CountCompetitorSources(ctx context.Context, competitorID string) (int32, error)
+	CountCompetitors(ctx context.Context, workspaceID string) (int32, error)
 	CountConvertedLeads(ctx context.Context, workspaceID string) (int32, error)
 	CountDocuments(ctx context.Context, workspaceID string) (int32, error)
 	// ─── KB seed ──────────────────────────────────────────
@@ -58,6 +64,9 @@ type Querier interface {
 	CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error)
 	// chat (P2 #15). Every query is scoped by workspace_id and, for threads, user_id.
 	CreateChatThread(ctx context.Context, arg CreateChatThreadParams) (ChatThread, error)
+	CreateCompetitor(ctx context.Context, arg CreateCompetitorParams) (Competitor, error)
+	CreateCompetitorMove(ctx context.Context, arg CreateCompetitorMoveParams) (CompetitorMove, error)
+	CreateCompetitorSource(ctx context.Context, arg CreateCompetitorSourceParams) (int64, error)
 	CreateConsumerProcessedEvent(ctx context.Context, arg CreateConsumerProcessedEventParams) (ConsumerProcessedEvent, error)
 	CreateDeadLetterEvent(ctx context.Context, arg CreateDeadLetterEventParams) (DeadLetterEvent, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
@@ -94,6 +103,9 @@ type Querier interface {
 	CreditUsageSince(ctx context.Context, arg CreditUsageSinceParams) ([]CreditUsageSinceRow, error)
 	DeleteAutomation(ctx context.Context, arg DeleteAutomationParams) (int64, error)
 	DeleteChatThread(ctx context.Context, arg DeleteChatThreadParams) (int64, error)
+	DeleteCompetitor(ctx context.Context, arg DeleteCompetitorParams) (int64, error)
+	DeleteCompetitorSource(ctx context.Context, arg DeleteCompetitorSourceParams) (int64, error)
+	DeleteCompetitorSources(ctx context.Context, arg DeleteCompetitorSourcesParams) error
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) error
 	DeleteDocumentChunks(ctx context.Context, arg DeleteDocumentChunksParams) error
 	DeleteExtensionTokenByWorkspace(ctx context.Context, workspaceID string) error
@@ -130,6 +142,11 @@ type Querier interface {
 	GetBrandProfile(ctx context.Context, workspaceID string) (BrandProfile, error)
 	GetChatMessageForUser(ctx context.Context, arg GetChatMessageForUserParams) (ChatMessage, error)
 	GetChatThread(ctx context.Context, arg GetChatThreadParams) (ChatThread, error)
+	GetCompetitor(ctx context.Context, arg GetCompetitorParams) (Competitor, error)
+	// Poll loop only: the id comes from a row that already carries workspace_id.
+	GetCompetitorByID(ctx context.Context, id string) (Competitor, error)
+	GetCompetitorByName(ctx context.Context, arg GetCompetitorByNameParams) (Competitor, error)
+	GetCompetitorSetup(ctx context.Context, workspaceID string) (CompetitorSetup, error)
 	// Digests (P1 #13)
 	GetDigestSettings(ctx context.Context, workspaceID string) (DigestSetting, error)
 	GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error)
@@ -161,6 +178,7 @@ type Querier interface {
 	GetWorkspaceAccess(ctx context.Context, workspaceID string) (GetWorkspaceAccessRow, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
 	GetWorkspaceOwnerEmail(ctx context.Context, workspaceID string) (string, error)
+	GetWorkspacePlan(ctx context.Context, id string) (string, error)
 	GetWorkspaceSettings(ctx context.Context, id string) ([]byte, error)
 	// Idempotent on (workspace_id, ref): returns no row when the grant already happened.
 	GrantCredits(ctx context.Context, arg GrantCreditsParams) (int32, error)
@@ -168,6 +186,7 @@ type Querier interface {
 	HasWorkflowExecutionForMention(ctx context.Context, arg HasWorkflowExecutionForMentionParams) (bool, error)
 	IncrementUTMClicks(ctx context.Context, code string) error
 	IncrementWorkflowTriggerCount(ctx context.Context, id string) (Workflow, error)
+	InsertCompetitorItem(ctx context.Context, arg InsertCompetitorItemParams) (int64, error)
 	InsertDocumentChunk(ctx context.Context, arg InsertDocumentChunkParams) (DocumentChunk, error)
 	InsertOpsAudit(ctx context.Context, arg InsertOpsAuditParams) error
 	LinkLeadToPerson(ctx context.Context, arg LinkLeadToPersonParams) error
@@ -183,11 +202,21 @@ type Querier interface {
 	ListAutomations(ctx context.Context, workspaceID string) ([]Automation, error)
 	ListChatMessages(ctx context.Context, arg ListChatMessagesParams) ([]ChatMessage, error)
 	ListChatThreads(ctx context.Context, arg ListChatThreadsParams) ([]ChatThread, error)
+	ListCompetitorMoves(ctx context.Context, arg ListCompetitorMovesParams) ([]CompetitorMove, error)
+	ListCompetitorMovesBetween(ctx context.Context, arg ListCompetitorMovesBetweenParams) ([]ListCompetitorMovesBetweenRow, error)
+	// People complaining about, or looking to leave, a named competitor.
+	// name_pattern is a case-insensitive regular expression built by the caller.
+	ListCompetitorPeople(ctx context.Context, arg ListCompetitorPeopleParams) ([]ListCompetitorPeopleRow, error)
+	ListCompetitorSources(ctx context.Context, workspaceID string) ([]CompetitorSource, error)
+	// competitor watch: competitors, their sources, fetched items, moves.
+	ListCompetitors(ctx context.Context, workspaceID string) ([]Competitor, error)
 	ListConsumerCheckpoints(ctx context.Context) ([]ConsumerCheckpoint, error)
 	ListCreditGrants(ctx context.Context, arg ListCreditGrantsParams) ([]ListCreditGrantsRow, error)
 	// Every workspace with its digest schedule; workspaces without a row get the defaults.
 	ListDigestSchedules(ctx context.Context) ([]ListDigestSchedulesRow, error)
 	ListDocuments(ctx context.Context, workspaceID string) ([]Document, error)
+	// Cross-workspace on purpose (monitor tick); every row carries workspace_id.
+	ListDueCompetitorSources(ctx context.Context, arg ListDueCompetitorSourcesParams) ([]CompetitorSource, error)
 	// Cross-workspace on purpose (monitor tick); every row carries workspace_id.
 	ListDueTrackedProfiles(ctx context.Context, arg ListDueTrackedProfilesParams) ([]TrackedProfile, error)
 	// Scheduler scan across all workspaces; every follow-up query is scoped by workspace_id.
@@ -216,6 +245,7 @@ type Querier interface {
 	ListMentionsLeadsReady(ctx context.Context, arg ListMentionsLeadsReadyParams) ([]Mention, error)
 	ListMentionsWorthWatching(ctx context.Context, arg ListMentionsWorthWatchingParams) ([]Mention, error)
 	ListMonitoringProfiles(ctx context.Context, workspaceID string) ([]MonitoringProfile, error)
+	ListMovesForCompetitor(ctx context.Context, arg ListMovesForCompetitorParams) ([]CompetitorMove, error)
 	ListMutes(ctx context.Context, workspaceID string) ([]Mute, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	ListOpenDeadLetterEvents(ctx context.Context, arg ListOpenDeadLetterEventsParams) ([]DeadLetterEvent, error)
@@ -237,14 +267,24 @@ type Querier interface {
 	ListScoringExamples(ctx context.Context, arg ListScoringExamplesParams) ([]ListScoringExamplesRow, error)
 	ListTrackedProfiles(ctx context.Context, workspaceID string) ([]TrackedProfile, error)
 	ListUTMLinksByWorkspace(ctx context.Context, workspaceID string) ([]UtmLink, error)
+	// Cross-workspace on purpose (monitor tick).
+	ListUnalertedHighCompetitorMoves(ctx context.Context, maxRows int32) ([]ListUnalertedHighCompetitorMovesRow, error)
 	// Skip mentions the scorer already decided on (filtered at stage 0/1/2):
 	// re-sending them to the LLM every tick wastes tokens. Classification errors
 	// stay eligible so transient provider outages are retried.
 	ListUnclassifiedMentions(ctx context.Context, arg ListUnclassifiedMentionsParams) ([]Mention, error)
+	ListUnprocessedCompetitorItems(ctx context.Context, maxRows int32) ([]CompetitorItem, error)
 	ListUsersByExternalID(ctx context.Context, clerkUserID string) ([]User, error)
 	ListWorkflowExecutions(ctx context.Context, arg ListWorkflowExecutionsParams) ([]ListWorkflowExecutionsRow, error)
 	ListWorkflows(ctx context.Context, workspaceID string) ([]Workflow, error)
 	ListWorkspaceAPIKeys(ctx context.Context, workspaceID string) ([]WorkspaceApiKey, error)
+	// Workspaces with competitor names in their brand profile and no setup yet.
+	ListWorkspacesNeedingCompetitorSetup(ctx context.Context, maxRows int32) ([]string, error)
+	MarkCompetitorItemsProcessed(ctx context.Context, ids []string) error
+	MarkCompetitorMoveAlerted(ctx context.Context, id string) error
+	MarkCompetitorSetup(ctx context.Context, arg MarkCompetitorSetupParams) error
+	MarkCompetitorSourceChecked(ctx context.Context, arg MarkCompetitorSourceCheckedParams) error
+	MarkCompetitorSourceFailed(ctx context.Context, id string) error
 	MarkEventLogPublishFailed(ctx context.Context, arg MarkEventLogPublishFailedParams) (EventLog, error)
 	MarkEventLogPublished(ctx context.Context, arg MarkEventLogPublishedParams) (EventLog, error)
 	MarkReplyPosted(ctx context.Context, arg MarkReplyPostedParams) (Reply, error)
@@ -270,6 +310,7 @@ type Querier interface {
 	ScoringPrecisionByBand(ctx context.Context, workspaceID string) ([]ScoringPrecisionByBandRow, error)
 	SearchMentions(ctx context.Context, arg SearchMentionsParams) ([]Mention, error)
 	SetAutomationLastRun(ctx context.Context, arg SetAutomationLastRunParams) error
+	SetCompetitorSummary(ctx context.Context, arg SetCompetitorSummaryParams) error
 	// One statement flips the old default off and the new one on; no-op when the
 	// id is not in this workspace.
 	SetDefaultResponseProfile(ctx context.Context, arg SetDefaultResponseProfileParams) (int64, error)
@@ -294,10 +335,13 @@ type Querier interface {
 	ToolsWorkspaceSummary(ctx context.Context, arg ToolsWorkspaceSummaryParams) (ToolsWorkspaceSummaryRow, error)
 	TopKeywords(ctx context.Context, workspaceID string) ([]TopKeywordsRow, error)
 	TouchChatThread(ctx context.Context, arg TouchChatThreadParams) error
+	// Checked without a result (paid data locked): wait a day, count no failure.
+	TouchCompetitorSource(ctx context.Context, id string) error
 	TouchExtensionToken(ctx context.Context, token string) error
 	TouchWorkspaceAPIKey(ctx context.Context, arg TouchWorkspaceAPIKeyParams) error
 	TregSpendByTool(ctx context.Context, arg TregSpendByToolParams) ([]TregSpendByToolRow, error)
 	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
+	UpdateCompetitor(ctx context.Context, arg UpdateCompetitorParams) (Competitor, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateDocumentChunkCount(ctx context.Context, arg UpdateDocumentChunkCountParams) error
 	UpdateEventReplayStatus(ctx context.Context, arg UpdateEventReplayStatusParams) (EventReplay, error)
