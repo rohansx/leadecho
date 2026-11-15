@@ -145,33 +145,7 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 	if !IsSentiment(cr.Sentiment) {
 		cr.Sentiment = "neutral"
 	}
-	cr.RelevanceScore = buyerPainFloor(cr)
 	return cr
-}
-
-const (
-	// leadLine is the lead threshold (monitor.leadScoreThreshold, the SQL
-	// leads_ready predicate).
-	leadLine = 6.0
-	// buyerPainMin: a buyer's own pain or ask scored this high is lifted to
-	// the lead line.
-	buyerPainMin = 4.5
-)
-
-// buyerPainFloor: someone on the buying side who says they have the problem
-// (pain_point, competitor_complaint) or asks for help (recommendation_request)
-// is worth writing to. The model often hedges these to 4.5-5.5 ("the product
-// only partly solves it"), which kept hiring managers venting about their own
-// interviews out of Leads. Opinion posts ("general") are left where they are.
-func buyerPainFloor(cr ClassifyResult) float64 {
-	s := cr.RelevanceScore
-	if cr.AuthorRole != "buyer" || s < buyerPainMin || s >= leadLine {
-		return s
-	}
-	if cr.Intent == "complaint" || cr.Intent == "recommendation_ask" {
-		return leadLine
-	}
-	return s
 }
 
 // LegacyIntentTags maps an old intent value to its taxonomy tags.
