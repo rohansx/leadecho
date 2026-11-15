@@ -21,7 +21,8 @@ import (
 
 // companyPageSlug is the company's LinkedIn page name
 // ("https://www.linkedin.com/company/Acme-Inc/" -> "acme-inc"), "" for
-// anything else.
+// anything else. A page given by its number (/company/1234567) is "" too: it
+// is the same page as its name, and the two can't be compared.
 func companyPageSlug(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || !strings.HasSuffix(strings.ToLower(u.Hostname()), "linkedin.com") {
@@ -29,6 +30,9 @@ func companyPageSlug(raw string) string {
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 	if len(parts) < 2 || parts[0] != "company" {
+		return ""
+	}
+	if strings.Trim(parts[1], "0123456789") == "" {
 		return ""
 	}
 	return strings.ToLower(parts[1])
@@ -118,7 +122,8 @@ func describeCompany(name, domain string) string {
 // sameEmployer checks the contact's employer against the hiring company.
 // A shared name never confirms it (two companies can both be "Prophetic"):
 // the LinkedIn pages must be the same, or the websites. A website that is
-// only known from a lookup by name can itself be a namesake's, so there the
+// only known from a lookup by name can itself be a namesake's, and so can one
+// that only matches under another suffix (acme.com, acme.io), so there the
 // contact must also not be in another country than the job.
 // When it fails, reason says why in plain words, and mismatch (when the two
 // sides positively disagree) names both for the lead's metadata.
@@ -148,11 +153,12 @@ func sameEmployer(company string, co hiringCompany, name string, c *enrich.Resul
 	if cd == "" || co.domain == "" {
 		return named()
 	}
-	if !enrich.SameDomain(cd, co.domain) && !(enrich.SameDomainLabel(cd, co.domain) && sameCompany(company, c.Company)) {
+	sameSite := enrich.SameDomain(cd, co.domain)
+	if !sameSite && !(enrich.SameDomainLabel(cd, co.domain) && sameCompany(company, c.Company)) {
 		_, reason, _ = named()
 		return false, reason, sides
 	}
-	if cc := locationCountry(c.Location, false); co.byName && cc != "" && co.country != "" && cc != co.country {
+	if cc := locationCountry(c.Location, false); (co.byName || !sameSite) && cc != "" && co.country != "" && cc != co.country {
 		return false, fmt.Sprintf("%s is in %s but the job is in %s, and the company was only matched by name: it may be another %s", name, cc, co.country, company),
 			sides + fmt.Sprintf("; contact in %s, job in %s", cc, co.country)
 	}

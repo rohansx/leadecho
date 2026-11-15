@@ -268,3 +268,46 @@ func TestHiringLeadScoreIsOnFit(t *testing.T) {
 		t.Errorf("worst confirmed lead scores %.2f, under the lead threshold", worst)
 	}
 }
+
+// Two different companies can hold one name under two suffixes (acme.com the
+// fintech, acme.io the staffing firm). A match on the name before the suffix
+// is weaker than the same website, so it never outvotes the contact being in
+// another country than the job, even when the posting names its own site.
+func TestCrossSuffixNamesakeNeedsSameCountry(t *testing.T) {
+	person := foundPerson{Name: "Wei Lin Tan", Title: "CTO"}
+	job := jobPost{Company: "Acme", Title: "Backend Engineer", Location: "Santiago, Chile", CompanyURL: "https://acme.com", Source: sourceHN}
+	contact := func(location string) *enrich.Result {
+		return &enrich.Result{FullName: "Wei Lin Tan", Title: "CTO", Company: "Acme Pte. Ltd.", CompanyDomain: "acme.io", CompanySize: 13,
+			Location: location, Email: "weilin@acme.io", EmailStatus: "verified"}
+	}
+	got := confirmContact(job.Company, jobIdentity(job, hiringCompany{}), 5000, person, contact("Singapore"))
+	if got.confirmed || !strings.Contains(got.reason, "is in SG but the job is in CL") || !strings.Contains(got.mismatch, "contact in SG, job in CL") {
+		t.Errorf("a namesake under another suffix, in another country, was confirmed: %+v", got)
+	}
+	// The same company's country site, contact in the job's country: still a lead.
+	if got := confirmContact(job.Company, jobIdentity(job, hiringCompany{size: 80}), 5000, person, contact("Santiago, Chile")); !got.confirmed {
+		t.Errorf("same country: %+v", got)
+	}
+	// The very same website: the country is not asked about.
+	same := contact("Singapore")
+	same.CompanyDomain, same.Email = "acme.com", "weilin@acme.com"
+	if got := confirmContact(job.Company, jobIdentity(job, hiringCompany{size: 80}), 5000, person, same); !got.confirmed {
+		t.Errorf("same website: %+v", got)
+	}
+}
+
+// LinkedIn names a company page by its vanity name or by a number
+// (/company/acme and /company/1234567 are one page). A number can't be
+// compared with a name, so it is "unknown", not a different company.
+func TestNumericCompanyPageIsUnknown(t *testing.T) {
+	if got := companyPageSlug("https://www.linkedin.com/company/1234567/"); got != "" {
+		t.Errorf("companyPageSlug of a numeric page = %q, want unknown", got)
+	}
+	job := jobPost{Company: "Acme Robotics", Title: "Software Engineer", Location: "Austin, TX", CompanyURL: "https://www.linkedin.com/company/acme-robotics", Source: sourceLinkedIn}
+	c := &enrich.Result{FullName: "Sam Okoye", Title: "VP Engineering", Company: "Acme Robotics", CompanyDomain: "acmerobotics.example",
+		CompanyLinkedInURL: "https://www.linkedin.com/company/1234567", Location: "Austin, Texas, United States", Email: "sam@acmerobotics.example", EmailStatus: "verified"}
+	got := confirmContact(job.Company, jobIdentity(job, hiringCompany{size: 120, domain: "acmerobotics.example"}), 5000, foundPerson{Name: "Sam Okoye", Title: "VP Engineering"}, c)
+	if !got.confirmed {
+		t.Errorf("same website, page given as a number: %+v", got)
+	}
+}
