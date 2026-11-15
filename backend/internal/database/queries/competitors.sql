@@ -152,18 +152,21 @@ SELECT plan FROM workspaces WHERE id = @id;
 -- name: ListCompetitorPeople :many
 -- People complaining about, or looking to leave, a named competitor.
 -- name_pattern is a case-insensitive regular expression built by the caller.
-SELECT id, platform, url, content, author_username, relevance_score, created_at, intent_tags
+-- "Recent" goes by when the post was written, not when LeadEcho found it: a
+-- years-old thread found last week is not someone unhappy today.
+SELECT id, platform, url, content, author_username, relevance_score, intent_tags,
+       COALESCE(platform_created_at, created_at)::timestamptz AS posted_at
 FROM mentions
 WHERE workspace_id = @workspace_id
   AND intent_tags && ARRAY['competitor_complaint', 'seeking_alternative']::text[]
-  AND created_at >= sqlc.arg(since)::timestamptz
+  AND COALESCE(platform_created_at, created_at) >= sqlc.arg(since)::timestamptz
   AND content ~* sqlc.arg(name_pattern)::text
-ORDER BY created_at DESC
+ORDER BY COALESCE(platform_created_at, created_at) DESC
 LIMIT sqlc.arg(max_rows)::int;
 
 -- name: CountCompetitorPeople :one
 SELECT COUNT(*)::INT FROM mentions
 WHERE workspace_id = @workspace_id
   AND intent_tags && ARRAY['competitor_complaint', 'seeking_alternative']::text[]
-  AND created_at >= sqlc.arg(since)::timestamptz
+  AND COALESCE(platform_created_at, created_at) >= sqlc.arg(since)::timestamptz
   AND content ~* sqlc.arg(name_pattern)::text;
