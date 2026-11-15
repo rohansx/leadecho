@@ -50,7 +50,7 @@ const countCompetitorPeople = `-- name: CountCompetitorPeople :one
 SELECT COUNT(*)::INT FROM mentions
 WHERE workspace_id = $1
   AND intent_tags && ARRAY['competitor_complaint', 'seeking_alternative']::text[]
-  AND created_at >= $2::timestamptz
+  AND COALESCE(platform_created_at, created_at) >= $2::timestamptz
   AND content ~* $3::text
 `
 
@@ -491,13 +491,14 @@ func (q *Queries) ListCompetitorMovesBetween(ctx context.Context, arg ListCompet
 }
 
 const listCompetitorPeople = `-- name: ListCompetitorPeople :many
-SELECT id, platform, url, content, author_username, relevance_score, created_at, intent_tags
+SELECT id, platform, url, content, author_username, relevance_score, intent_tags,
+       COALESCE(platform_created_at, created_at)::timestamptz AS posted_at
 FROM mentions
 WHERE workspace_id = $1
   AND intent_tags && ARRAY['competitor_complaint', 'seeking_alternative']::text[]
-  AND created_at >= $2::timestamptz
+  AND COALESCE(platform_created_at, created_at) >= $2::timestamptz
   AND content ~* $3::text
-ORDER BY created_at DESC
+ORDER BY COALESCE(platform_created_at, created_at) DESC
 LIMIT $4::int
 `
 
@@ -515,12 +516,14 @@ type ListCompetitorPeopleRow struct {
 	Content        string        `json:"content"`
 	AuthorUsername pgtype.Text   `json:"author_username"`
 	RelevanceScore pgtype.Float4 `json:"relevance_score"`
-	CreatedAt      time.Time     `json:"created_at"`
 	IntentTags     []string      `json:"intent_tags"`
+	PostedAt       time.Time     `json:"posted_at"`
 }
 
 // People complaining about, or looking to leave, a named competitor.
 // name_pattern is a case-insensitive regular expression built by the caller.
+// "Recent" goes by when the post was written, not when LeadEcho found it: a
+// years-old thread found last week is not someone unhappy today.
 func (q *Queries) ListCompetitorPeople(ctx context.Context, arg ListCompetitorPeopleParams) ([]ListCompetitorPeopleRow, error) {
 	rows, err := q.db.Query(ctx, listCompetitorPeople,
 		arg.WorkspaceID,
@@ -542,8 +545,8 @@ func (q *Queries) ListCompetitorPeople(ctx context.Context, arg ListCompetitorPe
 			&i.Content,
 			&i.AuthorUsername,
 			&i.RelevanceScore,
-			&i.CreatedAt,
 			&i.IntentTags,
+			&i.PostedAt,
 		); err != nil {
 			return nil, err
 		}

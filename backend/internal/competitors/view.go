@@ -239,7 +239,7 @@ func (s *Service) People(ctx context.Context, ws, competitorID string) ([]Person
 	for _, r := range rows {
 		out = append(out, Person{
 			MentionID: r.ID, Platform: r.Platform, URL: r.Url, Author: r.AuthorUsername.String,
-			Quote: clip(strings.Join(strings.Fields(r.Content), " "), 280), Tags: r.IntentTags, At: r.CreatedAt,
+			Quote: clip(strings.Join(strings.Fields(r.Content), " "), 280), Tags: r.IntentTags, At: r.PostedAt,
 		})
 	}
 	return out, nil

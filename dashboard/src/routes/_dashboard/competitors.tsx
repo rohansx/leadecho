@@ -154,11 +154,8 @@ function Sources({ competitor }: { competitor: Competitor }) {
           if (url.trim()) add.mutate();
         }}
       >
-        <label className="sr-only" htmlFor={`kind-${competitor.id}`}>
-          Kind of source
-        </label>
         <select
-          id={`kind-${competitor.id}`}
+          aria-label="Kind of source"
           value={kind}
           onChange={(e) => setKind(e.target.value as SourceKind)}
           className="h-9 rounded-md border border-border bg-background px-2 text-sm"
@@ -169,10 +166,7 @@ function Sources({ competitor }: { competitor: Competitor }) {
             </option>
           ))}
         </select>
-        <label className="sr-only" htmlFor={`url-${competitor.id}`}>
-          Link
-        </label>
-        <Input id={`url-${competitor.id}`} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link to watch" className="h-9 min-w-48 flex-1" />
+        <Input aria-label="Link to watch" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link to watch" className="h-9 min-w-48 flex-1" />
         <Button size="sm" variant="outline" type="submit" disabled={!url.trim() || add.isPending}>
           {add.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           Add
@@ -364,10 +358,7 @@ function Unresolved({ name }: { name: string }) {
         }}
       >
         <span className="min-w-32 text-sm font-medium">{name}</span>
-        <label className="sr-only" htmlFor={`site-${name}`}>
-          Website of {name}
-        </label>
-        <Input id={`site-${name}`} value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Their website" className="h-9 min-w-48 flex-1" />
+        <Input aria-label={`Website of ${name}`} value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Their website" className="h-9 min-w-48 flex-1" />
         <Button size="sm" variant="outline" type="submit" disabled={!website.trim() || add.isPending}>
           {add.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           Watch

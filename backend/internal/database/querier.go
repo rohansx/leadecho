@@ -206,6 +206,8 @@ type Querier interface {
 	ListCompetitorMovesBetween(ctx context.Context, arg ListCompetitorMovesBetweenParams) ([]ListCompetitorMovesBetweenRow, error)
 	// People complaining about, or looking to leave, a named competitor.
 	// name_pattern is a case-insensitive regular expression built by the caller.
+	// "Recent" goes by when the post was written, not when LeadEcho found it: a
+	// years-old thread found last week is not someone unhappy today.
 	ListCompetitorPeople(ctx context.Context, arg ListCompetitorPeopleParams) ([]ListCompetitorPeopleRow, error)
 	ListCompetitorSources(ctx context.Context, workspaceID string) ([]CompetitorSource, error)
 	// competitor watch: competitors, their sources, fetched items, moves.

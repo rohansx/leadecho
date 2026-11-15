@@ -507,3 +507,37 @@ func TestAddingAnExistingNameDoesNotMoveItsWebsiteDB(t *testing.T) {
 		t.Fatalf("got %+v", comps)
 	}
 }
+
+func TestPeopleGoByWhenThePostWasWrittenDB(t *testing.T) {
+	pool, q, ws := testDB(t)
+	ctx := context.Background()
+	svc := &Service{Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: &fakeModel{}, Logger: zerolog.Nop()}
+	c, err := q.CreateCompetitor(ctx, database.CreateCompetitorParams{WorkspaceID: ws, Name: "Acme", Website: "https://acme.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insert := func(id, content string, posted time.Time, tags string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `INSERT INTO mentions (workspace_id, platform, platform_id, url, content, status, keyword_matches, intent_tags, platform_created_at)
+			VALUES ($1, 'hackernews', $2, 'https://news.example/'||$2, $3, 'new', '{}', $4::text[], $5)`, ws, id, content, tags, posted); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	insert("fresh", "Acme keeps crashing, what else is there?", now.Add(-48*time.Hour), "{seeking_alternative}")
+	insert("ancient", "Acme or alternatives?", now.Add(-7*365*24*time.Hour), "{seeking_alternative}") // found today, written years ago
+	insert("other", "Acmeville is a nice town", now, "{competitor_complaint}")                        // not the name as a word
+	insert("untagged", "Acme is fine", now, "{praise}")
+
+	people, err := svc.People(ctx, ws, c.ID)
+	if err != nil || len(people) != 1 || !strings.Contains(people[0].Quote, "keeps crashing") {
+		t.Fatalf("want only the recent complaint: %+v %v", people, err)
+	}
+	if d := now.Sub(people[0].At); d < 47*time.Hour || d > 49*time.Hour {
+		t.Fatalf("the date shown is when it was posted, got %v ago", d)
+	}
+	v, err := svc.Load(ctx, ws)
+	if err != nil || len(v.Competitors) != 1 || v.Competitors[0].People != 1 {
+		t.Fatalf("count must match the list: %+v %v", v.Competitors, err)
+	}
+}
