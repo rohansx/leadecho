@@ -42,8 +42,9 @@ func (m *Monitor) SetMail(mail Mailer, appURL string) {
 // firstLeadsOwed reports whether the workspace should still get the email.
 // Not when it was sent (or ruled out) already. Not when the workspace was
 // using LeadEcho before the email existed: completed_at is only written since
-// then, so a workspace without it qualifies only while new and without older
-// leads (the constants above). oldestLead is zero for a workspace without a lead.
+// then, so a workspace without it qualifies only while new. Never when its
+// oldest lead is older than firstLeadsRecentLead. oldestLead is zero for a
+// workspace without a lead.
 func firstLeadsOwed(settings []byte, created, oldestLead, now time.Time) bool {
 	var s struct {
 		Done       json.RawMessage `json:"first_leads_email"`
@@ -54,8 +55,12 @@ func firstLeadsOwed(settings []byte, created, oldestLead, now time.Time) bool {
 	if json.Unmarshal(settings, &s) != nil || len(s.Done) > 0 {
 		return false
 	}
-	return !s.Onboarding.CompletedAt.IsZero() ||
-		(now.Sub(created) <= firstLeadsNewWorkspace && (oldestLead.IsZero() || now.Sub(oldestLead) <= firstLeadsRecentLead))
+	// Leads that have been there for a while are not "first leads", whoever
+	// the workspace is: email was not set up when they came, or the flag was lost.
+	if !oldestLead.IsZero() && now.Sub(oldestLead) > firstLeadsRecentLead {
+		return false
+	}
+	return !s.Onboarding.CompletedAt.IsZero() || now.Sub(created) <= firstLeadsNewWorkspace
 }
 
 // FirstLeadsEmailTo is the address the first-leads email will go to, or ""
@@ -151,7 +156,7 @@ func firstLeadsEmail(total int, top []database.Mention, appURL string) (subject,
 	for _, m := range top {
 		line := m.Title.String
 		if line == "" {
-			line = "A post by " + m.AuthorUsername.String
+			line = "A post without a title" // not its author: on a company lead that is the contact
 		}
 		if short := truncateRunes(line, 117); short != line {
 			line = short + "..."

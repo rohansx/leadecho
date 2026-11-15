@@ -25,6 +25,8 @@ func TestFirstLeadsOwed(t *testing.T) {
 	}{
 		"finished onboarding since the email exists":         {`{"onboarding":{"completed":true,"completed_at":"2026-11-12T08:00:00Z"}}`, now.Add(-time.Hour), time.Time{}, true},
 		"the same, an old workspace that only now onboarded": {`{"onboarding":{"completed":true,"completed_at":"2026-11-12T08:00:00Z"}}`, now.Add(-90 * 24 * time.Hour), now.Add(-time.Minute), true},
+		// Email was not set up when its leads came, or the flag was lost: never a stale "first leads".
+		"finished onboarding, has had leads for days": {`{"onboarding":{"completed":true,"completed_at":"2026-11-10T08:00:00Z"}}`, now.Add(-6 * 24 * time.Hour), now.Add(-2 * 24 * time.Hour), false},
 		"already sent":                                         {`{"onboarding":{"completed_at":"2026-11-12T08:00:00Z"},"first_leads_email":{"sent_at":"2026-11-12T08:30:00Z"}}`, now.Add(-time.Hour), now, false},
 		"ruled out before":                                     {`{"first_leads_email":{"skipped":true}}`, now.Add(-time.Hour), now, false},
 		"existing customer: old workspace":                     {`{"onboarding":{"completed":true}}`, now.Add(-30 * 24 * time.Hour), now.Add(-time.Minute), false},
@@ -57,6 +59,12 @@ func TestFirstLeadsEmailSaysHowManyAndNamesTheBest(t *testing.T) {
 	}
 	if strings.Contains(body, "@") || strings.Contains(body, "Ann Lee") {
 		t.Errorf("the email names the contact:\n%s", body)
+	}
+	// A lead without a title is not named after its author: on a company
+	// lead that is the contact.
+	_, body = firstLeadsEmail(1, []database.Mention{{Platform: "linkedin", Content: "we need a CRM", AuthorUsername: text("Ann Lee")}}, "https://app.leadecho.test")
+	if strings.Contains(body, "Ann Lee") || strings.Contains(body, "we need a CRM") || !strings.Contains(body, "[linkedin]") {
+		t.Errorf("an untitled lead:\n%s", body)
 	}
 	subject, body = firstLeadsEmail(1, top[1:], "https://app.leadecho.test")
 	if subject != "LeadEcho: your first lead is ready" || strings.Contains(body, "more.") {
@@ -93,8 +101,10 @@ func TestCompanyScanProgress(t *testing.T) {
 		"finished":             {fmt.Sprintf(`{"last_run":%q,"last_report":{"at":%q}}`, stamp(now.Add(-2*time.Hour)), stamp(now.Add(-2*time.Hour))), CompanyScanDone, now.Add(22 * time.Hour)},
 		"ended without report": {fmt.Sprintf(`{"last_run":%q}`, stamp(now.Add(-2*time.Hour))), CompanyScanDone, now.Add(22 * time.Hour)},
 		// Every job search failed: the claim was moved so the next run is due in an hour.
-		"retry in an hour":    {fmt.Sprintf(`{"last_run":%q,"last_report":{"at":%q,"stopped":"every job search failed"}}`, stamp(now.Add(-23*time.Hour)), stamp(now.Add(-time.Minute))), CompanyScanDone, now.Add(time.Hour)},
-		"product with no fit": {fmt.Sprintf(`{"last_run":%q,"plan":{"applies":false}}`, stamp(now.Add(-time.Minute))), CompanyScanNoFit, time.Time{}},
+		"retry in an hour": {fmt.Sprintf(`{"last_run":%q,"last_report":{"at":%q,"stopped":"every job search failed","retry":true}}`, stamp(now.Add(-23*time.Hour)), stamp(now.Add(-time.Minute))), CompanyScanRetry, now.Add(time.Hour)},
+		// The retry ran and finished: its report replaced the failed one.
+		"finished after a retry": {fmt.Sprintf(`{"last_run":%q,"last_report":{"at":%q,"stopped":"the day's contact lookups are used up"}}`, stamp(now.Add(-time.Hour)), stamp(now.Add(-time.Hour))), CompanyScanDone, now.Add(23 * time.Hour)},
+		"product with no fit":    {fmt.Sprintf(`{"last_run":%q,"plan":{"applies":false}}`, stamp(now.Add(-time.Minute))), CompanyScanNoFit, time.Time{}},
 	} {
 		state, next := CompanyScanProgress([]byte(tc.raw), now)
 		if state != tc.state || !next.Equal(tc.next) {
