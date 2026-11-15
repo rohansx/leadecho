@@ -52,16 +52,19 @@ func (h *BillingHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if st.PlanRenewsAt.Valid {
 		renews = &st.PlanRenewsAt.Time
 	}
+	prospectStored, _ := h.q.GetWorkspaceSettingsKey(ctx, wsID, billing.ProspectDailyKey)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"plan":           st.Plan,
-		"credit_balance": st.CreditBalance,
-		"keyword_limit":  st.KeywordLimit,
-		"keywords_used":  used,
-		"plan_renews_at": renews,
-		"has_portal":     st.DodoCustomerID.Valid && h.dodo != nil,
-		"usage_30d":      usage,
-		"plans":          billing.Plans,
-		"topup":          map[string]int{"credits": billing.TopupCredits, "price_cents": billing.TopupPriceCents},
+		"prospect_daily":      billing.ProspectDaily(st.Plan, prospectStored),
+		"prospect_daily_plan": billing.ProspectDailyPlan,
+		"plan":                st.Plan,
+		"credit_balance":      st.CreditBalance,
+		"keyword_limit":       st.KeywordLimit,
+		"keywords_used":       used,
+		"plan_renews_at":      renews,
+		"has_portal":          st.DodoCustomerID.Valid && h.dodo != nil,
+		"usage_30d":           usage,
+		"plans":               billing.Plans,
+		"topup":               map[string]int{"credits": billing.TopupCredits, "price_cents": billing.TopupPriceCents},
 		"costs": map[string]int{
 			"post": billing.CostPost, "search": billing.CostSearch, "draft": billing.CostDraft, "chat": billing.CostChat,
 		},
@@ -70,6 +73,43 @@ func (h *BillingHandler) Get(w http.ResponseWriter, r *http.Request) {
 		"paid_platforms_locked": h.credits.Enforced() && !st.PaidData,
 		"can_checkout":          h.dodo != nil,
 	})
+}
+
+// SetProspectDaily switches the daily prospect scan on or off. Admins only;
+// switching it on needs the Pro plan.
+func (h *BillingHandler) SetProspectDaily(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	c := middleware.ClaimsFromContext(ctx)
+	if c == nil || c.Role != "admin" {
+		writeError(w, http.StatusForbidden, "only workspace admins can change this")
+		return
+	}
+	var body struct {
+		On *bool `json:"on"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil || body.On == nil {
+		writeError(w, http.StatusBadRequest, `body must be {"on": true|false}`)
+		return
+	}
+	wsID := middleware.WorkspaceID(ctx)
+	st, err := h.q.GetBillingState(ctx, wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load billing")
+		return
+	}
+	if *body.On && st.Plan != billing.ProspectDailyPlan {
+		writeError(w, http.StatusPaymentRequired, "daily prospecting is part of the Pro plan")
+		return
+	}
+	raw := []byte("false")
+	if *body.On {
+		raw = []byte("true")
+	}
+	if err := h.q.SetWorkspaceSettingsKey(ctx, wsID, billing.ProspectDailyKey, raw); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"prospect_daily": *body.On})
 }
 
 // Checkout starts a Dodo hosted checkout for a plan or a top-up. Admins only.

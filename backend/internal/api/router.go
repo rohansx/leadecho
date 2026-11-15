@@ -364,6 +364,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/billing", billingH.Get)
 			r.Post("/billing/checkout", billingH.Checkout)
 			r.Post("/billing/portal", billingH.Portal)
+			r.Put("/billing/prospecting", billingH.SetProspectDaily)
 			r.With(middleware.WorkspaceQuota(llmQuota)).Post("/chat", chatH.Send)
 			r.Get("/chat/threads", chatH.Threads)
 			r.Get("/chat/threads/{id}/messages", chatH.Messages)

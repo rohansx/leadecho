@@ -1,6 +1,6 @@
 // billing: Settings > Billing: plan, credit balance, usage, upgrade and top-up.
 import { useEffect, useRef } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CreditCard, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   USAGE_LABELS,
   getBilling,
   openBillingPortal,
+  setProspectDaily,
   startCheckout,
   type BillingState,
   type Plan,
@@ -23,10 +24,12 @@ interface PlanTileProps {
   current: boolean;
   canBuy: boolean;
   busy: boolean;
+  /** This plan includes daily prospecting. */
+  prospecting: boolean;
   onChoose: () => void;
 }
 
-function PlanTile({ plan, current, canBuy, busy, onChoose }: PlanTileProps) {
+function PlanTile({ plan, current, canBuy, busy, prospecting, onChoose }: PlanTileProps) {
   return (
     <div className={cn("flex flex-col gap-2 rounded-lg border p-4", current ? "border-primary bg-primary/5" : "border-border")}>
       <div className="flex items-baseline justify-between">
@@ -39,6 +42,7 @@ function PlanTile({ plan, current, canBuy, busy, onChoose }: PlanTileProps) {
       <ul className="space-y-1 text-[13px] text-muted-foreground">
         <li>{plan.monthly_credits.toLocaleString()} credits / month</li>
         <li>{plan.keyword_limit} active keywords</li>
+        {prospecting && <li>Daily prospecting: buyers with confirmed emails</li>}
       </ul>
       {current ? (
         <Badge variant="outline" size="sm" className="mt-auto w-fit"><Check className="h-3 w-3" /> Current plan</Badge>
@@ -65,6 +69,43 @@ function UsageList({ usage }: { usage: BillingState["usage_30d"] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+interface ProspectDailyRowProps {
+  data: BillingState;
+  onUpgrade: () => void;
+}
+
+/** Daily prospecting: a Pro feature, on by default there, switchable by an admin. */
+function ProspectDailyRow({ data, onUpgrade }: ProspectDailyRowProps) {
+  const qc = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: setProspectDaily,
+    onSuccess: () => qc.invalidateQueries({ queryKey: BILLING_QUERY }),
+  });
+  const included = data.plan === data.prospect_daily_plan;
+  const planName = data.plans.find((p) => p.id === data.prospect_daily_plan)?.name ?? data.prospect_daily_plan;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
+      <div className="max-w-prose">
+        <Text as="p" className="text-sm font-medium">
+          Find prospects daily {!included && <Badge variant="outline" size="sm">{planName}</Badge>}
+        </Text>
+        <Text as="p" className="text-xs text-muted-foreground">
+          Each day, finds companies in one of your customer segments, confirms a buyer's email, researches the company and drafts a first message. Uses credits for each lookup.
+        </Text>
+        {toggle.error && <Text as="p" className="text-xs text-destructive">{toggle.error.message}</Text>}
+      </div>
+      {included ? (
+        <Button size="sm" variant={data.prospect_daily ? "outline" : "accent"} disabled={toggle.isPending}
+          onClick={() => toggle.mutate(!data.prospect_daily)}>
+          {data.prospect_daily ? "Turn off" : "Turn on"}
+        </Button>
+      ) : data.can_checkout ? (
+        <Button size="sm" variant="accent" onClick={onUpgrade}>Upgrade to {planName}</Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -146,11 +187,14 @@ export function BillingCard() {
                     current={p.id === data.plan}
                     canBuy={data.can_checkout}
                     busy={busyItem === p.id}
+                    prospecting={p.id === data.prospect_daily_plan}
                     onChoose={() => checkout.mutate(p.id as "starter" | "pro")}
                   />
                 ))}
               </div>
             </div>
+
+            <ProspectDailyRow data={data} onUpgrade={() => checkout.mutate(data.prospect_daily_plan as "pro")} />
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
               <div>
