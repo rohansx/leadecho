@@ -216,12 +216,8 @@ func (h *NotificationHandler) GetWebhookConfig(w http.ResponseWriter, r *http.Re
 
 	if secret, _ := webhooks["conversion_secret"].(string); secret == "" {
 		webhooks["conversion_secret"] = randomWebhookSecret()
-		settings["webhooks"] = webhooks
-		data, _ := json.Marshal(settings)
-		_ = h.q.UpdateWorkspaceSettings(r.Context(), database.UpdateWorkspaceSettingsParams{
-			ID:       wsID,
-			Settings: data,
-		})
+		data, _ := json.Marshal(webhooks)
+		_ = h.q.SetWorkspaceSettingsKey(r.Context(), wsID, "webhooks", data)
 	}
 
 	// Tell the frontend whether Resend is configured server-side
@@ -278,11 +274,9 @@ func (h *NotificationHandler) SaveWebhookConfig(w http.ResponseWriter, r *http.R
 		"conversion_secret": existing["conversion_secret"],
 	}
 
-	data, _ := json.Marshal(settings)
-	if err := h.q.UpdateWorkspaceSettings(r.Context(), database.UpdateWorkspaceSettingsParams{
-		ID:       wsID,
-		Settings: data,
-	}); err != nil {
+	// Only this key: other keys are written by other processes meanwhile.
+	data, _ := json.Marshal(settings["webhooks"])
+	if err := h.q.SetWorkspaceSettingsKey(r.Context(), wsID, "webhooks", data); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save settings")
 		return
 	}

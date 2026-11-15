@@ -125,14 +125,9 @@ func (h *OnboardingHandler) UpdateOnboarding(w http.ResponseWriter, r *http.Requ
 		state.Step = *patch.Step
 	}
 
+	// Only this key: other keys are written by other processes meanwhile.
 	obJSON, _ := json.Marshal(state)
-	settings["onboarding"] = obJSON
-
-	newRaw, _ := json.Marshal(settings)
-	if err := h.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{
-		ID:       wsID,
-		Settings: newRaw,
-	}); err != nil {
+	if err := h.q.SetWorkspaceSettingsKey(ctx, wsID, "onboarding", obJSON); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update settings")
 		return
 	}
@@ -411,19 +406,10 @@ func (h *OnboardingHandler) saveBrandProfile(ctx context.Context, wsID string, b
 }
 
 func (h *OnboardingHandler) markOnboardingComplete(ctx context.Context, wsID string) {
-	raw, _ := h.q.GetWorkspaceSettings(ctx, wsID)
-	var settings map[string]json.RawMessage
-	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &settings)
-	}
-	if settings == nil {
-		settings = map[string]json.RawMessage{}
-	}
 	now := time.Now().UTC()
 	obJSON, _ := json.Marshal(onboardingState{Completed: true, Step: 3, CompletedAt: &now})
-	settings["onboarding"] = obJSON
-	newRaw, _ := json.Marshal(settings)
-	if err := h.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{ID: wsID, Settings: newRaw}); err != nil {
+	// Only this key: other keys are written by other processes meanwhile.
+	if err := h.q.SetWorkspaceSettingsKey(ctx, wsID, "onboarding", obJSON); err != nil {
 		h.logger.Error().Err(err).Str("workspace_id", wsID).Msg("onboarding: mark complete")
 	}
 	// voice: give the workspace a default reply voice (no-op if one exists).
