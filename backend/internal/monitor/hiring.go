@@ -175,10 +175,27 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	if !ok {
 		return
 	}
+	started := time.Now().UTC()
+	rep := &hiringReport{At: started}
+	// retrySoon ends a run that could not do its work: try again in an hour,
+	// not tomorrow. Not sooner: a provider that bills and then times out
+	// would be paid on every tick.
+	retrySoon := func(why string) {
+		rep.Stopped, rep.Retry = why, true
+		st.LastReport = rep
+		m.logger.Info().RawJSON("report", jsonBytes(rep)).Str("workspace_id", wsID).Msg("hiring: scan stopped, retrying in an hour")
+		st.LastRun = time.Now().UTC().Add(hiringRetry - hiringInterval)
+		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		m.saveHiringState(saveCtx, wsID, st)
+	}
 	if st.Plan == nil {
 		plan, err := m.hiringPlanner.PlanHiringSignals(ctx, wsID, bp.Product, bp.Overview, bp.TargetAudience)
 		if err != nil {
+			// Nothing was paid for yet: a new customer must not wait a day
+			// for company leads because one model call failed.
 			m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: plan failed")
+			retrySoon("the plan could not be written")
 			return
 		}
 		st.Plan = plan
@@ -208,20 +225,7 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		dailyCap, checkCap = maxHiringCompaniesPerRun, maxHiringSizeChecksPerRun
 	}
 	created, confirmed, sizeChecks, lookups := 0, 0, 0, 0
-	started := time.Now().UTC()
-	rep := &hiringReport{At: started}
 	st.LastReport = rep
-	// retrySoon ends a run that could not do its work: try again in an hour,
-	// not tomorrow. Not sooner: a provider that bills and then times out
-	// would be paid on every tick.
-	retrySoon := func(why string) {
-		rep.Stopped = why
-		m.logger.Info().RawJSON("report", jsonBytes(rep)).Str("workspace_id", wsID).Msg("hiring: scan stopped, retrying in an hour")
-		st.LastRun = time.Now().UTC().Add(hiringRetry - hiringInterval)
-		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		m.saveHiringState(saveCtx, wsID, st)
-	}
 	// Pages are pulled until enough new companies are in hand for the day's
 	// people searches: not on the skip list, not stored this month, one each.
 	carried := map[string]bool{} // waiting from an earlier run: already searched for and screened

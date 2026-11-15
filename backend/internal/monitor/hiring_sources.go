@@ -498,6 +498,9 @@ type hiringReport struct {
 	// counts them: fetched = rounds billed, new = companies sent to the screen).
 	FundingSpendMicro int64  `json:"funding_spend_micro,omitempty"`
 	Stopped           string `json:"stopped,omitempty"` // why the run ended before every company was tried
+	// Retry: the run could not do its work and the claim was moved, so the
+	// next one is due in an hour instead of tomorrow.
+	Retry bool `json:"retry,omitempty"`
 	// CarriedIn: screened companies an earlier run did not reach, tried first
 	// by this one. CarriedOver: those this run leaves for the next.
 	CarriedIn   int `json:"carried_in,omitempty"`

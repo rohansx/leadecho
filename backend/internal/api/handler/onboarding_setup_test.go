@@ -130,6 +130,63 @@ func TestBuildSetupStatus(t *testing.T) {
 				}
 			},
 		},
+		"paid data paused for everyone: paid searches recorded as run were not made": {
+			f: setupFacts{Counts: counts(30, 0, 0, 0), Searches: 9, Searched: 9, PaidSearches: 3, PaidSearched: 3, PaidNextAt: nextPaid, PaidPaused: true,
+				CompanyEnabled: true, CompanyScan: monitor.CompanyScanNever},
+			states: [4]string{stageDone, stageDone, stageWaiting, stageWaiting},
+			check: func(t *testing.T, s setupStatus) {
+				if s.Stages[2].Reason != "paid_paused" || s.Stages[2].NextAt != nil || s.Stages[2].EveryMinutes != 0 || s.FinishedEmpty {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
+		"the company scan failed and is tried again: not finished": {
+			f: setupFacts{Counts: counts(30, 0, 0, 0), Searches: 9, Searched: 9, PaidSearches: 3, PaidSearched: 3, PaidNextAt: nextPaid,
+				CompanyEnabled: true, CompanyScan: monitor.CompanyScanRetry, CompanyNextDue: nextCompany},
+			states: [4]string{stageDone, stageDone, stageDone, stageWaiting},
+			check: func(t *testing.T, s setupStatus) {
+				if s.Stages[3].Reason != "retry" || !s.Stages[3].NextAt.Equal(nextCompany) || s.FinishedEmpty {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
+		"the company scan failed and the workspace is out of credits: no time is promised": {
+			f: setupFacts{Counts: counts(30, 0, 0, 0), Searches: 6, Searched: 6, Blocked: "out_of_credits",
+				CompanyEnabled: true, CompanyScan: monitor.CompanyScanRetry, CompanyNextDue: nextCompany},
+			states: [4]string{stageDone, stageDone, stageNotIncluded, stageWaiting},
+			check: func(t *testing.T, s setupStatus) {
+				if s.Stages[3].Reason != "out_of_credits" || s.Stages[3].NextAt != nil || s.FinishedEmpty {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
+		"a lead and unscored posts: not empty, scoring still runs": {
+			f:      setupFacts{Counts: counts(40, 5, 1, 0), Searches: 6, Searched: 6, PaidLocked: true},
+			states: [4]string{stageDone, stageRunning, stageNotIncluded, stageNotIncluded},
+			check: func(t *testing.T, s setupStatus) {
+				if s.FinishedEmpty || !s.HasLead {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
+		"searched and found no post at all: finished empty": {
+			f:      setupFacts{Searches: 6, Searched: 6, PaidLocked: true},
+			states: [4]string{stageDone, stageDone, stageNotIncluded, stageNotIncluded},
+			check: func(t *testing.T, s setupStatus) {
+				if !s.FinishedEmpty || *s.Stages[1].Scored != 0 {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
+		"paused by an operator mid-search: waiting, not running, not finished": {
+			f:      setupFacts{Counts: counts(10, 0, 0, 0), Searches: 6, Searched: 2, PaidLocked: true, Blocked: "paused"},
+			states: [4]string{stageWaiting, stageWaiting, stageNotIncluded, stageNotIncluded},
+			check: func(t *testing.T, s setupStatus) {
+				if s.Stages[0].Reason != "paused" || s.FinishedEmpty {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
 		"paid data paused for everyone: the company scan waits": {
 			f:      setupFacts{Searches: 6, Searched: 6, PaidPaused: true, CompanyEnabled: true, CompanyScan: monitor.CompanyScanNever},
 			states: [4]string{stageDone, stageDone, stageNotIncluded, stageWaiting},

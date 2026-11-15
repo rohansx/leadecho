@@ -29,7 +29,7 @@ type setupStage struct {
 	Key   string `json:"key"`   // posts | scoring | paid_sources | company_leads
 	State string `json:"state"` // done | running | waiting | not_included
 	// Why it is waiting or not included: no_keywords, plan, not_selected,
-	// server, no_fit, paused, out_of_credits, queued.
+	// server, no_fit, paused, paid_paused, out_of_credits, queued, retry.
 	Reason   string `json:"reason,omitempty"`
 	Posts    *int   `json:"posts,omitempty"`    // posts: collected so far
 	Scored   *int   `json:"scored,omitempty"`   // scoring
@@ -136,6 +136,10 @@ func buildSetupStatus(f setupFacts) setupStatus {
 		paid = setupStage{Key: "paid_sources", State: stageNotIncluded, Reason: "plan"}
 	case f.PaidSearches == 0:
 		paid = setupStage{Key: "paid_sources", State: stageNotIncluded, Reason: "not_selected"}
+	case f.PaidPaused:
+		// Searches are recorded as run while paid data is paused for everyone,
+		// though the provider was never called.
+		paid = setupStage{Key: "paid_sources", State: stageWaiting, Reason: "paid_paused"}
 	case f.PaidSearched < f.PaidSearches:
 		paid = notStarted("paid_sources")
 	}
@@ -152,6 +156,10 @@ func buildSetupStatus(f setupFacts) setupStatus {
 		company = setupStage{Key: "company_leads", State: stageRunning}
 	case f.CompanyScan != monitor.CompanyScanDone && f.PaidPaused:
 		company = setupStage{Key: "company_leads", State: stageWaiting, Reason: "paused"}
+	case f.CompanyScan == monitor.CompanyScanRetry && f.Blocked == "":
+		// The last run could not do its work (a provider or the model failed)
+		// and is tried again from NextAt: not "ran, found nothing".
+		company = setupStage{Key: "company_leads", State: stageWaiting, Reason: "retry", NextAt: at(f.CompanyNextDue)}
 	case f.CompanyScan != monitor.CompanyScanDone:
 		company = notStarted("company_leads")
 	}
