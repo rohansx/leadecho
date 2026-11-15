@@ -115,3 +115,16 @@ func titleCase(s string) string {
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
 }
+
+// HostOf returns the lower-cased host of a URL without "www.".
+func HostOf(raw string) string { return hostOf(raw) }
+
+// IsAggregatorHost reports review and listicle sites that are never a competitor.
+func IsAggregatorHost(host string) bool {
+	for _, a := range aggregatorHosts {
+		if host == a || strings.HasSuffix(host, "."+a) {
+			return true
+		}
+	}
+	return false
+}
