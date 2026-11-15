@@ -514,9 +514,10 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		// metadata, which is indistinguishable from "never reached stage 3":
 		// it is not retried, not surfaced as filtered, and silently stalls.
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
-		if forcedScan(ctx) == ScanRescore {
+		if forcedScan(ctx) == ScanRescore && !errors.Is(err, ai.ErrRefused) {
 			// The post already has a verdict: a failed second opinion must not
-			// erase it. Left unstamped, the next re-score tries it again.
+			// erase it. Left unstamped, the next re-score tries it again. A
+			// refusal is not an outage: it repeats every time, so it is stamped.
 			return
 		}
 		m.markStageFiltered(ctx, c.alert, classifyErrorStage(err), err.Error())

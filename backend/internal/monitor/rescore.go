@@ -3,6 +3,8 @@ package monitor
 import (
 	"context"
 	"time"
+
+	"leadecho/internal/database"
 )
 
 // Re-scoring: when the scoring rules change, posts already scored keep their
@@ -48,7 +50,7 @@ func (m *Monitor) rescore(ctx context.Context, ws string) (done int, finished bo
 		// A post whose second classification failed keeps its old verdict and
 		// is listed again: stop when a batch moves nothing (the model is down).
 		left, err := m.q.ListMentionsToRescore(ctx, ws, since, ScoringRubric, rescoreBatch)
-		if err == nil && len(left) == len(rows) && left[0].ID == rows[0].ID {
+		if err == nil && !batchMoved(rows, left) {
 			m.logger.Warn().Str("workspace_id", ws).Msg("rescore: a batch changed nothing, stopping")
 			break
 		}
@@ -56,4 +58,20 @@ func (m *Monitor) rescore(ctx context.Context, ws string) (done int, finished bo
 		m.logger.Info().Str("workspace_id", ws).Int("done", done).Msg("rescore: batch scored")
 	}
 	return done, false
+}
+
+// batchMoved reports whether any post of the batch just scored is no longer
+// waiting. Comparing only the first post stopped a run while 138 posts were
+// left, because one post that kept failing sat at the top of every batch.
+func batchMoved(batch, left []database.RescoreMention) bool {
+	waiting := make(map[string]bool, len(left))
+	for _, r := range left {
+		waiting[r.ID] = true
+	}
+	for _, r := range batch {
+		if !waiting[r.ID] {
+			return true
+		}
+	}
+	return false
 }
