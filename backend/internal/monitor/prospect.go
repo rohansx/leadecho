@@ -182,15 +182,18 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 	}
 	st.Last = nil
 	note := func(company, outcome string) {
-		st.Last = append(st.Last, prospectOutcome{Company: truncateRunes(company, maxProspectName), Outcome: outcome})
+		// Clipped here: outcomes carry provider and profile text.
+		st.Last = append(st.Last, prospectOutcome{Company: truncateRunes(company, maxProspectName), Outcome: truncateRunes(outcome, 240)})
 	}
 	candidates, err := m.searchCompanies(ctx, wsID, query, seg.Country)
 	if err != nil {
+		note("", "company search failed: "+err.Error())
 		return // out of credits, paused or provider down: the round still advances
 	}
 	candidates = newProspects(candidates, seen, bp.SourceUrl, bp.Competitors)
 	if len(candidates) == 0 {
 		m.logger.Info().Str("segment", seg.Name).Str("workspace_id", wsID).Msg("prospects: no new companies")
+		note("", "the search found no companies not already judged")
 		return
 	}
 	fits, err := m.prospectJudge.FitProspects(ctx, wsID, ai.ProspectCheck{
@@ -198,6 +201,7 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 	})
 	if err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("prospects: fit check failed")
+		note("", "fit check failed: "+err.Error())
 		return // the companies stay unseen: judged on a later run
 	}
 	fitting := map[int]bool{}
@@ -218,14 +222,18 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 		capContacts = maxProspectContactsPerRun
 	}
 	created, lookups := 0, 0
-	for _, fit := range fits {
+	for i, fit := range fits {
 		if lookups >= capContacts || ctx.Err() != nil {
+			for _, rest := range fits[i:] {
+				note(candidates[rest.Index].Name, "fits; left for a later run (daily contact cap)")
+			}
 			break
 		}
 		c := candidates[fit.Index]
 		pid := prospectPlatformID(c.Domain)
 		exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeExa), pid)
 		if err != nil {
+			note(c.Name, "skipped: database error")
 			continue
 		}
 		if exists {
