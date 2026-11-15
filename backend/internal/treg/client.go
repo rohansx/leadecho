@@ -115,6 +115,15 @@ func New(cfg Config, ledger Ledger, logger zerolog.Logger) *Client {
 
 func (c *Client) Enabled() bool { return c != nil }
 
+// MaxCostMicro is the per-call ceiling sent with every call (0 = none). A
+// tool billed per result must ask for few enough results to stay under it.
+func (c *Client) MaxCostMicro() int64 {
+	if c == nil {
+		return 0
+	}
+	return c.cfg.MaxCostMicro
+}
+
 type Request struct {
 	WorkspaceID string
 	Tool        string // catalog endpoint id, e.g. treg.x.search.posts
