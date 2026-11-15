@@ -24,7 +24,7 @@ export default function App() {
   return (
     <div className="sp-root">
       <div className="sp-header">
-        <span className="sp-logo">LeadEcho</span>
+        <span className="sp-logo"><svg className="sp-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none" /><path d="M4.12 13.39A8 8 0 1 1 10.61 19.88" /><circle cx="4.9" cy="19.1" r="1.7" fill="currentColor" stroke="none" /></svg>LeadEcho</span>
         <span className="sp-dot" style={{ background: dotColor }} title={
           connected === null ? "Checking…" : connected ? "Connected" : "Not connected"
         } />
