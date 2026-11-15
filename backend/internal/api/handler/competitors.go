@@ -4,10 +4,12 @@ package handler
 // a workspace, where each one publishes, and the moves read out of that.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -43,10 +45,25 @@ func (h *CompetitorsHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
+// setupEvery is how often a workspace may run the setup by hand: each run
+// is a web search and a few page fetches per name.
+const setupEvery = 10 * time.Minute
+
 // Setup (POST /competitors/setup) runs the automatic setup again: it looks
 // for the competitors named in the brand profile that are not watched yet.
 func (h *CompetitorsHandler) Setup(w http.ResponseWriter, r *http.Request) {
-	created, unresolved, err := h.svc.Setup(r.Context(), middleware.WorkspaceID(r.Context()))
+	ws := middleware.WorkspaceID(r.Context())
+	if last, err := h.svc.Q.GetCompetitorSetup(r.Context(), ws); err == nil && time.Since(last.SetupAt) < setupEvery {
+		writeError(w, http.StatusTooManyRequests, "we looked a few minutes ago: try again in 10 minutes")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second) // stay inside the server's write timeout
+	defer cancel()
+	created, unresolved, err := h.svc.Setup(ctx, ws)
+	if errors.Is(err, competitors.ErrSearchDown) {
+		writeError(w, http.StatusServiceUnavailable, "the website search is not answering: try again shortly")
+		return
+	}
 	if err != nil {
 		h.fail(w, err, "find competitors")
 		return
@@ -72,6 +89,7 @@ func (h *CompetitorsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name is required (80 characters at most)")
 		return
 	}
+	ownHost := h.svc.OwnHost(r.Context(), ws)
 	site := ""
 	if strings.TrimSpace(body.Website) != "" {
 		u, err := onboarding.NormalizeProductURL(body.Website)
@@ -79,14 +97,22 @@ func (h *CompetitorsHandler) Create(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "website must be an http(s) URL")
 			return
 		}
+		if competitors.IsOwnSite(u, ownHost) {
+			writeError(w, http.StatusBadRequest, "that is your own website")
+			return
+		}
 		site = u
 	} else {
-		if site = h.svc.Resolve(r.Context(), name, ""); site == "" {
+		if site, _ = h.svc.Resolve(r.Context(), name, ownHost); site == "" {
 			writeError(w, http.StatusUnprocessableEntity, "couldn't find their website: add it to start watching")
 			return
 		}
 	}
 	c, err := h.svc.Add(r.Context(), ws, name, site)
+	if errors.Is(err, competitors.ErrExists) {
+		writeError(w, http.StatusConflict, "you are already watching a competitor with that name")
+		return
+	}
 	if errors.Is(err, competitors.ErrLimit) {
 		writeError(w, http.StatusConflict, "your plan's competitor limit is reached: remove one or upgrade")
 		return
@@ -126,6 +152,10 @@ func (h *CompetitorsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		u, err := onboarding.NormalizeProductURL(*body.Website)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "website must be an http(s) URL")
+			return
+		}
+		if competitors.IsOwnSite(u, h.svc.OwnHost(r.Context(), ws)) {
+			writeError(w, http.StatusBadRequest, "that is your own website")
 			return
 		}
 		next.Website = u

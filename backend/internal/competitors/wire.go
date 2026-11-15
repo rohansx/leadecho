@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"leadecho/internal/billing"
@@ -19,10 +22,23 @@ import (
 // NewService wires the service to the running system: the SSRF-guarded
 // fetcher, Exa company search, treg posts through the monitor, demand
 // themes, credits and alert webhooks. mon, credits and exaKey may be empty.
-func NewService(q *database.Queries, model Model, mon *monitor.Monitor, credits *billing.Credits, exaKey string, logger zerolog.Logger) *Service {
+func NewService(pool *pgxpool.Pool, q *database.Queries, model Model, mon *monitor.Monitor, credits *billing.Credits, exaKey string, logger zerolog.Logger) *Service {
 	s := &Service{
 		Q: q, Fetch: onboarding.SafeFetcher(15 * time.Second), Model: model, Logger: logger,
 		Themes: demandThemes(demand.DBStore{Q: q}),
+	}
+	if pool != nil {
+		s.Tx = func(ctx context.Context, fn func(database.Querier) error) error {
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				return fmt.Errorf("begin: %w", err)
+			}
+			defer tx.Rollback(ctx) //nolint:errcheck // no-op after commit
+			if err := fn(q.WithTx(tx)); err != nil {
+				return err
+			}
+			return tx.Commit(ctx)
+		}
 	}
 	if exaKey != "" {
 		s.Search = func(ctx context.Context, query string) ([]monitor.ExaWebResult, error) {
@@ -31,6 +47,8 @@ func NewService(q *database.Queries, model Model, mon *monitor.Monitor, credits 
 	}
 	if mon != nil && mon.Treg().Enabled() {
 		s.Posts = monitorPosts{mon}
+	}
+	if mon != nil { // alerts are webhooks: they need no paid data
 		s.Alert = func(ctx context.Context, ws, competitor string, a Alert) {
 			slack, discord := AlertText(competitor, a)
 			mon.NotifyText(ctx, ws, slack, discord)
@@ -50,12 +68,21 @@ func NewService(q *database.Queries, model Model, mon *monitor.Monitor, credits 
 	return s
 }
 
-// AlertText renders a high-importance move for Slack and for Discord.
+var (
+	// Slack reads <...> as links and pings; these three escapes disarm it.
+	slackEscape = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	// A zero-width space after @ keeps Discord from pinging @everyone / @here.
+	discordEscape = strings.NewReplacer("@", "@\u200b")
+)
+
+// AlertText renders a high-importance move for Slack and for Discord. The
+// words come from a competitor's own pages by way of a model, so they are
+// escaped: they must not be able to ping a channel or plant a link.
 func AlertText(competitor string, a Alert) (slack, discord string) {
 	body := fmt.Sprintf("%s\nFor you: %s\nDo: %s", a.Title, a.Impact, a.Action)
-	slack = fmt.Sprintf("*Competitor move: %s (%s)*\n%s", competitor, a.Kind, body)
-	discord = fmt.Sprintf("**Competitor move: %s (%s)**\n%s", competitor, a.Kind, body)
-	if a.URL != "" {
+	slack = fmt.Sprintf("*Competitor move: %s (%s)*\n%s", slackEscape.Replace(competitor), a.Kind, slackEscape.Replace(body))
+	discord = fmt.Sprintf("**Competitor move: %s (%s)**\n%s", discordEscape.Replace(competitor), a.Kind, discordEscape.Replace(body))
+	if u, err := url.Parse(a.URL); err == nil && (u.Scheme == "http" || u.Scheme == "https") && !strings.ContainsAny(a.URL, "<>| \n") {
 		slack += "\n<" + a.URL + "|Source>"
 		discord += "\n" + a.URL
 	}

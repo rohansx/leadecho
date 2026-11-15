@@ -325,3 +325,185 @@ func TestSetupStopsAtTheLimitDB(t *testing.T) {
 		t.Fatalf("adding past the limit: %v", err)
 	}
 }
+
+type fakeCredits struct{ spent, refunded int }
+
+func (f *fakeCredits) Spend(context.Context, string, int, string) error { f.spent++; return nil }
+func (f *fakeCredits) Refund(context.Context, string, int, string)      { f.refunded++ }
+
+// oneChangedPage sets up a competitor whose landing page has changed once,
+// so exactly one item is waiting for the model.
+func oneChangedPage(t *testing.T, pool *pgxpool.Pool, q *database.Queries, ws string, svc *Service, web *site) database.Competitor {
+	t.Helper()
+	ctx := context.Background()
+	c, err := q.CreateCompetitor(ctx, database.CreateCompetitorParams{WorkspaceID: ws, Name: "Acme", Website: "https://acme.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.CreateCompetitorSource(ctx, database.CreateCompetitorSourceParams{CompetitorID: c.ID, WorkspaceID: ws, Kind: KindLanding, Url: "https://acme.com"}); err != nil {
+		t.Fatal(err)
+	}
+	web.set("https://acme.com", pricingPage("$29"))
+	svc.checkDue(ctx)
+	web.set("https://acme.com", pricingPage("$49"))
+	makeDue(t, pool, ws)
+	svc.checkDue(ctx)
+	return c
+}
+
+func TestFailedModelCallsAreRefundedAndGiveUpAfterThreeDB(t *testing.T) {
+	pool, q, ws := testDB(t)
+	ctx := context.Background()
+	web := &site{pages: map[string]string{}}
+	credits := &fakeCredits{}
+	model := &fakeModel{answer: func(string, string) (string, error) { return "I would rather answer in prose.", nil }}
+	svc := &Service{Q: q, Fetch: web.fetch, Model: model, Credits: credits, Logger: zerolog.Nop()}
+	oneChangedPage(t, pool, q, ws, svc, web)
+
+	for i := 0; i < 6; i++ {
+		svc.processItems(ctx)
+	}
+	if len(model.prompts) != MaxAttempts || MaxAttempts != 3 {
+		t.Fatalf("an unreadable item is tried %d times, got %d", MaxAttempts, len(model.prompts))
+	}
+	if credits.spent != credits.refunded || credits.spent != 3 {
+		t.Fatalf("every failed call is refunded: spent %d, refunded %d", credits.spent, credits.refunded)
+	}
+	var waiting int
+	pool.QueryRow(ctx, "SELECT COUNT(*) FROM competitor_items WHERE workspace_id = $1 AND processed_at IS NULL", ws).Scan(&waiting)
+	if waiting != 0 {
+		t.Fatalf("after the last attempt the item is dropped, %d waiting", waiting)
+	}
+}
+
+// failingMoves fails the nth CreateCompetitorMove.
+type failingMoves struct {
+	database.Querier
+	n *int
+}
+
+func (f failingMoves) CreateCompetitorMove(ctx context.Context, arg database.CreateCompetitorMoveParams) (database.CompetitorMove, error) {
+	*f.n--
+	if *f.n == 0 {
+		return database.CompetitorMove{}, errors.New("disk full")
+	}
+	return f.Querier.CreateCompetitorMove(ctx, arg)
+}
+
+func TestMovesAndItemsAreSavedTogetherOrNotAtAllDB(t *testing.T) {
+	pool, q, ws := testDB(t)
+	ctx := context.Background()
+	web := &site{pages: map[string]string{"https://acme.com/blog": rssSample}}
+	model := &fakeModel{answer: func(system, _ string) (string, error) {
+		if strings.Contains(system, "short briefing") {
+			return "s", nil
+		}
+		return "{\"moves\":[{\"item\":1,\"kind\":\"launch\",\"title\":\"First\"},{\"item\":2,\"kind\":\"news\",\"title\":\"Second\"}]}", nil
+	}}
+	failAt := 2
+	svc := &Service{Q: q, Fetch: web.fetch, Model: model, Logger: zerolog.Nop()}
+	svc.Tx = func(ctx context.Context, fn func(database.Querier) error) error {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(ctx)
+		if err := fn(failingMoves{q.WithTx(tx), &failAt}); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+	c, _ := q.CreateCompetitor(ctx, database.CreateCompetitorParams{WorkspaceID: ws, Name: "Acme", Website: "https://acme.com"})
+	q.CreateCompetitorSource(ctx, database.CreateCompetitorSourceParams{CompetitorID: c.ID, WorkspaceID: ws, Kind: KindBlog, Url: "https://acme.com/blog"})
+	svc.checkDue(ctx) // baseline
+	fresh := time.Now().UTC().Format(time.RFC1123Z)
+	web.set("https://acme.com/blog", strings.Replace(rssSample, "<item>",
+		"<item><title>A</title><guid>a</guid><pubDate>"+fresh+"</pubDate></item><item><title>B</title><guid>b</guid><pubDate>"+fresh+"</pubDate></item><item>", 1))
+	makeDue(t, pool, ws)
+	svc.checkDue(ctx)
+
+	count := func() (moves, waiting int) {
+		pool.QueryRow(ctx, "SELECT COUNT(*) FROM competitor_moves WHERE workspace_id = $1", ws).Scan(&moves)
+		pool.QueryRow(ctx, "SELECT COUNT(*) FROM competitor_items WHERE workspace_id = $1 AND processed_at IS NULL", ws).Scan(&waiting)
+		return
+	}
+	svc.processItems(ctx) // the second move fails to save
+	if moves, waiting := count(); moves != 0 || waiting != 2 {
+		t.Fatalf("a half-saved batch must leave nothing behind: %d moves, %d waiting", moves, waiting)
+	}
+	svc.processItems(ctx) // works this time
+	if moves, waiting := count(); moves != 2 || waiting != 0 {
+		t.Fatalf("the retry saves each move once: %d moves, %d waiting", moves, waiting)
+	}
+}
+
+func TestSetupIsRetriedWhenSearchWasDownDB(t *testing.T) {
+	_, q, ws := testDB(t)
+	ctx := context.Background()
+	brand(t, q, ws, "Acme")
+	down := true
+	svc := &Service{
+		Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: &fakeModel{}, Logger: zerolog.Nop(),
+		Search: func(context.Context, string) ([]monitor.ExaWebResult, error) {
+			if down {
+				return nil, errors.New("search is down")
+			}
+			return []monitor.ExaWebResult{{Title: "Acme", URL: "https://acme.com/"}}, nil
+		},
+	}
+	if created, _, err := svc.Setup(ctx, ws); created != 0 || err == nil {
+		t.Fatalf("setup during an outage: created %d, err %v", created, err)
+	}
+	if _, err := q.GetCompetitorSetup(ctx, ws); err == nil {
+		t.Fatal("an outage must not be recorded as a finished setup")
+	}
+	down = false
+	if created, unresolved, err := svc.Setup(ctx, ws); created != 1 || len(unresolved) != 0 || err != nil {
+		t.Fatalf("setup after the outage: %d %v %v", created, unresolved, err)
+	}
+}
+
+type postsQueue struct{ rounds [][]Item }
+
+func (p *postsQueue) CompanyPosts(context.Context, string, string, string) ([]Item, error) {
+	if len(p.rounds) == 0 {
+		return nil, nil
+	}
+	out := p.rounds[0]
+	p.rounds = p.rounds[1:]
+	return out, nil
+}
+
+func TestAnEmptyFirstAnswerIsNotABaselineDB(t *testing.T) {
+	pool, q, ws := testDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	posts := &postsQueue{rounds: [][]Item{nil, {{Key: "1", Body: "old post", At: now}, {Key: "2", Body: "older post", At: now}}}}
+	model := &fakeModel{answer: func(string, string) (string, error) { return "{\"moves\":[]}", nil }}
+	svc := &Service{Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: model, Posts: posts, Logger: zerolog.Nop()}
+	c, _ := q.CreateCompetitor(ctx, database.CreateCompetitorParams{WorkspaceID: ws, Name: "Acme", Website: "https://acme.com"})
+	q.CreateCompetitorSource(ctx, database.CreateCompetitorSourceParams{CompetitorID: c.ID, WorkspaceID: ws, Kind: KindX, Url: "https://x.com/acme"})
+
+	svc.Poll(ctx) // the provider answers with nothing
+	makeDue(t, pool, ws)
+	svc.Poll(ctx) // now it answers with the account's existing posts
+	if len(model.prompts) != 0 {
+		t.Fatalf("posts that were already there must not be read as news, got %d model calls", len(model.prompts))
+	}
+}
+
+func TestAddingAnExistingNameDoesNotMoveItsWebsiteDB(t *testing.T) {
+	_, q, ws := testDB(t)
+	ctx := context.Background()
+	svc := &Service{Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: &fakeModel{}, Logger: zerolog.Nop()}
+	if _, err := svc.Add(ctx, ws, "Acme", "https://acme.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Add(ctx, ws, "acme", "https://evil.example"); !errors.Is(err, ErrExists) {
+		t.Fatalf("a second add of the same name: %v", err)
+	}
+	comps, _ := q.ListCompetitors(ctx, ws)
+	if len(comps) != 1 || comps[0].Website != "https://acme.com" {
+		t.Fatalf("got %+v", comps)
+	}
+}

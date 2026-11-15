@@ -16,8 +16,10 @@ SELECT COUNT(*)::INT FROM competitors WHERE workspace_id = @workspace_id;
 -- name: CreateCompetitor :one
 INSERT INTO competitors (workspace_id, name, website)
 VALUES (@workspace_id, @name, @website)
-ON CONFLICT (workspace_id, lower(name)) DO UPDATE SET website = EXCLUDED.website
 RETURNING *;
+
+-- name: GetCompetitorByName :one
+SELECT * FROM competitors WHERE workspace_id = @workspace_id AND lower(name) = lower(@name);
 
 -- name: UpdateCompetitor :one
 UPDATE competitors SET website = @website, status = @status
@@ -79,11 +81,18 @@ ON CONFLICT (source_id, item_key) DO NOTHING;
 -- name: ListUnprocessedCompetitorItems :many
 SELECT * FROM competitor_items
 WHERE processed_at IS NULL
-ORDER BY competitor_id, created_at
+ORDER BY created_at
 LIMIT sqlc.arg(max_rows)::int;
 
 -- name: MarkCompetitorItemsProcessed :exec
 UPDATE competitor_items SET processed_at = NOW() WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+
+-- name: BumpCompetitorItemAttempts :exec
+-- A failed read: count it, and stop retrying at max_attempts.
+UPDATE competitor_items
+SET attempts = attempts + 1,
+    processed_at = CASE WHEN attempts + 1 >= sqlc.arg(max_attempts)::int THEN NOW() ELSE processed_at END
+WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 
 -- name: CreateCompetitorMove :one
 INSERT INTO competitor_moves (competitor_id, workspace_id, kind, title, summary, urls, happened_at, impact, action, theme_id, importance)
@@ -127,7 +136,7 @@ UPDATE competitor_moves SET alerted_at = NOW() WHERE id = @id;
 SELECT b.workspace_id FROM brand_profiles b
 LEFT JOIN competitor_setup s ON s.workspace_id = b.workspace_id
 WHERE s.workspace_id IS NULL AND cardinality(b.competitors) > 0
-ORDER BY b.updated_at
+ORDER BY random() -- a workspace whose setup keeps failing must not block the rest
 LIMIT sqlc.arg(max_rows)::int;
 
 -- name: GetCompetitorSetup :one

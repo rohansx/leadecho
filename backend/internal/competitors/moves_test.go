@@ -135,7 +135,7 @@ func TestResolveFallsBackToTheObviousDomain(t *testing.T) {
 			return "", errors.New("no such host")
 		},
 	}
-	if got := svc.Resolve(context.Background(), "CoderPad", "mine.com"); got != "https://coderpad.io" {
+	if got, _ := svc.Resolve(context.Background(), "CoderPad", "mine.com"); got != "https://coderpad.io" {
 		t.Fatalf("got %q after asking %v", got, asked)
 	}
 	// Real cases from the Utkrusht list: a parked domain and a lookalike whose
@@ -154,14 +154,50 @@ func TestResolveFallsBackToTheObviousDomain(t *testing.T) {
 		return "", errors.New("no such host")
 	}
 	for name, want := range map[string]string{"iMocha": "", "LeetCode": "", "Codility": "https://codility.com"} {
-		if got := svc.Resolve(context.Background(), name, "mine.com"); got != want {
+		if got, _ := svc.Resolve(context.Background(), name, "mine.com"); got != want {
 			t.Errorf("Resolve(%s) = %q, want %q", name, got, want)
 		}
 	}
-	if got := svc.Resolve(context.Background(), "Ghost Co", "mine.com"); got != "" {
+	if got, _ := svc.Resolve(context.Background(), "Ghost Co", "mine.com"); got != "" {
 		t.Fatalf("nothing found must stay unresolved, got %q", got)
 	}
-	if got := svc.Resolve(context.Background(), "Mine", "mine.com"); got != "" {
+	if got, _ := svc.Resolve(context.Background(), "Mine", "mine.com"); got != "" {
 		t.Fatalf("the customer's own site is never guessed, got %q", got)
+	}
+}
+
+func TestPickWebsiteTitleMatchNeedsTheHomepage(t *testing.T) {
+	review := []monitor.ExaWebResult{{Title: "Acme: an honest review", URL: "https://someblog.dev/posts/acme-review"}}
+	if got := PickWebsite("Acme", "", review); got != "" {
+		t.Fatalf("a page about them on someone else's site is not their site, got %q", got)
+	}
+	home := []monitor.ExaWebResult{{Title: "Acme: build faster", URL: "https://getacme.dev/"}}
+	if got := PickWebsite("Acme", "", home); got != "https://getacme.dev" {
+		t.Fatalf("got %q", got)
+	}
+	deep := []monitor.ExaWebResult{{Title: "Pricing", URL: "https://acme.com/pricing"}}
+	if got := PickWebsite("Acme", "", deep); got != "https://acme.com" {
+		t.Fatalf("a domain match counts on any page, got %q", got)
+	}
+}
+
+func TestAlertTextCannotPingOrInjectLinks(t *testing.T) {
+	slack, discord := AlertText("Acme <!channel>", Alert{
+		Kind: "pricing", Title: "<!here> price rise <http://evil.example|click>", Impact: "@everyone look", Action: "@here now",
+		URL: "https://acme.com/p|x>",
+	})
+	for _, bad := range []string{"<!channel>", "<!here>", "<http://evil.example|click>", "|x>"} {
+		if strings.Contains(slack, bad) {
+			t.Errorf("slack text carries %q:\n%s", bad, slack)
+		}
+	}
+	for _, bad := range []string{"@everyone", "@here"} {
+		if strings.Contains(discord, bad) {
+			t.Errorf("discord text carries %q:\n%s", bad, discord)
+		}
+	}
+	slack, discord = AlertText("Acme", Alert{Kind: "pricing", Title: "Up", URL: "https://acme.com/pricing"})
+	if !strings.Contains(slack, "<https://acme.com/pricing|Source>") || !strings.Contains(discord, "https://acme.com/pricing") {
+		t.Errorf("a clean link is kept:\n%s\n%s", slack, discord)
 	}
 }

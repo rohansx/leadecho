@@ -41,6 +41,7 @@ CREATE TABLE competitor_items (
     url           TEXT NOT NULL DEFAULT '',
     happened_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     processed_at  TIMESTAMPTZ,
+    attempts      INTEGER NOT NULL DEFAULT 0,  -- failed reads by the model
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (source_id, item_key)
 );

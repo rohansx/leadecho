@@ -19,6 +19,8 @@ type Querier interface {
 	// Per keyword over mentions created in the last @days days: volume, posted
 	// replies and the clicks/signups/revenue of those replies' tracked links.
 	AutomationKeywordValue(ctx context.Context, arg AutomationKeywordValueParams) ([]AutomationKeywordValueRow, error)
+	// A failed read: count it, and stop retrying at max_attempts.
+	BumpCompetitorItemAttempts(ctx context.Context, arg BumpCompetitorItemAttemptsParams) error
 	// Returns a row only when this caller owns the (workspace, kind, period) slot:
 	// a fresh insert, a retry of a failed run (max 5 attempts, backoff of
 	// 10 min x attempts so a provider outage is ridden out inside the due window),
@@ -143,6 +145,7 @@ type Querier interface {
 	GetCompetitor(ctx context.Context, arg GetCompetitorParams) (Competitor, error)
 	// Poll loop only: the id comes from a row that already carries workspace_id.
 	GetCompetitorByID(ctx context.Context, id string) (Competitor, error)
+	GetCompetitorByName(ctx context.Context, arg GetCompetitorByNameParams) (Competitor, error)
 	GetCompetitorSetup(ctx context.Context, workspaceID string) (CompetitorSetup, error)
 	// Digests (P1 #13)
 	GetDigestSettings(ctx context.Context, workspaceID string) (DigestSetting, error)

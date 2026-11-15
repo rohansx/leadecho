@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"sort"
 	"strings"
 	"time"
 )
@@ -85,9 +86,6 @@ func ParseFeed(b []byte) ([]Item, error) {
 		return nil, errors.New("not a feed")
 	}
 	entries := append(append(doc.Channel.Items, doc.Items...), doc.Entries...)
-	if len(entries) > maxFeedItems {
-		entries = entries[:maxFeedItems]
-	}
 	items := make([]Item, 0, len(entries))
 	for _, e := range entries {
 		link := ""
@@ -112,6 +110,17 @@ func ParseFeed(b []byte) ([]Item, error) {
 			URL:   link,
 			At:    parseFeedTime(e.PubDate, e.Published, e.Updated, e.Date),
 		})
+	}
+	// Some feeds list oldest first: keep the newest ones, not the first ones.
+	dated := true
+	for _, it := range items {
+		dated = dated && !it.At.IsZero()
+	}
+	if dated {
+		sort.SliceStable(items, func(i, j int) bool { return items[i].At.After(items[j].At) })
+	}
+	if len(items) > maxFeedItems {
+		items = items[:maxFeedItems]
 	}
 	return items, nil
 }

@@ -3,6 +3,7 @@ package competitors
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -168,5 +169,36 @@ func TestFetchGitHubReadsReleaseFeeds(t *testing.T) {
 	}
 	if len(asked) != 4 {
 		t.Fatalf("org page plus at most 3 repos, asked %v", asked)
+	}
+}
+
+func TestParseFeedKeepsTheNewestWhenTheFeedIsOldestFirst(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("<?xml version=\"1.0\"?><rss version=\"2.0\"><channel>")
+	for i := 1; i <= 40; i++ {
+		fmt.Fprintf(&b, "<item><title>entry %d</title><guid>g%d</guid><pubDate>%s</pubDate></item>", i, i,
+			time.Date(2026, 1, i, 0, 0, 0, 0, time.UTC).Format(time.RFC1123Z))
+	}
+	b.WriteString("</channel></rss>")
+	items, err := ParseFeed([]byte(b.String()))
+	if err != nil || len(items) != 30 || items[0].Title != "entry 40" {
+		t.Fatalf("want the 30 newest, newest first: %d items, first %q, err %v", len(items), items[0].Title, err)
+	}
+}
+
+func TestFetchGitHubFailsWhenNoReleaseFeedCanBeRead(t *testing.T) {
+	fetch := func(_ context.Context, u string) (string, error) {
+		if u == "https://github.com/acme" {
+			return "<a href=\"/acme/widget\">w</a><a href=\"/acme/cli\">c</a>", nil
+		}
+		return "", errors.New("status 429")
+	}
+	if _, err := FetchURL(context.Background(), fetch, KindGitHub, "https://github.com/acme", "", ""); err == nil {
+		t.Fatal("repositories exist but none could be read: that is a failed check, not an empty baseline")
+	}
+	// An organisation page with no repositories is simply empty.
+	none := func(context.Context, string) (string, error) { return "<p>nothing here</p>", nil }
+	if res, err := FetchURL(context.Background(), none, KindGitHub, "https://github.com/acme", "", ""); err != nil || len(res.Items) != 0 {
+		t.Fatalf("got %+v %v", res, err)
 	}
 }

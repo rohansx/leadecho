@@ -382,7 +382,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			}
 			// competitor watch: the competitors LeadEcho found, their sources and moves
 			if llmRouter != nil {
-				compH := handler.NewCompetitorsHandler(competitors.NewService(queries, llmRouter, mon, credits, cfg.ExaAPIKey, logger), logger)
+				compH := handler.NewCompetitorsHandler(competitors.NewService(db, queries, llmRouter, mon, credits, cfg.ExaAPIKey, logger), logger)
 				r.Get("/competitors", compH.List)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/competitors", compH.Create)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/competitors/setup", compH.Setup)

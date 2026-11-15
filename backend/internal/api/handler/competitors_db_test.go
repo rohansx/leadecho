@@ -72,6 +72,7 @@ func TestCompetitorsAPIDB(t *testing.T) {
 	r.Use(middleware.Auth(secret, nil))
 	r.Get("/competitors", h.List)
 	r.Post("/competitors", h.Create)
+	r.Post("/competitors/setup", h.Setup)
 	r.Patch("/competitors/{id}", h.Update)
 	r.Delete("/competitors/{id}", h.Delete)
 	r.Get("/competitors/{id}/people", h.People)
@@ -99,6 +100,17 @@ func TestCompetitorsAPIDB(t *testing.T) {
 		return resp.StatusCode, out
 	}
 
+	// The customer's own site is never a competitor, however it is entered.
+	if _, err := q.UpsertBrandProfile(ctx, database.UpsertBrandProfileParams{
+		WorkspaceID: wsA, Product: "Mine", CustomerSegments: []byte("[]"), Competitors: []string{}, PainPoints: []byte("[]"),
+		Keywords: []byte("{}"), Features: []string{}, SourceUrl: "https://mine.com",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := call(tokenA, "POST", "/competitors", map[string]string{"name": "Me", "website": "https://app.mine.com/pricing"}); code != 400 {
+		t.Errorf("own website: want 400, got %d", code)
+	}
+
 	// Validation.
 	for name, body := range map[string]any{
 		"no name":     map[string]string{"website": "https://acme.com"},
@@ -122,6 +134,12 @@ func TestCompetitorsAPIDB(t *testing.T) {
 		t.Fatalf("create: %d %v", code, out)
 	}
 	acme := out["data"].(map[string]any)["id"].(string)
+	if code, _ := call(tokenA, "POST", "/competitors", map[string]string{"name": "ACME", "website": "other.example"}); code != 409 {
+		t.Errorf("a name already watched: want 409, got %d", code)
+	}
+	if code, _ := call(tokenA, "PATCH", "/competitors/"+acme, map[string]string{"website": "https://mine.com"}); code != 400 {
+		t.Errorf("moving a competitor to your own website: want 400, got %d", code)
+	}
 	if code, _ := call(tokenA, "POST", "/competitors", map[string]string{"name": "Third", "website": "third.com"}); code != 409 {
 		t.Errorf("past the limit: want 409, got %d", code)
 	}
@@ -164,6 +182,14 @@ func TestCompetitorsAPIDB(t *testing.T) {
 		if code, _ := call(tokenB, c.method, c.path, body); code != 404 {
 			t.Errorf("workspace B %s %s: want 404, got %d", c.method, c.path, code)
 		}
+	}
+
+	// Looking again by hand is limited: each run searches and fetches.
+	if code, _ := call(tokenA, "POST", "/competitors/setup", nil); code != 200 {
+		t.Fatalf("first setup: %d", code)
+	}
+	if code, _ := call(tokenA, "POST", "/competitors/setup", nil); code != 429 {
+		t.Errorf("a second setup straight away: want 429, got %d", code)
 	}
 
 	// Pause, people (none), delete.

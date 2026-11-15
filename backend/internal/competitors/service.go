@@ -27,6 +27,10 @@ const (
 	// FreeLimit is the cap on the free plan.
 	FreeLimit = 3
 
+	// MaxAttempts is how many times the model step tries an item before it
+	// is dropped.
+	MaxAttempts = 3
+
 	reasonCredits = "competitor_watch"
 	modelCost     = 1 // credits per model call, as for one scored post
 )
@@ -45,9 +49,11 @@ type Model interface {
 	Chat(ctx context.Context, workspaceID string, msgs []ai.ChatMessage) (string, error)
 }
 
-// Credits charges a workspace for a model call.
+// Credits charges a workspace for a model call, and gives the credit back
+// when the call produced nothing usable.
 type Credits interface {
 	Spend(ctx context.Context, ws string, cost int, reason string) error
+	Refund(ctx context.Context, ws string, n int, reason string)
 }
 
 // Service finds a workspace's competitors, watches their sources and turns
@@ -65,6 +71,31 @@ type Service struct {
 	Limit   func(ctx context.Context, ws string) int                  // nil: DefaultLimit
 	Locked  func(ctx context.Context, ws string) bool                 // nil: paid data is available
 	Alert   func(ctx context.Context, ws, competitor string, m Alert) // nil: no alerts
+	// Tx runs fn in one database transaction. nil: fn runs on Q, unprotected
+	// (tests only; NewService always sets it).
+	Tx func(ctx context.Context, fn func(q database.Querier) error) error
+}
+
+func (s *Service) tx(ctx context.Context, fn func(q database.Querier) error) error {
+	if s.Tx == nil {
+		return fn(s.Q)
+	}
+	return s.Tx(ctx, fn)
+}
+
+// OwnHost is the host of the customer's own site, or "" when unknown.
+func (s *Service) OwnHost(ctx context.Context, ws string) string {
+	bp, err := s.Q.GetBrandProfile(ctx, ws)
+	if err != nil {
+		return ""
+	}
+	return onboarding.HostOf(bp.SourceUrl)
+}
+
+// IsOwnSite reports whether website is the customer's own site.
+func IsOwnSite(website, ownHost string) bool {
+	host := onboarding.HostOf(website)
+	return ownHost != "" && (host == ownHost || strings.HasSuffix(host, "."+ownHost))
 }
 
 // Alert is a high-importance move sent to the workspace's alert channels.
@@ -103,8 +134,9 @@ func squash(s string) string {
 
 // PickWebsite chooses a competitor's own site from search hits, or "" when
 // no hit is clearly theirs. Nobody confirms the choice, so a hit counts only
-// if its domain or the leading part of its title is the name itself. Review
-// sites and the customer's own site never count.
+// if its domain is the name, or it is a homepage whose title leads with the
+// name (a page titled "Acme: an honest review" on someone's blog is not
+// Acme's site). Review sites and the customer's own site never count.
 func PickWebsite(name, ownHost string, hits []monitor.ExaWebResult) string {
 	want := squash(name)
 	if want == "" {
@@ -116,7 +148,7 @@ func PickWebsite(name, ownHost string, hits []monitor.ExaWebResult) string {
 			continue
 		}
 		host := onboarding.HostOf(h.URL)
-		if onboarding.IsAggregatorHost(host) || (ownHost != "" && (host == ownHost || strings.HasSuffix(host, "."+ownHost))) {
+		if onboarding.IsAggregatorHost(host) || IsOwnSite(h.URL, ownHost) {
 			continue
 		}
 		labels := strings.Split(host, ".")
@@ -128,7 +160,8 @@ func PickWebsite(name, ownHost string, hits []monitor.ExaWebResult) string {
 		if i := strings.IndexAny(title, "-|:–—·"); i >= 0 {
 			title = title[:i]
 		}
-		if squash(domain) == want || squash(title) == want {
+		homepage := strings.Trim(u.Path, "/") == ""
+		if squash(domain) == want || (homepage && squash(title) == want) {
 			return u.Scheme + "://" + u.Host
 		}
 	}
@@ -138,23 +171,30 @@ func PickWebsite(name, ownHost string, hits []monitor.ExaWebResult) string {
 // guessTLDs are tried, in order, when search finds nothing.
 var guessTLDs = []string{".com", ".io", ".ai", ".co"}
 
+// ErrSearchDown: the website search failed, so "not found" is not final.
+var ErrSearchDown = errors.New("website search failed")
+
 // Resolve finds a competitor's website from its name, or "" when it cannot
-// tell with confidence. Search first; when that finds nothing (or no search
+// tell with confidence. It returns ErrSearchDown when it found nothing and
+// the search itself had failed: the caller should try again later.
+// Search first; when that finds nothing (or no search
 // is configured) it tries the obvious domains and accepts one only if the
 // page there names the company in its title.
-func (s *Service) Resolve(ctx context.Context, name, ownHost string) string {
+func (s *Service) Resolve(ctx context.Context, name, ownHost string) (string, error) {
+	var searchErr error
 	if s.Search != nil {
 		hits, err := s.Search(ctx, name)
 		if err != nil {
 			s.Logger.Warn().Err(err).Str("competitor", name).Msg("competitors: website search failed")
+			searchErr = fmt.Errorf("%w: %v", ErrSearchDown, err)
 		}
 		if site := PickWebsite(name, ownHost, hits); site != "" {
-			return site
+			return site, nil
 		}
 	}
 	want := squash(name)
 	if len(want) < 3 || s.Fetch == nil {
-		return ""
+		return "", searchErr
 	}
 	for _, tld := range guessTLDs {
 		host := want + tld
@@ -169,15 +209,15 @@ func (s *Service) Resolve(ctx context.Context, name, ownHost string) string {
 				// A site answers there but will not let us read it (a bot
 				// wall, usually). It is probably theirs; a lookalike on the
 				// next ending is not, so stop instead of guessing on.
-				return ""
+				return "", searchErr
 			}
 			continue // no such host: try the next ending
 		}
 		if titleNames(onboarding.PageTitle(body), want) {
-			return "https://" + host
+			return "https://" + host, nil
 		}
 	}
-	return ""
+	return "", searchErr
 }
 
 // titleNames reports whether one part of a page title is exactly the name
@@ -197,7 +237,9 @@ func titleNames(title, want string) bool {
 // in its brand profile: each name is resolved to a website and its sources
 // are read off the homepage. The customer is not asked for anything. Names
 // with no confident website are recorded as unresolved and not watched.
-// Setup is recorded even when nothing was found, so it runs once.
+// Setup is recorded even when nothing was found, so it runs once. The one
+// exception is a search outage: then it returns an error without recording
+// anything, and the next round tries again.
 func (s *Service) Setup(ctx context.Context, ws string) (created int, unresolved []string, err error) {
 	bp, err := s.Q.GetBrandProfile(ctx, ws)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -214,15 +256,18 @@ func (s *Service) Setup(ctx context.Context, ws string) (created int, unresolved
 	room := s.limit(ctx, ws) - len(have)
 	ownHost := onboarding.HostOf(bp.SourceUrl)
 	unresolved = []string{}
+	searchDown := false
+	product := squash(bp.Product)
 	for _, name := range bp.Competitors {
 		name = strings.TrimSpace(name)
-		if name == "" || known[strings.ToLower(name)] {
-			continue
+		if name == "" || known[strings.ToLower(name)] || (product != "" && squash(name) == product) {
+			continue // blank, already watched, or the customer's own product
 		}
 		if room <= 0 {
 			break
 		}
-		site := s.Resolve(ctx, name, ownHost)
+		site, err := s.Resolve(ctx, name, ownHost)
+		searchDown = searchDown || errors.Is(err, ErrSearchDown)
 		if site == "" {
 			unresolved = append(unresolved, name)
 			continue
@@ -236,14 +281,21 @@ func (s *Service) Setup(ctx context.Context, ws string) (created int, unresolved
 		created++
 		room--
 	}
+	if searchDown {
+		return created, unresolved, fmt.Errorf("setup for %s not finished: %w", ws, ErrSearchDown)
+	}
 	if err := s.Q.MarkCompetitorSetup(ctx, database.MarkCompetitorSetupParams{WorkspaceID: ws, Unresolved: unresolved}); err != nil {
 		return created, unresolved, fmt.Errorf("mark setup: %w", err)
 	}
 	return created, unresolved, nil
 }
 
-// ErrLimit: the workspace already watches as many competitors as its plan allows.
-var ErrLimit = errors.New("competitor limit reached")
+var (
+	// ErrLimit: the workspace already watches as many competitors as its plan allows.
+	ErrLimit = errors.New("competitor limit reached")
+	// ErrExists: a competitor with that name is already watched.
+	ErrExists = errors.New("competitor already watched")
+)
 
 // Add starts watching one competitor: it stores it and the sources found on
 // its homepage. website must already be a validated http(s) URL.
@@ -251,6 +303,11 @@ func (s *Service) Add(ctx context.Context, ws, name, website string) (database.C
 	n, err := s.Q.CountCompetitors(ctx, ws)
 	if err != nil {
 		return database.Competitor{}, fmt.Errorf("count competitors: %w", err)
+	}
+	if _, err := s.Q.GetCompetitorByName(ctx, database.GetCompetitorByNameParams{WorkspaceID: ws, Name: clip(name, 80)}); err == nil {
+		return database.Competitor{}, ErrExists
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return database.Competitor{}, fmt.Errorf("look up competitor: %w", err)
 	}
 	if int(n) >= s.limit(ctx, ws) {
 		return database.Competitor{}, ErrLimit

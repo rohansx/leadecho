@@ -28,6 +28,24 @@ func (q *Queries) AppendCompetitorMoveURL(ctx context.Context, arg AppendCompeti
 	return err
 }
 
+const bumpCompetitorItemAttempts = `-- name: BumpCompetitorItemAttempts :exec
+UPDATE competitor_items
+SET attempts = attempts + 1,
+    processed_at = CASE WHEN attempts + 1 >= $1::int THEN NOW() ELSE processed_at END
+WHERE id = ANY($2::uuid[])
+`
+
+type BumpCompetitorItemAttemptsParams struct {
+	MaxAttempts int32    `json:"max_attempts"`
+	Ids         []string `json:"ids"`
+}
+
+// A failed read: count it, and stop retrying at max_attempts.
+func (q *Queries) BumpCompetitorItemAttempts(ctx context.Context, arg BumpCompetitorItemAttemptsParams) error {
+	_, err := q.db.Exec(ctx, bumpCompetitorItemAttempts, arg.MaxAttempts, arg.Ids)
+	return err
+}
+
 const countCompetitorPeople = `-- name: CountCompetitorPeople :one
 SELECT COUNT(*)::INT FROM mentions
 WHERE workspace_id = $1
@@ -74,7 +92,6 @@ func (q *Queries) CountCompetitors(ctx context.Context, workspaceID string) (int
 const createCompetitor = `-- name: CreateCompetitor :one
 INSERT INTO competitors (workspace_id, name, website)
 VALUES ($1, $2, $3)
-ON CONFLICT (workspace_id, lower(name)) DO UPDATE SET website = EXCLUDED.website
 RETURNING id, workspace_id, name, website, status, summary, summary_at, created_at
 `
 
@@ -262,6 +279,31 @@ SELECT id, workspace_id, name, website, status, summary, summary_at, created_at 
 // Poll loop only: the id comes from a row that already carries workspace_id.
 func (q *Queries) GetCompetitorByID(ctx context.Context, id string) (Competitor, error) {
 	row := q.db.QueryRow(ctx, getCompetitorByID, id)
+	var i Competitor
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Website,
+		&i.Status,
+		&i.Summary,
+		&i.SummaryAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCompetitorByName = `-- name: GetCompetitorByName :one
+SELECT id, workspace_id, name, website, status, summary, summary_at, created_at FROM competitors WHERE workspace_id = $1 AND lower(name) = lower($2)
+`
+
+type GetCompetitorByNameParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Name        string `json:"name"`
+}
+
+func (q *Queries) GetCompetitorByName(ctx context.Context, arg GetCompetitorByNameParams) (Competitor, error) {
+	row := q.db.QueryRow(ctx, getCompetitorByName, arg.WorkspaceID, arg.Name)
 	var i Competitor
 	err := row.Scan(
 		&i.ID,
@@ -741,9 +783,9 @@ func (q *Queries) ListUnalertedHighCompetitorMoves(ctx context.Context, maxRows 
 }
 
 const listUnprocessedCompetitorItems = `-- name: ListUnprocessedCompetitorItems :many
-SELECT id, source_id, competitor_id, workspace_id, item_key, title, body, url, happened_at, processed_at, created_at FROM competitor_items
+SELECT id, source_id, competitor_id, workspace_id, item_key, title, body, url, happened_at, processed_at, attempts, created_at FROM competitor_items
 WHERE processed_at IS NULL
-ORDER BY competitor_id, created_at
+ORDER BY created_at
 LIMIT $1::int
 `
 
@@ -767,6 +809,7 @@ func (q *Queries) ListUnprocessedCompetitorItems(ctx context.Context, maxRows in
 			&i.Url,
 			&i.HappenedAt,
 			&i.ProcessedAt,
+			&i.Attempts,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -783,7 +826,7 @@ const listWorkspacesNeedingCompetitorSetup = `-- name: ListWorkspacesNeedingComp
 SELECT b.workspace_id FROM brand_profiles b
 LEFT JOIN competitor_setup s ON s.workspace_id = b.workspace_id
 WHERE s.workspace_id IS NULL AND cardinality(b.competitors) > 0
-ORDER BY b.updated_at
+ORDER BY random() -- a workspace whose setup keeps failing must not block the rest
 LIMIT $1::int
 `
 

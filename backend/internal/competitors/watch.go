@@ -192,8 +192,8 @@ func pageChange(kind, rawURL, body, lastHash, lastText string) (Fetched, error) 
 }
 
 // fetchGitHub reads the release feeds of up to maxGitHubRepos repositories
-// linked from an organisation's page. A repository with no releases, or one
-// that cannot be read, is skipped.
+// linked from an organisation's page. A repository that cannot be read is
+// skipped, unless none can be read: that is a failed check.
 func fetchGitHub(ctx context.Context, fetch onboarding.PageFetcher, orgURL string) (Fetched, error) {
 	base, err := url.Parse(orgURL)
 	if err != nil {
@@ -221,19 +221,29 @@ func fetchGitHub(ctx context.Context, fetch onboarding.PageFetcher, orgURL strin
 		}
 	}
 	out := Fetched{Hash: feedBaseline}
+	read := 0
+	var lastErr error
 	for _, repo := range repos {
 		fb, err := fetch(ctx, "https://github.com/"+org+"/"+repo+"/releases.atom")
 		if err != nil {
+			lastErr = err
 			continue
 		}
 		items, err := ParseFeed([]byte(fb))
 		if err != nil {
+			lastErr = err
 			continue
 		}
+		read++
 		for _, it := range items {
 			it.Title = strings.TrimSpace(repo + " " + it.Title)
 			out.Items = append(out.Items, it)
 		}
+	}
+	if len(repos) > 0 && read == 0 {
+		// Nothing could be read (rate limit, outage). Reporting "no releases"
+		// would set an empty baseline and replay their history next time.
+		return Fetched{}, fmt.Errorf("read release feeds of %s: %w", orgURL, lastErr)
 	}
 	return out, nil
 }

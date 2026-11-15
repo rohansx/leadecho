@@ -514,6 +514,7 @@ type CompetitorItem struct {
 	Url          string             `json:"url"`
 	HappenedAt   time.Time          `json:"happened_at"`
 	ProcessedAt  pgtype.Timestamptz `json:"processed_at"`
+	Attempts     int32              `json:"attempts"`
 	CreatedAt    time.Time          `json:"created_at"`
 }
 

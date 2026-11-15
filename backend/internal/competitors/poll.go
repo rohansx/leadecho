@@ -25,7 +25,6 @@ const (
 	itemsPerCall      = 20
 	alertsPerPoll     = 20
 	maxItemAge        = 30 * 24 * time.Hour // an older entry showing up in a feed is history, not news
-	giveUpAfter       = 3 * 24 * time.Hour  // unprocessed this long: stop retrying
 	recentMovesWindow = 14 * 24 * time.Hour
 	summaryWindow     = 90 * 24 * time.Hour
 )
@@ -109,6 +108,12 @@ func (s *Service) CheckSource(ctx context.Context, src database.CompetitorSource
 	}
 
 	baseline := src.LastHash == ""
+	if baseline && got.Hash == feedBaseline && len(got.Items) == 0 {
+		// A first answer with nothing in it may be a provider hiccup. Taking
+		// it as the baseline would make everything already published look
+		// new next time, so the baseline waits for a non-empty answer.
+		return s.Q.TouchCompetitorSource(ctx, src.ID)
+	}
 	now := time.Now().UTC()
 	for _, it := range got.Items {
 		if it.Key == "" {
@@ -157,27 +162,21 @@ func (s *Service) processItems(ctx context.Context) {
 		}
 		if err := s.processCompetitor(ctx, id, batch); err != nil {
 			s.Logger.Warn().Err(err).Str("competitor_id", id).Msg("competitors: read moves")
-			s.giveUpOld(ctx, batch)
+			s.countFailure(ctx, batch)
 		}
 	}
 }
 
-// giveUpOld stops retrying items the model step has failed on for days.
-func (s *Service) giveUpOld(ctx context.Context, batch []database.CompetitorItem) {
-	var old []string
-	for _, it := range batch {
-		if time.Since(it.CreatedAt) > giveUpAfter {
-			old = append(old, it.ID)
-		}
+// countFailure records one failed read of a batch. After MaxAttempts the
+// items are dropped, so an item the model cannot read stops costing calls.
+func (s *Service) countFailure(ctx context.Context, batch []database.CompetitorItem) {
+	ids := make([]string, len(batch))
+	for i, it := range batch {
+		ids[i] = it.ID
 	}
-	if len(old) == 0 {
-		return
+	if err := s.Q.BumpCompetitorItemAttempts(ctx, database.BumpCompetitorItemAttemptsParams{Ids: ids, MaxAttempts: MaxAttempts}); err != nil {
+		s.Logger.Warn().Err(err).Msg("competitors: count failed read")
 	}
-	if err := s.Q.MarkCompetitorItemsProcessed(ctx, old); err != nil {
-		s.Logger.Warn().Err(err).Msg("competitors: drop old items")
-		return
-	}
-	s.Logger.Warn().Int("items", len(old)).Msg("competitors: gave up on items that could not be read")
 }
 
 func (s *Service) product(ctx context.Context, ws string) (Product, error) {
@@ -231,33 +230,43 @@ func (s *Service) processCompetitor(ctx context.Context, competitorID string, ba
 	}
 	moves, err := ParseMoves(raw, len(items), themes, recent)
 	if err != nil {
+		s.refund(ctx, ws) // an answer that cannot be read is not charged
 		return err
 	}
+	// Moves and "these items are read" are saved together: a half-saved
+	// batch would be read again and stored twice.
 	created := 0
-	for _, m := range moves {
-		it := items[m.Item-1]
-		if m.SameAs != "" {
-			if it.URL != "" {
-				if err := s.Q.AppendCompetitorMoveURL(ctx, database.AppendCompetitorMoveURLParams{ID: m.SameAs, CompetitorID: comp.ID, Url: it.URL}); err != nil {
-					return fmt.Errorf("merge move: %w", err)
+	err = s.tx(ctx, func(q database.Querier) error {
+		created = 0
+		for _, m := range moves {
+			it := items[m.Item-1]
+			if m.SameAs != "" {
+				if it.URL != "" {
+					if err := q.AppendCompetitorMoveURL(ctx, database.AppendCompetitorMoveURLParams{ID: m.SameAs, CompetitorID: comp.ID, Url: it.URL}); err != nil {
+						return fmt.Errorf("merge move: %w", err)
+					}
 				}
+				continue
 			}
-			continue
+			urls := []string{}
+			if it.URL != "" {
+				urls = append(urls, it.URL)
+			}
+			if _, err := q.CreateCompetitorMove(ctx, database.CreateCompetitorMoveParams{
+				CompetitorID: comp.ID, WorkspaceID: ws, Kind: m.Kind, Title: m.Title, Summary: m.Summary, Urls: urls,
+				HappenedAt: it.At, Impact: m.Impact, Action: m.Action, ThemeID: m.ThemeID, Importance: m.Importance,
+			}); err != nil {
+				return fmt.Errorf("store move: %w", err)
+			}
+			created++
 		}
-		urls := []string{}
-		if it.URL != "" {
-			urls = append(urls, it.URL)
+		if err := q.MarkCompetitorItemsProcessed(ctx, ids); err != nil {
+			return fmt.Errorf("mark items read: %w", err)
 		}
-		if _, err := s.Q.CreateCompetitorMove(ctx, database.CreateCompetitorMoveParams{
-			CompetitorID: comp.ID, WorkspaceID: ws, Kind: m.Kind, Title: m.Title, Summary: m.Summary, Urls: urls,
-			HappenedAt: it.At, Impact: m.Impact, Action: m.Action, ThemeID: m.ThemeID, Importance: m.Importance,
-		}); err != nil {
-			return fmt.Errorf("store move: %w", err)
-		}
-		created++
-	}
-	if err := s.Q.MarkCompetitorItemsProcessed(ctx, ids); err != nil {
-		return fmt.Errorf("mark items read: %w", err)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if created > 0 {
 		if err := s.rewriteSummary(ctx, comp); err != nil {
@@ -267,7 +276,13 @@ func (s *Service) processCompetitor(ctx context.Context, competitorID string, ba
 	return nil
 }
 
-// chat charges one model call and runs it.
+func (s *Service) refund(ctx context.Context, ws string) {
+	if s.Credits != nil {
+		s.Credits.Refund(ctx, ws, modelCost, reasonCredits)
+	}
+}
+
+// chat charges one model call and runs it. A call that fails is refunded.
 func (s *Service) chat(ctx context.Context, ws string, prompt func() (system, user string)) (string, error) {
 	if s.Credits != nil {
 		if err := s.Credits.Spend(ctx, ws, modelCost, reasonCredits); err != nil {
@@ -277,6 +292,7 @@ func (s *Service) chat(ctx context.Context, ws string, prompt func() (system, us
 	system, user := prompt()
 	out, err := s.Model.Chat(ctx, ws, []ai.ChatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}})
 	if err != nil {
+		s.refund(ctx, ws) // a failed call is not charged
 		return "", fmt.Errorf("model: %w", err)
 	}
 	return out, nil
