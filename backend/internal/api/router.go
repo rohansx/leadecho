@@ -306,6 +306,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// onboarding v2: brand profile, streamed analysis, listener builder, first value
 			onboarding.SetKnowledge(kb)
+			onboarding.SetPageReader(onboardingflow.TregPageReader(mon.Treg()))
 			onboarding.SetCompetitorFinder(onboardingflow.NewCompetitorFinder(cfg.ExaAPIKey))
 			r.Get("/brand-profile", onboarding.GetBrandProfile)
 			r.Put("/brand-profile", onboarding.PutBrandProfile)

@@ -33,6 +33,7 @@ type OnboardingHandler struct {
 	kb     *knowledge.Service
 	finder onboarding.CompetitorFinder
 	fetch  onboarding.PageFetcher // nil = SSRF-safe default
+	reader onboarding.PageReader  // nil = no browser fallback through the data provider
 	search onboarding.Searcher    // nil = public sources
 
 	credits *billing.Credits // billing: keywords past the plan limit start inactive
