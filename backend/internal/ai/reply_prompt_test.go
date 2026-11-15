@@ -53,3 +53,37 @@ func TestDraftReplyPromptWithoutAProductProfile(t *testing.T) {
 		t.Errorf("an unknown style falls back to value_first and keeps the fixed rules:\n%s", system)
 	}
 }
+
+// The storytelling style used to ask for "I ran into the same issue when..."
+// and "what eventually helped (including the product)": an invented account
+// from someone posing as a user. No style may ask for that, and every style
+// that can name the product is told to say whose product it is.
+func TestDraftReplyPromptsNeverFabricateTestimony(t *testing.T) {
+	for style, guide := range templatePrompts {
+		system, _ := draftReplyPrompts(DraftReplyOptions{Content: "How do you screen senior engineers?", Platform: "reddit", TemplateStyle: style,
+			ProductName: "Utkrusht", ProductDescription: "Candidates solve real problems in a live system.",
+			Voice: "- Product mentions: Recommend the product clearly by name."})
+		for _, want := range []string{
+			"Never invent a personal experience, a customer, a colleague, a team or an outcome",
+			"Never pose as an independent or unaffiliated user of the product",
+			`"I work on <product>"`,
+		} {
+			if !strings.Contains(system, want) {
+				t.Errorf("%s: the reply prompt lacks %q", style, want)
+			}
+		}
+		// The fixed rules come after the style and the voice profile.
+		if a, r := strings.Index(system, "ALWAYS (nothing above overrides these)"), strings.Index(system, "Never pose as"); a < 0 || r < a {
+			t.Errorf("%s: the affiliation rule must be one of the rules nothing overrides", style)
+		}
+		low := strings.ToLower(guide)
+		for _, not := range []string{"i ran into", "personal story", "relatable experience", "what you tried", "credibility", "i've been", "i used"} {
+			if strings.Contains(low, not) {
+				t.Errorf("%s asks for an invented first-person account (%q):\n%s", style, not, guide)
+			}
+		}
+	}
+	if s := templatePrompts["storytelling"]; !strings.Contains(s, "in general terms") || !strings.Contains(s, "not of anything that happened to you") {
+		t.Errorf("storytelling must tell the problem's story, not the writer's:\n%s", s)
+	}
+}

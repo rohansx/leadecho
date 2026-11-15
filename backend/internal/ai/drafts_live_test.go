@@ -38,7 +38,7 @@ type liveLead struct {
 }
 
 var (
-	liveJobRE     = regexp.MustCompile(`^(.+?) posted a job for "(.+?)"(?: \((.+)\))? this week\.`)
+	liveJobRE     = regexp.MustCompile(`^(.+?) posted a job for "(.+?)"(?: \((.+?)\))?(?: this week| on \d+ \w+ \d+)?\.`)
 	liveContactRE = regexp.MustCompile(`Who to contact: [^,]+, (.+?) at `)
 )
 
@@ -146,6 +146,36 @@ func TestDraftsLive(t *testing.T) {
 		}
 	}
 
+	// A funding-only lead (an invented company: the export has none). The
+	// round is all that is known: the draft may state its type, amount and
+	// date, and may not say the company is hiring.
+	funded := Outreach{
+		Product: liveProduct, Overview: liveOverview, Positioning: livePositioning,
+		ContactName: "Nora Lindqvist", ContactTitle: "Co-founder & CTO", Company: "Tessel Grid", CompanySize: 34,
+		Funding: "a Seed round of $4.4 million, announced 2026-11-10", Today: today,
+		Research: &ResearchBrief{WhatTheyDo: "Grid software.", Facts: []ResearchFact{{Text: "Tessel Grid lists 12 open engineering roles.", URL: "https://example.com/careers"}}},
+	}
+	if system, _ := outreachPrompts(funded); system != fundingOutreachPrompt {
+		t.Error("funding: not written from the funding brief")
+	}
+	if out, err := DraftOutreach(ctx, p, funded); err != nil {
+		t.Errorf("funding: %v", err)
+	} else {
+		t.Logf("----- funding only: %s\n%s", funded.Company, out)
+		low := strings.ToLower(out)
+		for _, n := range []string{"12", "34", "you're hiring", "you are hiring", "open roles", "congrat", "investor", "free", "pilot", "http"} {
+			if strings.Contains(low, n) {
+				t.Errorf("funding: the draft says %q", n)
+			}
+		}
+		if !strings.Contains(low, "seed") && !strings.Contains(out, "4.4") {
+			t.Error("funding: the draft does not open on the round")
+		}
+		if !strings.HasSuffix(strings.TrimSpace(out), "?") {
+			t.Error("funding: the message should end on its question")
+		}
+	}
+
 	// The public reply that coached a hiring manager on take-homes and ended
 	// in a bare tracking link: every style, since the style is picked at random.
 	post, ok := leads["9b6b16d2"]
@@ -170,6 +200,16 @@ func TestDraftsLive(t *testing.T) {
 		}
 		if first, _, _ := strings.Cut(res.Reply, "."); strings.Contains(strings.ToLower(first), "utkrusht") {
 			t.Errorf("reply (%s): names the product in the first sentence", style)
+		}
+		// No invented testimony, and the product is never named by someone
+		// posing as a bystander.
+		for _, n := range []string{"i ran into", "we ended up", "last year", "we switched", "i switched", "we tried", "i tried", "in my experience", "my team"} {
+			if strings.Contains(low, n) {
+				t.Errorf("reply (%s): tells an invented experience (%q)", style, n)
+			}
+		}
+		if strings.Contains(low, "utkrusht") && !strings.Contains(low, "i work on") && !strings.Contains(low, "i work at") && !strings.Contains(low, "i'm on the") && !strings.Contains(low, "i help build") && !strings.Contains(low, "i build") {
+			t.Errorf("reply (%s): names the product without saying the writer is affiliated with it", style)
 		}
 	}
 }

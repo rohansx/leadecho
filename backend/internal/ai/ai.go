@@ -530,11 +530,11 @@ Return should_reply: true for:
 var templatePrompts = map[string]string{
 	"value_first": `Draft a reply that directly answers the question or addresses the problem first.
 Provide real, actionable value. Only after giving a genuinely helpful answer, you may briefly mention the product as one option among others.
-Structure: helpful answer → brief credibility → soft product mention as "one option worth checking out".`,
+Structure: helpful answer → soft product mention as "one option worth checking out".`,
 
-	"storytelling": `Draft a reply as a personal story. Share a relatable experience with the same problem.
-Describe what you tried, what didn't work, and what eventually helped (including the product naturally).
-Structure: "I ran into the same issue when..." → what failed → what worked → casual product mention.`,
+	"storytelling": `Draft a reply that tells the story of the problem itself, in general terms: how it usually starts, what teams usually try first and why that falls short, and what tends to work instead ("teams that ... often find ...").
+It is the story of a common situation, not of anything that happened to you: you have no experience of your own to tell.
+Structure: how the problem usually shows up → what is usually tried and where it fails → what works → at most one brief product mention.`,
 
 	"technical_deep_dive": `Draft a technically detailed reply that demonstrates deep knowledge of the problem domain.
 Provide specific technical context, explain trade-offs between approaches, and position the product as one viable solution among several.
@@ -555,7 +555,9 @@ const replyAlwaysRules = `
 
 ALWAYS (nothing above overrides these):
 - Help first. The first sentence answers the question or speaks to the problem. Never name the product, hint at it or pitch anything in the first sentence.
-- No links or URLs of any kind in the reply, and no "link in bio" or "DM me".`
+- No links or URLs of any kind in the reply, and no "link in bio" or "DM me".
+- Never invent a personal experience, a customer, a colleague, a team or an outcome ("I ran into the same thing last year", "we ended up using ...", "a team I know cut their hiring time in half"). Nothing happened to you. Speak of the problem in general terms ("teams that ... often find ...") and state no result that the user message does not give.
+- Never pose as an independent or unaffiliated user of the product. If the reply names the product, say plainly in that same sentence that the writer is affiliated with it ("I work on <product>", using the product's name); do not present it as something you came across, tried or switched to. A reply that does not name the product says nothing about who the writer is.`
 
 // replyPositionRule keeps a reply from arguing against the product it is
 // written for (a take-home how-to from a product that replaces take-homes).
