@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/jackc/pgx/v5"
@@ -134,6 +135,64 @@ func PickWebsite(name, ownHost string, hits []monitor.ExaWebResult) string {
 	return ""
 }
 
+// guessTLDs are tried, in order, when search finds nothing.
+var guessTLDs = []string{".com", ".io", ".ai", ".co"}
+
+// Resolve finds a competitor's website from its name, or "" when it cannot
+// tell with confidence. Search first; when that finds nothing (or no search
+// is configured) it tries the obvious domains and accepts one only if the
+// page there names the company in its title.
+func (s *Service) Resolve(ctx context.Context, name, ownHost string) string {
+	if s.Search != nil {
+		hits, err := s.Search(ctx, name)
+		if err != nil {
+			s.Logger.Warn().Err(err).Str("competitor", name).Msg("competitors: website search failed")
+		}
+		if site := PickWebsite(name, ownHost, hits); site != "" {
+			return site
+		}
+	}
+	want := squash(name)
+	if len(want) < 3 || s.Fetch == nil {
+		return ""
+	}
+	for _, tld := range guessTLDs {
+		host := want + tld
+		if host == ownHost {
+			continue
+		}
+		fctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		body, err := s.Fetch(fctx, "https://"+host)
+		cancel()
+		if err != nil {
+			if strings.Contains(err.Error(), "status ") {
+				// A site answers there but will not let us read it (a bot
+				// wall, usually). It is probably theirs; a lookalike on the
+				// next ending is not, so stop instead of guessing on.
+				return ""
+			}
+			continue // no such host: try the next ending
+		}
+		if titleNames(onboarding.PageTitle(body), want) {
+			return "https://" + host
+		}
+	}
+	return ""
+}
+
+// titleNames reports whether one part of a page title is exactly the name
+// ("HackerRank - Online Coding Tests", "Hiring platform | Codility"). A title
+// that only contains it ("iMocha.com for sale", "leetcode.ai") does not
+// count: parked and lookalike domains do that.
+func titleNames(title, want string) bool {
+	for _, part := range strings.FieldsFunc(title, func(r rune) bool { return strings.ContainsRune("|:–—·-", r) }) {
+		if squash(part) == want {
+			return true
+		}
+	}
+	return false
+}
+
 // Setup creates the workspace's competitors from the names onboarding stored
 // in its brand profile: each name is resolved to a website and its sources
 // are read off the homepage. The customer is not asked for anything. Names
@@ -163,14 +222,7 @@ func (s *Service) Setup(ctx context.Context, ws string) (created int, unresolved
 		if room <= 0 {
 			break
 		}
-		site := ""
-		if s.Search != nil {
-			hits, err := s.Search(ctx, name)
-			if err != nil {
-				s.Logger.Warn().Err(err).Str("workspace_id", ws).Str("competitor", name).Msg("competitors: website search failed")
-			}
-			site = PickWebsite(name, ownHost, hits)
-		}
+		site := s.Resolve(ctx, name, ownHost)
 		if site == "" {
 			unresolved = append(unresolved, name)
 			continue

@@ -81,14 +81,7 @@ func (h *CompetitorsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		site = u
 	} else {
-		if h.svc.Search != nil {
-			hits, err := h.svc.Search(r.Context(), name)
-			if err != nil {
-				h.logger.Warn().Err(err).Msg("competitors: website search failed")
-			}
-			site = competitors.PickWebsite(name, "", hits)
-		}
-		if site == "" {
+		if site = h.svc.Resolve(r.Context(), name, ""); site == "" {
 			writeError(w, http.StatusUnprocessableEntity, "couldn't find their website: add it to start watching")
 			return
 		}

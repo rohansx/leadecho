@@ -1,6 +1,8 @@
 package competitors
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -113,5 +115,53 @@ func TestPickWebsite(t *testing.T) {
 	}
 	if got := PickWebsite("Mine", "mine.com", []monitor.ExaWebResult{{Title: "Mine", URL: "https://app.mine.com"}}); got != "" {
 		t.Fatalf("the customer's own site is never a competitor, got %q", got)
+	}
+}
+
+func TestResolveFallsBackToTheObviousDomain(t *testing.T) {
+	var asked []string
+	svc := &Service{
+		Search: func(context.Context, string) ([]monitor.ExaWebResult, error) {
+			return nil, errors.New("search is down")
+		},
+		Fetch: func(_ context.Context, u string) (string, error) {
+			asked = append(asked, u)
+			switch u {
+			case "https://coderpad.com":
+				return "<title>Domain for sale</title>", nil // parked: the title does not name them
+			case "https://coderpad.io":
+				return "<title>CoderPad: Technical Interview Platform</title>", nil
+			}
+			return "", errors.New("no such host")
+		},
+	}
+	if got := svc.Resolve(context.Background(), "CoderPad", "mine.com"); got != "https://coderpad.io" {
+		t.Fatalf("got %q after asking %v", got, asked)
+	}
+	// Real cases from the Utkrusht list: a parked domain and a lookalike whose
+	// titles contain the name, and a real site behind a bot wall.
+	svc.Fetch = func(_ context.Context, u string) (string, error) {
+		switch u {
+		case "https://imocha.com":
+			return "<title>iMocha.com for sale | Spaceship.com</title>", nil
+		case "https://leetcode.com":
+			return "", errors.New("status 403")
+		case "https://leetcode.ai":
+			return "<title>leetcode.ai</title>", nil
+		case "https://codility.com":
+			return "<title>Technical hiring platform | Codility</title>", nil
+		}
+		return "", errors.New("no such host")
+	}
+	for name, want := range map[string]string{"iMocha": "", "LeetCode": "", "Codility": "https://codility.com"} {
+		if got := svc.Resolve(context.Background(), name, "mine.com"); got != want {
+			t.Errorf("Resolve(%s) = %q, want %q", name, got, want)
+		}
+	}
+	if got := svc.Resolve(context.Background(), "Ghost Co", "mine.com"); got != "" {
+		t.Fatalf("nothing found must stay unresolved, got %q", got)
+	}
+	if got := svc.Resolve(context.Background(), "Mine", "mine.com"); got != "" {
+		t.Fatalf("the customer's own site is never guessed, got %q", got)
 	}
 }

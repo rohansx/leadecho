@@ -285,18 +285,29 @@ Each phase is usable on its own.
 - Whether raw new items are kept in a table or passed straight to the model
   step within one poll.
 
-## Open points to verify before building
+## What was settled while building (2026-11-15)
 
-- **LinkedIn company pages.** The treg tool used today
-  (`crawl4ai.linkedin.user.posts`) takes a person's profile. Competitors
-  publish from company pages. Confirm treg has a company-posts tool and its
-  price; if not, LinkedIn is limited to named people (a founder) at first.
-  Settle this before phase 1: it decides whether discovery looks for
-  `linkedin.com/company` or `linkedin.com/in` links.
-- **JavaScript-only pages.** `SafeFetcher` reads server-rendered HTML. A
-  pricing page rendered entirely in the browser will come back empty. Detect
-  the empty case and mark the source broken rather than hashing nothing; the
-  scrapling sidecar is the fallback if this turns out to be common.
-- **Naming a competitor in a mention.** The people list matches on the
-  competitor's name in the text. Short or common names ("Notion", "Linear")
-  will over-match; check against real data before shipping phase 5.
+- **LinkedIn company pages.** treg has `anyapi.linkedin.company_posts_thin`
+  (POST, $0.002 per success, misses free, text and link only). The watcher
+  uses it. Its response has not been checked against captured traffic: the
+  generic treg row parser is used.
+- **Name to website with no search key.** Where no Exa key is set, search is
+  skipped and the obvious domains (.com, .io, .ai, .co) are tried. One counts
+  only if a part of its page title is exactly the company name; a site that
+  answers but cannot be read stops the guessing. On Utkrusht's ten stored
+  names this resolved eight correctly and left LeetCode (bot wall) and Karat
+  unresolved; an earlier looser rule had matched a parked domain and a
+  lookalike.
+- **The watcher runs on its own 10-minute ticker**, not inside the monitor
+  tick, so page fetching never delays lead scanning.
+- **Alerts** go to Slack and Discord through the existing webhooks, behind
+  the existing high-intent switch. No email alert.
+
+## Still open
+
+- **JavaScript-only pages.** A page with under 200 characters of text is a
+  failed check and the source goes broken after five. The scrapling sidecar
+  is not used as a fallback yet.
+- **Naming a competitor in a mention.** The people list matches the name as
+  a whole word. Common words used as names will over-match.
+- **Sites behind a bot wall** (LeetCode) cannot be read by the plain fetcher.
