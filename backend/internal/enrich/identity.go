@@ -131,8 +131,18 @@ func EmailAtCompany(email, domain, name string) bool {
 	if ed == "" || FreeMail(ed) {
 		return false
 	}
-	return SameDomain(ed, domain) || SameDomainLabel(ed, domain) || domainSpellsName(ed, name)
+	if SameDomain(ed, domain) || SameDomainLabel(ed, domain) || domainSpellsName(ed, name) {
+		return true
+	}
+	// A renamed company keeps its old mail domain for a while: "Olyv India
+	// (formerly SmartCoin)" at smartcoin.co.in (live, 2026-11-15).
+	if m := formerlyRe.FindStringSubmatch(name); m != nil {
+		return domainSpellsName(ed, m[1])
+	}
+	return false
 }
+
+var formerlyRe = regexp.MustCompile(`(?i)\b(?:formerly|previously|earlier)(?:\s+known\s+as)?[\s:]+([^()]+?)\s*(?:\)|$)`)
 
 // checkEmployer withholds the employer when the email found for the person
 // is at another organisation: one of the two lookups answered about someone

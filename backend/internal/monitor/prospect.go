@@ -354,12 +354,16 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 		m.refundResearch(ctx, wsID, brief)
 		return false, capped, "not stored (duplicate or muted)"
 	}
-	if brief == nil {
-		// No sourced fact to open on: a draft would be the same generic
-		// question for everyone, so none is written.
-		why := "research found nothing"
-		if researchErr != nil {
+	if !brief.RecentReason(time.Now()) {
+		// Nothing dated in the last year to open on: a draft would be the
+		// same generic question for everyone (live, smallcase: a 20-month-old
+		// round), so none is written.
+		why := "research found no dated reason to write from the last 12 months"
+		switch {
+		case researchErr != nil:
 			why = "research failed: " + truncateRunes(researchErr.Error(), 200)
+		case brief == nil:
+			why = "research found nothing"
 		}
 		return true, capped, "lead without a draft (" + why + ")"
 	}

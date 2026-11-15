@@ -86,6 +86,9 @@ func TestEmailAtCompany(t *testing.T) {
 		{"jo@gmail.com", "acme.io", "Acme", false}, // a free mailbox is never the company's
 		{"jo@gmail.com", "", "Gmail", false},
 		{"", "acme.io", "Acme", false},
+		{"sk@smartcoin.co.in", "", "Olyv India (formerly SmartCoin)", true}, // renamed: the old mail domain
+		{"sk@smartcoin.co.in", "", "Olyv India (formerly known as SmartCoin)", true},
+		{"sk@othercoin.co.in", "", "Olyv India (formerly SmartCoin)", false},
 	}
 	for _, c := range cases {
 		if got := EmailAtCompany(c.email, c.domain, c.name); got != c.want {
