@@ -47,3 +47,17 @@ WHERE id = $1
 	}
 	return tag.RowsAffected() == 1, nil
 }
+
+// AddMentionMetadata adds the keys of patch to a mention's platform_metadata
+// unless the mention already has the marker key. Keys already present are
+// kept. With a companyDomain, only a mention stored with that company_domain
+// is changed. A mention that does not exist is not an error.
+func (q *Queries) AddMentionMetadata(ctx context.Context, workspaceID, platform, platformID, marker, companyDomain string, patch []byte) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE mentions SET platform_metadata = $5::jsonb || COALESCE(platform_metadata, '{}'::jsonb)
+WHERE workspace_id = $1 AND platform = $2::platform_type AND platform_id = $3
+  AND NOT COALESCE(platform_metadata, '{}'::jsonb) ? $4::text
+  AND ($6::text = '' OR platform_metadata->>'company_domain' = $6::text)`,
+		workspaceID, platform, platformID, marker, patch, companyDomain)
+	return err
+}

@@ -16,13 +16,42 @@ export interface Research {
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 /**
- * True for a lead found as a company (a hiring signal or a segment
- * prospect) rather than a post: there is nothing to reply to, and its draft
- * is a first message to the contact.
+ * True for a lead found as a company (a hiring signal, a funding signal or
+ * a segment prospect) rather than a post: there is nothing to reply to, and
+ * its draft is a first message to the contact.
  */
 export function isCompanySignal(meta: unknown): boolean {
   const signal = (meta as { signal?: unknown } | null)?.signal;
-  return signal === "hiring" || signal === "prospect";
+  return signal === "hiring" || signal === "funding" || signal === "prospect";
+}
+
+export interface FundingRound {
+  /** "Raised Series A $85 million" */
+  label: string;
+  date: string;
+  /** Where the round was announced; "" when no web link is stored. */
+  url: string;
+}
+
+/**
+ * The round a company raised, on a funding lead or on a hiring lead whose
+ * company also raised. Null when none is stored.
+ */
+export function parseFunding(meta: unknown): FundingRound | null {
+  const m = meta as Record<string, unknown> | null;
+  const type = str(m?.funding_type);
+  if (!type) return null;
+  const round = type
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+  const url = str(m?.funding_url);
+  return {
+    label: ["Raised", round, str(m?.funding_amount)].filter(Boolean).join(" "),
+    date: str(m?.funding_date),
+    url: /^https?:\/\//i.test(url) ? url : "",
+  };
 }
 
 export interface SegmentFit {

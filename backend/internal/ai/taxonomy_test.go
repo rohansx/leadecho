@@ -2,6 +2,7 @@ package ai
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -164,5 +165,42 @@ func TestValidTagAndSentiment(t *testing.T) {
 	}
 	if !IsSentiment("negative") || IsSentiment("angry") {
 		t.Fatal("IsSentiment wrong")
+	}
+}
+
+// A buyer presenting the process they already built is a proof point: never
+// a lead, whatever score the model gave, and its need is kept for Demand.
+func TestNormalizeProofPointIsNotALeadButKeepsItsAsk(t *testing.T) {
+	got := NormalizeClassifyResult(ClassifyResult{
+		IntentTags: []string{"buying_intent", "pain_point"}, RelevanceScore: 8, AuthorRole: "buyer",
+		PostType: "proof_point", Ask: "A way to see whether candidates work well with AI",
+	}, "Since March we stopped giving candidates a coding test")
+	if got.RelevanceScore > 3 {
+		t.Errorf("proof point scored %v, want at most 3", got.RelevanceScore)
+	}
+	for _, tag := range got.IntentTags {
+		if leadTags[tag] {
+			t.Errorf("proof point kept the lead tag %q", tag)
+		}
+	}
+	if got.Ask == "" || got.AuthorRole != "buyer" {
+		t.Errorf("proof point lost its ask or role: %+v", got)
+	}
+	// The same post told as an unsolved problem is a lead.
+	lead := NormalizeClassifyResult(ClassifyResult{IntentTags: []string{"pain_point"}, RelevanceScore: 7, AuthorRole: "buyer", PostType: "discussion"}, "t")
+	if lead.RelevanceScore != 7 || lead.Intent != "complaint" {
+		t.Errorf("a buyer's first-hand problem must stay a lead: %+v", lead)
+	}
+}
+
+func TestClassifyPromptCoversFirstHandBuyerAccounts(t *testing.T) {
+	p := buildClassifyPrompt(ScoringContext{Product: "- Acme: CRM"})
+	for _, want := range []string{
+		`"proof_point"`, "reports what happened in their own work", "The form does not matter",
+		"Doing that work first-hand is enough", "credits no article, talk or other company",
+	} {
+		if !strings.Contains(p, want) {
+			t.Errorf("classifier prompt is missing %q", want)
+		}
 	}
 }

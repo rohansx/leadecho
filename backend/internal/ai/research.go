@@ -86,7 +86,7 @@ func buildResearchPrompt(in CompanyResearch) (system, user string) {
 		fmt.Fprintf(&b, "Company page: %s\n", clipText(in.CompanyURL, 300))
 	}
 	if in.JobTitle != "" {
-		fmt.Fprintf(&b, "Job it posted this week: %s\n", clipText(in.JobTitle, 150))
+		fmt.Fprintf(&b, "Job it posted: %s\n", clipText(in.JobTitle, 150))
 	}
 	if in.ContactTitle != "" {
 		fmt.Fprintf(&b, "The salesperson will write to its: %s\n", clipText(in.ContactTitle, 150))

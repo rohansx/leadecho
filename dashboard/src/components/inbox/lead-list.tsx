@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
 import { ACTION_KINDS, INBOX_QUEUES, INTENT_TAGS, MENTION_STATUSES, SENTIMENTS } from "@/lib/constants";
 import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
+import { hiringText } from "@/lib/lead-age";
 import { PlatformLogo } from "@/components/ui/platform-logo";
 import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 
@@ -50,7 +51,11 @@ function queueSubtitle(
   queue: string,
   listTotal: number,
   actions?: InboxQueueCountsResponse["actions"],
+  actionKind?: string,
 ): string | null {
+  if (queue === INBOX_QUEUES.ACTION_REQUIRED && actionKind === ACTION_KINDS.OLDER) {
+    return `${listTotal} older · posts over 7 days old, company leads over 10`;
+  }
   if (queue === INBOX_QUEUES.ACTION_REQUIRED && actions) {
     const parts: string[] = [];
     if (actions.ready_to_send > 0) parts.push(`${actions.ready_to_send} ready to send`);
@@ -74,6 +79,9 @@ function emptyMessage(queue: string, actionKind?: string): string {
     }
     if (actionKind === ACTION_KINDS.NEEDS_REVIEW) {
       return "No mentions flagged for human review.";
+    }
+    if (actionKind === ACTION_KINDS.OLDER) {
+      return "No older leads.";
     }
     return "Inbox zero. New high-intent mentions will appear here.";
   }
@@ -189,7 +197,7 @@ export function LeadList({
   const platformTotal = platformOptions.reduce((sum, p) => sum + p.count, 0);
   const subtitle =
     !isProposalsView && listTotal != null
-      ? queueSubtitle(queueFilter, listTotal, queueCounts?.actions)
+      ? queueSubtitle(queueFilter, listTotal, queueCounts?.actions, actionKind)
       : null;
 
   const actionFilters = [
@@ -209,6 +217,7 @@ export function LeadList({
       label: "Needs review",
       count: queueCounts?.actions.needs_review ?? 0,
     },
+    { key: ACTION_KINDS.OLDER, label: "Older", count: queueCounts?.actions.older ?? 0 },
   ];
 
   return (
@@ -470,7 +479,9 @@ export function LeadList({
                       {timeAgo(m.platform_created_at ?? m.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm text-foreground line-clamp-2 leading-snug">{m.content}</p>
+                  <p className="text-sm text-foreground line-clamp-2 leading-snug">
+                    {m.platform_metadata?.signal === "hiring" ? hiringText(m.content, m, new Date()) : m.content}
+                  </p>
                   {m.person ? (
                     <div className="mt-1 text-xs text-foreground truncate" title={m.person.bio}>
                       <span className="font-medium">{m.person.name || m.author_username}</span>

@@ -1,0 +1,1631 @@
+{
+ "meta": {
+  "blocked": [],
+  "elapsed_ms": 1273,
+  "from_cache": false,
+  "llm_calls": 0,
+  "pages_fetched": 2,
+  "partial": false,
+  "warnings": [
+   "module: hn-hiring: 'Ask HN: Who is hiring? (November 2026)' \u00b7 244 top-level posts \u00b7 157 match 'engineer'"
+  ]
+ },
+ "recipe": "hn-hiring",
+ "rows": [
+  {
+   "author": "AdriaanvRossum",
+   "company": "Simple Analytics",
+   "location": null,
+   "posted": "2026-11-02T16:01:43Z",
+   "role": null,
+   "salary": null,
+   "text": "Simple Analytics | DevOps Engineer | REMOTE (worldwide, any timezone) | Full-time, 32h, 24h possible | \u20ac5,000/month (full-time) | https://www.simpleanalytics.com/jobs/devops\nHi HN, I'm Adriaan. Simple Analytics exists thanks to HN: it started with my Show HN in 2018 [1]. Today we're a self-funded, p",
+   "url": "https://news.ycombinator.com/item?id=50338732"
+  },
+  {
+   "author": "eterps",
+   "company": "Open Education Applications / Neon",
+   "location": null,
+   "posted": "2026-11-02T16:03:39Z",
+   "role": null,
+   "salary": null,
+   "text": "Open Education Applications / Neon | Senior Frontend Engineer | Utrecht, The Netherlands | HYBRID | DUTCH REQUIRED\nPlease note: working proficiency in Dutch is strictly required for these roles, and we kindly ask for no automated applications. The rest of this post will continue in Dutch.\nWij zijn e",
+   "url": "https://news.ycombinator.com/item?id=50338775"
+  },
+  {
+   "author": "james_impliu",
+   "company": "PostHog",
+   "location": null,
+   "posted": "2026-11-02T16:09:48Z",
+   "role": null,
+   "salary": null,
+   "text": "PostHog | Full-Time | Technical CSMs, SRE, Product Manager, AI Research Engineer | REMOTE (all remote) | Hiring GMT-8 to GMT+2 | PostHog makes your product self-driving.\n* we have a public handbook (posthog.com/handbook) if you want to learn how we work, pay and more in complete detail.\n* we are gro",
+   "url": "https://news.ycombinator.com/item?id=50338907"
+  },
+  {
+   "author": "Kiran_MixRank",
+   "company": "MixRank (YC S11)",
+   "location": null,
+   "posted": "2026-11-02T16:15:14Z",
+   "role": null,
+   "salary": null,
+   "text": "MixRank (YC S11) | Software Engineers | 100% Remote (Global) | Full-Time MixRank processes petabytes of data every month through web crawling. Hundreds of customers use our data products, including Google, Amazon, Facebook, Intel, and Adobe, across industries such as finance, recruiting, sales, mark",
+   "url": "https://news.ycombinator.com/item?id=50339013"
+  },
+  {
+   "author": "Fusionality",
+   "company": "Fusionality",
+   "location": null,
+   "posted": "2026-11-02T16:15:56Z",
+   "role": null,
+   "salary": null,
+   "text": "Fusionality | Multiple Positions (Controls, SciML, Data Engineering) | Lausanne, CH | ONSITE\nFusionality builds integrated operations technology for fusion devices, spanning real-time diagnostics, control, actuators, data systems, and simulation. Built on decades of operational experience at the Swi",
+   "url": "https://news.ycombinator.com/item?id=50339036"
+  },
+  {
+   "author": "zalvi_hiring",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-02T16:22:17Z",
+   "role": null,
+   "salary": null,
+   "text": "Confidential (established Saudi engineering & industrial services group, building a new in-house AI unit) | Senior AI/ML Engineer, Senior Backend Engineer | Khobar, Saudi Arabia | ONSITE, full-time | Relocation + visa provided | Saudi nationals preferred\nWe're founding an in-house AI unit and hiring",
+   "url": "https://news.ycombinator.com/item?id=50339161"
+  },
+  {
+   "author": "lemonade311",
+   "company": "myDataValue",
+   "location": null,
+   "posted": "2026-11-02T16:28:01Z",
+   "role": null,
+   "salary": null,
+   "text": "myDataValue | Founding Product Engineer | London (Canary Wharf) | HYBRID, 2 days/week in office | up to \u00a390k + up to 1% equity | https://www.mydatavalue.com/founding-product-engineer/\nWe build AI agents that run revenue for short-term rental and hotel operators on Booking.com and Airbnb: live prices",
+   "url": "https://news.ycombinator.com/item?id=50339269"
+  },
+  {
+   "author": "melissamrec",
+   "company": "Starbridge",
+   "location": null,
+   "posted": "2026-11-02T16:28:53Z",
+   "role": null,
+   "salary": null,
+   "text": "Starbridge | Senior Product Engineer | NYC | Full-time | https://starbridge.ai/ Starbridge is building an AI platform that turns large-scale public and enterprise data into reliable sales insights. We are early, moving fast, and building from zero to one, so this role will have huge ownership and pr",
+   "url": "https://news.ycombinator.com/item?id=50339282"
+  },
+  {
+   "author": "Austin_Conlon",
+   "company": "SwingVision",
+   "location": null,
+   "posted": "2026-11-02T16:29:42Z",
+   "role": null,
+   "salary": null,
+   "text": "SwingVision | Berkeley, CA | Full time + Internships\nSwingVision uses computer vision to turn a single phone camera into an automated stats, highlights, and line-calling system for tennis, pickleball, and padel. Models run on-device in real time, and the app won an Apple Design Award for Innovation.",
+   "url": "https://news.ycombinator.com/item?id=50339294"
+  },
+  {
+   "author": "graham_kha",
+   "company": "Kraus Hamdani Aerospace",
+   "location": null,
+   "posted": "2026-11-02T16:30:26Z",
+   "role": null,
+   "salary": null,
+   "text": "Kraus Hamdani Aerospace | Software Engineer | REMOTE (US) or ONSITE in Reno, NV\nWe build long-endurance autonomous aircraft and the software used to operate them.\nLooking for a strong generalist software engineer. Most application work is TypeScript/web, with C/C++ and Rust elsewhere in the stack. Y",
+   "url": "https://news.ycombinator.com/item?id=50339308"
+  },
+  {
+   "author": "dotnwat",
+   "company": "Lyra",
+   "location": null,
+   "posted": "2026-11-02T16:37:14Z",
+   "role": null,
+   "salary": null,
+   "text": "Lyra | Full-Time | Applied AI Engineer | REMOTE (US Citizenship Required) | Building the AI that builds satellites.\nLyra is building an AI-native platform to solve the problem of mission integration that exists today: a slow, expensive, and manual process of information extraction and design for sat",
+   "url": "https://news.ycombinator.com/item?id=50339441"
+  },
+  {
+   "author": "mjdesa",
+   "company": "Equall",
+   "location": null,
+   "posted": "2026-11-02T16:41:15Z",
+   "role": null,
+   "salary": null,
+   "text": "Equall | Backend Engineer, Foundations | New York, NY | ONSITE | Full-time | $160K\u2013$250K + equity | https://jobs.ashbyhq.com/equall/48013ed1-8fab-4b49-b926-6d7e...\nEquall is an AI-native platform for corporate legal work in private markets. We extract and reconcile legal information from source docu",
+   "url": "https://news.ycombinator.com/item?id=50339511"
+  },
+  {
+   "author": "TEForstner",
+   "company": "Juro",
+   "location": null,
+   "posted": "2026-11-02T16:43:55Z",
+   "role": null,
+   "salary": null,
+   "text": "Juro | AI Engineer (Agentic team) | London, UK | REMOTE (UK) | Full-time | \u00a3115k + equity\nJuro is an AI contract automation platform used by in-house legal and business teams. Our Agentic team builds Operator, the agent that works across contracts inside Juro: it answers questions and takes action o",
+   "url": "https://news.ycombinator.com/item?id=50339551"
+  },
+  {
+   "author": "thebasic27",
+   "company": "CNH",
+   "location": null,
+   "posted": "2026-11-02T16:48:54Z",
+   "role": null,
+   "salary": null,
+   "text": "CNH | AI Engineer Intern | Tempe, AZ, USA | ON-SITE | Summer internship (40 hours/week, May\u2013August)\nWork on autonomy and precision agriculture, applying AI, machine learning, and computer vision to real-world agricultural problems. You'll help develop, evaluate, and deploy models alongside our engin",
+   "url": "https://news.ycombinator.com/item?id=50339641"
+  },
+  {
+   "author": "anner_",
+   "company": "Namespace",
+   "location": null,
+   "posted": "2026-11-02T16:55:37Z",
+   "role": null,
+   "salary": null,
+   "text": "Namespace | San Francisco, CA / New York, NY / Zurich, Switzerland / Remote | Full-time | REMOTE or HYBRID | https://namespace.so\nNamespace is a vertically integrated infrastructure stack for software development. We build everything ourselves, from the server racks to the hypervisor and scheduler, ",
+   "url": "https://news.ycombinator.com/item?id=50339735"
+  },
+  {
+   "author": "pavlov",
+   "company": "Stream",
+   "location": null,
+   "posted": "2026-11-02T16:56:19Z",
+   "role": null,
+   "salary": null,
+   "text": "Stream | Multiple Positions | Amsterdam (NL), Skopje (North Macedonia) | Boulder, CO (US) | Toronto (Canada)) | Remote possible | Full Time | Visa Sponsorship | https://getstream.io\nStream powers Chat, Video, AI Moderation, and Activity Feeds for billions of global end users across thousands of diff",
+   "url": "https://news.ycombinator.com/item?id=50339750"
+  },
+  {
+   "author": "jurajmasar",
+   "company": "Better Stack",
+   "location": null,
+   "posted": "2026-11-02T17:02:08Z",
+   "role": null,
+   "salary": null,
+   "text": "Better Stack | https://betterstack.com/ | /^Full-?stack Engineer$/i | Remote (North America & Europe)\nWe are software builders at :heart: CEO is a software engineer, COO is a software engineer, and you guessed it, CTO is an engineer, too. We are engineers, making the tools we always wanted. If you l",
+   "url": "https://news.ycombinator.com/item?id=50339853"
+  },
+  {
+   "author": "DylanCZ",
+   "company": "Pond AI",
+   "location": null,
+   "posted": "2026-11-02T17:03:38Z",
+   "role": null,
+   "salary": null,
+   "text": "Pond AI | San Francisco | Onsite | https://joinpond.ai\nMost non-tech businesses know exactly which workflows they want AI agents to handle, but have no one to build, connect and run them. Pond delivers custom AI agents to these businesses through a network of 7k AI builders, with Pond as the platfor",
+   "url": "https://news.ycombinator.com/item?id=50339881"
+  },
+  {
+   "author": "JeremyTheo",
+   "company": "Cologne, Germany",
+   "location": null,
+   "posted": "2026-11-02T17:04:21Z",
+   "role": null,
+   "salary": null,
+   "text": "Cologne, Germany | UMH | Product Engineer | Full-time | 70k - 100k EUR | ONSITE (part remote)\nHi, Alex and Jeremy here from UMH.\n8 years ago, Jeremy was absolutely frustrated with the status quo of data infrastructure in manufacturing. Companies paid millions per year for \"shitty 90s software\" and a",
+   "url": "https://news.ycombinator.com/item?id=50339895"
+  },
+  {
+   "author": "shaohua",
+   "company": "humans&",
+   "location": null,
+   "posted": "2026-11-02T17:08:46Z",
+   "role": null,
+   "salary": null,
+   "text": "humans& | Product Engineer (Member of Technical Staff) | San Francisco | ONSITE | Full-time\nhumans& is a human-centric frontier AI lab. Our view is that AI should help people work together, so it has to understand people and the relationships between them, not just tasks.\nLast month we launched Boba",
+   "url": "https://news.ycombinator.com/item?id=50339975"
+  },
+  {
+   "author": "leishman",
+   "company": "River",
+   "location": null,
+   "posted": "2026-11-02T17:17:05Z",
+   "role": null,
+   "salary": null,
+   "text": "River | Staff Engineers (Elixir) | NYC or REMOTE (US, Europe, South America) | Full-Time | $200K-$250K + equity | https://jobs.ashbyhq.com/river?utm_source=Zp9nJyqvd4\nI'm Alex, founder and CEO of River. I also wrote the first line of code and still ship PRs.\nRiver is a client-first Bitcoin-only fina",
+   "url": "https://news.ycombinator.com/item?id=50340101"
+  },
+  {
+   "author": "lukegil626",
+   "company": "Rune Labs",
+   "location": null,
+   "posted": "2026-11-02T17:24:52Z",
+   "role": null,
+   "salary": null,
+   "text": "Rune Labs | Remote (US, CA) | Full Time | Senior or Lead Backend Engineer\nRune Labs is a precision neurology startup focused on helping people with Parkinson's. We built StrivePD, an app to help them manage their disease. It's used by individuals, pharma companies running trials, and health systems.",
+   "url": "https://news.ycombinator.com/item?id=50340242"
+  },
+  {
+   "author": "HiringEngineers",
+   "company": "JPMorganChase",
+   "location": null,
+   "posted": "2026-11-02T17:26:48Z",
+   "role": null,
+   "salary": null,
+   "text": "JPMorganChase | Lead Software Engineer | ONSITE (Jersey City, NJ) | $156,750 - $215,000.\nAt JPMorganChase, your work helps shape the future of global finance. Join a team that serves millions of customers, businesses and communities.\nMy group is hiring two software engineers:\n(1) Full stack or front",
+   "url": "https://news.ycombinator.com/item?id=50340287"
+  },
+  {
+   "author": "pbelknap27",
+   "company": "Paramark",
+   "location": null,
+   "posted": "2026-11-02T17:36:23Z",
+   "role": null,
+   "salary": null,
+   "text": "Paramark | Software Engineer (L4) | San Francisco HYBRID (3 days/wk) or REMOTE (US) | Full-time | $199K\u2013$249K + equity\nParamark helps Marketing teams optimize spend across all of their channels and programs. There are proven scientific ways to do this, but they are poorly understood and practiced by",
+   "url": "https://news.ycombinator.com/item?id=50340419"
+  },
+  {
+   "author": "thechairman12",
+   "company": "Voluntas",
+   "location": null,
+   "posted": "2026-11-02T17:37:08Z",
+   "role": null,
+   "salary": null,
+   "text": "Voluntas | Remote | Full Time | Software Engineer\nVoluntas is a trading firm written 100% in Rust. We run systematic strategies, currently specializing in prediction markets, looking to expand our systems more broadly.\nWe're looking for someone passionate about data collection, clean abstractions, a",
+   "url": "https://news.ycombinator.com/item?id=50340434"
+  },
+  {
+   "author": "cpeterson42",
+   "company": "Thunder Compute (YC S24)",
+   "location": null,
+   "posted": "2026-11-02T17:37:25Z",
+   "role": null,
+   "salary": null,
+   "text": "Thunder Compute (YC S24) | C++ Systems Engineer | San Francisco (Onsite) | Full-time | Visa sponsorship | https://www.thundercompute.com\nWe run a GPU cloud on systems software we built from scratch in C++. We're hiring for our systems engineering team; designing the distributed system behind what is",
+   "url": "https://news.ycombinator.com/item?id=50340438"
+  },
+  {
+   "author": "joaodepaula",
+   "company": "Mesmer (YC P25)",
+   "location": null,
+   "posted": "2026-11-02T17:38:15Z",
+   "role": null,
+   "salary": null,
+   "text": "Mesmer (YC P25) | Founding Engineer | Berlin | ONSITE | VISA + relocation | \u20ac100\u2013140k + 0.5\u20131% equity\nMesmer builds software factories for engineering teams. Keeping a team at the state of the art with agents is a full-time job, so we do it for our customers: we're always finding the biggest bottlen",
+   "url": "https://news.ycombinator.com/item?id=50340449"
+  },
+  {
+   "author": "mparis",
+   "company": "AI x Healthcare Startup",
+   "location": null,
+   "posted": "2026-11-02T17:39:52Z",
+   "role": null,
+   "salary": null,
+   "text": "AI x Healthcare Startup | bracehealth.com | Boston, MA Onsite | Full-time | Early Engineer\nWe're looking for a backend-leaning fullstack dev. You will be one of the first engineers outside of the founding team. Here is a bit more about us: We're a seed stage AI startup backed by top tier investors. ",
+   "url": "https://news.ycombinator.com/item?id=50340480"
+  },
+  {
+   "author": "jurrens",
+   "company": "Helmsted",
+   "location": null,
+   "posted": "2026-11-02T17:43:25Z",
+   "role": null,
+   "salary": null,
+   "text": "Helmsted | Founding AI Engineer | REMOTE (US) | Full-time | $160K\u2013$200K + equity | https://helmsted.ai/careers\nHelmsted is the AI-native operating system for wealth advisors of complex households: planning, tax and estate analysis, meetings and the client portal, run by agents that do the work. Smal",
+   "url": "https://news.ycombinator.com/item?id=50340551"
+  },
+  {
+   "author": "ridiculous_fish",
+   "company": "Oklo",
+   "location": null,
+   "posted": "2026-11-02T17:45:40Z",
+   "role": null,
+   "salary": null,
+   "text": "Oklo | Remote (US) or Santa Clara or Brooklyn | Full time | https://oklo.com\nJoin us in pioneering the next generation of nuclear reactors! You'll leverage your software skills alongside nuclear engineers to model, simulate, design, and deploy advanced fission power technology. You will work at the ",
+   "url": "https://news.ycombinator.com/item?id=50340584"
+  },
+  {
+   "author": "jbhatab",
+   "company": "Distru",
+   "location": null,
+   "posted": "2026-11-02T17:46:45Z",
+   "role": null,
+   "salary": null,
+   "text": "Distru (https://www.distru.com) | AI Product Engineer | AI Product Manager | VP of Product (AI focus) | REMOTE (Americas & Europe) | Full-Time Distru is the #1 ERP in the cannabis industry. $3.5B in annual GMV flows through our platform, and most of the top cannabis brands and distributors in the US",
+   "url": "https://news.ycombinator.com/item?id=50340600"
+  },
+  {
+   "author": "stoole",
+   "company": "Postscript (YC W19)",
+   "location": null,
+   "posted": "2026-11-02T18:00:14Z",
+   "role": null,
+   "salary": null,
+   "text": "Postscript (YC W19) | Senior Software Engineer, Full Stack | REMOTE (US, Canada) | Full-time | $180K to $220K base + equity\nPostscript is an agentic retention marketing platform (SMS, RCS, Email) used by 20,000+ Shopify brands. We\u2019re Series C and pacing toward profitability.\nWe\u2019re rebuilding the pla",
+   "url": "https://news.ycombinator.com/item?id=50340820"
+  },
+  {
+   "author": "MrTravisB",
+   "company": "Mozilla",
+   "location": null,
+   "posted": "2026-11-02T18:01:01Z",
+   "role": null,
+   "salary": null,
+   "text": "Mozilla | Sr. Staff Software Engineer, Browser (New Products) | REMOTE (US or Canada) | Full-time\nMozilla's New Products group is a small team building new things on top of browser engine technology. We're hiring a hands-on, senior IC to run experiments inside browser engine internals and find out w",
+   "url": "https://news.ycombinator.com/item?id=50340840"
+  },
+  {
+   "author": "dominathan917",
+   "company": "Ledgebrook",
+   "location": null,
+   "posted": "2026-11-02T18:04:53Z",
+   "role": null,
+   "salary": null,
+   "text": "Ledgebrook | Engineering, Product & Data | REMOTE (US, Canada, Poland; eligibility varies by role) | https://www.ledgebrook.com/careers\nHi HN, I'm Nathan, CTO at Ledgebrook. We're a Series D tech-enabled insurance company building technology for our internal user base. Our engineers work directly wi",
+   "url": "https://news.ycombinator.com/item?id=50340892"
+  },
+  {
+   "author": "cyberax",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-02T18:07:37Z",
+   "role": null,
+   "salary": null,
+   "text": "Duranta (https://getduranta.com/) is hiring a computer vision engineer, enterprise account representative, and sales representatives. The jobs are work-from-office, in the Seattle area.\nWe are a small company making SaaS for landscaping companies. We also have our own AI models for property analysis",
+   "url": "https://news.ycombinator.com/item?id=50340942"
+  },
+  {
+   "author": "aketchum",
+   "company": "VIVA Finance",
+   "location": null,
+   "posted": "2026-11-02T18:10:03Z",
+   "role": null,
+   "salary": null,
+   "text": "VIVA Finance | Atlanta, GA (In Person)| Front-End + Mobile Developer\nVIVA is a Fintech Startup based in Atlanta, GA with the mission to build a more inclusive financial system. VIVA offers unsecured personal loans to customers who have traditionally been excluded and taken advantage of by the legacy",
+   "url": "https://news.ycombinator.com/item?id=50340983"
+  },
+  {
+   "author": "kirin_memorang",
+   "company": "Memorang",
+   "location": null,
+   "posted": "2026-11-02T18:10:07Z",
+   "role": null,
+   "salary": null,
+   "text": "Memorang | Product Engineers + Design Engineers + Technical Project Manager + Sales Engineer | Full-Time | US Based Candidates Only\nMemorang is an \"AI stack for education\" that helps organizations build, launch, and monetize AI-powered learning and assessment products. Think Vercel plus Shopify for ",
+   "url": "https://news.ycombinator.com/item?id=50340985"
+  },
+  {
+   "author": "edmundhuber",
+   "company": "Paradromics",
+   "location": null,
+   "posted": "2026-11-02T18:12:46Z",
+   "role": null,
+   "salary": null,
+   "text": "Paradromics | Embedded Software Engineer | Austin, TX or Oakland, CA | Onsite | Full-time\nParadromics is building a high bandwidth brain-machine interface for clinical use. The implant we built is restoring function to patients by streaming out neural data from specific brain regions in real time, w",
+   "url": "https://news.ycombinator.com/item?id=50341026"
+  },
+  {
+   "author": "jaequery",
+   "company": "Fredrin",
+   "location": null,
+   "posted": "2026-11-02T18:30:35Z",
+   "role": null,
+   "salary": null,
+   "text": "Fredrin | GTM Engineer | REMOTE (US) | Full-time | $130k + equity | https://www.fredrin.com/careers/gtm-engineer?utm_source=hack...\nFredrin is the multiplayer software factory: one app where a team and its AI Workers build software together, and Workers running Claude Code or Codex, on the subscript",
+   "url": "https://news.ycombinator.com/item?id=50341328"
+  },
+  {
+   "author": "fduran",
+   "company": "SadServers",
+   "location": null,
+   "posted": "2026-11-02T18:32:00Z",
+   "role": null,
+   "salary": null,
+   "text": "SadServers | Software Engineer | REMOTE (Canada) | Part-time or Contract | $55 - $75/hr | https://sadservers.com\nI'm the founder of SadServers, a SaaS that provides hands-on challenges for Linux & DevOps/SRE engineers and assessments for hiring teams. It was launched (and quickly broken) here on HN ",
+   "url": "https://news.ycombinator.com/item?id=50341345"
+  },
+  {
+   "author": "mslzed",
+   "company": "Zed Industries",
+   "location": null,
+   "posted": "2026-11-02T18:45:36Z",
+   "role": null,
+   "salary": null,
+   "text": "Zed Industries | North America, South America, Europe REMOTE | https://zed.dev/ Zed is a company for developers, by developers. All 3 of our founders have spent years in the trenches writing software and still do it almost every single day. We've raised $42M to support our ultimate vision, a new way",
+   "url": "https://news.ycombinator.com/item?id=50341570"
+  },
+  {
+   "author": "nickatreducto",
+   "company": "Reducto",
+   "location": null,
+   "posted": "2026-11-02T18:50:31Z",
+   "role": null,
+   "salary": null,
+   "text": "Reducto | Multiple Engineering Roles | San Francisco | ONSITE | Full-time | 200k - 325k + Equity | https://reducto.ai\nReducto is the agentic document platform for leading AI teams who need enterprise performance at scale. Most of the world's important information is locked in documents: PDFs, spread",
+   "url": "https://news.ycombinator.com/item?id=50341662"
+  },
+  {
+   "author": "bill_duckduckgo",
+   "company": "DuckDuckGo",
+   "location": null,
+   "posted": "2026-11-02T18:55:20Z",
+   "role": null,
+   "salary": null,
+   "text": "DuckDuckGo - we are looking for candidates that are excited to join us on a mission to raise the standard of trust online. All of our roles are fully-remote, except where specific locations are noted.\nSenior Web Security Engineer, Browser Platform - https://jobs.ashbyhq.com/duck-duck-go/a447e823-fd8",
+   "url": "https://news.ycombinator.com/item?id=50341745"
+  },
+  {
+   "author": "fires10",
+   "company": "Data Micro Technologies",
+   "location": null,
+   "posted": "2026-11-02T18:58:56Z",
+   "role": null,
+   "salary": null,
+   "text": "Data Micro Technologies | Multiple Roles (OT, Networking, Security) | Jacksonville, FL | ONSITE\nData Micro Technologies provides specialized systems engineering, operational technology (OT), and infrastructure consulting.\nThe interview process will not be long and drawn out. We want to fill these ro",
+   "url": "https://news.ycombinator.com/item?id=50341800"
+  },
+  {
+   "author": "felix-h",
+   "company": "eventfirst",
+   "location": null,
+   "posted": "2026-11-02T19:00:07Z",
+   "role": null,
+   "salary": null,
+   "text": "eventfirst | Senior Full-Stack Engineer | Berlin, Germany | REMOTE (CET) | Full-time | eventfirst.com\nWe are applying AI to organize corporate events.\nWe are looking for a senior engineer with at least ten years of full stack experience, a strong focus on product and UX, and some experience building",
+   "url": "https://news.ycombinator.com/item?id=50341824"
+  },
+  {
+   "author": "robz75",
+   "company": "Evaboot",
+   "location": null,
+   "posted": "2026-11-02T19:00:38Z",
+   "role": null,
+   "salary": null,
+   "text": "Evaboot | Agentic Python Engineer | REMOTE worldwide | Full-time | $60-120K USD/year\nEvaboot turns LinkedIn Sales Navigator searches into clean, verified prospecting lists. Demo: https://www.youtube.com/watch?v=khYgyDlo2Iw\nBootstrapped, $2.2M+ ARR, team of 5, remote since day one.\nWhat we're doing: ",
+   "url": "https://news.ycombinator.com/item?id=50341833"
+  },
+  {
+   "author": "kevinsane",
+   "company": "Hestus",
+   "location": null,
+   "posted": "2026-11-02T19:27:24Z",
+   "role": null,
+   "salary": null,
+   "text": "Hestus | Machine Learning Engineer (Python, ML) | Peninsula (Onsite) | Full-time | $150k\u2013$240k + equity | YC-funded\nWe're building AI-powered CAD tools to transform hardware development \u2014 think next-gen design workflows powered by custom ML models. We're a fast-moving startup, working with bleeding-",
+   "url": "https://news.ycombinator.com/item?id=50342280"
+  },
+  {
+   "author": "hackily",
+   "company": "Curai",
+   "location": null,
+   "posted": "2026-11-02T19:44:53Z",
+   "role": null,
+   "salary": null,
+   "text": "Curai | Remote (US) | Full-time | https://curaihealth.com\nWe're building AI agents to expand access to affordable, and high quality healthcare. We run a vertically integrated primary and urgent care clinic and are actively building features to improve longitudinal outcomes, starting with hypertensio",
+   "url": "https://news.ycombinator.com/item?id=50342579"
+  },
+  {
+   "author": "hartator",
+   "company": "SerpApi",
+   "location": null,
+   "posted": "2026-11-02T19:53:24Z",
+   "role": null,
+   "salary": null,
+   "text": "SerpApi | https://serpapi.com | Junior to Senior Fullstack Engineer multiple positions | Customer Success Engineer | Hiring Coordinator | Python/Ruby/PHP/Js/Rust/Kotlin/C#/Crystal/Nim/Elixir Developer Advocate positions | Based in Austin, TX but remote-first structure | Full-time | ONSITE or FULLY R",
+   "url": "https://news.ycombinator.com/item?id=50342697"
+  },
+  {
+   "author": "phw",
+   "company": "Fly.io",
+   "location": null,
+   "posted": "2026-11-02T19:55:24Z",
+   "role": null,
+   "salary": null,
+   "text": "Fly.io | REMOTE (multiple countries) | Full time | $190k USD + equity\nHey folks, Fly.io is a developer-focused public cloud. We are currently hiring for three roles:\n* Networking Engineer: Proxy and Corrosion - https://fly.io/jobs/networking-engineer/\n* Infrastructure Operations Engineer - https://f",
+   "url": "https://news.ycombinator.com/item?id=50342723"
+  },
+  {
+   "author": "leonzucchini",
+   "company": "Curiosity",
+   "location": null,
+   "posted": "2026-11-02T20:00:06Z",
+   "role": null,
+   "salary": null,
+   "text": "Curiosity (https://curiosity.ai) | Forward Deployed Engineer, DevOps Architect | Toulouse, France | ONSITE | Full-time (CDI) | Visa support\nCuriosity Studio builds internal apps and agents from a plain description, on a company's connected data and inside its permissions. It runs on premises or in a",
+   "url": "https://news.ycombinator.com/item?id=50342797"
+  },
+  {
+   "author": "ArashEdalat",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-02T20:04:07Z",
+   "role": null,
+   "salary": null,
+   "text": "Apply here: https://tally.so/r/BzrbN7?source=hn\nConsumer Physical AI (stealth, robotics) | Mechatronics Engineer, AI Engineer | California / REMOTE (US) | Full-time\nEarly-stage startup building a robot for the home, on real hardware with ROS 2. You'd be one of the first engineers.\nMechatronics Engin",
+   "url": "https://news.ycombinator.com/item?id=50342858"
+  },
+  {
+   "author": "Lizagordon1",
+   "company": "Middesk",
+   "location": null,
+   "posted": "2026-11-02T20:12:24Z",
+   "role": null,
+   "salary": null,
+   "text": "Middesk | Full-time | SF / NYC | Hybrid | https://www.middesk.com/\nMiddesk helps companies figure out who\u2019s actually behind a business. Banks, fintechs, and platforms rely on us to get that answer fast and accurate before they issue a card, fund a merchant, or open an account.\nWe pull data from hund",
+   "url": "https://news.ycombinator.com/item?id=50342990"
+  },
+  {
+   "author": "nivelo_jobs",
+   "company": "Nivelo",
+   "location": null,
+   "posted": "2026-11-02T20:14:02Z",
+   "role": null,
+   "salary": null,
+   "text": "Nivelo | Senior Backend Engineer and Senior SDET roles | REMOTE (US) | Full-time | $150k-$180k + equity | https://nivelo.io/\nNivelo is the integrated payments platform that payroll brands use to move money quickly, digitally and securely to guarantee every dollar is delivered on time.\nEveryone deser",
+   "url": "https://news.ycombinator.com/item?id=50343014"
+  },
+  {
+   "author": "relevant-ops",
+   "company": "Relevant Healthcare",
+   "location": null,
+   "posted": "2026-11-02T20:30:08Z",
+   "role": null,
+   "salary": null,
+   "text": "Relevant Healthcare | Lead Engineer | Remote (US/Canada only) | Full-time\nRelevant builds a data platform that helps safety-net healthcare providers deliver better care using data from their electronic health records. Our customers are non-profit clinics called Community Health Centers. You can read",
+   "url": "https://news.ycombinator.com/item?id=50343258"
+  },
+  {
+   "author": "enthoughtjobs",
+   "company": "Enthought",
+   "location": null,
+   "posted": "2026-11-02T20:33:34Z",
+   "role": null,
+   "salary": null,
+   "text": "Enthought | Tokyo, Japan | Full-time | HYBRID | https://enthought.jp/careers\nEnthought builds science-first AI and scientific software for enterprise R&D in materials science and chemistry, semiconductors, life sciences, and energy. We're a pioneer of the scientific Python ecosystem, and every role ",
+   "url": "https://news.ycombinator.com/item?id=50343313"
+  },
+  {
+   "author": "Eleshop",
+   "company": "Eleshop",
+   "location": null,
+   "posted": "2026-11-02T20:51:27Z",
+   "role": null,
+   "salary": null,
+   "text": "Eleshop | Senior PHP Full-stack engineer | REMOTE (Europe, Africa, W Asia)\nEleshop is a supplier of test, measurement and soldering equipment run by engineers.\nInteresting projects with a code base which is easy to understand, well-maintained and uses state-of-art technologies.\nFor more information,",
+   "url": "https://news.ycombinator.com/item?id=50343534"
+  },
+  {
+   "author": "alexchantavy",
+   "company": "Subimage (YC W25)",
+   "location": null,
+   "posted": "2026-11-02T20:52:18Z",
+   "role": null,
+   "salary": null,
+   "text": "Subimage (YC W25) | Founding Engineer | San Francisco, CA | ONSITE (5 days/week) | Full-time | $170K\u2013$230K + 0.5%\u20131.0% equity | https://subimage.io\nHihi, I'm Alex, co-founder and CEO. Subimage maps infrastructure the way an attacker does so security teams at scale-ups and enterprises can find and fi",
+   "url": "https://news.ycombinator.com/item?id=50343546"
+  },
+  {
+   "author": "kellysutton",
+   "company": "Scholarly",
+   "location": null,
+   "posted": "2026-11-02T21:21:04Z",
+   "role": null,
+   "salary": null,
+   "text": "Scholarly | Founding Product Designer | Seattle, On-Site | Full-Time | $160k - $190k + equity + health benefits\nScholarly is building the HR operating system for higher education. We've built a software platform that enables our customers to make data-driven decisions and to automate essential proce",
+   "url": "https://news.ycombinator.com/item?id=50343939"
+  },
+  {
+   "author": "Loreen-CreditG",
+   "company": "Credit Genie",
+   "location": null,
+   "posted": "2026-11-02T21:28:49Z",
+   "role": null,
+   "salary": null,
+   "text": "Credit Genie | Philadelphia / NYC / Toronto | Full-time | In Office | https://www.creditgenie.com\n* Hyper-growth Series B startup with a proven market fit (since Series A).\n* CEO has 2 previous exits, his most recent to PayPal in 2017.\n* Backed by PayPal & Legendary Silicon Valley Investor, Khosla.\n",
+   "url": "https://news.ycombinator.com/item?id=50344047"
+  },
+  {
+   "author": "kaveronix",
+   "company": "*Software Engineer",
+   "location": null,
+   "posted": "2026-11-02T21:50:51Z",
+   "role": null,
+   "salary": null,
+   "text": "*Software Engineer \u2014 Remote \u2014 US Only* - US Work Authorization Required\nKaveronix is looking for experienced Software Engineers currently based in the United States for fully remote opportunity\n*What we\u2019re looking for:*\nCandidates should have at least 4 years of professional experience in software e",
+   "url": "https://news.ycombinator.com/item?id=50344339"
+  },
+  {
+   "author": "JulianWasTaken",
+   "company": "Quantum Rise",
+   "location": null,
+   "posted": "2026-11-02T22:01:26Z",
+   "role": null,
+   "salary": null,
+   "text": "Quantum Rise | Chicago IL or Remote (US, Brazil or EU) | Full-time | No visa sponsorship | https://www.quantumrise.com/\nQuantum Rise is an AI-forward consulting startup serving the mid-market in the US and larger enterprises in LATAM. We see companies in multiple industries struggling to understand ",
+   "url": "https://news.ycombinator.com/item?id=50344480"
+  },
+  {
+   "author": "bshul-silkline1",
+   "company": "Silkline",
+   "location": null,
+   "posted": "2026-11-02T22:24:23Z",
+   "role": null,
+   "salary": null,
+   "text": "Silkline | Software Engineer, Deployment Strategist | Chicago, Seattle | ONSITE | $150k-$225k + equity | https://silkline.ai\nPO #HN-2611 Supplier: you Line 1: Software Engineer qty 1 Line 2: Deployment Strategist qty 1 Need-by: yesterday Status: AWAITING SUPPLIER ACK\nEvery hardware buyer knows this ",
+   "url": "https://news.ycombinator.com/item?id=50344816"
+  },
+  {
+   "author": "spoofyroot",
+   "company": "Meta",
+   "location": null,
+   "posted": "2026-11-02T22:33:59Z",
+   "role": null,
+   "salary": null,
+   "text": "Meta | Security Engineer (Senior / Staff) | ONSITE Bellevue, Menlo Park, New York, Washington DC \u2014 Staff role also REMOTE (US) | Full-time\nMeta's Central Security team is hiring Security Engineers at two levels (same team, same work):\n- Senior (IC5): https://www.metacareers.com/profile/job_details/1",
+   "url": "https://news.ycombinator.com/item?id=50344968"
+  },
+  {
+   "author": "kollmar28",
+   "company": "Railway",
+   "location": null,
+   "posted": "2026-11-02T22:37:25Z",
+   "role": null,
+   "salary": null,
+   "text": "Railway | Senior Growth Marketer, Senior Product Marketer, Account Executive, Scale, Senior Product Eng (full-stack) | REMOTE (Worldwide) | https://railway.com/careers\nDo you feel scared and alone when opening the AWS console? Do you wish you could just tell Claude to manage your infra, and it would",
+   "url": "https://news.ycombinator.com/item?id=50345025"
+  },
+  {
+   "author": "beaconai",
+   "company": "Beacon AI",
+   "location": null,
+   "posted": "2026-11-02T22:58:54Z",
+   "role": null,
+   "salary": null,
+   "text": "Beacon AI | 3 days hybrid in San Carlos, CA | https://beaconai.co/careers Due to U.S. export control regulations, we can only hire U.S. Persons (U.S. citizens, Green Card holders, lawful permanent residents, or individuals granted asylum or refugee status).\nBeacon AI builds intelligent systems that ",
+   "url": "https://news.ycombinator.com/item?id=50345264"
+  },
+  {
+   "author": "nycmatty",
+   "company": "Spade",
+   "location": null,
+   "posted": "2026-11-02T23:09:27Z",
+   "role": null,
+   "salary": null,
+   "text": "Spade | Multiple Engineering, AI/ML Data Science, and Revenue roles| HYBRID NYC or REMOTE (US/CAN) | $135-240K+ (depending on role/level) + equity\nSpade helps banks and fintechs unlock the value in their own transaction data.\nWe're looking for extraordinary builders to play a foundational role in a ",
+   "url": "https://news.ycombinator.com/item?id=50345424"
+  },
+  {
+   "author": "ncaroyannis",
+   "company": "Sendery",
+   "location": null,
+   "posted": "2026-11-02T23:35:49Z",
+   "role": null,
+   "salary": null,
+   "text": "Sendery (https://sendery.co) | iOS Engineer | Tokyo, Japan (no visa support, US/Canada remote available) | Contract\nSendery is a transactional email platform built for global teams. We provide developers, designers, and operations with the tools they need to manage their product emails without devel",
+   "url": "https://news.ycombinator.com/item?id=50345770"
+  },
+  {
+   "author": "gwbrooks",
+   "company": "America First Policy Institute",
+   "location": null,
+   "posted": "2026-11-02T23:50:37Z",
+   "role": null,
+   "salary": null,
+   "text": "America First Policy Institute - Office for Fiscal and Regulatory Analysis | ONSITE (US) | Full-time | https://www.americafirstpolicy.com/careers\nThe America First Policy Institute (AFPI), a 501(c)(3) non-profit non-partisan research institute, exists to advance policies that put the American people",
+   "url": "https://news.ycombinator.com/item?id=50345953"
+  },
+  {
+   "author": "polansky",
+   "company": "Hatch",
+   "location": null,
+   "posted": "2026-11-03T00:12:07Z",
+   "role": null,
+   "salary": null,
+   "text": "Hatch | Staff Backend Engineer | REMOTE (US/Canada, Pacific Time hours) | Full-time | https://hatch.co\nHatch makes smart sleep devices and science-backed content to help people build healthy sleep habits, from newborns to adults. Our lineup includes the Hatch Sleep Clock, a contactless sleep tracker",
+   "url": "https://news.ycombinator.com/item?id=50346184"
+  },
+  {
+   "author": "GOVSTAR",
+   "company": "GovStar",
+   "location": null,
+   "posted": "2026-11-03T00:33:17Z",
+   "role": null,
+   "salary": null,
+   "text": "GovStar | https://govstar.us | Remote (U.S. Eastern/Central Time) | Security Engineer + Data Engineer | U.S. Citizens\nGovStar is hiring two talented, mission-focused, courageous engineers to build and protect mission-critical data, AI, and analytics capabilities supporting U.S. national security mis",
+   "url": "https://news.ycombinator.com/item?id=50346358"
+  },
+  {
+   "author": "mikeihbe",
+   "company": "Telescope Partners",
+   "location": null,
+   "posted": "2026-11-03T01:08:34Z",
+   "role": null,
+   "salary": null,
+   "text": "Telescope Partners | Software Engineer & Data Scientist | Remote - AMERICAS ONLY | Full-time\nTelescope is an early stage growth VC firm with a focus on enterprise software companies. We're a small, efficient team based in SF. We're active investors, working closely with entrepreneurs to help their c",
+   "url": "https://news.ycombinator.com/item?id=50346665"
+  },
+  {
+   "author": "CactusBlue",
+   "company": "Mechanize",
+   "location": null,
+   "posted": "2026-11-03T01:30:05Z",
+   "role": null,
+   "salary": null,
+   "text": "Mechanize | San Francisco, CA (Onsite) | Junior SWE ($300k + equity + bonus), SWE ($350k + equity + bonus), Research Engineer, Alignment ($300k-$400k + equity + bonus)\nApplying takes <2 min: https://www.mechanize.work/apply/\nWe build environments that frontier AI labs use to train their models to do",
+   "url": "https://news.ycombinator.com/item?id=50346820"
+  },
+  {
+   "author": "hullo",
+   "company": "Justworks",
+   "location": null,
+   "posted": "2026-11-03T01:39:39Z",
+   "role": null,
+   "salary": null,
+   "text": "Justworks | NYC + Toronto (most roles require 2+ days in office) | Full-time | Salary + equity in every offer | https://www.justworks.com/careers\nJustworks is a PEO and HR platform for small businesses. We run payroll, benefits, compliance and HR for small businesses so that they can focus on growin",
+   "url": "https://news.ycombinator.com/item?id=50346890"
+  },
+  {
+   "author": "garysieling",
+   "company": "Certara",
+   "location": null,
+   "posted": "2026-11-03T01:56:50Z",
+   "role": null,
+   "salary": null,
+   "text": "Certara | Sr. DevOps Engineer | REMOTE (US, Budapest) | Full Time\nCertara makes software that life sciences companies use to develop drugs and get them approved. Our products model how drugs behave in the body (biosimulation) and validate clinical trial data for submission to regulators like the FDA",
+   "url": "https://news.ycombinator.com/item?id=50347008"
+  },
+  {
+   "author": "christyfthk",
+   "company": "Flow Traders",
+   "location": null,
+   "posted": "2026-11-03T03:18:22Z",
+   "role": null,
+   "salary": null,
+   "text": "Flow Traders | Research Engineer | Hong Kong | Full Time | Visa | Relocation Flow Traders is a leading proprietary trading firm with an entrepreneurial and innovative Tech culture at the heart of its business. We are looking for Research Engineers in our Hong Kong office. Join us build and scale the",
+   "url": "https://news.ycombinator.com/item?id=50347596"
+  },
+  {
+   "author": "ksctrading",
+   "company": "KSC Trading",
+   "location": null,
+   "posted": "2026-11-03T03:45:03Z",
+   "role": null,
+   "salary": null,
+   "text": "KSC Trading | Remote or NYC Hybrid | Full-Time | Senior Backend Software Engineer | $200k to $250k USD Total Compensation + Benefits KSC Trading is a proprietary algorithmic trading firm founded in 2020. The company creates software to engage in automated trading in sports and prediction markets. Th",
+   "url": "https://news.ycombinator.com/item?id=50347792"
+  },
+  {
+   "author": "lucasrattz",
+   "company": "Splash Tech",
+   "location": null,
+   "posted": "2026-11-03T04:21:11Z",
+   "role": null,
+   "salary": null,
+   "text": "Splash Tech | DevOps Mid/Senior / Frontend | Remote (LATAM and EU) | Full Time | https://splash.tech/\nWe're a small UK-based free-to-play gaming company with a distributed team, growing fast after recent success and scaling our backend platform. We\u2019re looking for a DevOps engineer with 5+ years of e",
+   "url": "https://news.ycombinator.com/item?id=50348022"
+  },
+  {
+   "author": "calebralphs",
+   "company": "VALIS (Valis Insights)",
+   "location": null,
+   "posted": "2026-11-03T04:39:27Z",
+   "role": null,
+   "salary": null,
+   "text": "VALIS (Valis Insights) | Software Engineer, new product line | REMOTE (US, East Coast hours) | Full-time | $125k-$155k + equity\nI'm Caleb, co-founder/CTO. VALIS builds data products for scrap metal recyclers. Our product images, weighs, and classifies scrap metal, and our platform turns that into ac",
+   "url": "https://news.ycombinator.com/item?id=50348145"
+  },
+  {
+   "author": "BatonTrucking",
+   "company": "Baton",
+   "location": null,
+   "posted": "2026-11-03T05:24:03Z",
+   "role": null,
+   "salary": null,
+   "text": "Baton | San Francisco, CA (Hybrid) | Full-Time\nBaton (baton.io) is Ryder's in-house product development group focused on harnessing emerging technologies to redefine transportation and logistics. With $10B in freight under management, our technology reaches every part of the U.S. economy. We design ",
+   "url": "https://news.ycombinator.com/item?id=50348423"
+  },
+  {
+   "author": "m00dy",
+   "company": "Blockrotate",
+   "location": null,
+   "posted": "2026-11-03T07:11:28Z",
+   "role": null,
+   "salary": null,
+   "text": "Blockrotate| Senior Systems / Rust Engineer | Remote (US/EU timezones preferred) | Full-time | $130k - $170k + Equity\nBlockrotate (https://blockrotate.com) builds low-latency copy-trading and execution infrastructure for Polymarket and prediction markets.\nCopy trading on prediction markets has stran",
+   "url": "https://news.ycombinator.com/item?id=50349000"
+  },
+  {
+   "author": "l1am0",
+   "company": "Proxima Fusion",
+   "location": null,
+   "posted": "2026-11-03T07:18:48Z",
+   "role": null,
+   "salary": null,
+   "text": "Proxima Fusion | Senior Software Engineer (Dev Platform) | Munich, Germany | ONSITE | Full-time\nWe're building the world's first commercial stellarator fusion power plant. First spin-out from the Max Planck Institute for Plasma Physics, based on Wendelstein 7-X (the largest stellarator ever built), ",
+   "url": "https://news.ycombinator.com/item?id=50349037"
+  },
+  {
+   "author": "Bat-elN",
+   "company": "Opsfleet",
+   "location": null,
+   "posted": "2026-11-03T07:31:55Z",
+   "role": null,
+   "salary": null,
+   "text": "Opsfleet | AI Engineer (Agentic / GenAI) | REMOTE (EEA) | Full-time\nFully remote cloud & AI services company (founded 2015, 70+ engineers, AWS Premier, Google Cloud & Snowflake Partner) with a growing GenAI practice and several active client projects.\nYou'll build production LLM agents for clients: ",
+   "url": "https://news.ycombinator.com/item?id=50349129"
+  },
+  {
+   "author": "PolinaLu",
+   "company": "Modash.io",
+   "location": null,
+   "posted": "2026-11-03T07:52:08Z",
+   "role": null,
+   "salary": null,
+   "text": "Modash.io | Senior Product Engineer | Remote (Europe) | Full-time | \u20ac80k\u2013110k | https://modash.io\nModash helps brands find, manage, and pay creators - and helps creators earn a living.\nThe product looks simple on the surface. Underneath, we index 380M+ public creator profiles across Instagram, TikTo",
+   "url": "https://news.ycombinator.com/item?id=50349251"
+  },
+  {
+   "author": "scentocom",
+   "company": "Scento",
+   "location": null,
+   "posted": "2026-11-03T07:59:27Z",
+   "role": null,
+   "salary": null,
+   "text": "Scento | Paris, Berlin | REMOTE (EU) or ONSITE | Full-time | https://www.scento.com/careers\nScento is Europe's largest perfume decant website: more than 1,000 original designer and niche perfumes as 2 ml, 5 ml and 8 ml decants, shipped to 26 EU countries. Founded in 2024, headquartered in Paris with",
+   "url": "https://news.ycombinator.com/item?id=50349294"
+  },
+  {
+   "author": "VaneesaAgrawal",
+   "company": "Perry",
+   "location": null,
+   "posted": "2026-11-03T08:58:46Z",
+   "role": null,
+   "salary": null,
+   "text": "Perry | Founding Commercial Hire, Founding Account Executive (US), Product Designer, Legal Engineer | London (and New York for US AE) | ONSITE | Full-time\nPerry is the legal OS for private capital. We build AI agents that turn a fund's legal documents into operational intelligence: reviewing term sh",
+   "url": "https://news.ycombinator.com/item?id=50349660"
+  },
+  {
+   "author": "kreldjarn",
+   "company": "Encube",
+   "location": null,
+   "posted": "2026-11-03T09:14:44Z",
+   "role": null,
+   "salary": null,
+   "text": "Encube | ML Engineer, ML Ops Engineer | Stockholm, Sweden | ONSITE | Full-time\nEncube is a platform where hardware teams look at their 3D designs and engineering drawings together and make better products faster. We're building AI that understands those drawings and 3D models, and can eventually cre",
+   "url": "https://news.ycombinator.com/item?id=50349751"
+  },
+  {
+   "author": "openrent",
+   "company": "OpenRent",
+   "location": null,
+   "posted": "2026-11-03T09:15:12Z",
+   "role": null,
+   "salary": null,
+   "text": "OpenRent | London, UK | Full-Time | ONSITE+PART REMOTE | https://www.openrent.co.uk\nWhat sucked the last time you rented a house or flat? Come and fix it. OpenRent is force for good in an industry tarnished by rip-off agencies and one of the biggest UK websites by traffic. Enabled by an unrelenting ",
+   "url": "https://news.ycombinator.com/item?id=50349755"
+  },
+  {
+   "author": "ThorAndZeus",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-03T09:23:15Z",
+   "role": null,
+   "salary": null,
+   "text": "Location: Dorset, UK\nRemote: Yes (UK, US and EU time zones)\nWilling to relocate: No\nTechnologies: Ruby on Rails, Python (FastAPI), TypeScript/Node, Go, PostgreSQL, AWS, Hotwire\nR\u00e9sum\u00e9/CV: https://wagnermatos.co.uk\nEmail: wm@wagnermatos.co.uk\nSenior engineer, 15 years. I build complete products on a ",
+   "url": "https://news.ycombinator.com/item?id=50349800"
+  },
+  {
+   "author": "PlantingSpace",
+   "company": "PlantingSpace",
+   "location": null,
+   "posted": "2026-11-03T10:06:56Z",
+   "role": null,
+   "salary": null,
+   "text": "PlantingSpace | Full-time | Remote (EU time zone) + Quarterly Meet-ups | https://planting.space\nWe're building a system that represents domain knowledge as modular probabilistic models \u2014 making analysis rigorous and transparent. Users can connect these models flexibly into larger structures. The sys",
+   "url": "https://news.ycombinator.com/item?id=50350077"
+  },
+  {
+   "author": "mohsen1",
+   "company": "Proofline",
+   "location": null,
+   "posted": "2026-11-03T11:47:50Z",
+   "role": null,
+   "salary": null,
+   "text": "Proofline | Founding Staff / Principal Engineer | REMOTE (Worldwide, Berlin timezone overlap preferred) | Full-time | \u20ac120k-\u20ac200k + equity | https://proofline.sh/careers/founding-staff-principal-engine...\nHi HN, I'm the founder of Proofline. We're building an infrastructure-aware AI code reviewer th",
+   "url": "https://news.ycombinator.com/item?id=50350810"
+  },
+  {
+   "author": "john-the-marker",
+   "company": "Marker Learning",
+   "location": null,
+   "posted": "2026-11-03T12:07:36Z",
+   "role": null,
+   "salary": null,
+   "text": "Marker Learning | Senior Full-Stack Engineer (Frontend-Leaning) | Full-time | Remote, US only | $180k\u2013$200k | https://www.markerlearning.com\nWe\u2019re building the Marker Method, a digital assessment platform that helps clinicians understand how students learn. It brings together interactive assessments",
+   "url": "https://news.ycombinator.com/item?id=50350981"
+  },
+  {
+   "author": "shayneo",
+   "company": "Stealth",
+   "location": null,
+   "posted": "2026-11-03T12:08:24Z",
+   "role": null,
+   "salary": null,
+   "text": "Stealth | Dallas, TX | Onsite\nSoftware engineer. Insurance space.\nping me @ shayneosull@gmail.com",
+   "url": "https://news.ycombinator.com/item?id=50350986"
+  },
+  {
+   "author": "AREO_Marius",
+   "company": "AREO",
+   "location": null,
+   "posted": "2026-11-03T12:37:57Z",
+   "role": null,
+   "salary": null,
+   "text": "AREO | Remote (EU) and On-Site in Bremen, Germany | Full-Time | Equity | Roles: Engineering Manager (Ruby on Rails), Robotics Engineer\nMy name is Marius, and I am the CTO at AREO (https://goareo.com/)\nAREO, founded in January 2023 by a team with 20+ years of combined experience in retail and startup",
+   "url": "https://news.ycombinator.com/item?id=50351266"
+  },
+  {
+   "author": "marmalykh",
+   "company": "Taxnova",
+   "location": null,
+   "posted": "2026-11-03T13:33:57Z",
+   "role": null,
+   "salary": null,
+   "text": "Taxnova | London | Hybrid Founding product engineer\nTaxnova (a16z Speedrun) builds AI that turns engineering data into tax and finance intelligence for teams like incident.io and Paddle. We\u2019re hiring a core founding engineer to work side by side with the CTO and own the AI product, roadmap input and",
+   "url": "https://news.ycombinator.com/item?id=50351794"
+  },
+  {
+   "author": "terpimost",
+   "company": "Antithesis",
+   "location": null,
+   "posted": "2026-11-03T13:53:02Z",
+   "role": null,
+   "salary": null,
+   "text": "Antithesis | Washington, DC, London | Remote or In Office (US, UK) | Design Engineer\nWe create an expert system that verifies software and becomes an essential part of agentic workflows. https://antithesis.com\nI\u2019m Vlad, Director of Product Design, engineer, and manager. I\u2019m looking for a design engi",
+   "url": "https://news.ycombinator.com/item?id=50351981"
+  },
+  {
+   "author": "bschumer",
+   "company": "Avoca",
+   "location": null,
+   "posted": "2026-11-03T14:05:06Z",
+   "role": null,
+   "salary": null,
+   "text": "Avoca | Full-Stack Engineers + FDEs | ONSITE (NYC,US) | Full-time\nAvoca is transforming how home service companies engage with their customers. Our AI-powered conversational agents handle every high-value inbound call, from booking jobs, qualifying leads, and driving higher revenue, all at a speed a",
+   "url": "https://news.ycombinator.com/item?id=50352134"
+  },
+  {
+   "author": "sarahscrutton",
+   "company": "IMC Trading",
+   "location": null,
+   "posted": "2026-11-03T14:06:02Z",
+   "role": null,
+   "salary": null,
+   "text": "IMC Trading | Machine Learning Engineer | Amsterdam OR London | ONSITE | Full-time\nIMC is a research-driven trading firm and has been a market maker since 1989. Our researchers, traders and engineers work as one team on systems we build ourselves, trading across global markets.\nWe want ML engineers ",
+   "url": "https://news.ycombinator.com/item?id=50352150"
+  },
+  {
+   "author": "getregistered",
+   "company": "SEEKING FREELANCER",
+   "location": null,
+   "posted": "2026-11-03T15:08:09Z",
+   "role": null,
+   "salary": null,
+   "text": "SEEKING FREELANCER | Devops Engineer | Remote - UK or EU\ngetregistered is a better way to do event registration.\nWe're looking for an experienced devops freelancer to help manage and enhance our GCP + Terraform + GitLab based stack in our SOC2 / PCI environment. Candidates must be willing to undergo",
+   "url": "https://news.ycombinator.com/item?id=50352957"
+  },
+  {
+   "author": "jrudin",
+   "company": "Clad (YC W23)",
+   "location": null,
+   "posted": "2026-11-03T15:19:35Z",
+   "role": null,
+   "salary": null,
+   "text": "Clad (YC W23) | Software Engineer | NYC | withclad.com Clad is an AI-native platform for utility construction. We help contractors bill accurately, track their work, and automate their operations.\nWe're a 7 person team in-person in New York City, raised $2.7M, have >3 years of runway, and are growin",
+   "url": "https://news.ycombinator.com/item?id=50353098"
+  },
+  {
+   "author": "bombledmonk",
+   "company": "DigiKey",
+   "location": null,
+   "posted": "2026-11-03T15:48:23Z",
+   "role": null,
+   "salary": null,
+   "text": "DigiKey | Search Experience Manager | Thief River Falls, MN | Bloomington, MN | Hybrid\nHow do you help an electrical engineer find the right part among millions of highly technical, nearly identical components?\nWe\u2019re hiring someone to own that problem across search, ranking, filters, discovery, expe",
+   "url": "https://news.ycombinator.com/item?id=50353464"
+  },
+  {
+   "author": "specialholdings",
+   "company": "Special",
+   "location": null,
+   "posted": "2026-11-03T16:00:04Z",
+   "role": null,
+   "salary": null,
+   "text": "Special | Forward Deployed Engineer | NYC | Full-Time | $200-300K + equity\nEx-DOGE team transforming critical American industries with AI. Backed by a16z, Human Capital, Brian Armstrong, Shyam Sankar, and Antonio Gracias.\nApply + vision: special.co/careers + special.co/vision",
+   "url": "https://news.ycombinator.com/item?id=50353641"
+  },
+  {
+   "author": "kyry_cz",
+   "company": "ThreatMark",
+   "location": null,
+   "posted": "2026-11-03T16:19:36Z",
+   "role": null,
+   "salary": null,
+   "text": "ThreatMark | Security, Machine Learning | REMOTE(World) / Brno, Czech Republic | Equity\nThreatMark protects >60M end users from finacial fraud and saves > $1.2M every day in losses.\nWe are working with banks in EU and US to protect their end users.\nWe develop large-behavioral models that recognizes ",
+   "url": "https://news.ycombinator.com/item?id=50353951"
+  },
+  {
+   "author": "theghost1980",
+   "company": "Location: Andaluc\u00eda, Spain (CET) Remote: Yes",
+   "location": null,
+   "posted": "2026-11-03T16:21:48Z",
+   "role": null,
+   "salary": null,
+   "text": "Location: Andaluc\u00eda, Spain (CET) Remote: Yes \u2013 remote only Willing to relocate: No (EU citizen \u2013 no visa or work permit needed for EU employers) Technologies: TypeScript, React, Next.js, Node.js, Fastify, React Native, PostgreSQL, Prisma, Supabase, Anthropic SDK (Claude), LLM pipelines, Vitest/Jest,",
+   "url": "https://news.ycombinator.com/item?id=50353980"
+  },
+  {
+   "author": "nialbima",
+   "company": "Exponent",
+   "location": null,
+   "posted": "2026-11-03T16:32:52Z",
+   "role": null,
+   "salary": null,
+   "text": "Exponent | Lead Engineer, AI Accounting | New York (Flatiron) | HYBRID, 2+ days in office | $160k\u2013$200k + equity | Full-time\nExponent is a financial platform for franchise and multi-location restaurant operators: charge cards, loans, and an AI-powered Accountant that pulls in an operator's POS, bank",
+   "url": "https://news.ycombinator.com/item?id=50354142"
+  },
+  {
+   "author": "Estuary",
+   "company": "Estuary",
+   "location": null,
+   "posted": "2026-11-03T18:28:39Z",
+   "role": null,
+   "salary": null,
+   "text": "Estuary | US-Based / Remote | Full-time \u2013 https://estuary.dev/\nEstuary is a VC-backed, post\u2013Series A startup powering real-time data replication and transform \u2014 from sub-second CDC replication to terabyte-scale OLAP data flows. We\u2019re open-source, developer-first, and focused on making data movement ",
+   "url": "https://news.ycombinator.com/item?id=50356058"
+  },
+  {
+   "author": "harshpj",
+   "company": "Thankly",
+   "location": null,
+   "posted": "2026-11-03T20:01:15Z",
+   "role": null,
+   "salary": null,
+   "text": "Thankly | Founding Engineer, Founding Engineer (RL Environments), Founding Product Designer | REMOTE (US) | Full-time | Equity-first\nThankly builds branded shopping apps that run inside AI assistants, including ChatGPT, Claude and Gemini. Shoppers ask for what they need in conversation, the app reco",
+   "url": "https://news.ycombinator.com/item?id=50357360"
+  },
+  {
+   "author": "jascaddel",
+   "company": "Sphinx Defense",
+   "location": null,
+   "posted": "2026-11-03T23:22:14Z",
+   "role": null,
+   "salary": null,
+   "text": "Sphinx Defense | Software Engineering | Remote (US Only) | https://www.sphinxdefense.com\nSphinx Defense builds software to solve complex national security problems for America and its allies. Founded by engineers and technologists with deep experience across commercial and defense technology, we're ",
+   "url": "https://news.ycombinator.com/item?id=50359595"
+  },
+  {
+   "author": "elianahammonds",
+   "company": "Coder",
+   "location": null,
+   "posted": "2026-11-04T00:48:58Z",
+   "role": null,
+   "salary": null,
+   "text": "Coder | https://coder.com/ | Multiple roles | Multiple locations | Full-time\nCoder is an AI software development company leading the future of autonomous coding. We empower teams to build software faster, more securely, and at scale through the collaboration of AI coding agents and human developers.",
+   "url": "https://news.ycombinator.com/item?id=50360244"
+  },
+  {
+   "author": "Daniel_Van_Zant",
+   "company": "Lumen Labs",
+   "location": null,
+   "posted": "2026-11-04T03:34:11Z",
+   "role": null,
+   "salary": null,
+   "text": "Lumen Labs | Robotics/Hardware Engineer, Simulation Engineer | San Francisco, CA | ONSITE | Full-time | $150k\u2013200k + equity | https://lumenresearch.co\nHowdy! Lumen Labs is building the cognitive layer for physical AI. Nearly every major robotics effort today teaches machines by showing them thousand",
+   "url": "https://news.ycombinator.com/item?id=50361229"
+  },
+  {
+   "author": "andreyvit",
+   "company": "Bubblehouse",
+   "location": null,
+   "posted": "2026-11-04T10:14:06Z",
+   "role": null,
+   "salary": null,
+   "text": "Bubblehouse | Fully REMOTE | Full-Time | $200\u2013250k | Principal Engineer\nWe\u2019re a small team across the US and Europe. We build the platform that household-name brands use to run their own loyalty programs.\nWe write Go and run our own database engine on top of local key-value stores. We keep storage a",
+   "url": "https://news.ycombinator.com/item?id=50363483"
+  },
+  {
+   "author": "KimManiti",
+   "company": "Bikky",
+   "location": null,
+   "posted": "2026-11-04T10:40:38Z",
+   "role": null,
+   "salary": null,
+   "text": "Bikky | Engineering Manager | Hybrid | Full time | NYC Bikky | Senior Software Engineer | Hybrid | Full time | NYC\nHi, all!\nAt Bikky, we unify POS, online ordering, payments, and loyalty data to help multi-unit restaurant brands understand their customers and make better business decisions.\nWe\u2019re a ",
+   "url": "https://news.ycombinator.com/item?id=50363693"
+  },
+  {
+   "author": "JP_recruiter_Se",
+   "company": "Search Atlas",
+   "location": null,
+   "posted": "2026-11-04T13:31:28Z",
+   "role": null,
+   "salary": null,
+   "text": "Search Atlas | Product Engineer (PM) | REMOTE (anywhere, EST hours) | Full-time | $23-34/hr\nWe're ~160 people building an AI marketing platform. Our main product, OTTO, runs a site's SEO on its own: it reads live search data and ships the technical and on-page fixes itself. Customers include Autotra",
+   "url": "https://news.ycombinator.com/item?id=50365279"
+  },
+  {
+   "author": "Dsuniga14",
+   "company": "Oscilar.com",
+   "location": null,
+   "posted": "2026-11-04T18:28:02Z",
+   "role": null,
+   "salary": null,
+   "text": "Oscilar.com | Sr/Staff Software Engineers, Data Scientist, FDE, PM| REMOTE (US/Canada/Brazil/Poland/UK/India) Full-time AI Risk Decisioning\u2122 platform that helps organizations manage onboarding, fraud, credit, and compliance risks Open roles: - Sr./Staff Analytics & Data Architecture Engineer (US/Can",
+   "url": "https://news.ycombinator.com/item?id=50369581"
+  },
+  {
+   "author": "fiiico",
+   "company": "Matcha.fm",
+   "location": null,
+   "posted": "2026-11-04T18:38:49Z",
+   "role": null,
+   "salary": null,
+   "text": "Matcha.fm | REMOTE (Worldwide: US / Canada / Europe / UK / LATAM) | Full-time | https://matcha.fm\nI'm a Canadian repeat founder working on agents that cut the noise in large dataset search.\nLooking for a great builder (founding software engineer) and a great marketer with a track record of virality ",
+   "url": "https://news.ycombinator.com/item?id=50369728"
+  },
+  {
+   "author": "furtimmodus",
+   "company": "Furtim Modus",
+   "location": null,
+   "posted": "2026-11-04T23:38:59Z",
+   "role": null,
+   "salary": null,
+   "text": "Furtim Modus | Hiring Java Developer (Full-Time) | NYC (HYBRID) | $150K-$300K + equity | https://www.furtimmodus.com/software-engineer\nWe are currently seeking a talented and driven Java Developer to join our team full-time. This is an exciting opportunity to contribute your skills and expertise to ",
+   "url": "https://news.ycombinator.com/item?id=50372966"
+  },
+  {
+   "author": "meetalbert",
+   "company": "ALBERT",
+   "location": null,
+   "posted": "2026-11-05T01:06:23Z",
+   "role": null,
+   "salary": null,
+   "text": "ALBERT | REMOTE, ALMOST ANYWHERE | New grads who\u2019ve shipped AI features (max 2 years out of school) + Principal/Distinguished engineers for net-new consumer products | senior track up to ~$750k cash plus meaningful equity\nConsumer fintech, 20M+ users, profitable 4+ years, 3.6-year average tenure. Pe",
+   "url": "https://news.ycombinator.com/item?id=50373706"
+  },
+  {
+   "author": "wojciech12",
+   "company": "ICEYE",
+   "location": null,
+   "posted": "2026-11-05T07:35:44Z",
+   "role": null,
+   "salary": null,
+   "text": "ICEYE | Platform Software Engineers (Senior/Staff) | Espoo, Finland / Berlin, Germany | HYBRID | Full-time (relocation support)\nICEYE builds and operates the world's largest SAR satellite constellation. I lead Platform: three teams (Core Platform, Developer Enablement, SRE) that run the foundation e",
+   "url": "https://news.ycombinator.com/item?id=50376253"
+  },
+  {
+   "author": "katie_zhy",
+   "company": "VictoriaMetrics",
+   "location": null,
+   "posted": "2026-11-05T15:19:48Z",
+   "role": null,
+   "salary": null,
+   "text": "VictoriaMetrics | Remote | EMEA, North America | Hiring VictoriaMetrics is an open-source monitoring and observability company. We build VictoriaMetrics, VictoriaLogs, and VictoriaTraces \u2014 high-performance, cost-efficient solutions for metrics, logs, and traces.\nOur products are used by companies in",
+   "url": "https://news.ycombinator.com/item?id=50380208"
+  },
+  {
+   "author": "wipaveeknecht",
+   "company": "ChainSecurity",
+   "location": null,
+   "posted": "2026-11-05T15:35:47Z",
+   "role": null,
+   "salary": null,
+   "text": "ChainSecurity | Blockchain Security Engineer | Full-time | INTERNS , HYBRID/REMOTE, Zurich, Switzerland | VISA possible (for an employment) | https://chainsecurity.com/\nChainSecurity is a young and innovative cybersecurity company that operates in the blockchain and cryptocurrency space. Our mission",
+   "url": "https://news.ycombinator.com/item?id=50380439"
+  },
+  {
+   "author": "Rajneesh_01",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-05T18:54:54Z",
+   "role": null,
+   "salary": null,
+   "text": "I'm Rajneesh Verma, a Full-Stack & AI Engineer currently working with a YC-backed startup. I have hands-on experience building and shipping production-ready applications, scalable backend systems, APIs, and AI-powered products.\nMy tech stack includes React, Next.js, TypeScript, Node.js, Python, Post",
+   "url": "https://news.ycombinator.com/item?id=50382899"
+  },
+  {
+   "author": "niuro",
+   "company": "Nirvana Robotics",
+   "location": null,
+   "posted": "2026-11-05T20:23:44Z",
+   "role": null,
+   "salary": null,
+   "text": "Nirvana Robotics | Mechanical Engineer, Electrical Engineer, Robotic Controls Engineer | New York, NY | ONSITE | Full-time | $220K-$300K\nNirvana Robotics builds humanoid robots with robotic arms that work in industrial environments. Their hardware team in NYC is growing, and each of these roles owns",
+   "url": "https://news.ycombinator.com/item?id=50383984"
+  },
+  {
+   "author": "sortrace",
+   "company": "Sortrace",
+   "location": null,
+   "posted": "2026-11-05T20:25:23Z",
+   "role": null,
+   "salary": null,
+   "text": "Sortrace | Computer Vision Engineer, Junior Frontend Engineer | REMOTE (Europe), hybrid Norrk\u00f6ping or Stockholm | Full-time | https://sortrace.com\nSortrace is a small cleantech AI company in Sweden. Cameras on waste collection trucks and trained vision models flag material in the wrong fraction when",
+   "url": "https://news.ycombinator.com/item?id=50384008"
+  },
+  {
+   "author": "kyrxanthos",
+   "company": "Piramidal (YC W24)",
+   "location": null,
+   "posted": "2026-11-05T21:34:32Z",
+   "role": null,
+   "salary": null,
+   "text": "Piramidal (YC W24) | Senior Backend Engineer | New York, NY | $200K-$300K + equity | www.piramidal.ai\nWe\u2019ve built the first-of-its-kind foundation model for brainwave data. Our goal is Intelligence Amplification (IA) by means of creating neural decoders that enable interactions with the language of ",
+   "url": "https://news.ycombinator.com/item?id=50384764"
+  },
+  {
+   "author": "odette_leadersh",
+   "company": "Odette Technologies",
+   "location": null,
+   "posted": "2026-11-05T21:57:35Z",
+   "role": null,
+   "salary": null,
+   "text": "Odette Technologies | Senior Integration Engineer, Data/ML Engineer, Product Lead | HYBRID (NC) / REMOTE | Full-time | US citizens, clearable, East Coast-based | https://odettetechnologies.com\nWe're building an AI-powered situational awareness platform for intelligence and information operations tea",
+   "url": "https://news.ycombinator.com/item?id=50385049"
+  },
+  {
+   "author": "zefr-sre",
+   "company": "Zefr",
+   "location": null,
+   "posted": "2026-11-06T01:07:33Z",
+   "role": null,
+   "salary": null,
+   "text": "Zefr | Los Angeles, CA (Marina del Rey) | Site Reliability Engineer | Full-time | On-site 2-3x per week | $100,000 - $130,000 | https://zefr.com\nCompany\nZefr is the leading global technology company enabling responsible marketing in walled garden social environments. Zefr\u2019s solutions empower brands ",
+   "url": "https://news.ycombinator.com/item?id=50386884"
+  },
+  {
+   "author": "Sush1271",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-06T05:11:29Z",
+   "role": null,
+   "salary": null,
+   "text": "I'm Sushant Gangurde, A Software Engineer focused on Full-Stack Development and AI-powered applications. I work with React, Next.js, TypeScript, Node.js, Python, PostgreSQL and MongoDB, and enjoy building practical products from frontend to backend.\nI've built projects involving AI integrations, aut",
+   "url": "https://news.ycombinator.com/item?id=50388471"
+  },
+  {
+   "author": "grimre4p",
+   "company": "iCallidus",
+   "location": null,
+   "posted": "2026-11-06T07:45:00Z",
+   "role": null,
+   "salary": null,
+   "text": "iCallidus | Azure Intune Engineer | Denver, US | Remote | $130,000 - 160,000 | Full-Time\nTech used: AI, Azure, Firmware, Support, Microsoft Intune, Security, VPN, Incident Management\nWe are iCallidus, Inc., a small-business federal IT contractor hiring an Azure Intune Engineer for an agency IT suppo",
+   "url": "https://news.ycombinator.com/item?id=50389352"
+  },
+  {
+   "author": "verobytes",
+   "company": "NetBird",
+   "location": null,
+   "posted": "2026-11-06T14:02:12Z",
+   "role": null,
+   "salary": null,
+   "text": "NetBird | Berlin, Germany (or remote, CET overlap) | Full-time\nhttps://netbird.io/careers NetBird is open source networking and access control WireGuard-based overlay networks with zero-config peer-to-peer connectivity. Now working with new use cases in access for AI agents. Open source, built in Eu",
+   "url": "https://news.ycombinator.com/item?id=50392398"
+  },
+  {
+   "author": "dylan-buildq",
+   "company": "BuildQ",
+   "location": null,
+   "posted": "2026-11-06T18:26:22Z",
+   "role": null,
+   "salary": null,
+   "text": "BuildQ | Founding Engineer | REMOTE (PT to ET overlap preferred) | $130K - $150K + equity | Full-time | Seed | https://buildq.ai/careers/founding-engineer\nHey folks! I'm Dylan, CTO at BuildQ, and we're building out our founding eng team. Today, a $200M solar project sits for weeks while someone read",
+   "url": "https://news.ycombinator.com/item?id=50396245"
+  },
+  {
+   "author": "noahho",
+   "company": "Prior Labs",
+   "location": null,
+   "posted": "2026-11-06T20:57:01Z",
+   "role": null,
+   "salary": null,
+   "text": "Prior Labs | Berlin, Freiburg, NYC | ONSITE | Full-time | https://priorlabs.ai\nWe build foundation models for tables. TabPFN takes your whole dataset as context and predicts in one forward pass - no training, no tuning - after pre-training only on synthetic data from causal priors. TabPFN v2 was a N",
+   "url": "https://news.ycombinator.com/item?id=50398420"
+  },
+  {
+   "author": "criscros",
+   "company": "3ive",
+   "location": null,
+   "posted": "2026-11-06T21:01:10Z",
+   "role": null,
+   "salary": null,
+   "text": "3ive | Senior/Staff Software Engineer | REMOTE (Europe) | Full-time | Python, TypeScript, React, AI Agents\nWe\u2019re building Cursor for mechanical engineering.\nImagine an AI that doesn\u2019t just answer questions about a mechanical design, but can actually understand CAD models, work with geometry, and hel",
+   "url": "https://news.ycombinator.com/item?id=50398466"
+  },
+  {
+   "author": "mustafadalga",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-07T11:35:58Z",
+   "role": null,
+   "salary": null,
+   "text": "Location: Estonia Remote:Yes\nWilling to relocate: No\nTechnologies: React.js,Vue.js, Next.js,Nuxt.js ,TypeScript, SCSS, CSS3, Tailwind CSS, Redux, Zustand\nPart-time/Freelance: Yes\nLinkedin: https://www.linkedin.com/in/mustafadalga/\nContact info: mustafadalga \\[at\\] gmail \\[dot\\] com\nFront-end enginee",
+   "url": "https://news.ycombinator.com/item?id=50403646"
+  },
+  {
+   "author": "OpenTrainAI",
+   "company": "OpenTrain AI",
+   "location": null,
+   "posted": "2026-11-09T02:48:07Z",
+   "role": null,
+   "salary": null,
+   "text": "OpenTrain AI | REMOTE (US) | Part-time | Backend Engineer, AI Coding Task Design\nOpenTrain AI connects experienced professionals with paid, part-time AI training work. We are the hiring company and are actively filling this role.\n- $30\u2013$100 per hour equivalent, paid per accepted task - 100% remote, ",
+   "url": "https://news.ycombinator.com/item?id=50420399"
+  },
+  {
+   "author": "Abaan_1302",
+   "company": "Seal (YC S20)",
+   "location": null,
+   "posted": "2026-11-09T11:31:32Z",
+   "role": null,
+   "salary": null,
+   "text": "Seal (YC S20) | Forward Deployed Engineer, Founding Product Engineer | London | ONSITE | Full-time | \u00a350k\u2013\u00a3120k + equity\nWe build AI software that biotech and pharma manufacturers use to run their labs and prove every batch. Small team, real customers, lots of ownership. Early-career engineers welco",
+   "url": "https://news.ycombinator.com/item?id=50424162"
+  },
+  {
+   "author": "AdrianTroop",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-09T13:57:09Z",
+   "role": null,
+   "salary": null,
+   "text": "DevOps Engineer Hybrid, 3 days a week in the office Hong Kong Full-time\nWe are looking for a DevOps Engineer to own, scale, and secure our cloud and on-premise computing environments. You will work closely with ML researchers, data scientists, and software engineers to streamline model training, opt",
+   "url": "https://news.ycombinator.com/item?id=50425675"
+  },
+  {
+   "author": "moystard",
+   "company": "Sunsave",
+   "location": null,
+   "posted": "2026-11-09T16:36:13Z",
+   "role": null,
+   "salary": null,
+   "text": "Sunsave | Product Engineer (Mid-Level / Senior) | London, United Kingdom (Holborn) | ONSITE (hybrid, 3 days/week in office) | Full-time\nSunsave is building what replaces your energy supplier. Customers switch to solar and a battery with nothing to pay upfront: kit, install, finance and long-term pro",
+   "url": "https://news.ycombinator.com/item?id=50427924"
+  },
+  {
+   "author": "dejayy",
+   "company": "Collabify",
+   "location": null,
+   "posted": "2026-11-09T16:46:20Z",
+   "role": null,
+   "salary": null,
+   "text": "Collabify | Senior Full-Stack Engineer (backend-heavy) | REMOTE (worldwide) | Contract, 4\u20135 months | $3,000\u20134,000/month\nI'm looking to hire our first engineer to own architecture and build product first version.\nStack: TypeScript, React/Next.js, Node.js and PostgreSQL.\nThe core challenges: tenant is",
+   "url": "https://news.ycombinator.com/item?id=50428062"
+  },
+  {
+   "author": "gage-wunderrese",
+   "company": "Stealth Health-Tech Startup",
+   "location": null,
+   "posted": "2026-11-09T18:53:51Z",
+   "role": null,
+   "salary": null,
+   "text": "Stealth Health-Tech Startup | Senior Backend/Infrastructure Engineer | San Francisco | ONSITE | Full-time | [salary range] + generous equity\nWe're a rapidly growing, venture-backed stealth startup helping people understand their medical records and lab results. We need an engineer to own security (H",
+   "url": "https://news.ycombinator.com/item?id=50429861"
+  },
+  {
+   "author": "shubhankarLord",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-09T19:24:45Z",
+   "role": null,
+   "salary": null,
+   "text": "Location: Bangalore, India (IST / UTC+5:30) Remote: Yes (Worldwide) Willing to relocate: Yes (Worldwide, visa sponsorship required) Technologies: TypeScript, Node.js, Go, Python, React, PostgreSQL, MongoDB, Redis, RabbitMQ, BullMQ, AWS, Docker, WebSockets, WebRTC, GraphQL, OpenAI, RAG, Vector DBs, O",
+   "url": "https://news.ycombinator.com/item?id=50430411"
+  },
+  {
+   "author": "playfair11",
+   "company": "Polymath",
+   "location": null,
+   "posted": "2026-11-09T22:07:39Z",
+   "role": null,
+   "salary": null,
+   "text": "Polymath | Founding MTS, Full-Stack | San Francisco | ONSITE (5 days) | $160K\u2013$220K + 0.75%\u20131.5% equity | https://polymathmade.com\nPolymath builds AI agents that read engineering drawings, generate CAD models, and rebuild parts across CAD systems. We're VC-backed, Harvard- and Stanford-founded, in p",
+   "url": "https://news.ycombinator.com/item?id=50432950"
+  },
+  {
+   "author": "kat_marq",
+   "company": "Epsilon",
+   "location": null,
+   "posted": "2026-11-10T15:11:57Z",
+   "role": null,
+   "salary": null,
+   "text": "Epsilon |Hybrid (Chicago, IL) | Full time | $150-$160K USD\nHello everyone, Epsilon is hiring for a Lead Software Engineer. This is a hybrid role working out of our downtown Chicago office. Looking for backend/API development as well as data engineering experience.\nApply here: https://careers.publici",
+   "url": "https://news.ycombinator.com/item?id=50441512"
+  },
+  {
+   "author": "systemaccount",
+   "company": "Odin",
+   "location": null,
+   "posted": "2026-11-10T22:14:01Z",
+   "role": null,
+   "salary": null,
+   "text": "Odin | Senior Cloud Infra Engineer | Remote | Full time\nWe\u2019re hiring a Senior Cloud Infrastructure Engineer to help establish Odin\u2019s platform team. You\u2019ll build and run the cloud foundation powering workforce visibility, security, and operations across critical-infrastructure construction projects.\n",
+   "url": "https://news.ycombinator.com/item?id=50447035"
+  },
+  {
+   "author": "Quaisr",
+   "company": "Quaisr",
+   "location": null,
+   "posted": "2026-11-11T11:51:25Z",
+   "role": null,
+   "salary": null,
+   "text": "Quaisr | Hybrid (London, UK) | Full time\nHi folks! Quaisr (Imperial College London spinout) is a scientific orchestration platform that connects models, data, AI and lab equipment to accelerate R&D for science and engineering teams across pharma, defence, mining, energy, etc.\nVisit site for more to ",
+   "url": "https://news.ycombinator.com/item?id=50452319"
+  },
+  {
+   "author": "simplyHemat",
+   "company": "Hemant Singh",
+   "location": null,
+   "posted": "2026-11-11T15:21:10Z",
+   "role": null,
+   "salary": null,
+   "text": "Hemant Singh | Software Engineer / Backend Engineer | India (REMOTE / ONSITE)\nI'm a software engineer focused on backend development, primarily working with Java, Spring Boot, and Python. I enjoy building backend systems, REST APIs, and distributed applications, with an interest in system design and",
+   "url": "https://news.ycombinator.com/item?id=50454490"
+  },
+  {
+   "author": "jonnyxu",
+   "company": "Kroo",
+   "location": null,
+   "posted": "2026-11-11T23:07:17Z",
+   "role": null,
+   "salary": null,
+   "text": "Kroo | Backend Software Engineer | NYC, Hybrid | Full-Time | $175k - $220k + equity + health benefits\nKroo is building the AI context layer for construction, an industry that badly needs solutions to solve their day-to-day headaches on the job-site. We\u2019ve built a platform that our 50+ enterprise cus",
+   "url": "https://news.ycombinator.com/item?id=50460238"
+  },
+  {
+   "author": "mitchellhirsche",
+   "company": "Foji",
+   "location": null,
+   "posted": "2026-11-12T00:03:47Z",
+   "role": null,
+   "salary": null,
+   "text": "Foji | Full Stack Engineer (TypeScript/React/Node) | Atlanta (hybrid) or REMOTE (US: Utah, Central or Eastern time) | Full-time | $110K\u2013$140K + equity | https://foji.io\nWe automate the revenue cycle for dental practices: insurance eligibility and benefits, claim tracking, payment posting, and bank r",
+   "url": "https://news.ycombinator.com/item?id=50460895"
+  },
+  {
+   "author": "hunterrwebb",
+   "company": "Landlord",
+   "location": null,
+   "posted": "2026-11-12T00:21:54Z",
+   "role": null,
+   "salary": null,
+   "text": "Landlord | AI Engineer | Beaverton, OR | ONSITE | Full-time | $80k + stock options\nLandlord builds AIs that turn people from builders into architects. This means our AIs hammer the nails (repetitive, boring tasks) so our customers can focus on what's really important at a high level.\nOur niche is se",
+   "url": "https://news.ycombinator.com/item?id=50461075"
+  },
+  {
+   "author": "filipegarcia199",
+   "company": "Alternative Payments",
+   "location": null,
+   "posted": "2026-11-12T21:28:47Z",
+   "role": null,
+   "salary": null,
+   "text": "Alternative Payments | Senior Software Engineer, Alti (AI agents) | REMOTE (Brazil) | Full-time | $90k\u2013105k + equity\nWe\u2019re building the financial operating system for service-based SMBs (accounts receivable, payables, analytics). Alti, our AI agent product, launched in July and is growing fast. We\u2019r",
+   "url": "https://news.ycombinator.com/item?id=50474550"
+  },
+  {
+   "author": "ishanichugh",
+   "company": null,
+   "location": null,
+   "posted": "2026-11-13T06:17:26Z",
+   "role": null,
+   "salary": null,
+   "text": "Location: India (currently travelling within India; IST, UTC+5:30)\nRemote: Yes \u2013 remote only. Happy to shift my hours for solid overlap with US or EU teams.\nWilling to relocate: No\nTechnologies: React, TypeScript, Python, Kotlin/Spring Boot, GraphQL, FastAPI, Snowflake, C++; MCP servers and LLM agen",
+   "url": "https://news.ycombinator.com/item?id=50479091"
+  },
+  {
+   "author": "lyluo",
+   "company": "CERN",
+   "location": null,
+   "posted": "2026-11-13T09:04:38Z",
+   "role": null,
+   "salary": null,
+   "text": "CERN | Machine Learning Engineer | Geneva, Switzerland | HYBRID | Full-time, 3-year contract | From CHF 9,236/month, tax-free\nNot a physics job: this role is in CERN's healthcare AI team. CAFEIN, CERN's federated AI platform, trains models on medical data held by hospitals and research institutes ac",
+   "url": "https://news.ycombinator.com/item?id=50480454"
+  },
+  {
+   "author": "tanvesh01",
+   "company": "Elm AI",
+   "location": null,
+   "posted": "2026-11-13T10:43:35Z",
+   "role": null,
+   "salary": null,
+   "text": "Elm AI | Forward-Deployed Product Engineer | New York / London (REMOTE US/Europe considered) | Full-time\nWe build AI agents that help companies work with their suppliers. Looking for someone who will talk to customers, figure out what needs building, and then build it.\nWant a referral? DM me on X @S",
+   "url": "https://news.ycombinator.com/item?id=50481529"
+  },
+  {
+   "author": "mernaemara",
+   "company": "*Confidential Healthcare AI Startup",
+   "location": null,
+   "posted": "2026-11-13T14:47:49Z",
+   "role": null,
+   "salary": null,
+   "text": "*Confidential Healthcare AI Startup | Senior Full Stack Engineer (Frontend-Leaning) | NYC | Hybrid (3 days onsite) | Full-Time | $160K\u2013$200K + Equity*\nI'm an independent recruiter sourcing for a venture-backed healthcare technology startup building an AI-powered Revenue Cycle Management (RCM) platfo",
+   "url": "https://news.ycombinator.com/item?id=50484305"
+  },
+  {
+   "author": "sandysuresh8",
+   "company": "Joulent",
+   "location": null,
+   "posted": "2026-11-13T18:34:24Z",
+   "role": null,
+   "salary": null,
+   "text": "Joulent | AI Engineer, Company Brain | San Francisco | Onsite | Full-time | $175k-$230k base plus bonus and equity\nWe're hiring an AI Engineer, Company Brain, to build agents that put engineering knowledge to work. Your first build is the company brain: one place to find what Joulent knows and has d",
+   "url": "https://news.ycombinator.com/item?id=50487782"
+  },
+  {
+   "author": "commonprefix",
+   "company": "Common Prefix",
+   "location": null,
+   "posted": "2026-11-13T19:37:57Z",
+   "role": null,
+   "salary": null,
+   "text": "Common Prefix | Senior Software Engineer | Athens, Greece / REMOTE | Full-time | $80k to $160k + equity + bonus\nWe're hiring Senior Software Engineers!\nWe're a mix of scientists (professors, PhDs, and postdocs from Stanford, Imperial, ETH Z\u00fcrich, and Edinburgh) and engineers with decades in hedge fu",
+   "url": "https://news.ycombinator.com/item?id=50488627"
+  },
+  {
+   "author": "noordragon2004",
+   "company": "SEEKING FREELANCE",
+   "location": null,
+   "posted": "2026-11-14T10:50:31Z",
+   "role": null,
+   "salary": null,
+   "text": "SEEKING FREELANCE - Egypt (UTC+2, full EU/UK overlap) - Remote\nSenior Full-Stack & Creative Frontend Engineer (4+ yrs). I architect high-concurrency Next.js/TypeScript and Node/NestJS systems, Shopify Storefront/Fulfillment workflows, MCP AI pipelines, and 60fps WebGL/Three.js/GSAP interfaces.\nRecen",
+   "url": "https://news.ycombinator.com/item?id=50495944"
+  },
+  {
+   "author": "Paulyonewaytech",
+   "company": "Early-stage Startup",
+   "location": null,
+   "posted": "2026-11-14T21:17:20Z",
+   "role": null,
+   "salary": null,
+   "text": "Early-stage Startup | Software Engineer & Data Analyst | Full-Time | REMOTE (US & US Citizen) | $100,000 - $180,000 USD\nWe\u2019re hiring for two roles: a strong generalist Software Engineer and a Data Analyst.\nFor the Software Engineer role, we\u2019re looking for someone with solid technical ability and str",
+   "url": "https://news.ycombinator.com/item?id=50500910"
+  }
+ ],
+ "usage": {
+  "boxes": [
+   "gate",
+   "recipe"
+  ],
+  "cache": "miss",
+  "engine": "recipe",
+  "lines": [
+   {
+    "about": "the call",
+    "boxes": [
+     "gate"
+    ],
+    "cache": "miss",
+    "call": "recipes",
+    "engine": "gate",
+    "units": 1
+   },
+   {
+    "attempts": 1,
+    "cache": "api",
+    "call": "scrape",
+    "engine": "api",
+    "proxy": "isp",
+    "units": 1,
+    "url": "https://hn.algolia.com/\u2026"
+   },
+   {
+    "attempts": 1,
+    "cache": "api",
+    "call": "scrape",
+    "engine": "api",
+    "proxy": "isp",
+    "units": 1,
+    "url": "https://hn.algolia.com/\u2026"
+   }
+  ],
+  "remaining_before": {
+   "concurrent": 1461,
+   "requests": 1468,
+   "search": 2996
+  },
+  "units": 3
+ },
+ "version": 2
+}

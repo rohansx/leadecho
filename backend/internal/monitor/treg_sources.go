@@ -103,9 +103,9 @@ func (m *Monitor) crawlTwitterTreg(ctx context.Context, wsID string, kw database
 	}
 	key := tregStateKey("x_since", wsID, kw)
 	since := m.tregStateGet(ctx, key)
-	q := kw.Term
+	q := brandFrom(ctx).quote(kw.Term)
 	if since != "" {
-		q = "(" + kw.Term + ") since_id:" + since
+		q = "(" + q + ") since_id:" + since
 	}
 	// NoWaterfall: an empty answer is the expected result of a cursor query.
 	posts, err := m.tregCall(ctx, treg.Request{WorkspaceID: wsID, Tool: tregXTool, Body: map[string]string{"q": q}, NoWaterfall: since != ""})
@@ -161,7 +161,7 @@ func (m *Monitor) crawlLinkedInTreg(ctx context.Context, wsID string, kw databas
 		}
 		window = "last-day"
 	}
-	posts, ok := m.tregSearch(ctx, wsID, tregLinkedInTool, map[string]string{"query": kw.Term, "datePosted": window})
+	posts, ok := m.tregSearch(ctx, wsID, tregLinkedInTool, map[string]string{"query": brandFrom(ctx).quote(kw.Term), "datePosted": window})
 	if !ok {
 		return nil, false
 	}
@@ -222,7 +222,7 @@ func (m *Monitor) insertTregPosts(ctx context.Context, wsID string, kw database.
 func (m *Monitor) crawlRedditTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, bool) {
 	// Relevance, not newest: Reddit's "new" sort matches the words loosely and
 	// returns unrelated posts; the week window keeps results fresh anyway.
-	body := map[string]any{"query": kw.Term, "sort": "relevance", "timeframe": "week"}
+	body := map[string]any{"query": brandFrom(ctx).quote(kw.Term), "sort": "relevance", "timeframe": "week"}
 	return m.crawlTreg(ctx, wsID, kw, tregRedditTool, body, tregRedditParams)
 }
 

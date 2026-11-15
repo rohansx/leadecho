@@ -13,6 +13,7 @@ interface Enrichment {
   email?: string;
   email_status?: string;
   email_source?: string; // the data provider that found the email
+  identity_mismatch?: string; // set when the employer was withheld: the email is at another organisation
   linkedin_url?: string;
   location?: string;
   enriched_at?: string;
@@ -39,6 +40,9 @@ export function EnrichmentCard({ metadata }: { metadata?: Record<string, unknown
     ["Company size", e.employees || (e.company_size ? `${e.company_size}+` : undefined)],
     ["Location", e.location],
   ];
+  if (e.identity_mismatch) {
+    rows.push(["Company", "Not shown: the lookup's employer and the email found disagree, so one of them is about someone else"]);
+  }
   const shown = rows.filter(([, v]) => v);
   if (shown.length === 0 && !e.email && !e.linkedin_url) {
     return (

@@ -181,6 +181,7 @@ async function enrichQueueCounts(base: InboxQueueCountsResponse): Promise<InboxQ
         ),
       ]);
       actions = {
+        ...actions, // keeps "older", which this backfill does not count
         ready_to_send: ready.total,
         needs_draft: draft.total,
         needs_review: review.total,
@@ -1022,6 +1023,29 @@ export function getDigestSettings() {
 
 export function saveDigestSettings(settings: DigestSettings) {
   return request<DigestSettings>("/settings/digests", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+// ─── Draft settings ────────────────────────────────────
+export interface DraftSettings {
+  /** One result or customer the product can stand behind; "" = drafts mention none. */
+  proof_point: string;
+  /** Closes outreach emails as written; "" = no signature. */
+  sign_off: string;
+  /** Tracked short link in public replies. Off unless switched on. */
+  public_reply_links: boolean;
+  /** Replies drafted unasked per day (free); 0 = off. */
+  auto_draft_daily: number;
+}
+
+export function getDraftSettings() {
+  return request<DraftSettings>("/settings/drafts");
+}
+
+export function saveDraftSettings(settings: DraftSettings) {
+  return request<DraftSettings>("/settings/drafts", {
     method: "PUT",
     body: JSON.stringify(settings),
   });

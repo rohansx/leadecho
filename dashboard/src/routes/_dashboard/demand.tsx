@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { INBOX_QUEUES } from "@/lib/constants";
 import { DEMAND_KEY, getDemand, refreshDemand, shipTheme } from "@/lib/demand-api";
 import { COMPETITORS_KEY, getCompetitors, movesForTheme, type Competitor } from "@/lib/competitors-api";
-import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandResponse, type DemandTheme } from "@/lib/demand";
+import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandAsk, type DemandResponse, type DemandTheme } from "@/lib/demand";
 
 export const Route = createFileRoute("/_dashboard/demand")({
   component: DemandPage,
@@ -163,32 +163,36 @@ function ThemeCard({ theme, meta, competitors }: { theme: DemandTheme; meta: Dem
 
       {shipping && <ShipPanel theme={theme} meta={meta} onDone={() => setShipping(false)} />}
 
-      {open && (
-        <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
-          {theme.asks.map((a) => (
-            <li key={a.mention_id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
-              <div className="min-w-0">
-                <p className="text-foreground">{a.quote}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {a.author ? `${a.author}, ` : ""}
-                  {askRole(a)}, {a.platform}, {daysAgo(a.at)}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3 text-xs">
-                <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: a.mention_id }} className="text-primary-ink underline underline-offset-2">
-                  Open lead
-                </Link>
-                {/^https?:\/\//i.test(a.url) && (
-                  <a href={a.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                    Source <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open && <AskList asks={theme.asks} />}
     </article>
+  );
+}
+
+function AskList({ asks }: { asks: DemandAsk[] }) {
+  return (
+    <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
+      {asks.map((a) => (
+        <li key={a.mention_id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+          <div className="min-w-0">
+            <p className="text-foreground">{a.quote}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {a.author ? `${a.author}, ` : ""}
+              {askRole(a)}, {a.platform}, {daysAgo(a.at)}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 text-xs">
+            <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: a.mention_id }} className="text-primary-ink underline underline-offset-2">
+              Open lead
+            </Link>
+            {/^https?:\/\//i.test(a.url) && (
+              <a href={a.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                Source <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -202,7 +206,8 @@ function DemandPage() {
   const d = demand.data;
   // Competitor moves linked to a theme. Optional: the page works without them.
   const rivals = useQuery({ queryKey: COMPETITORS_KEY, queryFn: getCompetitors, retry: false }).data?.data ?? [];
-  const { open, once, outside, shipped } = splitThemes(d?.themes ?? [], d?.min_theme_people ?? 2);
+  const { open, outside, shipped } = splitThemes(d?.themes ?? []);
+  const other = d?.other ?? null;
   const canGroup = !!d && d.waiting >= d.min_new_asks;
 
   return (
@@ -233,7 +238,7 @@ function DemandPage() {
       {demand.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {demand.isError && <p className="text-sm text-destructive">Could not load demand themes. Reload the page to try again.</p>}
 
-      {d && d.themes.length === 0 && (
+      {d && d.themes.length === 0 && !other && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center">
           <Text as="p" className="font-medium">No themes yet</Text>
           <Text as="p" className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
@@ -252,16 +257,14 @@ function DemandPage() {
         </section>
       )}
 
-      {once.length > 0 && (
-        <section aria-label="Raised once">
-          <Text as="h3" className="text-sm font-medium text-muted-foreground">Raised once</Text>
-          <p className="mt-1 text-xs text-muted-foreground">One person each. Not a pattern yet; they move up when someone else asks for the same thing.</p>
-          <div className="mt-3 space-y-3">
-            {once.map((t) => (
-              <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} competitors={rivals} />
-            ))}
-          </div>
-        </section>
+      {other && (
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+            Other asks ({peopleLine(other)})
+          </summary>
+          <p className="mt-1 text-xs text-muted-foreground">One person each. Not a pattern yet; a need becomes a theme when someone else asks for the same thing.</p>
+          <AskList asks={other.asks} />
+        </details>
       )}
 
       {outside.length > 0 && (

@@ -64,6 +64,7 @@ type Monitor struct {
 	hiringPlanner         HiringPlanner    // optional: company hiring signals
 	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
 	prospectJudge         ProspectJudge    // optional: companies that fit a customer segment
+	autoDrafter           AutoDrafter      // optional: strong post leads get their reply drafted unasked
 	credits               *billing.Credits // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).
@@ -226,6 +227,9 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 		return false
 	}
 
+	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
+		ctx = withScanBrand(ctx, newBrand(bp.Product, bp.SourceUrl))
+	}
 	if m.credits.PaidPlatformsLocked(ctx, wsID) { // billing: X/Reddit/LinkedIn need a paid plan
 		kws = withoutPaidPlatforms(kws)
 	}
@@ -395,6 +399,12 @@ func (m *Monitor) insertMentionErr(ctx context.Context, p database.CreateMention
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
 	if tooOld(ctx, p.PlatformCreatedAt, time.Now()) {
+		return nil, nil
+	}
+	// A brand keyword's result that never names the brand is not a mention of
+	// it: not stored, so it is not counted anywhere either. Only posts found
+	// by a customer keyword: "hiring signal" and "prospect" are labels.
+	if p.KeywordID.Valid && brandFrom(ctx).missing(keyword, p.Title.String+" "+p.Content+" "+p.AuthorUsername.String+" "+p.Url) {
 		return nil, nil
 	}
 	if m.isMuted(ctx, p) { // sources: mute lists

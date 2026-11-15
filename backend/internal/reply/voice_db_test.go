@@ -30,6 +30,13 @@ func (c *captureGen) DraftReplyEnhanced(_ context.Context, _ string, opts ai.Dra
 	return &ai.EnhancedDraftResult{Reply: c.reply, Tone: "helpful", TemplateStyle: opts.TemplateStyle}, nil
 }
 
+// noReplyGen says no post is worth a reply.
+type noReplyGen struct{ *captureGen }
+
+func (noReplyGen) PreFilterForReply(context.Context, string, string, string, string, string) (*ai.PreFilterResult, error) {
+	return &ai.PreFilterResult{ShouldReply: false, Reason: "an announcement"}, nil
+}
+
 // DB-backed: runs only when LEADECHO_TEST_DATABASE_URL points at a migrated database.
 func TestDraftWithVoiceDB(t *testing.T) {
 	dsn := os.Getenv("LEADECHO_TEST_DATABASE_URL")
@@ -81,7 +88,7 @@ func TestDraftWithVoiceDB(t *testing.T) {
 		}
 	})
 
-	t.Run("no profile, onboarding url: tracked link inserted", func(t *testing.T) {
+	t.Run("onboarding url: no link in a public reply unless the workspace switched it on", func(t *testing.T) {
 		ws := newWS()
 		if _, err := q.CreateOnboardingAnalysis(ctx, database.CreateOnboardingAnalysisParams{WorkspaceID: ws, SourceUrl: "https://acme.dev", Analysis: []byte("{}"), Status: "completed"}); err != nil {
 			t.Fatal(err)
@@ -90,8 +97,85 @@ func TestDraftWithVoiceDB(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if res.Reply.UtmLinkID.Valid || strings.Contains(res.Reply.Content, "/r/") || strings.Contains(res.Reply.Content, "http") {
+			t.Fatalf("a public reply must carry no link by default, got %+v", res.Reply)
+		}
+
+		if err := q.SetDraftSettings(ctx, ws, database.DraftSettings{PublicReplyLinks: true}); err != nil {
+			t.Fatal(err)
+		}
+		res, err = d.DraftForMention(ctx, ws, newMention(ws))
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !res.Reply.UtmLinkID.Valid || !strings.Contains(res.Reply.Content, "https://app.test/r/") {
-			t.Fatalf("want tracked link, got %+v", res.Reply)
+			t.Fatalf("opted in: want tracked link, got %+v", res.Reply)
+		}
+	})
+
+	t.Run("the draft model is told what the product is and what it replaces", func(t *testing.T) {
+		ws := newWS()
+		if _, err := pool.Exec(ctx, `INSERT INTO brand_profiles (workspace_id, overview, product, positioning) VALUES ($1, 'Live-system assessments.', 'Utkrusht', 'Real work instead of take-homes.')`, ws); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.DraftForMention(ctx, ws, newMention(ws)); err != nil {
+			t.Fatal(err)
+		}
+		if gen.opts.ProductDescription != "Live-system assessments." || gen.opts.Positioning != "Real work instead of take-homes." {
+			t.Fatalf("positioning not passed to the draft: %+v", gen.opts)
+		}
+	})
+
+	t.Run("auto-draft: free, capped per day, once per lead, never flags", func(t *testing.T) {
+		ws := newWS()
+		first := newMention(ws)
+		if ok, err := d.AutoDraft(ctx, ws, first); err != nil || !ok {
+			t.Fatalf("first auto-draft: %v %v", ok, err)
+		}
+		if ok, err := d.AutoDraft(ctx, ws, first); err != nil || ok {
+			t.Fatalf("a lead that has a draft must not get another: %v %v", ok, err)
+		}
+		for i := 1; i < database.DefaultAutoDraftDaily; i++ {
+			if ok, err := d.AutoDraft(ctx, ws, newMention(ws)); err != nil || !ok {
+				t.Fatalf("auto-draft %d: %v %v", i+1, ok, err)
+			}
+		}
+		over := newMention(ws)
+		if ok, err := d.AutoDraft(ctx, ws, over); err != nil || ok {
+			t.Fatalf("over the daily cap: %v %v", ok, err)
+		}
+		if rs, _ := q.ListRepliesByMention(ctx, database.ListRepliesByMentionParams{MentionID: over, WorkspaceID: ws}); len(rs) != 0 {
+			t.Fatalf("over the cap nothing is written, got %d", len(rs))
+		}
+		// The customer can still ask for it.
+		if res, err := d.DraftForMention(ctx, ws, over); err != nil || !res.ShouldReply {
+			t.Fatalf("manual draft after the cap: %v", err)
+		}
+
+		// Switched off; and a "not worth a reply" verdict gives the slot back
+		// and leaves the lead unflagged.
+		off, zero := newWS(), 0
+		if err := q.SetDraftSettings(ctx, off, database.DraftSettings{AutoDraftDaily: &zero}); err != nil {
+			t.Fatal(err)
+		}
+		if ok, _ := d.AutoDraft(ctx, off, newMention(off)); ok {
+			t.Fatal("auto-drafts are off for this workspace")
+		}
+		one, quiet := 1, newWS()
+		if err := q.SetDraftSettings(ctx, quiet, database.DraftSettings{AutoDraftDaily: &one}); err != nil {
+			t.Fatal(err)
+		}
+		no := NewDrafter(q, noReplyGen{gen}, nil, nil)
+		skipped := newMention(quiet)
+		if ok, err := no.AutoDraft(ctx, quiet, skipped); err != nil || ok {
+			t.Fatalf("not worth a reply: %v %v", ok, err)
+		}
+		m, err := q.GetMention(ctx, database.GetMentionParams{ID: skipped, WorkspaceID: quiet})
+		if err != nil || strings.Contains(string(m.ScoringMetadata), "needs_escalation") {
+			t.Fatalf("an unasked-for draft must not flag the lead: %s %v", m.ScoringMetadata, err)
+		}
+		if ok, err := d.AutoDraft(ctx, quiet, newMention(quiet)); err != nil || !ok {
+			t.Fatalf("the unused slot must be free again: %v %v", ok, err)
 		}
 	})
 

@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ type ListMentionsComposedParams struct {
 	WorkspaceID    string
 	Tier           string // "", leads_ready, worth_watching, filtered
 	Queue          string // "", action_required, auto_flowing, escalations, all
-	ActionKind     string // "", ready_to_send, needs_draft, needs_review (action_required)
+	ActionKind     string // "", ready_to_send, needs_draft, needs_review, older (action_required)
 	EscalationKind string // legacy alias for action_kind on escalations queue
 	Status         string
 	Platform       string
@@ -39,18 +40,24 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 
 	switch p.Tier {
 	case "leads_ready":
-		clauses = append(clauses, "relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')")
+		clauses = append(clauses, leadIntentPredicate())
 	case "worth_watching":
-		clauses = append(clauses, "relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)")
+		clauses = append(clauses, "relevance_score >= 4.0 AND NOT COALESCE("+leadIntentPredicate()+", false)")
 	case "filtered":
 		clauses = append(clauses,
-			"NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))"+
+			"NOT (COALESCE("+leadIntentPredicate()+", false))"+
 				" AND COALESCE(relevance_score, 0) < 4.0")
 	}
 
 	switch p.Queue {
 	case "action_required":
 		clauses = append(clauses, actionRequiredPredicate())
+		// Stale leads leave the queue but are not lost: "older" lists them.
+		if p.ActionKind == "older" {
+			clauses = append(clauses, "NOT "+freshPredicate())
+		} else {
+			clauses = append(clauses, freshPredicate())
+		}
 		switch p.ActionKind {
 		case "ready_to_send":
 			clauses = append(clauses, readyToSendPredicate())
@@ -118,8 +125,40 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 	return strings.Join(clauses, " AND "), args
 }
 
+// A lead is worth acting on while what it is about is recent: a post for
+// PostLeadFreshDays, a company signal (job posting, prospect) for
+// CompanyLeadFreshDays.
+const (
+	PostLeadFreshDays    = 7
+	CompanyLeadFreshDays = 10
+)
+
+// freshPredicate is true while the post or posting behind a mention is recent
+// enough to act on. Without a post time, when it was found counts.
+func freshPredicate() string {
+	return fmt.Sprintf(`(COALESCE(platform_created_at, created_at) >= now() - CASE
+		WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN interval '%d days'
+		ELSE interval '%d days' END)`, CompanyLeadFreshDays, PostLeadFreshDays)
+}
+
+// What makes a mention a lead: the one rule behind the inbox queue, the tier
+// counts and the next-action badge.
+const LeadMinScore = 6.0
+
+var leadIntents = []IntentType{IntentTypeBuySignal, IntentTypeRecommendationAsk, IntentTypeComplaint, IntentTypeComparison}
+
+// leadIntentPredicate is the rule as SQL.
 func leadIntentPredicate() string {
-	return "relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')"
+	names := make([]string, len(leadIntents))
+	for i, in := range leadIntents {
+		names[i] = "'" + string(in) + "'"
+	}
+	return fmt.Sprintf("relevance_score >= %.1f AND intent IN (%s)", LeadMinScore, strings.Join(names, ", "))
+}
+
+// IsLead is the same rule for a row in hand.
+func (m Mention) IsLead() bool {
+	return m.RelevanceScore.Valid && m.RelevanceScore.Float32 >= LeadMinScore && m.Intent.Valid && slices.Contains(leadIntents, m.Intent.IntentType)
 }
 
 func escalationFlaggedPredicate() string {
@@ -150,8 +189,11 @@ func readyToSendPredicate() string {
 	)`
 }
 
+// actionRequiredPredicate is what the inbox asks the customer to act on. A
+// draft or a review flag does not keep a mention here once it is archived or
+// marked spam: every list and count of the queue goes through this.
 func actionRequiredPredicate() string {
-	return `(
+	return `(status NOT IN ('spam', 'archived') AND (
 		` + readyToSendPredicate() + `
 		OR ` + escalationFlaggedPredicate() + `
 		OR (
@@ -159,15 +201,7 @@ func actionRequiredPredicate() string {
 			AND status = 'new'
 			AND ` + replyNoneExists() + `
 		)
-	)`
-}
-
-func actionPriorityOrder() string {
-	return `CASE
-		WHEN ` + readyToSendPredicate() + ` THEN 0
-		WHEN ` + escalationFlaggedPredicate() + ` THEN 1
-		ELSE 2
-	END`
+	))`
 }
 
 // CountMentionsByQueue returns counts for inbox queue tabs.
@@ -176,8 +210,8 @@ func (q *Queries) CountMentionsByQueue(ctx context.Context, workspaceID string) 
 SELECT 'action_required' AS queue, COUNT(*)::int AS count
 FROM mentions
 WHERE workspace_id = $1
-  AND status NOT IN ('spam', 'archived')
   AND ` + actionRequiredPredicate() + `
+  AND ` + freshPredicate() + `
 UNION ALL
 SELECT 'all' AS queue, COUNT(*)::int AS count
 FROM mentions
@@ -199,26 +233,35 @@ WHERE workspace_id = $1
 	return items, rows.Err()
 }
 
-// CountActionSubcounts splits the action-required inbox into next-step slices.
+// CountActionSubcounts splits the action-required inbox into next-step
+// slices, plus how many stale leads sit under "older".
 func (q *Queries) CountActionSubcounts(ctx context.Context, workspaceID string) (ActionSubcounts, error) {
 	sql := `
 SELECT
   (SELECT COUNT(*)::int FROM mentions
    WHERE workspace_id = $1 AND status NOT IN ('spam', 'archived')
+     AND ` + freshPredicate() + `
      AND ` + readyToSendPredicate() + `
   ) AS ready_to_send,
   (SELECT COUNT(*)::int FROM mentions
    WHERE workspace_id = $1 AND status NOT IN ('spam', 'archived')
+     AND ` + freshPredicate() + `
      AND ` + leadIntentPredicate() + `
      AND status = 'new'
      AND ` + replyNoneExists() + `
   ) AS needs_draft,
   (SELECT COUNT(*)::int FROM mentions
    WHERE workspace_id = $1 AND status NOT IN ('spam', 'archived')
+     AND ` + freshPredicate() + `
      AND ` + escalationFlaggedPredicate() + `
-  ) AS needs_review`
+  ) AS needs_review,
+  (SELECT COUNT(*)::int FROM mentions
+   WHERE workspace_id = $1
+     AND ` + actionRequiredPredicate() + `
+     AND NOT ` + freshPredicate() + `
+  ) AS older`
 	var s ActionSubcounts
-	err := q.db.QueryRow(ctx, sql, workspaceID).Scan(&s.ReadyToSend, &s.NeedsDraft, &s.NeedsReview)
+	err := q.db.QueryRow(ctx, sql, workspaceID).Scan(&s.ReadyToSend, &s.NeedsDraft, &s.NeedsReview, &s.Older)
 	return s, err
 }
 
@@ -226,6 +269,7 @@ type ActionSubcounts struct {
 	ReadyToSend int32 `json:"ready_to_send"`
 	NeedsDraft  int32 `json:"needs_draft"`
 	NeedsReview int32 `json:"needs_review"`
+	Older       int32 `json:"older"`
 }
 
 // CountEscalationSubcounts is kept for backward-compatible API responses.
@@ -300,13 +344,16 @@ WHERE workspace_id = $1
 const mentionColumns = `id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash`
 
 // ListMentionsComposed applies all provided filters together (ANDed), with
-// pagination, ordered by recency (action queues) or score (browse-all).
+// pagination. The action queue and browse-all list the best score first, then
+// the most recent post: having a draft does not move a lead up. Many leads
+// share a score and a post time, so the id settles ties: without it a lead
+// can repeat on, or be missing from, the next page.
 func (q *Queries) ListMentionsComposed(ctx context.Context, p ListMentionsComposedParams) ([]Mention, error) {
 	where, args := p.buildWhere()
 	orderBy := "created_at DESC"
 	switch p.Queue {
 	case "action_required":
-		orderBy = actionPriorityOrder() + ", COALESCE(relevance_score, 0) DESC, created_at DESC"
+		orderBy = "COALESCE(relevance_score, 0) DESC, COALESCE(platform_created_at, created_at) DESC, id"
 	case "all":
 		if p.Search == "" {
 			orderBy = "COALESCE(relevance_score, 0) DESC, created_at DESC"

@@ -21,7 +21,10 @@ import (
 type Task string
 
 const (
-	TaskFilter         Task = "filter"
+	TaskFilter Task = "filter"
+	// TaskFilterBulk is the noise filter for keywords that bring many posts
+	// and no leads: same prompt, the provider's cheapest model.
+	TaskFilterBulk     Task = "filter_bulk"
 	TaskClassify       Task = "classify"
 	TaskPreFilterReply Task = "pre_filter_reply"
 	TaskDraftReply     Task = "draft_reply"
@@ -313,12 +316,37 @@ func (r *Router) ClassifyIntent(ctx context.Context, workspaceID, title, content
 
 func (r *Router) FilterMention(ctx context.Context, workspaceID, title, content, platform, about string) (*ai.FilterResult, error) {
 	var out *ai.FilterResult
-	err := r.withChatProvider(ctx, workspaceID, TaskFilter, func(p ai.Provider) error {
+	task := TaskFilter
+	if bulk, _ := ctx.Value(bulkFilterKey{}).(bool); bulk {
+		task = TaskFilterBulk
+	}
+	err := r.withChatProvider(ctx, workspaceID, task, func(p ai.Provider) error {
 		res, err := ai.FilterMention(ctx, p, title, content, platform, about)
 		out = res
 		return err
 	})
 	return out, err
+}
+
+type bulkFilterKey struct{}
+
+// WithBulkFilter marks a FilterMention call as one of many from a keyword
+// that has not produced a lead: it runs on the provider's cheapest model.
+func WithBulkFilter(ctx context.Context) context.Context {
+	return context.WithValue(ctx, bulkFilterKey{}, true)
+}
+
+// cheapestModel is the lowest-priced chat model per provider. Providers not
+// listed have one model for the cheap tier already.
+var cheapestModel = map[string]string{"anthropic": "claude-haiku-5-5"}
+
+// cheapest swaps in the provider's cheapest model, unless the workspace
+// pinned a model for the tier (its choice stands).
+func cheapest(p ai.Provider, target ModelTarget) ai.Provider {
+	if m := cheapestModel[p.Name]; m != "" && target.Model == "" {
+		p.Model, p.Effort = m, ""
+	}
+	return p
 }
 
 func (r *Router) PreFilterForReply(ctx context.Context, workspaceID, title, content, platform, intent string) (*ai.PreFilterResult, error) {
@@ -493,6 +521,9 @@ func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, 
 			continue
 		}
 		provider := providerForTarget(providerName, key, target, r.system)
+		if task == TaskFilterBulk {
+			provider = cheapest(provider, target)
+		}
 		var sink ai.Usage
 		provider.UsageSink = &sink
 		start := time.Now()
