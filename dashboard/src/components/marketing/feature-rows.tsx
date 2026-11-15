@@ -23,7 +23,7 @@ function Row({
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-20 [&>*]:min-w-0">
       <Reveal className={cn(flip && "lg:order-2")}>
-        <div className="on-page mb-5 w-[140px]">{figure}</div>
+        <div className="on-page -ml-3 mb-2 w-[260px] sm:w-[320px]">{figure}</div>
         <Eyebrow>{eyebrow}</Eyebrow>
         <H2 className="mt-4">{title}</H2>
         <p className="mt-5 max-w-lg text-foreground-soft">{body}</p>

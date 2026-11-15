@@ -134,9 +134,10 @@
   --primary-ink: #ffd43b;
   --hairline-plate: #18181b;
   --hairline-hi: #f2f2f0;
-  --hairline-edge: #75757d;
-  --hairline-mid: #4a4a50;
-  --hairline-lo: #2e2e33;
+  --hairline-edge: #a1a1aa;
+  --hairline-mid: #6e6e76;
+  --hairline-lo: #3a3a40;
+  --hairline-stroke: 1.1;
 }
 /* Figures drawn straight on the page need the page colour as their plate. */
 .mkt .on-page { --hairline-plate: var(--background); }
