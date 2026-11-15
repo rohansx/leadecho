@@ -28,14 +28,32 @@ test("followUpEstimate counts buyers only, caps the drafts and prices them", () 
   assert.deepEqual(followUpEstimate(theme({ people: 4, buyers: 0 }), 10, 5), { drafts: 0, credits: 0 });
 });
 
-test("splitThemes separates themes from needs raised once", () => {
-  const all = [theme({ id: "a", people: 3 }), theme({ id: "b", people: 1 }), theme({ id: "c", people: 1, status: "shipped" })];
-  all.push(theme({ id: "d", people: 5, coverage: "outside" }));
-  const got = splitThemes(all, 2);
+// Needs raised once are folded into one group by the server (demand.Fold,
+// tested in Go), so the page only separates open, outside and shipped, and
+// keeps the server's order: most buyers first.
+test("splitThemes separates open, outside and shipped themes and keeps the server's order", () => {
+  const all = [
+    theme({ id: "a", people: 3, buyers: 2 }),
+    theme({ id: "d", people: 5, coverage: "outside" }),
+    theme({ id: "b", people: 6, buyers: 0, coverage: "objection" }),
+    theme({ id: "c", people: 1, status: "shipped" }),
+  ];
+  const got = splitThemes(all);
   assert.deepEqual(got.outside.map((t) => t.id), ["d"]);
-  assert.deepEqual(got.open.map((t) => t.id), ["a"]);
-  assert.deepEqual(got.once.map((t) => t.id), ["b"]);
+  assert.deepEqual(got.open.map((t) => t.id), ["a", "b"]);
   assert.deepEqual(got.shipped.map((t) => t.id), ["c"]);
+});
+
+test("an objection is never shown as something the product already does", () => {
+  assert.deepEqual(coverageText("objection"), { label: "Objection to your approach", tone: "warn" });
+});
+
+test("peopleLine says how many are buyers and how many are not", () => {
+  assert.equal(
+    peopleLine(theme({ people: 9, buyers: 2, non_buyers: 5, new_this_week: 3 })),
+    "9 people · 2 fit your buyer profile · 5 not buyers · 3 new this week",
+  );
+  assert.equal(peopleLine(theme({ people: 3, buyers: 0, non_buyers: 1 })), "3 people · 1 not a buyer");
 });
 
 test("askSource says where a summary came from without guessing the role", () => {

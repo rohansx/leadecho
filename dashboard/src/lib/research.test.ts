@@ -1,9 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isCompanySignal, parseResearch, parseSegmentFit, sourceHost } from "./research.ts";
+import { isCompanySignal, parseFunding, parseResearch, parseSegmentFit, sourceHost } from "./research.ts";
 
-test("company signals are hiring signals and prospects", () => {
+test("parseFunding reads the round a company raised", () => {
+  assert.deepEqual(
+    parseFunding({ signal: "funding", funding_type: "series_a", funding_amount: "$85 million", funding_date: "2026-11-17", funding_url: "https://news.example/round" }),
+    { label: "Raised Series A $85 million", date: "2026-11-17", url: "https://news.example/round" },
+  );
+  // A hiring lead whose company also raised; no amount announced; a link that is not a web link.
+  assert.deepEqual(parseFunding({ signal: "hiring", funding_type: "seed", funding_url: "javascript:alert(1)" }), { label: "Raised Seed", date: "", url: "" });
+  assert.equal(parseFunding({ signal: "hiring" }), null);
+  assert.equal(parseFunding(null), null);
+});
+
+test("company signals are hiring signals, funding signals and prospects", () => {
   assert.equal(isCompanySignal({ signal: "hiring" }), true);
+  assert.equal(isCompanySignal({ signal: "funding" }), true);
   assert.equal(isCompanySignal({ signal: "prospect" }), true);
   assert.equal(isCompanySignal({ signal: "other" }), false);
   assert.equal(isCompanySignal(null), false);

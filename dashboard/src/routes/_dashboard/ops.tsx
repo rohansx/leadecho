@@ -47,6 +47,9 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescore")} title="Score the last 30 days of posts again with the current rules. No credits are taken from the customer.">
           Re-score
         </Button>
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescreen")} title="Check the last 30 days of company leads again with the current posting screen and archive the ones that fail. No paid data is used and no credits are taken from the customer.">
+          Re-screen company leads
+        </Button>
       </div>
       {status && <p className="max-w-56 text-xs text-muted-foreground">{status}</p>}
     </div>

@@ -38,6 +38,9 @@ var emailTmpl = template.Must(template.New("digest").Funcs(template.FuncMap{
   <p style="font-size:0.9rem">{{range $i, $c := .D.Intents}}{{if $i}} · {{end}}{{$c.Label}} {{$c.N}}{{end}}</p>{{end}}
   {{if .D.Demand}}<h2 style="font-size:1rem;margin:20px 0 8px">What your market asked for</h2>
   {{range .D.Demand}}<p style="font-size:0.9rem;margin:4px 0"><strong>{{.Title}}</strong><br><span style="color:#6a737d;font-size:0.8rem">{{.People}} people{{if .Buyers}} · {{.Buyers}} buyers{{end}}{{if .NewThisWeek}} · {{.NewThisWeek}} new this week{{end}} · {{cover .Coverage}}</span></p>{{end}}{{end}}
+  {{if .D.CompetitorMoves}}<h2 style="font-size:1rem;margin:20px 0 8px">Competitor moves</h2>
+  {{range .D.CompetitorMoves}}<p style="font-size:0.9rem;margin:6px 0"><strong>{{.Competitor}}</strong> · {{.Kind}}{{if .High}} · <span style="color:#b42318;font-weight:600">important</span>{{end}}<br>{{if .URL}}<a href="{{.URL}}" style="color:#0d1117">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .Impact}}<br><span style="color:#6a737d;font-size:0.85rem">For you: {{.Impact}}</span>{{end}}</p>{{end}}
+  {{if $.D.DashboardURL}}<p style="font-size:0.85rem;margin:6px 0"><a href="{{$.D.DashboardURL}}/competitors" style="color:#0d1117">See all competitor moves →</a></p>{{end}}{{end}}
   {{if .D.NoisyKeywords}}<h2 style="font-size:1rem;margin:20px 0 8px">Noisy keywords</h2>
   <p style="font-size:0.9rem;color:#6a737d">Many mentions, low fit — consider tightening or muting:</p>
   <p style="font-size:0.9rem">{{range $i, $k := .D.NoisyKeywords}}{{if $i}} · {{end}}{{$k.Term}} ({{$k.Mentions}}, avg fit {{printf "%.1f" $k.AvgScore}}){{end}}</p>{{end}}
@@ -104,6 +107,15 @@ func RenderSlack(d Data) string {
 			parts = append(parts, fmt.Sprintf("%s (%d people, %s)", slackEscaper.Replace(t.Title), t.People, coverageLabel(t.Coverage)))
 		}
 		b.WriteString("_Asked for:_ " + strings.Join(parts, "; ") + "\n")
+	}
+	if len(d.CompetitorMoves) > 0 {
+		b.WriteString("*Competitor moves*\n")
+		for _, m := range d.CompetitorMoves {
+			b.WriteString("• " + slackEscaper.Replace(m.Competitor) + " (" + m.Kind + "): " + slackEscaper.Replace(truncate(m.Title, 140)) + "\n")
+			if m.Impact != "" {
+				b.WriteString("   _For you: " + slackEscaper.Replace(truncate(m.Impact, 300)) + "_\n")
+			}
+		}
 	}
 	if len(d.NoisyKeywords) > 0 {
 		terms := make([]string, 0, len(d.NoisyKeywords))

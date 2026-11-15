@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
 import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
 import { BillingCard } from "@/components/settings/billing-card"; // billing
+import { DraftsCard } from "@/components/settings/drafts-card";
 import { BILLING_QUERY, getBilling } from "@/lib/billing-api";
 import {
   getExtensionToken,
@@ -619,6 +620,10 @@ function SettingsPage() {
           <LLMRouterCard />
         </ErrorBoundary>
       )}
+
+      <ErrorBoundary>
+        <DraftsCard />
+      </ErrorBoundary>
 
       <ChromeExtensionCard />
 

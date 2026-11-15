@@ -44,3 +44,51 @@ LIMIT $4`, workspaceID, since, rubric, limit)
 	}
 	return out, rows.Err()
 }
+
+// CompanyLead is a lead found as a company (a hiring signal or a prospect)
+// that is still waiting in the inbox.
+type CompanyLead struct {
+	ID, Signal, Company, JobTitle string
+	NotABuyer                     string // the stored research's verdict, "" when it had none
+}
+
+// ListCompanyLeadsToRescreen returns the company leads found since `since`
+// that the customer has not acted on (status "new"), newest first.
+func (q *Queries) ListCompanyLeadsToRescreen(ctx context.Context, workspaceID string, since time.Time) ([]CompanyLead, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT id::text, platform_metadata->>'signal', COALESCE(platform_metadata->>'company', ''),
+       COALESCE(platform_metadata->>'job_title', ''), COALESCE(platform_metadata->'research'->>'not_a_buyer', '')
+FROM mentions
+WHERE workspace_id = $1 AND created_at >= $2
+  AND status = 'new'
+  AND COALESCE(platform_metadata->>'signal', '') <> ''
+ORDER BY created_at DESC`, workspaceID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CompanyLead
+	for rows.Next() {
+		var l CompanyLead
+		if err := rows.Scan(&l.ID, &l.Signal, &l.Company, &l.JobTitle, &l.NotABuyer); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// ArchiveRescreenedLead archives a lead that failed a re-screen and stores
+// the record (why, when) under scoring_metadata.rescreen. Only a
+// lead still "new" is touched; it reports whether this one was.
+func (q *Queries) ArchiveRescreenedLead(ctx context.Context, workspaceID, mentionID string, record []byte) (bool, error) {
+	tag, err := q.db.Exec(ctx, `
+UPDATE mentions
+SET status = 'archived', updated_at = now(),
+    scoring_metadata = COALESCE(scoring_metadata, '{}'::jsonb) || jsonb_build_object('rescreen', $3::jsonb)
+WHERE id = $1 AND workspace_id = $2 AND status = 'new'`, mentionID, workspaceID, string(record))
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}

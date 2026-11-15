@@ -36,6 +36,7 @@ var (
 	}
 	validActionKinds = map[string]bool{
 		"ready_to_send": true, "needs_draft": true, "needs_review": true,
+		"older": true, // leads whose post or posting has gone stale
 	}
 	validEscalationKinds = map[string]bool{
 		"needs_draft": true, "flagged": true,
@@ -503,7 +504,7 @@ func nextActionFor(m database.Mention, hasDraftReply bool) string {
 	if flagged {
 		return "needs_review"
 	}
-	if !isLeadIntentMention(m) {
+	if !m.IsLead() { // the queue's own rule: a lead in the queue always has a badge
 		return ""
 	}
 	if hasDraftReply {
@@ -513,21 +514,6 @@ func nextActionFor(m database.Mention, hasDraftReply bool) string {
 		return "needs_draft"
 	}
 	return ""
-}
-
-func isLeadIntentMention(m database.Mention) bool {
-	if !m.RelevanceScore.Valid || m.RelevanceScore.Float32 < 7.0 {
-		return false
-	}
-	if !m.Intent.Valid {
-		return false
-	}
-	switch m.Intent.IntentType {
-	case database.IntentTypeBuySignal, database.IntentTypeRecommendationAsk, database.IntentTypeComplaint:
-		return true
-	default:
-		return false
-	}
 }
 
 func bytesContainsTrue(meta []byte, key string) bool {

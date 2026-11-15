@@ -28,8 +28,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 	// The customer's own posts are not leads: don't pay to score them.
 	product, about := "", ""
+	var own brand
 	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
-		product, about = bp.Product, filterAbout(bp)
+		product, about, own = bp.Product, filterAbout(bp), newBrand(bp.Product, bp.SourceUrl)
 	}
 
 	// Collect scoreable mentions (pass Stage 0 rules filter)
@@ -38,7 +39,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		switch {
 		case ownAccount(a.Author, product):
 			m.markStageFiltered(ctx, a, "stage0_own_post", "posted by your own account")
-		case brandNotNamed(a, product):
+		case brandNotNamed(a, own): // posts stored before the insert path checked this
 			m.markStageFiltered(ctx, a, "stage0_brand_not_named", "found by a keyword with your product's name, but the post does not mention it")
 		case scoreStage1Rules(a.Content):
 			scoreable = append(scoreable, a)
@@ -70,10 +71,15 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 	// Stage 1: LLM spam/noise filter (cheap model via TaskFilter)
 	if m.llmRouter != nil {
+		bulk := bulkFilterPairs(m.keywordYield(ctx, wsID))
 		keep := make([]bool, len(scoreable))
 		m.forEachConcurrent(ctx, len(scoreable), func(i int) {
 			a := scoreable[i]
-			fr, err := m.llmRouter.FilterMention(ctx, wsID, a.Title, a.Content, a.Platform, about)
+			fctx := ctx
+			if bulk[[2]string{a.Keyword, a.Platform}] { // many posts, no lead: the cheapest filter
+				fctx = llm.WithBulkFilter(ctx)
+			}
+			fr, err := m.llmRouter.FilterMention(fctx, wsID, a.Title, a.Content, a.Platform, about)
 			if err != nil {
 				m.logger.Warn().Err(err).Str("mention_id", a.ID).Msg("scorer: stage1 filter failed, fail-open")
 				keep[i] = true
@@ -558,6 +564,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		m.qualifyAsLead(ctx, c.alert, result)
 	}
 	m.runWorkflows(ctx, c.alert, result)
+	m.autoDraft(ctx, c.alert, result) // after workflows: one of them may have drafted already
 }
 
 // runWorkflows runs the workspace's real-time workflows inline, unless the

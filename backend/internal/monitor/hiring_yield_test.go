@@ -3,6 +3,7 @@ package monitor
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"leadecho/internal/enrich"
 )
@@ -47,15 +48,18 @@ func TestPickBuyersReturnsCandidatesInOrder(t *testing.T) {
 	}
 }
 
+// The score is on fit now (TestHiringLeadScoreIsOnFit); what still holds from
+// before: a catch-all email ranks under a verified one, both are leads, and
+// an unconfirmed signal is not.
 func TestHiringLeadScore(t *testing.T) {
-	if hiringLeadScore(&enrich.Result{EmailStatus: "verified"}) != hiringScoreConfirmed {
-		t.Error("a verified email gets the full score")
-	}
-	if hiringLeadScore(&enrich.Result{EmailStatus: "catchall"}) != hiringScoreUnverifiedEmail {
+	now := time.Now()
+	verified := hiringLeadScore(leadFit{contact: maxContactFit, email: "verified"}, now)
+	catchAll := hiringLeadScore(leadFit{contact: maxContactFit, email: "catch_all"}, now)
+	if catchAll >= verified {
 		t.Error("a catch-all email ranks below a verified one")
 	}
-	if hiringScoreUnverifiedEmail < leadScoreThreshold || hiringScoreUnverifiedEmail >= hiringScoreConfirmed {
-		t.Error("an unverified-email lead must still be a lead, ranked under a verified one")
+	if catchAll < leadScoreThreshold {
+		t.Error("an unverified-email lead must still be a lead")
 	}
 	if hiringScoreUnconfirmed >= leadScoreThreshold {
 		t.Error("an unconfirmed signal must stay below the lead threshold")

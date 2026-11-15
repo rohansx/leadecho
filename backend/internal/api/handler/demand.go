@@ -28,8 +28,10 @@ func NewDemandHandler(svc *demand.Service, logger zerolog.Logger) *DemandHandler
 }
 
 type demandResponse struct {
-	Themes  []demand.ThemeView `json:"themes"`
-	LastRun *time.Time         `json:"last_run"`
+	Themes []demand.ThemeView `json:"themes"`
+	// Other holds the needs raised by one person each, as one group.
+	Other   *demand.ThemeView `json:"other"`
+	LastRun *time.Time        `json:"last_run"`
 	// Waiting is how many asks are not in a theme yet; grouping runs daily,
 	// or on request once at least MinNewAsks are waiting.
 	Waiting        int `json:"waiting"`
@@ -48,8 +50,9 @@ func (h *DemandHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load demand themes")
 		return
 	}
+	themes, other := demand.Fold(state.View(time.Now()))
 	resp := demandResponse{
-		Themes: state.View(time.Now()), MinNewAsks: demand.MinNewAsks, MinThemePeople: demand.MinThemePeople,
+		Themes: themes, Other: other, MinNewAsks: demand.MinNewAsks, MinThemePeople: demand.MinThemePeople,
 		FollowUpCost: demand.FollowUpCost, MaxFollowUps: demand.MaxFollowUps,
 	}
 	if !state.LastRun.IsZero() {

@@ -15,7 +15,7 @@ SELECT COUNT(*) FILTER (WHERE relevance_score >= 6.0 AND status <> 'archived')::
        COUNT(*) FILTER (WHERE relevance_score IS NULL OR relevance_score < 6.0)::int
 FROM mentions
 WHERE workspace_id = $1 AND created_at >= $2 AND created_at < $3
-  AND platform_metadata->>'signal' = 'hiring'
+  AND platform_metadata->>'signal' IN ('hiring', 'funding')
   AND status <> 'spam'`, workspaceID, start, end).Scan(&confirmed, &held)
 	return confirmed, held, err
 }

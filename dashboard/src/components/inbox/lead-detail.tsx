@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isCompanySignal, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
+import { isCompanySignal, parseFunding, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
 import { splitLeadSections } from "@/lib/lead-sections";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
@@ -7,7 +7,6 @@ import {
   ArchiveIcon,
   ArrowLeft,
   ArrowRight,
-  Ban,
   Brain,
   Check,
   CheckCircle2,
@@ -40,6 +39,15 @@ import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
 import { LeadAssistant } from "./lead-assistant";
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
+import { hiringText, leadAge } from "@/lib/lead-age";
+
+// Why the customer says a lead is wrong; stored with the archived mention.
+const NOT_A_FIT_REASONS = ["Wrong company", "Not a buyer", "Too old", "Other"];
+
+/** A hiring signal's text with the posting's real age in place of "this week". */
+function signalText(mention: Mention, text: string): string {
+  return mention.platform_metadata?.signal === "hiring" ? hiringText(text, mention, new Date()) : text;
+}
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -69,9 +77,10 @@ function SignalRow({ label, value }: { label: string; value: React.ReactNode }) 
 // The post body. A company signal's body carries labelled paragraphs ("Who to
 // contact: ..."): those render as rows. Anything else renders as plain text.
 function LeadBody({ mention }: { mention: Mention }) {
-  const parts = splitLeadSections(mention.content);
+  const text = signalText(mention, mention.content);
+  const parts = splitLeadSections(text);
   if (!parts) {
-    return <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>;
+    return <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{text}</p>;
   }
   // The research panel beside this column already shows what the web search found.
   const hideResearch = parseResearch(mention.platform_metadata) != null;
@@ -313,14 +322,18 @@ function OverviewTab({
           </Button>
         )}
         {mention.status !== "archived" && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onFeedback("archived", "Not a lead")}
+          <select
+            aria-label="Not a fit"
+            title="Archive this lead and say why it is wrong"
+            value=""
+            onChange={(e) => e.target.value && onFeedback("archived", e.target.value)}
+            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground shadow-xs cursor-pointer"
           >
-            <Ban className="h-3.5 w-3.5" />
-            Not a lead
-          </Button>
+            <option value="">Not a fit…</option>
+            {NOT_A_FIT_REASONS.map((r) => (
+              <option key={r} value={`Not a fit: ${r.toLowerCase()}`}>{r}</option>
+            ))}
+          </select>
         )}
         <div className="ml-auto">
           <FeedbackButtons key={mention.id} mention={mention} />
@@ -633,6 +646,30 @@ function SegmentFitPanel({ mention }: { mention: Mention }) {
   );
 }
 
+// The round behind a funding lead (or raised by a hiring lead's company),
+// with the page that announced it.
+function FundingPanel({ mention }: { mention: Mention }) {
+  const round = parseFunding(mention.platform_metadata);
+  if (!round) return null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Funding</h5>
+      <p className="text-sm leading-relaxed">
+        <span className="font-medium">{round.label}</span>
+        {round.date && <span className="text-foreground-soft"> · announced {round.date}</span>}
+        {round.url && (
+          <>
+            {" "}
+            <a href={round.url} target="_blank" rel="noreferrer noopener" className="whitespace-nowrap text-xs text-primary-ink underline underline-offset-2">
+              {sourceHost(round.url)}
+            </a>
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function ResearchPanel({ mention }: { mention: Mention }) {
   const research = parseResearch(mention.platform_metadata);
   if (!research) return null;
@@ -683,7 +720,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Why this is here</h5>
-      {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{reasoning}</p>}
+      {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{signalText(mention, reasoning)}</p>}
       <SignalRow label="Platform" value={<span className="capitalize">{mention.platform}</span>} />
       {subreddit && <SignalRow label="Community" value={subreddit} />}
       <SignalRow label="Author" value={mention.author_username ? `@${mention.author_username}` : null} />
@@ -754,7 +791,7 @@ export function LeadDetail({
     <section className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="flex items-center gap-3 px-6 h-14 border-b border-border shrink-0">
         <div className="text-sm text-muted-foreground truncate">
-          Inbox / <b className="text-foreground">{mention.platform}</b> · {timeAgo(mention.created_at)}
+          Inbox / <b className="text-foreground">{mention.platform}</b> · {leadAge(mention, new Date())}
           {mention.status === "spam" && (
             <span className="ml-2 rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[10px] uppercase tracking-wide">
               spam
@@ -828,6 +865,7 @@ export function LeadDetail({
           </motion.div>
         </AnimatePresence>
         <SegmentFitPanel mention={mention} />
+        <FundingPanel mention={mention} />
         <ResearchPanel mention={mention} />
         <SignalsPanel mention={mention} />
       </div>

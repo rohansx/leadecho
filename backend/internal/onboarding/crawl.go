@@ -252,3 +252,15 @@ func metaDescription(attrs []html.Attribute) string {
 	}
 	return ""
 }
+
+// PageLinks returns the absolute http(s) links of an HTML page.
+func PageLinks(body string, base *url.URL) []string {
+	_, _, links := extractPage(body, base)
+	return links
+}
+
+// PageTitle returns the <title> of an HTML page.
+func PageTitle(body string) string {
+	title, _, _ := extractPage(body, &url.URL{})
+	return title
+}

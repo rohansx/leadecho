@@ -40,6 +40,7 @@ func TestEngineRunDB(t *testing.T) {
 			WorkspaceID: ws.ID, Platform: "reddit", PlatformID: fmt.Sprint("wf", n, i), Url: fmt.Sprintf("https://reddit.com/r/x/%d", i),
 			Title: pgtype.Text{String: "Need a CRM", Valid: true}, Content: content, AuthorUsername: pgtype.Text{String: "alice", Valid: true},
 			Status: database.MentionStatusNew, PlatformMetadata: []byte("{}"), EngagementMetrics: []byte("{}"),
+			KeywordMatches: []string{}, // NOT NULL: a nil slice is sent as NULL
 			RelevanceScore: pgtype.Float4{Float32: 8, Valid: true},
 		})
 		if err != nil {

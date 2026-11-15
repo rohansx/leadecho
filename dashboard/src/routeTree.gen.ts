@@ -24,6 +24,7 @@ import { Route as DashboardKeywordsRouteImport } from "./routes/_dashboard/keywo
 import { Route as DashboardInboxRouteImport } from "./routes/_dashboard/inbox"
 import { Route as DashboardEngagersRouteImport } from "./routes/_dashboard/engagers"
 import { Route as DashboardDemandRouteImport } from "./routes/_dashboard/demand"
+import { Route as DashboardCompetitorsRouteImport } from "./routes/_dashboard/competitors"
 import { Route as DashboardChatRouteImport } from "./routes/_dashboard/chat"
 import { Route as DashboardAutomationsRouteImport } from "./routes/_dashboard/automations"
 import { Route as DashboardAnalyticsRouteImport } from "./routes/_dashboard/analytics"
@@ -106,6 +107,11 @@ const DashboardDemandRoute = DashboardDemandRouteImport.update({
   path: "/demand",
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardCompetitorsRoute = DashboardCompetitorsRouteImport.update({
+  id: "/competitors",
+  path: "/competitors",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardChatRoute = DashboardChatRouteImport.update({
   id: "/chat",
   path: "/chat",
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   "/analytics": typeof DashboardAnalyticsRoute
   "/automations": typeof DashboardAutomationsRoute
   "/chat": typeof DashboardChatRoute
+  "/competitors": typeof DashboardCompetitorsRoute
   "/demand": typeof DashboardDemandRoute
   "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   "/analytics": typeof DashboardAnalyticsRoute
   "/automations": typeof DashboardAutomationsRoute
   "/chat": typeof DashboardChatRoute
+  "/competitors": typeof DashboardCompetitorsRoute
   "/demand": typeof DashboardDemandRoute
   "/engagers": typeof DashboardEngagersRoute
   "/inbox": typeof DashboardInboxRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   "/_dashboard/analytics": typeof DashboardAnalyticsRoute
   "/_dashboard/automations": typeof DashboardAutomationsRoute
   "/_dashboard/chat": typeof DashboardChatRoute
+  "/_dashboard/competitors": typeof DashboardCompetitorsRoute
   "/_dashboard/demand": typeof DashboardDemandRoute
   "/_dashboard/engagers": typeof DashboardEngagersRoute
   "/_dashboard/inbox": typeof DashboardInboxRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
     | "/analytics"
     | "/automations"
     | "/chat"
+    | "/competitors"
     | "/demand"
     | "/engagers"
     | "/inbox"
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | "/analytics"
     | "/automations"
     | "/chat"
+    | "/competitors"
     | "/demand"
     | "/engagers"
     | "/inbox"
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | "/_dashboard/analytics"
     | "/_dashboard/automations"
     | "/_dashboard/chat"
+    | "/_dashboard/competitors"
     | "/_dashboard/demand"
     | "/_dashboard/engagers"
     | "/_dashboard/inbox"
@@ -408,6 +420,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardDemandRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/competitors": {
+      id: "/_dashboard/competitors"
+      path: "/competitors"
+      fullPath: "/competitors"
+      preLoaderRoute: typeof DashboardCompetitorsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/chat": {
       id: "/_dashboard/chat"
       path: "/chat"
@@ -488,6 +507,7 @@ interface DashboardRouteChildren {
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardAutomationsRoute: typeof DashboardAutomationsRoute
   DashboardChatRoute: typeof DashboardChatRoute
+  DashboardCompetitorsRoute: typeof DashboardCompetitorsRoute
   DashboardDemandRoute: typeof DashboardDemandRoute
   DashboardEngagersRoute: typeof DashboardEngagersRoute
   DashboardInboxRoute: typeof DashboardInboxRoute
@@ -505,6 +525,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardAutomationsRoute: DashboardAutomationsRoute,
   DashboardChatRoute: DashboardChatRoute,
+  DashboardCompetitorsRoute: DashboardCompetitorsRoute,
   DashboardDemandRoute: DashboardDemandRoute,
   DashboardEngagersRoute: DashboardEngagersRoute,
   DashboardInboxRoute: DashboardInboxRoute,

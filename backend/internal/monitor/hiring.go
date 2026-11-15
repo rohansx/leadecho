@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/net/publicsuffix"
 
 	"leadecho/internal/ai"
 	"leadecho/internal/billing"
@@ -34,31 +33,35 @@ const (
 	hiringSettingsKey = "hiring_signals"
 	hiringInterval    = 24 * time.Hour
 	hiringRetry       = time.Hour // wait after a run in which every job search failed
-	// ponytail: fixed daily budget (jobs: 1 call per role; people: 1 call per
-	// new company). Make it a plan allowance if customers want more volume.
-	maxHiringCompaniesPerRun = 8 // Pro
+	// ponytail: fixed daily budget (jobs: a few pages per source, see
+	// hiring_sources.go; people: 1 call per new company). Make it a plan
+	// allowance if customers want more volume.
+	// Pro: raised from 8 so that 8-10 confirmed leads a day are reachable. It
+	// assumes about half the companies searched end with a confirmed contact
+	// (not measured yet: read last_report and adjust).
+	maxHiringCompaniesPerRun = 20
 	starterHiringCompanies   = 3 // Starter: sized so its credits also cover its 15 keywords
-	// Company size lookups per run: most job results are large employers, so
-	// many candidates are checked to find a few that fit.
-	maxHiringSizeChecksPerRun = 30 // Pro
+	// hiringLeadTarget ends a run early once this many leads are confirmed.
+	hiringLeadTarget = 10
+	// Company size lookups per run: some job results are large employers, so
+	// more candidates are checked than are searched for people.
+	maxHiringSizeChecksPerRun = 40 // Pro
 	starterHiringSizeChecks   = 10 // Starter
 	maxHiringSkipped          = 500
-	// Postings handed to the screen in one call. Three role searches return
-	// well under this many companies.
-	// ponytail: one call; screen in chunks if a plan ever searches more roles.
+	// Postings handed to the screen in one call; the day's target of new
+	// companies (hiringScreenPerLookup per people search) stays under it.
+	// ponytail: one call; screen in chunks if the target ever grows past it.
 	maxHiringScreened = 120
 
 	// Confirmed: a decision-maker whose own profile names this company, with a
-	// usable email, at a company of known, fitting size. Only these are leads.
-	hiringScoreConfirmed = 7.5
-	// A confirmed contact whose email could not be verified (catch-all mail
-	// server) is still a lead, ranked under the ones with a verified address.
-	hiringScoreUnverifiedEmail = 6.5
+	// usable email at it, at a company of known, fitting size. Only these are
+	// leads; hiringLeadScore (hiring_identity.go) orders them by fit.
 	// From this size up, the person to write to is whoever is hiring for the
 	// role, not a company-wide executive who never sees one requisition.
 	hiringTeamContactSize = 500
 	// Candidates tried per company when the first can't be confirmed.
 	maxContactTries = 2
+	maxPeopleRows   = 25 // people from one search considered before ranking
 	// Unconfirmed signals stay below the lead threshold (6): visible under
 	// "All conversations" with the reason, but not presented as a lead.
 	hiringScoreUnconfirmed = 5.0
@@ -95,9 +98,25 @@ func (m *Monitor) SetHiringPlanner(p HiringPlanner) { m.hiringPlanner = p }
 type hiringState struct {
 	Plan    *ai.HiringPlan `json:"plan,omitempty"`
 	LastRun time.Time      `json:"last_run"`
+	// LastScan is when the last run that searched for jobs started (LastRun is
+	// the claim, and is moved by retries): sources ask only for newer postings.
+	LastScan time.Time `json:"last_scan,omitzero"`
+	// Countries limits the filtered job search to these ISO country codes
+	// (["US"]); empty = anywhere. Set by an operator.
+	Countries []string `json:"countries,omitempty"`
+	// LastReport is what the last run did, per source.
+	LastReport *hiringReport `json:"last_report,omitempty"`
+	// FundingLimit is how many funding rounds to buy per day (each is billed);
+	// unset = defaultFundingLimit, 0 = off. Set by an operator.
+	FundingLimit *int `json:"funding_limit,omitempty"`
+	// LastFunding is when rounds were last bought.
+	LastFunding time.Time `json:"last_funding,omitzero"`
 	// Skip remembers companies that are over the plan's size ceiling or were
 	// rejected on insert, so they are not looked up (and paid for) again.
 	Skip []string `json:"skip,omitempty"`
+	// Carry holds companies that passed the screen and were not reached before
+	// the day's caps: the next run tries them first (hiring_carry.go).
+	Carry []carriedJob `json:"carry,omitempty"`
 }
 
 type jobPost struct {
@@ -108,6 +127,17 @@ type jobPost struct {
 	Location   string `json:"location"`
 	URL        string `json:"url"`
 	CreatedUTC int64  `json:"createdUtc"`
+	// Set by the source, not read from a response.
+	Source string `json:"-"` // sourceLinkedIn | sourceBlitz | sourceHN | sourceFunding
+	// SizeFits: the source already limited results to the plan's company size.
+	SizeFits bool `json:"-"`
+	// Country is the job's ISO country code when the source states one.
+	Country string `json:"-"`
+	// Funding is the round the company just raised, when one is known. An
+	// entry with a round and no Title is a funding signal (hiring_funding.go).
+	Funding *fundingRound `json:"-"`
+	// site is the company's website domain, set by the scan once it is known.
+	site string
 }
 
 type foundPerson struct {
@@ -115,6 +145,7 @@ type foundPerson struct {
 	Title      string `json:"title"`
 	Company    string `json:"company"`
 	ProfileURL string `json:"profile_url"`
+	Location   string `json:"location"` // when the search gives one
 }
 
 // scanHiring runs at most once a day per workspace. It needs paid data
@@ -176,72 +207,146 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	if bs, err := m.q.GetBillingState(ctx, wsID); err == nil && bs.Plan == "pro" {
 		dailyCap, checkCap = maxHiringCompaniesPerRun, maxHiringSizeChecksPerRun
 	}
-	created, sizeChecks, lookups := 0, 0, 0
-	jobs, searched := m.hiringJobs(ctx, wsID, st.Plan.Roles)
+	created, confirmed, sizeChecks, lookups := 0, 0, 0, 0
+	started := time.Now().UTC()
+	rep := &hiringReport{At: started}
+	st.LastReport = rep
 	// retrySoon ends a run that could not do its work: try again in an hour,
 	// not tomorrow. Not sooner: a provider that bills and then times out
 	// would be paid on every tick.
-	retrySoon := func() {
+	retrySoon := func(why string) {
+		rep.Stopped = why
+		m.logger.Info().RawJSON("report", jsonBytes(rep)).Str("workspace_id", wsID).Msg("hiring: scan stopped, retrying in an hour")
 		st.LastRun = time.Now().UTC().Add(hiringRetry - hiringInterval)
 		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 		m.saveHiringState(saveCtx, wsID, st)
 	}
-	if !searched {
-		retrySoon() // every job search failed (out of credits, spend cap, provider down)
-		return
+	// Pages are pulled until enough new companies are in hand for the day's
+	// people searches: not on the skip list, not stored this month, one each.
+	carried := map[string]bool{} // waiting from an earlier run: already searched for and screened
+	skipReason := func(job jobPost) string {
+		switch {
+		case skip[companyKey(job.Company)]:
+			return "on_skip_list"
+		case carried[companyKey(job.Company)]:
+			return "carried_over"
+		case !validHTTPURL(job.URL):
+			return "bad_url"
+		case job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge:
+			return "too_old" // would be dropped on insert, after its lookups were paid for
+		}
+		pid := hiringPlatformID(job.Company, month)
+		for _, platform := range signalPlatforms {
+			if exists, err := m.q.MentionExists(ctx, wsID, platform, pid); err != nil || exists {
+				if exists {
+					m.addSignalFact(ctx, wsID, platform, pid, job) // raised and hiring: one lead carrying both
+				}
+				return "already_stored_this_month"
+			}
+		}
+		return ""
 	}
-	var fresh []jobPost
+	// Companies an earlier run screened and did not reach go first, and count
+	// towards the day's target: new searches are bought only for what is
+	// still missing.
+	jobs, firstSeen := carriedJobs(st.Carry, started, skipReason, rep)
+	rep.CarriedIn = len(jobs)
 	for _, job := range jobs {
-		// Too old would be dropped on insert, after its lookups were paid for.
-		if skip[companyKey(job.Company)] || !validHTTPURL(job.URL) || (job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge) {
-			continue
+		carried[companyKey(job.Company)] = true
+	}
+	if target := min(dailyCap*hiringScreenPerLookup, maxHiringScreened) - len(jobs); target > 0 {
+		fresh, searched := m.collectHiringJobs(ctx, m.hiringSources(wsID, st, st.LastScan, started), target, skipReason, rep)
+		if !searched {
+			retrySoon("every job search failed") // out of credits, spend cap, provider down
+			return
 		}
-		if exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeLinkedin), hiringPlatformID(job.Company, month)); err != nil || exists {
-			continue
+		fresh = mergeFunded(fresh, m.fundedCompanies(ctx, wsID, &st, started, rep), skipReason, rep)
+		// One model call over the whole list, before anything is paid for: job
+		// search returns agencies, internships, other functions and postings in
+		// other languages, and every one of them used to cost a company lookup.
+		fits, err := m.hiringPlanner.ScreenHiringJobs(ctx, wsID, ai.HiringScreen{
+			Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
+			Roles: st.Plan.Roles, MaxCompanySize: st.Plan.MaxCompanySize, MinCompanySize: st.Plan.MinSize(), Jobs: screenInput(fresh),
+		})
+		if err != nil {
+			// Unscreened postings are what filled the inbox with non-buyers:
+			// better no leads this hour than those.
+			m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: screen failed")
+			retrySoon("the model screen failed")
+			return
 		}
-		if fresh = append(fresh, job); len(fresh) == maxHiringScreened {
+		// From here the run counts as a scan: tomorrow's asks only for newer postings.
+		st.LastScan = started
+		kept, dropped := screenedJobs(fresh, fits)
+		rep.skip("screened_out", len(dropped))
+		for _, job := range kept {
+			rep.source(job.Source).Passed++
+		}
+		// Dropped postings are not remembered: a company that posted an internship
+		// today may post a real opening next week, and screening again costs no
+		// paid data.
+		m.logger.Info().Int("kept", len(kept)).Int("dropped", len(dropped)).Str("workspace_id", wsID).Msg("hiring: postings screened")
+		// Funded companies come first in what was just screened: ahead of the
+		// postings, behind what was already waiting.
+		jobs = append(jobs, kept...)
+	}
+	jobs, overShare := limitFunded(jobs, fundedShare(dailyCap))
+	rep.skip("funded_over_share", len(overShare))
+	minSize := st.Plan.MinSize()
+	tried := 0 // companies the loop finished with; the rest are reported as not reached
+	stop := func(why string) { rep.Stopped = why }
+	for _, job := range jobs {
+		if ctx.Err() != nil {
+			stop("shut down mid-run")
 			break
 		}
-	}
-	// One model call over the whole list, before anything is paid for: job
-	// search returns agencies, internships, other functions and postings in
-	// other languages, and every one of them used to cost a company lookup.
-	fits, err := m.hiringPlanner.ScreenHiringJobs(ctx, wsID, ai.HiringScreen{
-		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
-		Roles: st.Plan.Roles, MaxCompanySize: st.Plan.MaxCompanySize, Jobs: screenInput(fresh),
-	})
-	if err != nil {
-		// Unscreened postings are what filled the inbox with non-buyers:
-		// better no leads this hour than those.
-		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: screen failed")
-		retrySoon()
-		return
-	}
-	jobs, dropped := screenedJobs(fresh, fits)
-	// Dropped postings are not remembered: a company that posted an internship
-	// today may post a real opening next week, and screening again costs no
-	// paid data.
-	m.logger.Info().Int("kept", len(jobs)).Int("dropped", len(dropped)).Str("workspace_id", wsID).Msg("hiring: postings screened")
-	for _, job := range jobs {
 		// The cap counts paid people searches, not stored leads: a search
 		// whose lead is then rejected still cost money.
-		if lookups >= dailyCap || ctx.Err() != nil {
+		if lookups >= dailyCap {
+			stop("the day's people searches are used up")
+			break
+		}
+		if confirmed >= hiringLeadTarget {
+			stop("the day's lead target is reached")
 			break
 		}
 		key := companyKey(job.Company)
 		pid := hiringPlatformID(job.Company, month)
+		sr := rep.source(job.Source)
 		// Size and website of the hiring company: the size gates the plan's
 		// market, the website is what the contact's employer is checked against.
+		// A source that already filtered by size is looked up all the same:
+		// nothing else gives the website.
 		if sizeChecks >= checkCap {
+			stop("the day's company lookups are used up")
 			break
 		}
 		sizeChecks++
 		co, err := m.companyInfo(ctx, wsID, job)
 		if err != nil {
+			stop("a company lookup failed")
 			break // out of credits, paused or provider down: without sizes every company would pass
 		}
-		if st.Plan.MaxCompanySize > 0 && co.size > st.Plan.MaxCompanySize {
+		co = jobIdentity(job, co)
+		if job.Funding != nil && job.Title != "" && !enrich.SameDomain(co.domain, job.Funding.domain) {
+			job.Funding = nil // a round is only attached to a posting when the websites agree
+		}
+		job.site = co.domain
+		// maxSize is the plan's ceiling, or none when the lookup knows no size
+		// and the source only returned companies inside the plan's range.
+		maxSize := st.Plan.MaxCompanySize
+		if job.SizeFits && co.size == 0 {
+			maxSize = 0
+		}
+		tried++
+		if maxSize > 0 && co.size > maxSize {
+			rep.skip("too_big", 1)
+			remember(key)
+			continue
+		}
+		if co.size > 0 && co.size < minSize {
+			rep.skip("too_small", 1)
 			remember(key)
 			continue
 		}
@@ -250,10 +355,18 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			// a contact either (that needs the websites to match): record it
 			// without spending one of the day's people searches. With a known
 			// website the contact's profile can still supply the size.
-			if id := m.insertHiringSignal(ctx, wsID, pid, job, foundPerson{}, st.Plan,
-				contactCheck{reason: "company size unknown, so it may be outside your market"}, nil, nil); id == "" {
+			// (For a size-filtered source the website is the missing half: no
+			// contact could be checked against it.)
+			reason := "company size unknown, so it may be outside your market"
+			if job.SizeFits {
+				reason = "the company's website is unknown, so a contact's employer could not be checked"
+			}
+			if id := m.insertHiringSignal(ctx, wsID, pid, job, foundPerson{}, st.Plan, contactCheck{reason: reason}, nil, nil); id == "" {
+				rep.skip("rejected_on_insert", 1)
 				remember(key)
 			} else {
+				rep.skip("company_unknown", 1)
+				sr.Stored++
 				created++
 			}
 			continue
@@ -261,29 +374,42 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		lookups++
 		candidates, err := m.hiringBuyers(ctx, wsID, st.Plan.BuyerTitles, job, co.size)
 		if err != nil {
+			tried--
+			stop("a people search failed")
 			break // same: don't store "nobody found" leads because a call failed
 		}
 		person, contact, check, capped := chooseContact(candidates,
 			func(c foundPerson) (*enrich.Result, bool) { return m.verifyContact(ctx, wsID, job, c) },
 			func(c foundPerson, res *enrich.Result) contactCheck {
-				return confirmContact(job.Company, co, st.Plan.MaxCompanySize, c, res)
+				return confirmContact(job.Company, co, maxSize, c, res)
 			})
 		if capped && person.Name == "" {
+			tried--
+			stop("the day's contact lookups are used up")
 			break // today's contact lookups ran out before anyone was checked: retry tomorrow
 		}
 		if check.tooBig {
+			rep.skip("too_big", 1)
+			remember(key)
+			continue
+		}
+		if check.size > 0 && check.size < minSize { // the size came from the contact's profile
+			rep.skip("too_small", 1)
 			remember(key)
 			continue
 		}
 		// Only a confirmed lead is worth researching: the brief makes the
 		// lead view and the first message specific to this company.
 		var brief *ai.ResearchBrief
+		ruledOut := false
 		if check.confirmed {
 			brief = m.researchLead(ctx, wsID, hiringResearch(bp, st.Plan, job, person))
 			if ctx.Err() != nil {
 				// Shutting down mid-research: the insert would fail and the
 				// company would be skipped for good. Leave it for tomorrow.
 				m.refundResearch(ctx, wsID, brief)
+				tried--
+				stop("shut down mid-run")
 				break
 			}
 		}
@@ -294,36 +420,61 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			m.refundResearch(ctx, wsID, brief)
 			check, brief = ruled, nil
 			remember(key) // the archived row only dedups this month; this verdict does not change
+			ruledOut = true
 		}
 		mentionID := m.insertHiringSignal(ctx, wsID, pid, job, person, st.Plan, check, contact, brief)
 		if mentionID == "" {
 			m.refundResearch(ctx, wsID, brief) // nothing was stored, so nothing is charged
 			remember(key)                      // muted or rejected on insert: it would be rejected again tomorrow
+			rep.skip("rejected_on_insert", 1)
 			continue
 		}
 		created++
+		sr.Stored++
+		switch {
+		case check.confirmed:
+			confirmed++
+			sr.Leads++
+		case ruledOut:
+			rep.skip("not_a_buyer", 1)
+		case person.Name == "":
+			rep.skip("no_contact_found", 1)
+		default:
+			rep.skip("contact_unconfirmed", 1)
+		}
 		if check.confirmed {
 			m.draftOutreach(ctx, wsID, mentionID, ai.Outreach{
 				Product: bp.Product, Overview: bp.Overview, Positioning: bp.Positioning,
 				ContactName: person.Name, ContactTitle: person.Title, Company: job.Company, JobTitle: job.Title,
-				Research: brief,
+				JobLocation: job.Location, Funding: job.Funding.fact(), Research: brief,
 			})
 		}
 		if capped {
+			stop("the day's contact lookups are used up")
 			break // today's contact lookups are used up: later companies could not be confirmed either
 		}
 	}
+	rep.skip("not_reached", len(jobs)-tried)
+	var full int
+	st.Carry, full = carryOver(append(jobs[tried:len(jobs):len(jobs)], overShare...), firstSeen, started)
+	rep.CarriedOver = len(st.Carry)
+	rep.skip("carry_full", full)
 	// Outlive a shutdown: losing the skip list means paying for the same lookups again.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	m.saveHiringState(saveCtx, wsID, st)
-	m.logger.Info().Int("count", created).Int("size_checks", sizeChecks).Int("people_searches", lookups).Str("workspace_id", wsID).Msg("hiring: scan done")
+	m.logger.Info().Int("count", created).Int("leads", confirmed).Int("size_checks", sizeChecks).Int("people_searches", lookups).
+		RawJSON("report", jsonBytes(rep)).Str("workspace_id", wsID).Msg("hiring: scan done")
 }
 
 // hiringCompany is what the provider knows about the company behind a job.
 type hiringCompany struct {
 	size   int    // employees, 0 = unknown (kept: small companies are the ones providers miss)
 	domain string // website domain, "" = unknown
+	// Set by jobIdentity, from the posting itself:
+	page    string // the LinkedIn company page that posted the job, "" = unknown
+	country string // ISO code of the job's country, "" = unknown
+	byName  bool   // the website is only known from a lookup by name, which can be a namesake's
 }
 
 // companyInfo looks the hiring company up by name. Not by its LinkedIn page:
@@ -364,17 +515,7 @@ func parseCompanyInfo(body []byte, want string) hiringCompany {
 }
 
 // cleanDomain normalises "https://www.Acme.io/about" and "WWW.acme.io" to "acme.io".
-func cleanDomain(d string) string {
-	d = strings.ToLower(strings.TrimSpace(d))
-	if i := strings.Index(d, "://"); i >= 0 {
-		d = d[i+3:]
-	}
-	d = strings.TrimPrefix(d, "www.")
-	if i := strings.IndexAny(d, "/?#:"); i >= 0 {
-		d = d[:i]
-	}
-	return d
-}
+func cleanDomain(d string) string { return enrich.CleanDomain(d) }
 
 // validHTTPURL accepts only absolute http(s) URLs: these come from a third
 // party and end up as links in the app and in email.
@@ -417,25 +558,6 @@ func (m *Monitor) saveHiringState(ctx context.Context, wsID string, st hiringSta
 		return false
 	}
 	return true
-}
-
-// hiringJobs searches each role and returns one job per company, newest
-// first. searched is false when no search succeeded at all.
-func (m *Monitor) hiringJobs(ctx context.Context, wsID string, roles []string) (jobs []jobPost, searched bool) {
-	var all []jobPost
-	for _, role := range roles {
-		resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregJobsTool,
-			Body: map[string]string{"query": role, "postedLimit": "week"}})
-		if err != nil {
-			if !treg.IsOperatorError(err) {
-				m.logger.Debug().Err(err).Str("role", role).Msg("hiring: job search failed")
-			}
-			continue
-		}
-		searched = true
-		all = append(all, parseJobs(resp.Body)...)
-	}
-	return onePerCompany(all), searched
 }
 
 // parseJobs reads {output:{data:{items:[...]}}} (and the unwrapped forms).
@@ -499,9 +621,16 @@ func hiringPlatformID(company, month string) string {
 }
 
 // hiringBuyers finds up to maxContactTries people at the company who could
-// buy, best first. No candidates with a nil error means the search worked and
+// buy, best fit for this opening first (not the provider's order). No candidates with a nil error means the search worked and
 // found nobody suitable; an error means the search itself failed.
 func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job jobPost, companySize int) ([]foundPerson, error) {
+	return m.searchBuyers(ctx, wsID, titles, job, companySize, nil)
+}
+
+// searchBuyers is the people search behind hiringBuyers. order, when set,
+// sorts every matching person before the list is cut to maxContactTries,
+// so the best title is among the people who get a paid lookup.
+func (m *Monitor) searchBuyers(ctx context.Context, wsID, titles string, job jobPost, companySize int, order func([]foundPerson) []foundPerson) ([]foundPerson, error) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregPeopleTool,
 		Body: map[string]string{"q": buyerQuery(titles, job, companySize)}})
 	if err != nil {
@@ -510,7 +639,12 @@ func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job job
 		}
 		return nil, err
 	}
-	return pickBuyers(parsePeople(resp.Body), job.Company, maxContactTries), nil
+	people := rankBuyers(parsePeople(resp.Body), titles, job, companySize)
+	if order == nil {
+		return pickBuyers(people, job.Company, maxContactTries), nil
+	}
+	all := order(pickBuyers(people, job.Company, maxPeopleRows))
+	return all[:min(len(all), maxContactTries)], nil
 }
 
 // chooseContact checks candidates in order until one is confirmed. The first
@@ -634,12 +768,18 @@ type contactCheck struct {
 	confirmed bool
 	tooBig    bool   // over the plan's company-size ceiling: drop the signal
 	reason    string // why it is not confirmed, in plain words
+	// mismatch names the two identities that disagreed (job company, contact's
+	// employer, email domain), for the lead's metadata; "" when none did.
+	mismatch string
+	size     int    // confirmed: the company's size, 0 = unknown
+	email    string // confirmed: emailLabel of the contact's address
 }
 
 // confirmContact decides whether a signal is a lead. People search and job
 // boards are both wrong often enough (a namesake company, someone who has
 // moved on, an employer too large) that every claim is checked against the
-// contact's own profile before anyone is told to write to them.
+// contact's own profile before anyone is told to write to them: the contact's
+// employer must be the job's company, and their email must be at it.
 func confirmContact(company string, co hiringCompany, maxSize int, person foundPerson, c *enrich.Result) contactCheck {
 	if person.Name == "" {
 		return contactCheck{reason: "no decision-maker found at this company yet"}
@@ -650,7 +790,7 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 	// The contact's company size only speaks for the hiring company once we
 	// know they are the same company: a namesake's size must not get the real
 	// one dropped as too big.
-	employerOK := sameEmployer(co.domain, c)
+	employerOK, reason, mismatch := sameEmployer(company, co, person.Name, c)
 	size := co.size
 	if size == 0 && employerOK {
 		size = c.CompanySize
@@ -659,66 +799,32 @@ func confirmContact(company string, co hiringCompany, maxSize int, person foundP
 	case maxSize > 0 && size > maxSize:
 		return contactCheck{tooBig: true}
 	case !employerOK:
-		switch {
-		case c.Company == "":
-			return contactCheck{reason: fmt.Sprintf("%s's profile lists no current employer", person.Name)}
-		case sameCompany(company, c.Company):
-			// The names agree, but the websites don't confirm it (one is
-			// unknown, or they differ): it may be a namesake.
-			return contactCheck{reason: fmt.Sprintf("could not verify that %s's employer is this %s and not another company of the same name", person.Name, company)}
-		}
-		return contactCheck{reason: fmt.Sprintf("%s's profile lists %s, not %s", person.Name, c.Company, company)}
+		return contactCheck{reason: reason, mismatch: mismatch}
 	case maxSize > 0 && size == 0:
 		return contactCheck{reason: "company size unknown, so it may be outside your market"}
 	case c.Email == "" || c.EmailStatus == "invalid":
 		return contactCheck{reason: "no working email found for " + person.Name}
 	}
-	return contactCheck{confirmed: true}
-}
-
-// sameEmployer checks the contact's employer against the hiring company by
-// website domain. Both must be known: two companies can share a name
-// ("Prophetic" the software firm and "Prophetic" the ultrasound firm) but not
-// a domain, so a name match alone never confirms a contact.
-func sameEmployer(companyDomain string, c *enrich.Result) bool {
-	d := cleanDomain(c.CompanyDomain)
-	if d == "" || companyDomain == "" {
-		return false
+	if reason, mismatch := emailDisagrees(company, co, person.Name, c); reason != "" {
+		return contactCheck{reason: reason, mismatch: mismatch}
 	}
-	return d == companyDomain || subdomainOf(d, companyDomain) || subdomainOf(companyDomain, d)
+	return contactCheck{confirmed: true, size: size, email: emailLabel(c.EmailStatus)}
 }
 
-// subdomainOf reports whether sub is a subdomain of parent (eng.acme.com of
-// acme.com). parent must itself be a registrable domain: "acme.co.uk" is not
-// a subdomain of "co.uk", nor "x.github.io" of "github.io".
-func subdomainOf(sub, parent string) bool {
-	if !strings.HasSuffix(sub, "."+parent) {
-		return false
-	}
-	reg, err := publicsuffix.EffectiveTLDPlusOne(parent)
-	return err == nil && reg == parent
-}
-
-var (
-	parenRe     = regexp.MustCompile(`\([^)]*\)`)
-	legalSuffix = map[string]bool{"inc": true, "llc": true, "ltd": true, "limited": true, "corp": true, "corporation": true, "co": true, "company": true, "gmbh": true, "plc": true, "sa": true, "bv": true, "pvt": true}
-)
+var parenRe = regexp.MustCompile(`\([^)]*\)`)
 
 // sameCompany reports whether two names are the same employer. Bracketed
-// notes and legal suffixes are ignored ("LVT (LiveView Technologies)" = "LVT",
-// "Acme Inc." = "Acme"); anything else must match exactly, so "Acme" is not
-// "Acme Health" and "JPMorganChase" is not "JPMorganChase Corporate Challenge".
+// notes, punctuation and legal forms are ignored ("LVT (LiveView
+// Technologies)" = "LVT", "Acme Inc." = "Acme", "Toku Pte. Ltd." = "Toku");
+// anything else must match exactly, so "Acme" is not "Acme Health" and
+// "JPMorganChase" is not "JPMorganChase Corporate Challenge".
 func sameCompany(a, b string) bool {
 	ka, kb := strictCompanyKey(a), strictCompanyKey(b)
 	return ka != "" && ka == kb
 }
 
 func strictCompanyKey(name string) string {
-	words := strings.Split(companyKey(parenRe.ReplaceAllString(name, " ")), "-")
-	for len(words) > 1 && legalSuffix[words[len(words)-1]] {
-		words = words[:len(words)-1]
-	}
-	return strings.Join(words, "-")
+	return strings.Join(enrich.CompanyWords(name), "-")
 }
 
 // insertHiringSignal stores the signal. It skips the LLM scorer on purpose:
@@ -726,27 +832,27 @@ func strictCompanyKey(name string) string {
 // evidence. Only a confirmed signal is scored as a lead and gets a lead row.
 // It returns the new mention's id ("" when nothing was stored).
 func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job jobPost, person foundPerson, plan *ai.HiringPlan, check contactCheck, contact *enrich.Result, brief *ai.ResearchBrief) string {
-	title := fmt.Sprintf("%s is hiring: %s", job.Company, job.Title)
+	kind := signalKind(job)
+	title, opening := signalText(job)
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s posted a job for %q", job.Company, job.Title)
-	if job.Location != "" {
-		fmt.Fprintf(&b, " (%s)", job.Location)
-	}
-	b.WriteString(" this week.")
+	b.WriteString(opening)
 	score, author, authorURL := hiringScoreUnconfirmed, job.Company, job.CompanyURL
 	if person.Name != "" {
 		author, authorURL = person.Name, person.ProfileURL
 	}
 	contactTitle := person.Title
 	if check.confirmed {
-		score = hiringLeadScore(contact)
 		if contact.Title != "" {
 			contactTitle = contact.Title
 		}
+		score = hiringLeadScore(leadFit{
+			contact:  contactFit(contactTitle, plan.BuyerTitles, check.size, job.Title),
+			country:  countryMatch(jobCountry(job), locationCountry(contact.Location, false)),
+			sizeFits: check.size > 0 && (plan.MaxCompanySize == 0 || check.size <= plan.MaxCompanySize),
+			posted:   signalDate(job), email: check.email,
+		}, time.Now())
 		fmt.Fprintf(&b, "\n\nWho to contact: %s, %s at %s.", person.Name, contactTitle, job.Company)
-		if contact.EmailStatus == "catchall" {
-			b.WriteString(" Their email could not be verified (the company's mail server accepts any address), so it may bounce.")
-		}
+		b.WriteString(emailCaveat(check.email))
 	} else {
 		fmt.Fprintf(&b, "\n\nNot confirmed as a lead: %s.", check.reason)
 	}
@@ -760,22 +866,26 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		created = pgtype.Timestamptz{Time: time.Unix(job.CreatedUTC, 0), Valid: true}
 	}
 	alert := m.insertMention(ctx, database.CreateMentionParams{
-		WorkspaceID: wsID, Platform: string(database.PlatformTypeLinkedin), PlatformID: pid, Url: job.URL,
+		WorkspaceID: wsID, Platform: signalPlatform(job), PlatformID: pid, Url: job.URL,
 		Title: pgtextPtr(title), Content: b.String(),
 		AuthorUsername: pgtextPtr(author), AuthorProfileUrl: pgtextPtr(authorURL),
 		Status:            hiringSignalStatus(check),
 		PlatformMetadata:  hiringMetadata(job, contactTitle, check, brief),
 		EngagementMetrics: jsonBytes(map[string]any{}),
-		KeywordMatches:    []string{"hiring signal"},
+		KeywordMatches:    []string{kind + " signal"},
 		PlatformCreatedAt: created,
-	}, "hiring signal")
+	}, kind+" signal")
 	if alert == nil {
 		return "" // duplicate, muted or too old
 	}
 
-	reasoning := "Company posted a matching job this week. " + plan.Why
+	event := "Company posted a matching job" + postedOn(job)
+	if kind == "funding" {
+		event = "Company just raised " + job.Funding.headline() + ", and newly funded companies hire within weeks"
+	}
+	reasoning := event + ". " + plan.Why
 	if !check.confirmed {
-		reasoning = "Company posted a matching job this week, but the contact is not confirmed: " + check.reason + "."
+		reasoning = event + ", but the contact is not confirmed: " + check.reason + "."
 	}
 	res := &ai.ClassifyResult{
 		Intent: string(database.IntentTypeBuySignal), RelevanceScore: score, ConversionProbability: 0.3,
@@ -796,7 +906,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 	m.storeIntentTags(ctx, wsID, alert.ID, res)
 	if check.confirmed {
 		m.createCompanyLead(ctx, *alert, companyLead{company: job.Company, person: person, contact: contact,
-			tag: "hiring-signal", score: score, intent: database.IntentTypeBuySignal})
+			tag: kind + "-signal", source: job.Source, email: check.email, score: score, intent: database.IntentTypeBuySignal})
 	}
 	return alert.ID
 }
@@ -804,8 +914,26 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 // hiringMetadata is what the lead view reads about a hiring signal. The
 // research (with its source links) is only present when something was found.
 func hiringMetadata(job jobPost, contactTitle string, check contactCheck, brief *ai.ResearchBrief) []byte {
-	meta := map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title,
+	meta := map[string]any{"signal": signalKind(job), "company": job.Company, "company_url": job.CompanyURL,
 		"contact_title": contactTitle, "confirmed": check.confirmed, "unconfirmed_reason": check.reason}
+	if job.Title != "" {
+		meta["job_title"], meta["job_url"], meta["job_location"] = job.Title, job.URL, job.Location
+	}
+	if d := companyDomain(job.site); d != "" {
+		meta["company_domain"] = d
+	}
+	if check.mismatch != "" {
+		meta["identity_mismatch"] = check.mismatch
+	}
+	if check.email != "" {
+		meta["email_status"] = check.email // verified | catch_all | unverified
+	}
+	for k, v := range fundingFact(job.Funding) {
+		meta[k] = v
+	}
+	if job.Source != "" {
+		meta["source"] = job.Source // which job source found it (hiring_sources.go)
+	}
 	if brief != nil {
 		meta["research"] = brief
 	}
@@ -841,8 +969,14 @@ func (m *Monitor) refundResearch(ctx context.Context, wsID string, brief *ai.Res
 // best effort: a lead without research is still a lead. Credits are returned
 // when nothing usable comes back.
 func (m *Monitor) researchLead(ctx context.Context, wsID string, in ai.CompanyResearch) *ai.ResearchBrief {
+	b, _ := m.researchLeadErr(ctx, wsID, in)
+	return b
+}
+
+// researchLeadErr is researchLead that also says why nothing came back.
+func (m *Monitor) researchLeadErr(ctx context.Context, wsID string, in ai.CompanyResearch) (*ai.ResearchBrief, error) {
 	if err := m.credits.Spend(ctx, wsID, billing.CostResearch, billing.ReasonResearch); err != nil {
-		return nil
+		return nil, fmt.Errorf("credits: %w", err)
 	}
 	rctx, cancel := context.WithTimeout(ctx, researchTimeout)
 	defer cancel()
@@ -850,10 +984,10 @@ func (m *Monitor) researchLead(ctx context.Context, wsID string, in ai.CompanyRe
 	if err != nil || brief == nil {
 		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostResearch, billing.ReasonResearch)
 		m.logger.Info().Err(err).Str("company", in.Company).Str("workspace_id", wsID).Msg("lead research: nothing found")
-		return nil
+		return nil, err
 	}
 	m.logger.Info().Int("searches", brief.Searches).Int("facts", len(brief.Facts)).Str("company", in.Company).Str("workspace_id", wsID).Msg("lead research: company researched")
-	return brief
+	return brief, nil
 }
 
 // hiringResearch is the research request for a hiring signal's company.
@@ -869,6 +1003,9 @@ func screenInput(jobs []jobPost) []ai.HiringJob {
 	out := make([]ai.HiringJob, len(jobs))
 	for i, j := range jobs {
 		out[i] = ai.HiringJob{Company: j.Company, Title: j.Title, Location: j.Location}
+		if j.Title == "" && j.Funding != nil {
+			out[i].Funding, out[i].Website, out[i].SourceURL = j.Funding.fact(), jobSiteDomain(j), j.Funding.URL
+		}
 	}
 	return out
 }
@@ -911,22 +1048,15 @@ func hiringSignalStatus(check contactCheck) database.MentionStatus {
 	return database.MentionStatusArchived
 }
 
-// hiringLeadScore is a confirmed signal's score: lower when the email could
-// not be verified.
-func hiringLeadScore(contact *enrich.Result) float64 {
-	if contact != nil && contact.EmailStatus == "catchall" {
-		return hiringScoreUnverifiedEmail
-	}
-	return hiringScoreConfirmed
-}
-
 // companyLead is a confirmed contact at a company found by a signal
 // (hiring or prospecting) rather than by a post they wrote.
 type companyLead struct {
 	company string
 	person  foundPerson
 	contact *enrich.Result
-	tag     string // "hiring-signal" | "prospect"
+	tag     string // "hiring-signal" | "funding-signal" | "prospect"
+	source  string // the job source behind a hiring signal, "" otherwise
+	email   string // emailLabel of the contact's address
 	score   float64
 	intent  database.IntentType
 }
@@ -945,7 +1075,7 @@ func (m *Monitor) createCompanyLead(ctx context.Context, alert mentionAlert, l c
 		Platform:     database.NullPlatformType{PlatformType: database.PlatformTypeLinkedin, Valid: true},
 		ProfileUrl:   pgtextPtr(l.person.ProfileURL),
 		Tags:         []string{"auto-qualified", l.tag},
-		Metadata:     jsonBytes(map[string]any{"auto_scored": true, "relevance": l.score, "intent": string(l.intent), "enrichment": l.contact}),
+		Metadata:     jsonBytes(leadMetadata(l)),
 	})
 	if err != nil {
 		if !isDuplicateError(err) {
@@ -959,6 +1089,17 @@ func (m *Monitor) createCompanyLead(ctx context.Context, alert mentionAlert, l c
 	m.crm.Emit(alert.WorkspaceID, crmsync.Event{Type: crmsync.EventLeadCreated, LeadID: lead.ID})
 }
 
+func leadMetadata(l companyLead) map[string]any {
+	meta := map[string]any{"auto_scored": true, "relevance": l.score, "intent": string(l.intent), "enrichment": l.contact}
+	if l.source != "" {
+		meta["source"] = l.source
+	}
+	if l.email != "" {
+		meta["email_status"] = l.email // verified | catch_all | unverified
+	}
+	return meta
+}
+
 // draftOutreach saves a first message to the contact as the lead's draft, so
 // the inbox and the daily digest show something ready to send. Costs the
 // same as a reply draft; refunded if writing fails.
@@ -966,6 +1107,13 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o a
 	if o.ContactName == "" {
 		return // nobody to write to
 	}
+	// What the message may open on comes from the stored signal, and its
+	// proof point and sign-off from what the customer wrote: nothing else.
+	if mention, err := m.q.GetMention(ctx, database.GetMentionParams{ID: mentionID, WorkspaceID: wsID}); err == nil {
+		o = withSignalFacts(o, mention.PlatformMetadata, mention.PlatformCreatedAt)
+	}
+	ds := m.q.GetDraftSettings(ctx, wsID)
+	o.ProofPoint, o.SignOff = ds.ProofPoint, ds.SignOff
 	if err := m.credits.Spend(ctx, wsID, billing.CostDraft, billing.ReasonDraft); err != nil {
 		return // out of credits: the lead still stands without a draft
 	}
@@ -980,4 +1128,26 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o a
 		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostDraft, billing.ReasonDraft) // a cancelled draft must still be refunded
 		m.logger.Warn().Err(err).Str("mention_id", mentionID).Msg("outreach draft failed")
 	}
+}
+
+// withSignalFacts fills in the facts stored with the signal: where the job
+// is, when it was posted, and the funding round when the signal carries one
+// (metadata keys funding_type, funding_amount, funding_date: fundingRound).
+func withSignalFacts(o ai.Outreach, metadata []byte, posted pgtype.Timestamptz) ai.Outreach {
+	var meta struct {
+		JobLocation string `json:"job_location"`
+		fundingRound
+	}
+	_ = json.Unmarshal(metadata, &meta)
+	if o.JobTitle != "" {
+		o.JobLocation = meta.JobLocation
+		if posted.Valid {
+			o.JobPosted = posted.Time
+		}
+	}
+	o.Funding = ""
+	if meta.Type != "" {
+		o.Funding = meta.fundingRound.fact()
+	}
+	return o
 }

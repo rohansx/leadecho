@@ -20,6 +20,7 @@ import (
 	"leadecho/internal/automation" // automations (P2 #17)
 	"leadecho/internal/billing"
 	"leadecho/internal/browser"
+	"leadecho/internal/competitors"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
 	"leadecho/internal/crypto"
@@ -171,6 +172,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Put("/response-profiles/{id}", responseProfiles.Update)
 			r.Delete("/response-profiles/{id}", responseProfiles.Delete)
 			r.Post("/response-profiles/{id}/default", responseProfiles.SetDefault)
+			r.Get("/settings/drafts", responseProfiles.GetDraftSettings)
+			r.Put("/settings/drafts", responseProfiles.PutDraftSettings)
 
 			// Leads
 			leads := handler.NewLeadHandler(queries, crm)
@@ -378,6 +381,18 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Get("/demand", demandH.Get)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/demand/refresh", demandH.Refresh)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/demand/themes/{id}/ship", demandH.Ship)
+			}
+			// competitor watch: the competitors LeadEcho found, their sources and moves
+			if llmRouter != nil {
+				compH := handler.NewCompetitorsHandler(competitors.NewService(db, queries, llmRouter, mon, credits, cfg.ExaAPIKey, logger), logger)
+				r.Get("/competitors", compH.List)
+				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/competitors", compH.Create)
+				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/competitors/setup", compH.Setup)
+				r.Patch("/competitors/{id}", compH.Update)
+				r.Delete("/competitors/{id}", compH.Delete)
+				r.Get("/competitors/{id}/people", compH.People)
+				r.Post("/competitors/{id}/sources", compH.AddSource)
+				r.Delete("/competitors/{id}/sources/{sourceID}", compH.DeleteSource)
 			}
 			r.Get("/chat/customers", chatH.GetCustomers)
 			r.Put("/chat/customers", chatH.PutCustomers)

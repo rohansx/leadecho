@@ -87,6 +87,47 @@ func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profile
 	if err != nil {
 		return nil, err
 	}
+	return d.draft(ctx, mention, profileID, true)
+}
+
+// AutoDraft writes the reply for a lead nobody asked a draft for, so it is
+// ready when the customer opens it. It costs the customer nothing, which is
+// why it is capped: at most the workspace's daily number (draft settings,
+// default 5), and never for a lead that already has a reply or is no longer
+// new. It reports whether a draft was written.
+func (d *Drafter) AutoDraft(ctx context.Context, wsID, mentionID string) (bool, error) {
+	limit := d.q.GetDraftSettings(ctx, wsID).AutoDraftLimit()
+	if limit == 0 {
+		return false, nil
+	}
+	mention, err := d.q.GetMention(ctx, database.GetMentionParams{ID: mentionID, WorkspaceID: wsID})
+	if err != nil {
+		return false, err
+	}
+	if mention.Status != database.MentionStatusNew {
+		return false, nil
+	}
+	replies, err := d.q.ListRepliesByMention(ctx, database.ListRepliesByMentionParams{MentionID: mentionID, WorkspaceID: wsID})
+	if err != nil || len(replies) > 0 {
+		return false, err
+	}
+	if ok, err := d.q.TakeAutoDraft(ctx, wsID, limit); err != nil || !ok {
+		return false, err
+	}
+	// The verdict "not worth a reply" is not stored as a flag for review:
+	// the customer did not ask, so nothing about the lead changes.
+	res, err := d.draft(ctx, mention, "", false)
+	if err != nil || !res.ShouldReply {
+		d.q.ReturnAutoDraft(context.WithoutCancel(ctx), wsID) // nothing was written: the slot is free again
+		return false, err
+	}
+	return true, nil
+}
+
+// draft writes and stores the reply. flag marks a lead the pre-filter says
+// should not be replied to as needing review (the manual path).
+func (d *Drafter) draft(ctx context.Context, mention database.Mention, profileID string, flag bool) (*DraftResult, error) {
+	wsID, mentionID := mention.WorkspaceID, mention.ID
 
 	title := ""
 	if mention.Title.Valid {
@@ -98,6 +139,13 @@ func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profile
 	}
 
 	productName, brandDesc := brandOf(ctx, d.q, wsID)
+	productDesc, positioning := brandDesc, ""
+	if bp, err := d.q.GetBrandProfile(ctx, wsID); err == nil {
+		positioning = bp.Positioning
+		if bp.Overview != "" {
+			productDesc = bp.Overview
+		}
+	}
 	voice, err := d.resolveVoice(ctx, wsID, profileID, brandDesc)
 	if err != nil {
 		return nil, err
@@ -117,7 +165,9 @@ func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profile
 	}
 
 	if !preFilter.ShouldReply {
-		d.markEscalation(ctx, wsID, mentionID, mention.ScoringMetadata, preFilter.Reason)
+		if flag {
+			d.markEscalation(ctx, wsID, mentionID, mention.ScoringMetadata, preFilter.Reason)
+		}
 		return &DraftResult{
 			ShouldReply:    false,
 			Reason:         preFilter.Reason,
@@ -150,8 +200,12 @@ func (d *Drafter) DraftWithProfile(ctx context.Context, wsID, mentionID, profile
 		KBContext:      kbContext,
 		TemplateStyle:  templateStyle,
 		ProductName:    productName,
-		Voice:          VoiceInstructions(voice),
-		StyleExample:   ExampleForPlatform(voice.Examples, string(mention.Platform)),
+		// The reply speaks for the product: it is told what the product is
+		// and what it replaces, so it does not argue the other side.
+		ProductDescription: productDesc,
+		Positioning:        positioning,
+		Voice:              VoiceInstructions(voice),
+		StyleExample:       ExampleForPlatform(voice.Examples, string(mention.Platform)),
 	})
 	if err != nil {
 		return nil, err

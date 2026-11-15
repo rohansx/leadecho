@@ -1,0 +1,152 @@
+{
+ "product": "- Utkrusht: A technical skill assessment platform for hiring software engineers. Instead of coding tests or take-homes, candidates solve real problems in a live, running system; Utkrusht records how they reason, debug and use AI, and hands the hiring team a ranked shortlist of the best 5-10 with recordings and scored reports.",
+ "buyers": "Engineering managers, CTOs, VPs of Engineering, technical recruiters and hiring teams at tech companies under 5,000 employees that are hiring developers.",
+ "cases": [
+  {
+   "id": "39e85b06",
+   "author": "author_01",
+   "platform": "linkedin",
+   "title": "",
+   "content": "Traditional technical interviews remain a critical filter for engineering talent, even as AI tools reshape how developers build software. A recent hiring spree revealed that while frontier models can generate entire apps in under two hours, a working demo tells surprisingly little about a candidate’s ability to deliver great software. The team found that asking candidates to describe their AI workflow is ineffective, as both proficient and novice users sound similar. Instead, they use a simple opening question to gauge exposure to top-tier models like Opus or Sol. This context helps distinguish between a lack of opportunity due to corporate budget constraints and a genuine lack of ability. During live interviews, the team looks for pragmatism rather than elaborate workflows. Candidates who overcomplicate their process or show excessive defensiveness about AI usage often perform worse, as frontier models require less direction and fewer skills to execute effectively. The team also abandoned take-home assignments after noticing they created a poor selection effect. Strong candidates with busy lives often drop out, while those desperate for a job invest excessive time, skewing the results. Furthermore, the rise of AI has allowed individuals from non-engineering backgrounds to pa",
+   "want": "lead",
+   "note": "Hiring-side account of a hiring spree: what did not work when screening (take-homes dropped, AI demos say little). Product scored 2, non_buyer, no ask; readers 7.",
+   "min_score": 6,
+   "want_ask": true
+  },
+  {
+   "id": "194e9722",
+   "author": "author_02",
+   "platform": "linkedin",
+   "title": "",
+   "content": "Most Technical Interviews Are Testing the Wrong Thing Writing code has never been cheaper. A developer can describe what they want and get back something that runs and mostly does what was asked. That “mostly” is where the job is now. Which raises a fair question about technical interviews. If the tool can write the code, what is the interview actually for? I think it matters more now. Somebody still has to put their name on what gets shipped, and the tool doesn’t carry any of that. What’s changed is what’s worth testing. Syntax was always the easiest thing to teach a new developer. Now it’s also the part you can hand off. Reading code that looks right and working out that it isn’t is much harder, and that’s most of what working with AI actually involves. A lot of interviews still screen for recall. Can you write a join from memory, on the spot. That made sense when recall was the bottleneck. It isn’t anymore, and a candidate who reasons well through a problem they’ve never seen can fail that kind of test and still be the better hire. I’ve hired people who did exactly that. It worked out, though it wasn’t free. They needed bringing up to speed on what the test had caught, and that time had to come from somewhere. None of this is a knock on whoever built those processes. They",
+   "want": "lead",
+   "note": "Someone who hires developers says interviews test recall, and that hiring people who failed them cost ramp-up time. Written as an essay. Product scored 3; readers 6.",
+   "min_score": 6,
+   "want_ask": true
+  },
+  {
+   "id": "11b631ec",
+   "author": "author_03",
+   "platform": "twitter",
+   "title": "",
+   "content": "I reviewed a few resumes recently when hiring for a software engineering role and this is what i feel. Writing code has already become the cheapest part of the job. In 2-3 years it will be close to free but what stays expensive is knowing what to build, deciding what not to ship, and tell when the model is confidently wrong. we now have engineers who can ship a working feature but cannot explain why it works. I don’t think junior developers/freshers will disappear. I think the bar will move. The 10x engineer of 2028 is the one whoever holds the most context in their head and still makes a call. I feel above all, taste might becomes a technical skill. Teams are getting smaller too. A solid 3-5 member team with good judgment and solid agent infra will be equivalent to a current 20 member team. What do you think will change and how has it changed the way you work?",
+   "want": "lead",
+   "note": "Was reviewing resumes while hiring for an engineering role: candidates ship features they cannot explain. Product scored 5; readers 6.",
+   "min_score": 6,
+   "want_ask": true
+  },
+  {
+   "id": "162d9f2f",
+   "author": "author_04",
+   "platform": "reddit",
+   "title": "I have pased only 1 person out of 20 interviews I have taken 🥲",
+   "content": "I was seeing my interview schedules and I noticed I have only passed 1 person till now , rest all fail. I take mostly last rounds ( 1 round before hiring maanger ) which is LLD round... mostly people with 3+ yoe.. And I feel people really lack these things : \\- Skill to think aloud \\- Not able to communicate the technical approach \\- Time management \\- Coding speed Many people I feel were fine technically , they knew stuff but I have to always probe them to correct direction which is a bummer.",
+   "want": "lead",
+   "note": "Interviewer on the last round passed 1 of 20: weak candidates reach late rounds. Product scored 6; readers 8.",
+   "min_score": 7,
+   "want_ask": true
+  },
+  {
+   "id": "9fedace9",
+   "author": "author_05",
+   "platform": "linkedin",
+   "title": "",
+   "content": "Since March, we’ve stopped giving engineering candidates a coding test at our company, and I explained why at a conference this week. Now each candidate gets a problem and four hours to solve it with our own AI product. Afterward we go through the whole session together to see if they’re used to working with AI. We also care a lot less about titles, and on the product teams I run, everyone commits code and helps with design. AI is already good at doing tasks, so we don’t need more people who are only good at doing tasks. The people worth hiring now are the ones who can decide what’s worth doing and then tell if the result is any good.",
+   "want": "not_lead",
+   "note": "Proof point: a hiring leader presents the process they built with their own product and are happy with. Not a lead, but the need belongs on Demand.",
+   "want_ask": true
+  },
+  {
+   "id": "1cf43097",
+   "author": "author_06",
+   "platform": "linkedin",
+   "title": "",
+   "content": "LeetCode is finally dying in engineering interviews. What's replacing it is harder to fake and harder to grade. This week a set of rejection emails went viral on X. Candidates shipped working take-homes with AI, then couldn't explain a single design choice in them. The code passed. The engineer didn't. I think that's the right call, and it says a lot about what the job has become. Generating code is the cheap part now. Every candidate can do it. What a team pays for is the person who can stand behind it. Here's what I'd test in an interview today: 1. Hand them a real, messy codebase and let them use whatever AI they normally use. 2. Ask them to walk through a file the agent wrote before they change anything. 3. Break something on purpose and watch how they find it. 4. Ask what they refused to let the agent touch, and why. 5. Ask what they couldn't verify. \"All tests pass\" doesn't count. 6. Ask them to delete code. Restraint is a skill. None of this bans AI. It checks that someone in the room understands the system when the agent is wrong. And at some point it will be wrong, in production, at 3 AM. Anyone can prompt. Hire the person who can debug what came back.",
+   "want": "not_lead",
+   "note": "Thought leadership that restates the pitch; nothing about the author's own hiring."
+  },
+  {
+   "id": "4718f4b8",
+   "author": "author_07",
+   "platform": "twitter",
+   "title": "",
+   "content": "Everyone celebrated the death of LeetCode. Now you get dropped into a massive unfamiliar codebase, given 30 minutes to understand the architecture, figure out what needs changing, supervise an AI agent, debug its mistakes, and explain your decisions while someone watches. We finally made coding interviews resemble real engineering. Then compressed several hours of engineering into 30 minutes.",
+   "want": "not_lead",
+   "note": "A commentator objecting to codebase interviews; role unknown."
+  },
+  {
+   "id": "56659262",
+   "author": "author_08",
+   "platform": "linkedin",
+   "title": "",
+   "content": "AI interviews are a complete Wild West at the moment. Pretty much nobody knows how to do it properly. At the same time I always liked take home assignments when you can actually find a proper quiet time and show your best. The biggest concern with Take Home assignments was that it is quite a big time commitment which not everyone can make. Now with AI the same tasks can be done in a much shorter time or achieve much more functionality. So I start thinking this is how we should do the coding interview nowadays. And some companies already started doing it. BUT there is one very important thing you need to know: after Take Home assignment you ALWAYS have to give proper detailed feedback! Hear it again: ALWAYS! No excpetion! When people borrow time from their families, their hobbies and even their sleep to complete the assignment, the least you can do is to give them proper feedback. If you ask candidates to complete Take Home task and then just send them \"we decided to go ahead with somebody else\" there is a special place in hell for you 🔥😅",
+   "want": "not_lead",
+   "note": "Opinion on take-homes and feedback, mostly from the candidate's side."
+  },
+  {
+   "id": "5a8c06aa",
+   "author": "author_09",
+   "platform": "linkedin",
+   "title": "",
+   "content": "We found someone a client really wanted. Then they walked us through how they hire. Reference checks. Secret reference checks. A homework assignment. Work samples. Three separate interviews. She took another job. Because she was good enough to have options. The client came back wanting her immediately. They asked me to reach out. I sent the note: no pressure, just a conversation. She passed. We started the search over. A seven-step process feels careful. What it actually does is give your favorite candidate time to say yes to someone faster.",
+   "want": "not_lead",
+   "note": "A recruiter's story about a client's slow process: a different problem (speed), told by an agency."
+  },
+  {
+   "id": "d1b898d1",
+   "author": "author_10",
+   "platform": "linkedin",
+   "title": "",
+   "content": "If you want a more efficient interview process, stop asking every interviewer to assess everything. Before interviews begin, give each person a clear area to focus on. One might assess functional expertise. Another might focus on leadership, collaboration or motivation. Share notes. Build on earlier conversations. Don’t make the candidate tell the same career story five times. Repetitive interviews signal that the team isn’t aligned and can leave candidates questioning how well the company communicates internally. More interviews don’t create better insight when everyone is asking the same questions. They create confusion and distract from what the team actually needs to assess. Create a coordinated process. It moves faster, produces evidence and creates a better candidate experience.",
+   "want": "not_lead",
+   "note": "Generic interview-process advice."
+  },
+  {
+   "id": "3af73da3",
+   "author": "author_11",
+   "platform": "linkedin",
+   "title": "",
+   "content": "I hardly post on LinkedIn, but this experience seriously compelled me to say something. And it's happening more often than ever. I just went through the following with a payroll software company: - recruiter call - coding screen with an external company - hiring manager chat - ghosted for 2 weeks - architecture interview - company values interview - another coding assessment - a \"work session\" - a feedback call with the recruiter Just to be rejected by the end of it. My jaw is still on the floor. This system needs change baddddddly. And I'm going to continue to call out companies who drag candidates through the mud like this.",
+   "want": "not_lead",
+   "note": "A candidate complaining about a nine-step process."
+  },
+  {
+   "id": "9d70017c",
+   "author": "author_12",
+   "platform": "linkedin",
+   "title": "",
+   "content": "How to design a Bengaluru tech professionals interview process that actually closes the candidates you want: What doesn't work: 5 rounds over 3 weeks. A take-home assignment that takes 8 hours. A final panel discussion. By round 3, your strongest candidates have accepted other offers. Your final shortlist contains the candidates patient enough to endure 5 rounds not the ones good enough to have multiple options. What works: Round 1: Technical depth assessment specific to your actual stack, framed around real decisions, not trivia. 60 minutes. Tells you whether they can do the work. Round 2: Collaboration and communication assessment a real problem discussion with the person they'll work closest with. 45 minutes. Tells you whether they'll work well in your team. Decision: within 48 hours of Round 2. Offer: within 72 hours of the decision. That's 2 rounds. That's 1.5 to 2 hours of candidate time. That's a process that respects that strong Bengaluru tech professionals have options. And it produces better hiring decisions than 5 rounds because the signal-to-noise ratio is higher in 2 focused rounds than in 5 exhausting ones. Show us your current Bengaluru tech professionals interview process. We'll tell you where it's losing candidates you want to hire.",
+   "want": "not_lead",
+   "note": "A recruiting firm promoting its service."
+  },
+  {
+   "id": "ae379ac9",
+   "author": "author_13",
+   "platform": "hackernews",
+   "title": "",
+   "content": "I've been using 3.8 Flash a lot and have been having a really nice time using it. I have not experienced the hallucinations or benchmaxxing people are complaining about. People keep banging on about how the hallucinations are so terrible that it cannot be used for anything etc, yet benchmarks like a public leaderboard show the top two best models for not hallucinating are Gemini models. Something does not align with these complaints from people who are trashing the Gemini models - one has to wonder if they just tried it for 5 mins then give up because it doesn't behave exactly like Claude does. As mentioned I used 3.8 Flash for a lot of things because I don't like working with Claude all day (its generally a sanctimonious prick to work with) and I way prefer working with Gemini's personality. 3.8 Flash seemed to me to be a really decent model for every day run of the mill get-shit-done work. True I have not tried to cure cancer or solve navier-stokes recently, but for your standard day to day coding works its been really solid. I am excited to try 4 Hydrogen now.",
+   "want": "not_lead",
+   "note": "AI model chatter matched by the keyword \"coding test\"."
+  },
+  {
+   "id": "3efa0766",
+   "author": "author_14",
+   "platform": "linkedin",
+   "title": "",
+   "content": "Fresh ideas from San Francisco! 🌉💡 Our Head of Executive Search, recently attended CodeSignal's Beyond conference to explore how AI is reshaping hiring, skills assessment, and workforce development. As our company grows, we’re always looking for better ways to identify exceptional talent and evaluate real-world skills. The conference was a great opportunity to learn from other organizations and bring fresh ideas back to our growing team!🚀",
+   "want": "not_lead",
+   "note": "A company page reporting a conference visit."
+  },
+  {
+   "id": "synthetic-buyer-ask",
+   "author": "author_15",
+   "platform": "reddit",
+   "title": "What do you use instead of HackerRank for backend hires?",
+   "content": "I run engineering at a 60-person SaaS company and we are hiring four backend developers this quarter. Our HackerRank screen passes people who then fall apart in the onsite, and half of the good ones refuse to take it. What are you all using to screen before the first call?",
+   "want": "lead",
+   "min_score": 8,
+   "want_ask": true,
+   "note": "Written for this set: a buyer asking for a tool must stay a strong lead."
+  }
+ ]
+}

@@ -204,3 +204,47 @@ func draftReplyProfileID(r *http.Request) (string, error) {
 	}
 	return id, nil
 }
+
+// draftSettingsResponse always carries the day's auto-draft number, so the
+// page does not need to know the default.
+type draftSettingsResponse struct {
+	ProofPoint       string `json:"proof_point"`
+	SignOff          string `json:"sign_off"`
+	PublicReplyLinks bool   `json:"public_reply_links"`
+	AutoDraftDaily   int    `json:"auto_draft_daily"`
+}
+
+func toDraftSettingsResponse(s database.DraftSettings) draftSettingsResponse {
+	return draftSettingsResponse{ProofPoint: s.ProofPoint, SignOff: s.SignOff, PublicReplyLinks: s.PublicReplyLinks, AutoDraftDaily: s.AutoDraftLimit()}
+}
+
+// decodeDraftSettings reads a body over the stored settings, so omitted
+// fields keep their value.
+func decodeDraftSettings(body io.Reader, stored database.DraftSettings) (database.DraftSettings, error) {
+	if err := json.NewDecoder(io.LimitReader(body, 16<<10)).Decode(&stored); err != nil {
+		return stored, errors.New("invalid JSON")
+	}
+	return stored.Clean()
+}
+
+// GetDraftSettings — GET /settings/drafts
+func (h *ResponseProfileHandler) GetDraftSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, toDraftSettingsResponse(h.q.GetDraftSettings(r.Context(), middleware.WorkspaceID(r.Context()))))
+}
+
+// PutDraftSettings — PUT /settings/drafts: the proof point and sign-off a
+// draft may use, links in public replies (off by default), and how many
+// replies a day are drafted unasked.
+func (h *ResponseProfileHandler) PutDraftSettings(w http.ResponseWriter, r *http.Request) {
+	ctx, wsID := r.Context(), middleware.WorkspaceID(r.Context())
+	s, err := decodeDraftSettings(r.Body, h.q.GetDraftSettings(ctx, wsID))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.q.SetDraftSettings(ctx, wsID, s); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save draft settings")
+		return
+	}
+	writeJSON(w, http.StatusOK, toDraftSettingsResponse(s))
+}

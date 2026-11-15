@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -13,8 +14,8 @@ import (
 
 // DB-backed: a re-score picks up posts scored under older rules and leaves
 // alone what the customer acted on, what is already a lead, company signals
-// and posts nobody scored yet. Demand takes a non-buyer's ask on its own,
-// and a buyer's only above the relevance floor.
+// and posts nobody scored yet. Demand takes a non-buyer's ask and a proof
+// point's on their own, and any other buyer's only above the relevance floor.
 func TestRescoreSelectionAndDemandAsksDB(t *testing.T) {
 	dsn := os.Getenv("LEADECHO_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -45,7 +46,8 @@ RETURNING id::text`, ws, pid, status, scoring, platformMeta, score).Scan(&id); e
 	f := func(v float64) *float64 { return &v }
 	old := add("old", "new", `{"stage":"stage3_classified","author_role":"buyer","ask":"A way to screen"}`, `{}`, f(5))
 	filtered := add("filtered", "new", `{"stage":"stage1_spam_filter"}`, `{}`, nil)
-	add("current", "new", `{"stage":"stage3_classified","rubric":2}`, `{}`, f(3))
+	cur := fmt.Sprintf(`"rubric":%d`, ScoringRubric) // scored under the current rules
+	add("current", "new", `{"stage":"stage3_classified",`+cur+`}`, `{}`, f(3))
 	add("acted", "archived", `{"stage":"stage3_classified"}`, `{}`, f(3))
 	add("hiring", "new", `{"stage":"stage3_classified"}`, `{"signal":"hiring"}`, f(7))
 	add("unscored", "new", ``, `{}`, nil)
@@ -54,8 +56,10 @@ RETURNING id::text`, ws, pid, status, scoring, platformMeta, score).Scan(&id); e
 	if _, err := pool.Exec(ctx, `INSERT INTO leads (workspace_id, mention_id, stage) VALUES ($1, $2, 'prospect')`, ws, lead); err != nil {
 		t.Fatal(err)
 	}
-	candidate := add("candidate", "new", `{"stage":"stage3_classified","rubric":2,"author_role":"non_buyer","ask":"To be told how it is graded"}`, `{}`, f(2))
-	add("lowbuyer", "new", `{"stage":"stage3_classified","rubric":2,"author_role":"buyer","ask":"Off-topic need"}`, `{}`, f(2))
+	candidate := add("candidate", "new", `{"stage":"stage3_classified",`+cur+`,"author_role":"non_buyer","ask":"To be told how it is graded"}`, `{}`, f(2))
+	add("lowbuyer", "new", `{"stage":"stage3_classified",`+cur+`,"author_role":"buyer","ask":"Off-topic need"}`, `{}`, f(2))
+	// A buyer's success story is scored low by rule; the need it answers still counts.
+	proof := add("proof", "new", `{"stage":"stage3_classified",`+cur+`,"author_role":"buyer","post_type":"proof_point","ask":"A way to see how candidates work with AI"}`, `{}`, f(3))
 
 	q := database.New(pool)
 	got, err := q.ListMentionsToRescore(ctx, ws, time.Now().Add(-time.Hour), ScoringRubric, 50)
@@ -78,7 +82,7 @@ RETURNING id::text`, ws, pid, status, scoring, platformMeta, score).Scan(&id); e
 	for _, a := range asks {
 		roles[a.MentionID] = a.AuthorRole
 	}
-	if len(asks) != 2 || roles[old] != "buyer" || roles[candidate] != "non_buyer" {
-		t.Fatalf("demand asks = %v, want the buyer above the floor and the non-buyer", roles)
+	if len(asks) != 3 || roles[old] != "buyer" || roles[candidate] != "non_buyer" || roles[proof] != "buyer" {
+		t.Fatalf("demand asks = %v, want the buyer above the floor, the non-buyer and the proof point", roles)
 	}
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { effectiveCadence, paidSlowdownPlan, platformCost, scheduleSummary, truncate } from "./keyword-schedule.ts";
+import { effectiveCadence, paidSlowdownPlan, platformCost, scheduleSummary, truncate, yieldLine } from "./keyword-schedule.ts";
 
 const rates = { twitter: 0.00075, reddit: 0.0009, hackernews: 0, bluesky: 0 };
 
@@ -46,4 +46,15 @@ test("truncate", () => {
   assert.deepEqual(truncate([1, 2, 3, 4, 5], 3, false), { shown: [1, 2, 3], hidden: 2 });
   assert.deepEqual(truncate([1, 2, 3, 4, 5], 3, true), { shown: [1, 2, 3, 4, 5], hidden: 0 });
   assert.deepEqual(truncate([1, 2], 3, false), { shown: [1, 2], hidden: 0 });
+});
+
+test("yieldLine says what a keyword brought in", () => {
+  assert.equal(
+    yieldLine({ posts: 535, passed: 33, leads: 0, asks: 12, days: 14 }),
+    "535 posts, 0 leads in 14 days · 33 past the noise filter · 12 state a need",
+  );
+  assert.equal(yieldLine({ posts: 63, passed: 20, leads: 6, asks: 1, days: 14 }), "63 posts, 6 leads in 14 days · 20 past the noise filter · 1 states a need");
+  assert.equal(yieldLine({ posts: 1, passed: 0, leads: 1, asks: 0, days: 14 }), "1 post, 1 lead in 14 days · 0 past the noise filter");
+  // Zero hits is simply zero.
+  assert.equal(yieldLine({ posts: 0, passed: 0, leads: 0, asks: 0, days: 14 }), "0 posts, 0 leads in 14 days");
 });

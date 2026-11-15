@@ -51,7 +51,7 @@ func (m *Monitor) crawlReddit(ctx context.Context, wsID string, kw database.List
 	}
 
 	if len(kw.Subreddits) == 0 {
-		posts, err := m.sources().SearchReddit(ctx, kw.Term, since)
+		posts, err := m.sources().SearchReddit(ctx, brandFrom(ctx).quote(kw.Term), since)
 		if m.handleRedditErr(err, "search") {
 			return nil
 		}
