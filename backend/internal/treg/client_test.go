@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -280,5 +281,27 @@ func TestCallGET(t *testing.T) {
 	post, _ := cacheKey(Request{Tool: "t"})
 	if a == b || a == post {
 		t.Fatal("cache key must include the method and query")
+	}
+}
+
+// A tool billed per record states its own ceiling: the price of the records
+// it asks for. Other calls keep the client's.
+func TestCallMaxCostPerRequest(t *testing.T) {
+	var got []string
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get("X-Treg-Route-Max-Cost"))
+		_, _ = w.Write([]byte(`{}`))
+	})
+	for _, req := range []Request{
+		{WorkspaceID: testWS, Tool: "some.get.tool", Method: http.MethodGet, MaxCostMicro: 200_000},
+		{WorkspaceID: testWS, Tool: "some.get.tool", Method: http.MethodGet},
+		{WorkspaceID: testWS, Tool: "some.get.tool", Method: http.MethodGet, MaxCostMicro: 5},
+	} {
+		if _, err := c.Call(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if want := []string{"0.2", "0.02", "0.02"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ceilings sent: %v, want %v", got, want)
 	}
 }

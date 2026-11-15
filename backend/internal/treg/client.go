@@ -136,6 +136,10 @@ type Request struct {
 	// when an empty answer is expected (e.g. "nothing new since the last
 	// poll"): otherwise treg tries the dearer providers too, and some bill misses.
 	NoWaterfall bool
+	// MaxCostMicro raises the client's per-call ceiling for this call (0 = use
+	// the client's). For a tool billed per record, whose call asks for a known
+	// number of records: the ceiling is their price.
+	MaxCostMicro int64
 }
 
 type Response struct {
@@ -312,8 +316,8 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 	hr.Header.Set("X-Treg-Token", c.cfg.Token)
 	hr.Header.Set("X-Treg-Meta", "customer="+req.WorkspaceID)
 	hr.Header.Set("Idempotency-Key", key)
-	if c.cfg.MaxCostMicro > 0 {
-		hr.Header.Set("X-Treg-Route-Max-Cost", microToUSD(c.cfg.MaxCostMicro))
+	if ceiling := max(req.MaxCostMicro, c.cfg.MaxCostMicro); ceiling > 0 {
+		hr.Header.Set("X-Treg-Route-Max-Cost", microToUSD(ceiling))
 	}
 	if req.NoWaterfall {
 		hr.Header.Set("X-Treg-Route-Waterfall", "0")
