@@ -292,6 +292,11 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 	if !check.confirmed {
 		// Without a confirmed buyer a fitting company is only a name on a
 		// list: not stored, and (already judged) not looked up again.
+		// What disagreed goes first (outcomes are clipped): it tells a
+		// contact who moved on from a brand name the check does not know.
+		if check.mismatch != "" {
+			return false, capped, "no buyer confirmed [" + check.mismatch + "]: " + check.reason
+		}
 		return false, capped, "no buyer confirmed: " + check.reason
 	}
 	brief, researchErr := m.researchLeadErr(ctx, wsID, ai.CompanyResearch{
