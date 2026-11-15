@@ -39,6 +39,35 @@ func TestParseCompanies(t *testing.T) {
 	if parseCompanies([]byte(`not json`)) != nil {
 		t.Fatal("bad body should give nothing")
 	}
+	// Hunter, as the router served it live on 2026-11-15: the name is "organization".
+	if got := parseCompanies([]byte(`{"output":{"companies":[{"domain":"polymarket.com","organization":"Polymarket","emails_count":{"total":202}}]}}`)); len(got) != 1 || got[0].Name != "Polymarket" {
+		t.Fatalf("hunter row: %+v", got)
+	}
+}
+
+// Exa's shape, trimmed from a live exa.companies.search answer (2026-11-15).
+func TestParseCompaniesExa(t *testing.T) {
+	body := `{"requestId":"x","results":[
+	 {"id":"e1","title":"Swipe (YC S21)","url":"https://getswipe.in/","entities":[{"type":"company","properties":{
+	   "name":"Swipe","description":"GST billing app for Indian SMBs.","workforce":{"total":85},
+	   "headquarters":{"city":"Hyderabad","country":"India"}}}]},
+	 {"id":"e2","title":"Bare","url":"https://bare.io/"}
+	]}`
+	got := parseCompanies([]byte(body))
+	want := []ai.ProspectCandidate{
+		{Name: "Swipe", Domain: "getswipe.in", Description: "GST billing app for Indian SMBs.", Employees: 85, Country: "India"},
+		{Name: "Bare", Domain: "bare.io"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("exa:\n got %+v\nwant %+v", got, want)
+	}
+	wrapped := parseCompanies([]byte(`{"output":{"results":[{"url":"https://a.io","title":"A"}]}}`))
+	if len(wrapped) != 1 || wrapped[0].Domain != "a.io" {
+		t.Fatalf("wrapped exa: %+v", wrapped)
+	}
+	if countryName("in") != "India" || countryName("ZZ") != "ZZ" {
+		t.Fatal("countryName")
+	}
 }
 
 func TestCompanyDomain(t *testing.T) {

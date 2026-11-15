@@ -26,6 +26,16 @@ export interface BillingState {
   can_checkout: boolean;
   /** X, Reddit and LinkedIn need a paid plan on this workspace. */
   paid_platforms_locked: boolean;
+  /** The daily prospect scan runs for this workspace (Pro, not switched off). */
+  prospect_daily: boolean;
+  /** This workspace may switch daily prospecting on (Pro, or self-host). */
+  prospect_allowed: boolean;
+  /** The plan that includes daily prospecting. */
+  prospect_daily_plan: PlanId;
+}
+
+export async function setProspectDaily(on: boolean): Promise<void> {
+  await request("/billing/prospecting", { method: "PUT", body: JSON.stringify({ on }) });
 }
 
 /** Platforms searched with paid data (mirrors billing.PaidPlatforms). */

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	"leadecho/internal/ai"
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 	"leadecho/internal/enrich"
 	"leadecho/internal/treg"
@@ -24,7 +25,13 @@ import (
 // draft a first message. Only confirmed contacts become leads.
 
 const (
-	tregCompanySearchTool = "treg.companies.search"
+	// Exa, not the routed treg.companies.search: the router's first hit
+	// (Hunter) returns only name and domain and ignores the country, which
+	// leaves the fit check nothing to judge. Exa returns a description,
+	// headcount and HQ, reads the location from the query, and costs about
+	// $0.012 for 15 rows.
+	tregCompanySearchTool  = "exa.companies.search"
+	maxProspectDescription = 500 // runes of a company description sent to the fit check
 
 	prospectSettingsKey = "prospecting"
 	prospectInterval    = 24 * time.Hour
@@ -102,9 +109,23 @@ func (m *Monitor) prospectSegments(ctx context.Context, ws string) []ai.Customer
 	return prospectableSegments(bp)
 }
 
+// prospectDailyOn reports whether the scheduled scan runs: Pro only, and on
+// unless an admin switched it off.
+func (m *Monitor) prospectDailyOn(ctx context.Context, wsID string) bool {
+	bs, err := m.q.GetBillingState(ctx, wsID)
+	if err != nil {
+		return false
+	}
+	stored, err := m.q.GetWorkspaceSettingsKey(ctx, wsID, billing.ProspectDailyKey)
+	return err == nil && billing.ProspectDaily(bs.Plan, m.credits.Enforced(), stored)
+}
+
 func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 	if m.prospectJudge == nil || m.hiringPlanner == nil || !m.treg.Enabled() || m.credits.PaidPlatformsLocked(ctx, wsID) || m.credits.PaidDataPaused(ctx) {
 		return
+	}
+	if forcedScan(ctx) != ScanProspects && !m.prospectDailyOn(ctx, wsID) {
+		return // the daily run is Pro's, and an admin can switch it off
 	}
 	bp, err := m.q.GetBrandProfile(ctx, wsID)
 	if err != nil || bp.Product == "" {
@@ -272,10 +293,10 @@ func prospectPlatformID(domain string) string { return "prospect-" + domain }
 // searchCompanies runs one company search. An error means the search
 // itself failed; no companies with a nil error means it found none.
 func (m *Monitor) searchCompanies(ctx context.Context, wsID, query, country string) ([]ai.ProspectCandidate, error) {
-	body := map[string]any{"q": query, "limit": prospectSearchLimit}
 	if country != "" {
-		body["country"] = country
+		query += ", based in " + countryName(country)
 	}
+	body := map[string]any{"query": query, "category": "company", "numResults": prospectSearchLimit}
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregCompanySearchTool, Body: body})
 	if err != nil {
 		if !treg.IsOperatorError(err) {
@@ -286,7 +307,22 @@ func (m *Monitor) searchCompanies(ctx context.Context, wsID, query, country stri
 	return parseCompanies(resp.Body), nil
 }
 
-// parseCompanies reads {output:{companies:[...]}} (or unwrapped). Rows are
+// countryName turns an ISO code into the words a search query understands.
+// ponytail: the markets customers name so far; an unlisted code is sent as is.
+func countryName(code string) string {
+	names := map[string]string{
+		"IN": "India", "US": "the United States", "GB": "the United Kingdom", "CA": "Canada",
+		"AU": "Australia", "DE": "Germany", "FR": "France", "NL": "the Netherlands",
+		"SG": "Singapore", "AE": "the United Arab Emirates", "IE": "Ireland", "ES": "Spain",
+	}
+	if n, ok := names[strings.ToUpper(code)]; ok {
+		return n
+	}
+	return code
+}
+
+// parseCompanies reads Exa's {results:[{url, title, entities:[{properties}]}]}
+// or a routed {output:{companies:[...]}} (or unwrapped). Rows are
 // provider-native, so each field is taken from whichever key the provider
 // uses. A row without a usable website domain is dropped: the domain is
 // what the contact's employer is checked against.
@@ -294,8 +330,10 @@ func parseCompanies(body []byte) []ai.ProspectCandidate {
 	var v struct {
 		Output *struct {
 			Companies []map[string]any `json:"companies"`
+			Results   []map[string]any `json:"results"`
 		} `json:"output"`
 		Companies []map[string]any `json:"companies"`
+		Results   []map[string]any `json:"results"` // Exa (unwrapped live, 2026-11-15)
 	}
 	if json.Unmarshal(body, &v) != nil {
 		return nil
@@ -304,11 +342,18 @@ func parseCompanies(body []byte) []ai.ProspectCandidate {
 	if v.Output != nil {
 		rows = v.Output.Companies
 	}
+	if len(rows) == 0 {
+		rows = v.Results
+	}
+	if len(rows) == 0 && v.Output != nil {
+		rows = v.Output.Results
+	}
 	var out []ai.ProspectCandidate
 	byDomain := map[string]bool{}
 	for _, r := range rows {
+		r = withExaEntity(r)
 		domain := companyDomain(firstString(r, "domain", "website", "website_url", "websiteUrl", "url", "homepage", "company_domain"))
-		name := firstString(r, "name", "company_name", "companyName", "title")
+		name := firstString(r, "name", "company_name", "companyName", "organization", "title")
 		if domain == "" || name == "" || byDomain[domain] {
 			continue
 		}
@@ -316,10 +361,40 @@ func parseCompanies(body []byte) []ai.ProspectCandidate {
 		out = append(out, ai.ProspectCandidate{
 			Name:        truncateRunes(name, maxProspectName), // provider text: it reaches prompts and the lead's title
 			Domain:      domain,
-			Description: firstString(r, "description", "short_description", "shortDescription", "summary", "about", "tagline"),
+			Description: truncateRunes(firstString(r, "description", "short_description", "shortDescription", "summary", "about", "tagline"), maxProspectDescription),
 			Employees:   enrich.ParseSize(firstValue(r, "employees", "employee_count", "employeeCount", "headcount", "size", "company_size", "estimated_num_employees")),
 			Country:     firstString(r, "country", "country_code", "countryCode", "hq_country"),
 		})
+	}
+	return out
+}
+
+// withExaEntity flattens an Exa result's company entity (name, description,
+// workforce.total, headquarters.country) onto the row's own keys.
+func withExaEntity(r map[string]any) map[string]any {
+	ents, _ := r["entities"].([]any)
+	if len(ents) == 0 {
+		return r
+	}
+	ent, _ := ents[0].(map[string]any)
+	props, _ := ent["properties"].(map[string]any)
+	if props == nil {
+		return r
+	}
+	out := make(map[string]any, len(r)+4)
+	for k, v := range r {
+		out[k] = v
+	}
+	for _, k := range []string{"name", "description"} {
+		if s, ok := props[k].(string); ok && s != "" {
+			out[k] = s
+		}
+	}
+	if wf, ok := props["workforce"].(map[string]any); ok && wf["total"] != nil {
+		out["employees"] = wf["total"]
+	}
+	if hq, ok := props["headquarters"].(map[string]any); ok && hq["country"] != nil {
+		out["country"] = hq["country"]
 	}
 	return out
 }
