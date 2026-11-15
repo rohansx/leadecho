@@ -74,9 +74,13 @@ type prospectState struct {
 	// Last is what happened to each company in the latest run, so an
 	// operator can tell a strict filter from a broken step.
 	Last []prospectOutcome `json:"last,omitempty"`
-	// Found holds, per segment name, the companies that became leads: later
-	// searches look for companies like them (see segmentQueries).
+	// Found holds, per segment name, the companies that became leads, oldest
+	// first and only appended to: later searches look for companies like
+	// them (see segmentQueries).
 	Found map[string][]string `json:"found,omitempty"`
+	// Next is, per segment name, which of its search wordings runs next. A
+	// cursor, not Round: the list of wordings grows as leads are found.
+	Next map[string]int `json:"next,omitempty"`
 }
 
 const maxProspectFound = 10 // per segment
@@ -165,7 +169,15 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 	}
 	seg := segments[st.Round%len(segments)]
 	queries := segmentQueries(seg, st.Found[seg.Name])
-	query := queries[(st.Round/len(segments))%len(queries)]
+	if st.Next == nil {
+		st.Next = map[string]int{}
+	}
+	next, ok := st.Next[seg.Name]
+	if !ok {
+		next = st.Round / len(segments) // state from before the cursor: carry on where it was
+	}
+	query := queries[next%len(queries)]
+	st.Next[seg.Name] = (next + 1) % len(queries)
 	st.Round++
 	defer func() { // outlive a shutdown: losing Seen means paying to judge the same companies again
 		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -256,9 +268,11 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 			if st.Found == nil {
 				st.Found = map[string][]string{}
 			}
-			// Newest first, so the next search is seeded by the latest find.
-			found := append([]string{c.Name}, st.Found[seg.Name]...)
-			st.Found[seg.Name] = found[:min(len(found), maxProspectFound)]
+			// Appended, so the wordings already run keep their places.
+			// ponytail: the first 10 finds seed searches; later ones do not.
+			if f := st.Found[seg.Name]; len(f) < maxProspectFound {
+				st.Found[seg.Name] = append(f, c.Name)
+			}
 		}
 		if stop {
 			break
@@ -362,13 +376,14 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 // segment's name: a name like "Technical recruiters" made the search return
 // recruiting firms (live, 2026-11-15). The same query returns the same
 // companies, all seen after the first run, so later runs add one company at
-// a time for the search to find others like it: first the companies that
-// became leads (found, newest first), then the segment's examples. Without
-// them the search ran dry (live: 3 new companies in a run).
+// a time for the search to find others like it: the segment's examples,
+// then the companies that became leads (found, oldest first; new ones are
+// added at the end, so the cursor in prospectState.Next reaches them).
+// Without them the search ran dry (live: 3 new companies in a run).
 func segmentQueries(s ai.CustomerSegment, found []string) []string {
 	base := strings.Join(s.Criteria, "; ")
 	out := []string{base}
-	for _, ex := range append(append([]string(nil), found...), s.ExampleCompanies...) {
+	for _, ex := range append(append([]string(nil), s.ExampleCompanies...), found...) {
 		if q := base + "; similar to " + ex; !slices.Contains(out, q) {
 			out = append(out, q)
 		}

@@ -104,8 +104,8 @@ func TestSegmentQueriesRotate(t *testing.T) {
 		ExampleCompanies: []string{"Ryan & Co"}}, []string{"Blake LLP", "Ryan & Co"})
 	want := []string{ // never the segment name: it names the buyer, not the company
 		"accountancy practice with 5-30 staff; Partner-led",
-		"accountancy practice with 5-30 staff; Partner-led; similar to Blake LLP", // a found lead first
 		"accountancy practice with 5-30 staff; Partner-led; similar to Ryan & Co",
+		"accountancy practice with 5-30 staff; Partner-led; similar to Blake LLP", // a found lead, after the examples
 	}
 	if !reflect.DeepEqual(q, want) {
 		t.Fatalf("segmentQueries = %q", q)
