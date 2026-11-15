@@ -79,3 +79,22 @@ export function truncate<T>(items: T[], n: number, expanded: boolean): { shown: 
   if (expanded || items.length <= n) return { shown: items, hidden: 0 };
   return { shown: items.slice(0, n), hidden: items.length - n };
 }
+
+export interface YieldCounts {
+  posts: number;
+  passed: number;
+  leads: number;
+  asks: number;
+  days: number;
+}
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "535 posts, 0 leads in 14 days · 33 past the noise filter · 12 state a need". */
+export function yieldLine(y: YieldCounts): string {
+  const head = `${count(y.posts, "post", "posts")}, ${count(y.leads, "lead", "leads")} in ${y.days} days`;
+  if (y.posts === 0) return head;
+  return [head, `${y.passed} past the noise filter`, y.asks > 0 ? `${y.asks} ${y.asks === 1 ? "states" : "state"} a need` : ""]
+    .filter(Boolean)
+    .join(" · ");
+}

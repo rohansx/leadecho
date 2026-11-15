@@ -71,10 +71,15 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 	// Stage 1: LLM spam/noise filter (cheap model via TaskFilter)
 	if m.llmRouter != nil {
+		bulk := bulkFilterPairs(m.keywordYield(ctx, wsID))
 		keep := make([]bool, len(scoreable))
 		m.forEachConcurrent(ctx, len(scoreable), func(i int) {
 			a := scoreable[i]
-			fr, err := m.llmRouter.FilterMention(ctx, wsID, a.Title, a.Content, a.Platform, about)
+			fctx := ctx
+			if bulk[[2]string{a.Keyword, a.Platform}] { // many posts, no lead: the cheapest filter
+				fctx = llm.WithBulkFilter(ctx)
+			}
+			fr, err := m.llmRouter.FilterMention(fctx, wsID, a.Title, a.Content, a.Platform, about)
 			if err != nil {
 				m.logger.Warn().Err(err).Str("mention_id", a.ID).Msg("scorer: stage1 filter failed, fail-open")
 				keep[i] = true

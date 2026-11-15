@@ -14,6 +14,7 @@ import (
 
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/billing"
+	"leadecho/internal/cadence"
 	"leadecho/internal/database"
 )
 
@@ -75,6 +76,39 @@ type KeywordResponse struct {
 	Subreddits    []string `json:"subreddits"`
 	CreatedAt     string   `json:"created_at"`
 	UpdatedAt     string   `json:"updated_at"`
+	// Yield is what the keyword brought in lately (list only; absent when it
+	// could not be loaded).
+	Yield *keywordYield `json:"yield,omitempty"`
+}
+
+// keywordYield is a keyword's results over the last Days days, across its
+// platforms: "535 posts, 0 leads".
+type keywordYield struct {
+	cadence.Yield
+	Days int `json:"days"`
+	// LowYield: many posts and not one lead. The customer may want to pause it.
+	LowYield bool `json:"low_yield"`
+	// ThrottledPlatforms are searched once a day until they produce a lead.
+	ThrottledPlatforms []string `json:"throttled_platforms"`
+}
+
+// keywordYields totals the per-platform rows by keyword id.
+func keywordYields(rows []database.KeywordYield) map[string]keywordYield {
+	out := map[string]keywordYield{}
+	for _, r := range rows {
+		one := cadence.Yield{Posts: r.Posts, Passed: r.Passed, Leads: r.Leads, Asks: r.Asks}
+		y := out[r.KeywordID]
+		y.Yield = y.Yield.Add(one)
+		if one.Throttled() {
+			y.ThrottledPlatforms = append(y.ThrottledPlatforms, r.Platform)
+		}
+		out[r.KeywordID] = y
+	}
+	for id, y := range out {
+		y.LowYield = y.Yield.LowYield()
+		out[id] = y
+	}
+	return out
 }
 
 func toKeywordResponse(id, wsID, term string, platforms []string, isActive bool, matchType string, negTerms, subreddits []string, createdAt, updatedAt time.Time) KeywordResponse {
@@ -99,9 +133,22 @@ func (h *KeywordHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list keywords")
 		return
 	}
+	// The yield is extra: the list still loads when it cannot be counted.
+	var yields map[string]keywordYield
+	if rows, err := h.q.ListKeywordYield(r.Context(), wsID, time.Now().Add(-cadence.YieldWindow)); err == nil {
+		yields = keywordYields(rows)
+	}
 	resp := make([]KeywordResponse, len(keywords))
 	for i, k := range keywords {
 		resp[i] = toKeywordResponse(k.ID, k.WorkspaceID, k.Term, k.Platforms, k.IsActive, k.MatchType, k.NegativeTerms, k.Subreddits, k.CreatedAt, k.UpdatedAt)
+		if yields != nil {
+			y := yields[k.ID] // zero when the keyword stored nothing: "0 posts"
+			y.Days = int(cadence.YieldWindow.Hours() / 24)
+			if y.ThrottledPlatforms == nil {
+				y.ThrottledPlatforms = []string{}
+			}
+			resp[i].Yield = &y
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

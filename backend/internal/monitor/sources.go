@@ -56,7 +56,49 @@ func (m *Monitor) applyCadence(ctx context.Context, wsID string, kws []database.
 		}
 		last[s.KeywordID][s.Platform] = s.LastScannedAt
 	}
+	// A keyword that fills the inbox on a platform without ever finding a
+	// lead there is searched once a day, whatever its cadence says.
+	for id, platforms := range throttledPlatforms(m.keywordYield(ctx, wsID)) {
+		cad[id] = cad[id].Throttle(platforms)
+	}
 	return keywordsDue(kws, cad, last, time.Now())
+}
+
+// keywordYield is what each keyword brought in per platform over the yield
+// window. A failed lookup returns nothing: no keyword is throttled on a guess.
+func (m *Monitor) keywordYield(ctx context.Context, wsID string) []database.KeywordYield {
+	rows, err := m.q.ListKeywordYield(ctx, wsID, time.Now().Add(-cadence.YieldWindow))
+	if err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("yield: load failed, nothing throttled")
+		return nil
+	}
+	return rows
+}
+
+// throttledPlatforms lists, per keyword id, the platforms where it brought
+// many posts and no lead. The first lead there takes the platform off the
+// list again on the next scan.
+func throttledPlatforms(rows []database.KeywordYield) map[string][]string {
+	out := map[string][]string{}
+	for _, r := range rows {
+		if (cadence.Yield{Posts: r.Posts, Leads: r.Leads}).Throttled() {
+			out[r.KeywordID] = append(out[r.KeywordID], r.Platform)
+		}
+	}
+	return out
+}
+
+// bulkFilterPairs is the same list keyed the way a stored post knows its
+// keyword: by term and platform. Posts from these pairs go through the
+// cheapest noise filter.
+func bulkFilterPairs(rows []database.KeywordYield) map[[2]string]bool {
+	out := map[[2]string]bool{}
+	for _, r := range rows {
+		if (cadence.Yield{Posts: r.Posts, Leads: r.Leads}).Throttled() {
+			out[[2]string{r.Term, r.Platform}] = true
+		}
+	}
+	return out
 }
 
 // recordScans stamps last_scanned for each platform just crawled.
