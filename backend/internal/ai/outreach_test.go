@@ -26,6 +26,15 @@ func TestPostingLanguage(t *testing.T) {
 		{"JavaScript Code Reviewer | $25/hr | Remote", "Chile (Remote)", ""},
 		{"Software Engineer I, Fullstack (Search)", "Raleigh, NC", ""},
 		{"Software Engineer (Y Combinator startup, E-commerce)", "", ""},
+		// Other languages share words with Spanish; they are not Spanish.
+		{"Responsable Développement Logiciel", "Paris, Île-de-France, France", ""},
+		{"Responsable de projet informatique", "Lyon, France (Hybrid)", ""},
+		{"Analista Programmatore", "Milano, Italy", ""},
+		{"Tecnico di Sistemi Remoto", "Roma, Italy", ""},
+		{"Responsable de Desarrollo", "Madrid, Spain", "Spanish"},
+		{"Responsable Técnico", "Bogotá, Colombia", "Spanish"},
+		{"Chef de Partie", "London, UK", ""},
+		{"Head of Engineering (LatAm)", "Mexico City, Mexico", ""},
 		// Both at once is unclear: English.
 		{"Desarrollador / Desenvolvedor Backend", "", ""},
 		{"", "", ""},

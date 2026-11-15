@@ -15,10 +15,12 @@ import (
 
 var (
 	// Words a job title only uses in that language.
-	spanishWords    = wordSet("desarrollador desarrolladora desarrollo ingeniero ingeniera trabajo programación programacion jefe jefa responsable")
+	spanishWords    = wordSet("desarrollador desarrolladora desarrollo ingeniero ingeniera trabajo programación programacion jefe jefa")
 	portugueseWords = wordSet("desenvolvedor desenvolvedora desenvolvimento engenheiro engenheira vaga pessoa pleno sênior programação programacao")
-	// Written the same in both: they only say "not English".
-	iberianWords = wordSet("analista programador programadora de para remoto remota sistemas técnico tecnico líder")
+	// Written the same in both, or in another language as well ("responsable"
+	// is a French job title too): they only say "not English", and the place
+	// has to settle which.
+	iberianWords = wordSet("analista programador programadora de para remoto remota sistemas técnico tecnico líder responsable")
 
 	spanishEndings    = []string{"ción", "cion", "idad"}
 	portugueseEndings = []string{"ção", "ções", "idade"}
