@@ -1027,6 +1027,29 @@ export function saveDigestSettings(settings: DigestSettings) {
   });
 }
 
+// ─── Draft settings ────────────────────────────────────
+export interface DraftSettings {
+  /** One result or customer the product can stand behind; "" = drafts mention none. */
+  proof_point: string;
+  /** Closes outreach emails as written; "" = no signature. */
+  sign_off: string;
+  /** Tracked short link in public replies. Off unless switched on. */
+  public_reply_links: boolean;
+  /** Replies drafted unasked per day (free); 0 = off. */
+  auto_draft_daily: number;
+}
+
+export function getDraftSettings() {
+  return request<DraftSettings>("/settings/drafts");
+}
+
+export function saveDraftSettings(settings: DraftSettings) {
+  return request<DraftSettings>("/settings/drafts", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
 // Returns rendered HTML (not JSON), so it bypasses request().
 export async function previewDigest(kind: "daily" | "weekly"): Promise<string> {
   const res = await fetch(`${BASE}/settings/digests/preview?kind=${kind}`, { method: "POST" });

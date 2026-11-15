@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"leadecho/internal/database"
 	"leadecho/internal/reply"
 )
 
@@ -74,5 +75,28 @@ func TestDraftReplyProfileID(t *testing.T) {
 				t.Fatalf("got %q err %v", got, err)
 			}
 		})
+	}
+}
+
+func TestDecodeDraftSettings(t *testing.T) {
+	three := 3
+	stored := database.DraftSettings{ProofPoint: "Acme cut interview hours by a third.", SignOff: "Rohan", AutoDraftDaily: &three}
+
+	// Omitted fields keep their value; links are only on when asked for.
+	got, err := decodeDraftSettings(strings.NewReader(`{"public_reply_links":true}`), stored)
+	if err != nil || !got.PublicReplyLinks || got.ProofPoint != stored.ProofPoint || got.SignOff != "Rohan" || got.AutoDraftLimit() != 3 {
+		t.Fatalf("partial update: %+v %v", got, err)
+	}
+	if got := toDraftSettingsResponse(database.DraftSettings{}); got.PublicReplyLinks || got.AutoDraftDaily != database.DefaultAutoDraftDaily || got.ProofPoint != "" {
+		t.Fatalf("defaults: %+v", got)
+	}
+	got, err = decodeDraftSettings(strings.NewReader(`{"proof_point":"","auto_draft_daily":0}`), stored)
+	if err != nil || got.ProofPoint != "" || got.AutoDraftLimit() != 0 {
+		t.Fatalf("clearing: %+v %v", got, err)
+	}
+	for _, body := range []string{`{`, `{"auto_draft_daily":21}`, `{"auto_draft_daily":-1}`, `{"sign_off":"` + strings.Repeat("a", 201) + `"}`} {
+		if _, err := decodeDraftSettings(strings.NewReader(body), stored); err == nil {
+			t.Errorf("%s: want an error", body[:min(len(body), 30)])
+		}
 	}
 }
