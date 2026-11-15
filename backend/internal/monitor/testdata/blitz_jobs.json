@@ -1,0 +1,318 @@
+{
+ "total_results": 670,
+ "results": [
+  {
+   "date_posted": "2026-11-15 04:27:04+01",
+   "title": "Senior Build & Release Software Engineer",
+   "url": "https://www.linkedin.com/jobs/view/senior-build-release-software-engineer-at-voyager-technologies-4491218423",
+   "company_name": "Voyager Technologies",
+   "company_linkedin_url": "https://www.linkedin.com/company/voyagertechnologies-inc",
+   "ai_summary": "Own end-to-end build and release engineering for flight and ground software, including GitLab CI/CD pipelines, branching and versioning strategy, test integration, and software package delivery. Operate self-hosted engineering infrastructure and Linux-based spacecraft test platforms, while establishing build, test, and release standards across software teams.",
+   "location": {
+    "city": "Pittsburgh",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-15 00:24:11.585+01",
+   "title": "Staff Software Engineer | Emerging Products",
+   "url": "https://www.linkedin.com/jobs/view/staff-software-engineer-emerging-products-at-ninjaone-4491212192",
+   "company_name": "NinjaOne",
+   "company_linkedin_url": "https://www.linkedin.com/company/ninjaone",
+   "ai_summary": "Lead architectural decisions and large-scale, cross-team technical initiatives, ensuring systems are scalable, maintainable, high-performing, and aligned with business needs. Collaborate across engineering, product, and infrastructure teams, mentor engineers, establish technical standards, and champion software quality.",
+   "location": {
+    "city": null,
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:41:58+01",
+   "title": "Senior Software Engineer, Funds",
+   "url": "https://www.linkedin.com/jobs/view/senior-software-engineer-funds-at-angellist-4491099722",
+   "company_name": "AngelList",
+   "company_linkedin_url": "https://www.linkedin.com/company/angellist",
+   "ai_summary": "Own and scale the GP Dashboard and build secure, reliable infrastructure, AI/MCP integrations, and automated workflows for fund operations, document reviews, and legal reviews. Work closely with customer relations, accounting, and tax stakeholders to turn manual processes into intuitive software and support the platform\u2019s growth.",
+   "location": {
+    "city": "New York",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:29:11+01",
+   "title": "Software Engineer - Data Center Tooling",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-data-center-tooling-at-lambda-4489362442",
+   "company_name": "Lambda",
+   "company_linkedin_url": "https://www.linkedin.com/company/lambda-cloud",
+   "ai_summary": "Build and operate systems that capture and validate physical datacenter inventory, resolve conflicts among data sources, and ensure physical topology matches intended logical configurations. Lead scanning workflow design, collaborate with operations, engineering, and vendors, and monitor production pipelines to meet SLAs and resolve state drift.",
+   "location": {
+    "city": "San Jose",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:24:25+01",
+   "title": "Software Engineer (up to $250k)",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-up-to-%24250k-at-dex-4491093972",
+   "company_name": "Dex",
+   "company_linkedin_url": "https://www.linkedin.com/company/meetdex",
+   "ai_summary": "Design and build backend systems, infrastructure, architecture, and database layers for real-time AI claims processing, scaling services for high-volume enterprise transactions. Own technical specifications and features from concept through production, and ensure code reliability and performance.",
+   "location": {
+    "city": "San Francisco",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Software Test Automation Engineer (R4719)",
+   "url": "https://www.linkedin.com/jobs/view/software-test-automation-engineer-r4719-at-shield-4491206346",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Develop software and tools to automate system-level testing of autonomy, embedded, GNC, and ground control software, working closely with GNC and Embedded teams. Build and scale interfaces, drivers, and test solutions that coordinate simulations, hardware, and test equipment, and support release testing and flight-test milestones.",
+   "location": {
+    "city": "Dallas",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Ground Control Station (GCS) Software Engineer (R4758)",
+   "url": "https://www.linkedin.com/jobs/view/ground-control-station-gcs-software-engineer-r4758-at-shield-4491091991",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Develop and optimize ground control applications for unmanned aircraft, including high-performance client and server software for telemetry, mission planning, and real-time control. Build operator interfaces and lead features from design through deployment while collaborating across autonomy, embedded systems, backend, and UX teams.",
+   "location": {
+    "city": "Dallas",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Senior Engineer, Autonomy Software Integration (R6246)",
+   "url": "https://www.linkedin.com/jobs/view/senior-engineer-autonomy-software-integration-r6246-at-shield-4491209186",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Integrate, configure, and validate autonomy software across simulation, hardware-in-the-loop, and flight platforms, including sensors, middleware, and robotic hardware. Diagnose system-level issues, develop integration and debugging tools, improve CI/CD workflows, and verify that integrated capabilities meet requirements and interface specifications.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Staff Safety-Critical Software Engineer (R5788)",
+   "url": "https://www.linkedin.com/jobs/view/staff-safety-critical-software-engineer-r5788-at-shield-4491214056",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Lead the architecture, development, integration, and testing of a configurable Run-Time Assurance module that supports safe autonomous operation across aircraft and other platforms. Establish rigorous software practices, produce certification-supporting artifacts, integrate the capability with autonomy and middleware, and mentor engineers in safety-critical development.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Senior Safety-Critical Software Engineer (R5788)",
+   "url": "https://www.linkedin.com/jobs/view/senior-safety-critical-software-engineer-r5788-at-shield-4491096840",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Develop, integrate, and test configurable Run-Time Assurance components and reusable C++ safety capabilities for real-time autonomy systems. Integrate safety-critical software with aircraft hardware for HIL and flight testing, and strengthen engineering evidence through analysis, reviews, documentation, and traceability.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Software Engineer II, Autonomy Behaviors (R5202)",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-ii-autonomy-behaviors-r5202-at-shield-4491098717",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Develop, test, and integrate tactical autonomy software behaviors for unmanned platforms, supporting missions such as coordination, target engagement, reconnaissance, and survivability. Collaborate with multidisciplinary teams on software lifecycle activities and integration across simulation and real-world environments, with travel up to 20%.",
+   "location": {
+    "city": "Boston",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 23:13:31+01",
+   "title": "Principal Engineer, Software Architect (R4562)",
+   "url": "https://www.linkedin.com/jobs/view/principal-engineer-software-architect-r4562-at-shield-4491213078",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Lead and evolve the system-wide software architecture for the XBAT program across airborne vehicle, ground station, mission, and autonomy domains, ensuring safety, security, scalability, and integration. Establish architecture standards and governance, guide technical reviews and technology choices, maintain architecture artifacts, and mentor engineers while coordinating with software, systems, hardware, avionics, and validation teams.",
+   "location": {
+    "city": "Dallas",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:59:10+01",
+   "title": "Senior Software Engineer, Autonomy Integration (R6035)",
+   "url": "https://www.linkedin.com/jobs/view/senior-software-engineer-autonomy-integration-r6035-at-shield-4491097710",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Build and maintain reliable autonomy integration environments, reference configurations, reusable test fixtures, and automated software- and hardware-in-the-loop tests. Integrate and debug the autonomy stack across software and hardware boundaries, support deployment and flight testing, and improve diagnostics, documentation, and integration quality.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:58:58+01",
+   "title": "Software Engineer, Networking & OS (R6362)",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-networking-os-r6362-at-shield-4491204409",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Design, implement, and optimize resilient Layer 2 and Layer 3 networking for the V-BAT unmanned aircraft system, including embedded Linux networking features, custom routing, tunnels, traffic management, and link failover. Collaborate with software and hardware engineers and field operators to validate reliable, secure, low-latency communications in hardware-in-the-loop labs and flight tests.",
+   "location": {
+    "city": "Dallas",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:58:46+01",
+   "title": "Staff Engineer, Software Test (R4784)",
+   "url": "https://www.linkedin.com/jobs/view/staff-engineer-software-test-r4784-at-shield-4491203448",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Develop test plans and procedures, execute verification and validation across software, hardware, and integrated systems, and analyze test results to assess performance and reliability. Collaborate with engineering, manufacturing, and program teams to troubleshoot issues and support XBat flight-critical software integration and mission readiness.",
+   "location": {
+    "city": "Seattle",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:58:34+01",
+   "title": "Senior Engineer, Software (R6010)",
+   "url": "https://www.linkedin.com/jobs/view/senior-engineer-software-r6010-at-shield-4491211113",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Design, build, operate, and continuously improve developer tools and platforms, including development environments, devcontainers, project templates, and agentic AI workflows. Partner with engineering teams to reduce development friction, encourage adoption and collaboration, and use DORA metrics and developer feedback to guide priorities and measure results.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:58:31+01",
+   "title": "Staff Software Engineer ML Platform (6244)",
+   "url": "https://www.linkedin.com/jobs/view/staff-software-engineer-ml-platform-6244-at-shield-4491211112",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Build and maintain backend services for experiment tracking, model registries, artifact management, and reproducible machine-learning workflows. Connect training runs to their data, code, and configuration, and provide reliable APIs and recovery mechanisms for engineers to retrieve and compare models and evaluation results.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:58:24+01",
+   "title": "Senior Software Engineer, Frontend Platform (R5790)",
+   "url": "https://www.linkedin.com/jobs/view/senior-software-engineer-frontend-platform-r5790-at-shield-4491204396",
+   "company_name": "Shield AI",
+   "company_linkedin_url": "https://www.linkedin.com/company/shield-ai",
+   "ai_summary": "Build and operate Forge, a composable development platform and its applications, including frontend architecture, backend services, APIs, and workflows for packaging and managing applications. Partner with autonomy, simulation, and machine-learning experts to validate real engineering workflows and enable secure, consistent use by engineers and AI agents.",
+   "location": {
+    "city": "San Diego",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:31:48+01",
+   "title": "Software Engineer - Data Center Tooling",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-data-center-tooling-at-lambda-4491209116",
+   "company_name": "Lambda",
+   "company_linkedin_url": "https://www.linkedin.com/company/lambda-cloud",
+   "ai_summary": "Build and operate systems that capture and validate physical datacenter assets and topology, reconcile conflicting data sources, and keep inventory aligned with logical configurations. Lead scanning and validation workflow design, partner with operations, engineering, and vendors, and monitor production pipelines to meet SLAs and resolve state discrepancies.",
+   "location": {
+    "city": "San Jose",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:31:48+01",
+   "title": "Software Engineer - Data Center Tooling",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-data-center-tooling-at-lambda-4491208153",
+   "company_name": "Lambda",
+   "company_linkedin_url": "https://www.linkedin.com/company/lambda-cloud",
+   "ai_summary": "Build and operate systems that capture and validate physical datacenter inventory, topology, cabling, and hardware state against logical configurations, including data provenance and conflict resolution. Lead scanning and validation workflow design, collaborate with operations, engineering, and vendors, and monitor production pipelines and SLAs to resolve discrepancies.",
+   "location": {
+    "city": "San Francisco",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 22:31:47+01",
+   "title": "Software Engineer - Data Center Tooling",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-data-center-tooling-at-lambda-4491094854",
+   "company_name": "Lambda",
+   "company_linkedin_url": "https://www.linkedin.com/company/lambda-cloud",
+   "ai_summary": "Build and operate systems that capture and validate datacenter hardware, inventory, topology, and cabling data, including resolving conflicts among vendor, on-site, and telemetry sources. Lead scanning and validation workflow design, collaborate with operations, engineering, and vendors, and monitor production pipelines to meet SLAs and correct physical-to-logical state drift.",
+   "location": {
+    "city": "Bellevue",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 20:45:42+01",
+   "title": "Senior Software-Defined Control Systems Engineer",
+   "url": "https://www.linkedin.com/jobs/view/senior-software-defined-control-systems-engineer-at-desert-control-4490204174",
+   "company_name": "Desert Control",
+   "company_linkedin_url": "https://www.linkedin.com/company/desertcontrol",
+   "ai_summary": "Own the end-to-end development, integration, commissioning, maintenance, and operational support of the company\u2019s software-defined industrial control systems. Integrate control software, Linux-based applications, electrical equipment, instrumentation, industrial networks, and operator interfaces, while troubleshooting and optimizing systems in manufacturing and field environments.",
+   "location": {
+    "city": "Phoenix",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 19:51:42+01",
+   "title": "Security Software Engineer",
+   "url": "https://www.linkedin.com/jobs/view/security-software-engineer-at-intuition-machines-4489366190",
+   "company_name": "Intuition Machines",
+   "company_linkedin_url": "https://www.linkedin.com/company/intuition-machines-inc.",
+   "ai_summary": "Design, develop, and deploy security platform tools and features that improve detection and prevention of malicious activity, with a focus on systems programming, compilers, obfuscation, and virtual machines. Research and apply security and machine-learning advances, monitor and maintain production systems, and deliver well-documented, tested, maintainable code.",
+   "location": {
+    "city": null,
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 19:49:49+01",
+   "title": "Intern, Software Data Integration Engineer",
+   "url": "https://www.linkedin.com/jobs/view/intern-software-data-integration-engineer-at-martin-marietta-4491096584",
+   "company_name": "Martin Marietta",
+   "company_linkedin_url": "https://www.linkedin.com/company/martinmarietta",
+   "ai_summary": "Assist senior developers in designing, building, testing, and supporting Boomi integrations connecting ERP, database, and cloud applications. Support API and database integrations, monitor and troubleshoot integration operations, contribute to reviews and development standards, and maintain technical documentation.",
+   "location": {
+    "city": "Raleigh",
+    "country_code": "US"
+   }
+  },
+  {
+   "date_posted": "2026-11-14 19:44:17+01",
+   "title": "Software Engineer, Backend",
+   "url": "https://www.linkedin.com/jobs/view/software-engineer-backend-at-shepherd-4489349717",
+   "company_name": "Shepherd",
+   "company_linkedin_url": "https://www.linkedin.com/company/withshepherd",
+   "ai_summary": "Lead major product initiatives and own a significant area of the platform, making technical and architectural decisions while contributing to product strategy. Work across engineering, product, design, and insurance teams, deliver high-quality features, and mentor engineers as the company grows.",
+   "location": {
+    "city": "San Francisco",
+    "country_code": "US"
+   }
+  }
+ ],
+ "results_length": 25,
+ "max_results": 25,
+ "cursor": "eyJzIjpbMTc5NDY4MTg1NzAwMCwyNDY4Mzk0Nzc3XSwibyI6MjUsInQiOjY3MCwicSI6InZwQ2xQZTFyR1B0RUR1b3kifQ.72FGKNG9UqURezUvhnphhe9ibL-TOuek5aTUm8a21u0",
+ "fair_usage": {
+  "records_used": 25,
+  "records_remaining": 65318,
+  "next_reset_at": null,
+  "rate_limit": {
+   "requests_per_second": 100,
+   "remaining_this_second": 99
+  },
+  "request_id": "01a1de24-c199-75e5-8d72-39ba11dd4088"
+ }
+}

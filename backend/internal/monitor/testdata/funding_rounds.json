@@ -1,0 +1,155 @@
+{
+ "data": [
+  {
+   "id": "859495d4-5415-4bfc-818c-148d9b2b8509",
+   "type": "financing_event",
+   "attributes": {
+    "effective_date": "2026-11-13",
+    "found_at": "2026-11-13T19:22:35+01:00",
+    "categories": [
+     "seed",
+     "venture"
+    ],
+    "financing_type": "Seed",
+    "financing_type_normalized": "seed",
+    "amount": "$4.4 million",
+    "amount_normalized": 4400000,
+    "source_urls": [
+     "https://zerogtalent.com/blog/drillbit-raises-4-4m-to-automate-field-service-operations-for-residential-contractors"
+    ]
+   },
+   "relationships": {
+    "company": {
+     "data": {
+      "id": "993bf3f9-fbaa-4c3f-a74f-81cc5f075eab",
+      "type": "company"
+     }
+    },
+    "investors": {
+     "data": []
+    }
+   }
+  },
+  {
+   "id": "cb379c50-4796-4cec-9672-af957bd255c6",
+   "type": "financing_event",
+   "attributes": {
+    "effective_date": "2026-11-13",
+    "found_at": "2026-11-13T16:02:48+01:00",
+    "categories": [
+     "seed",
+     "venture"
+    ],
+    "financing_type": "Seed",
+    "financing_type_normalized": "seed",
+    "amount": "$8m",
+    "amount_normalized": 8000000,
+    "source_urls": [
+     "https://fintech.global/2026/11/13/agentcard-secures-8m-to-let-ai-agents-shop-online"
+    ]
+   },
+   "relationships": {
+    "company": {
+     "data": {
+      "id": "394cf971-bc87-44e6-a2d0-d63ac20c8691",
+      "type": "company"
+     }
+    },
+    "investors": {
+     "data": []
+    }
+   }
+  },
+  {
+   "id": "0ad84f04-c133-4d9f-b62a-a5370457a500",
+   "type": "financing_event",
+   "attributes": {
+    "effective_date": "2026-11-17",
+    "found_at": "2026-11-13T12:53:19+01:00",
+    "categories": [
+     "series",
+     "series_a",
+     "venture"
+    ],
+    "financing_type": "Series A",
+    "financing_type_normalized": "series_a",
+    "amount": "$85 million",
+    "amount_normalized": 85000000,
+    "source_urls": [
+     "https://www.aviation-defence-universe.com/lakestar-and-rochefort-asset-management-co-lead-series-a-for-tiberius-aerospace-at-over-1-billion-valuation"
+    ]
+   },
+   "relationships": {
+    "company": {
+     "data": {
+      "id": "43127343-ada3-41d2-ac0d-1eb8c4a3335d",
+      "type": "company"
+     }
+    },
+    "investors": {
+     "data": [
+      {
+       "id": "13d867e5-6e5a-4f88-8221-b28941e26fce",
+       "type": "company"
+      },
+      {
+       "id": "b0121c63-a978-5325-88fa-cc637fa86881",
+       "type": "company"
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "included": [
+  {
+   "id": "13d867e5-6e5a-4f88-8221-b28941e26fce",
+   "type": "company",
+   "attributes": {
+    "domain": "rochefort.us",
+    "company_name": "Rochefort Asset Management LLC",
+    "ticker": null
+   }
+  },
+  {
+   "id": "b0121c63-a978-5325-88fa-cc637fa86881",
+   "type": "company",
+   "attributes": {
+    "domain": "lakestar.com",
+    "company_name": "Lakestar",
+    "ticker": null
+   }
+  },
+  {
+   "id": "43127343-ada3-41d2-ac0d-1eb8c4a3335d",
+   "type": "company",
+   "attributes": {
+    "domain": "tiberius.com",
+    "company_name": "Tiberius Aerospace Inc.",
+    "ticker": null
+   }
+  },
+  {
+   "id": "394cf971-bc87-44e6-a2d0-d63ac20c8691",
+   "type": "company",
+   "attributes": {
+    "domain": "agentcard.ai",
+    "company_name": "AgentCard",
+    "ticker": null
+   }
+  },
+  {
+   "id": "993bf3f9-fbaa-4c3f-a74f-81cc5f075eab",
+   "type": "company",
+   "attributes": {
+    "domain": "drillbit.com",
+    "company_name": "Drillbit",
+    "ticker": null
+   }
+  }
+ ],
+ "meta": {
+  "schema_version": "3.0",
+  "record_state": "active"
+ }
+}

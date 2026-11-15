@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isCompanySignal, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
+import { isCompanySignal, parseFunding, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -591,6 +591,30 @@ function SegmentFitPanel({ mention }: { mention: Mention }) {
   );
 }
 
+// The round behind a funding lead (or raised by a hiring lead's company),
+// with the page that announced it.
+function FundingPanel({ mention }: { mention: Mention }) {
+  const round = parseFunding(mention.platform_metadata);
+  if (!round) return null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Funding</h5>
+      <p className="text-sm leading-relaxed">
+        <span className="font-medium">{round.label}</span>
+        {round.date && <span className="text-foreground-soft"> · announced {round.date}</span>}
+        {round.url && (
+          <>
+            {" "}
+            <a href={round.url} target="_blank" rel="noreferrer noopener" className="whitespace-nowrap text-xs text-primary-ink underline underline-offset-2">
+              {sourceHost(round.url)}
+            </a>
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function ResearchPanel({ mention }: { mention: Mention }) {
   const research = parseResearch(mention.platform_metadata);
   if (!research) return null;
@@ -786,6 +810,7 @@ export function LeadDetail({
           </motion.div>
         </AnimatePresence>
         <SegmentFitPanel mention={mention} />
+        <FundingPanel mention={mention} />
         <ResearchPanel mention={mention} />
         <SignalsPanel mention={mention} />
       </div>

@@ -59,3 +59,40 @@ func TestRubricScoresABuyerDescribingTheirOwnProblemAsALead(t *testing.T) {
 		}
 	}
 }
+
+// A funded company has no posting: the screen is told so, with what there is
+// to judge it by.
+func TestHiringScreenMessageMarksFundedCompanies(t *testing.T) {
+	msg := hiringScreenMessage(HiringScreen{Roles: []string{"Software Engineer"}, Jobs: []HiringJob{
+		{Company: "Acme", Title: "Backend Engineer"},
+		{Company: "Drillbit", Funding: "a Seed round of $4.4 million, announced 2026-11-13", Website: "drillbit.com", SourceURL: "https://news.example/drillbit-raises"},
+	}})
+	want := "1. [FUNDED] Drillbit raised a Seed round of $4.4 million, announced 2026-11-13. Website: drillbit.com. Announcement: https://news.example/drillbit-raises\n"
+	if !strings.Contains(msg, want) || !strings.Contains(msg, "0. Acme: Backend Engineer\n") {
+		t.Errorf("message:\n%s", msg)
+	}
+	if !strings.Contains(hiringScreenPrompt, "[FUNDED]") {
+		t.Error("the screen's brief must say what a [FUNDED] entry is")
+	}
+}
+
+// The round is the opening fact of a funding lead's message, and only as the
+// stored fields give it; a posting's message says where the job is.
+func TestOutreachForFundingAndJobLocation(t *testing.T) {
+	round := "a Seed round of $4.4 million, announced 2026-11-13"
+	funded := Outreach{Product: "P", ContactName: "Dana", ContactTitle: "CTO", Company: "Drillbit", Funding: round}
+	if msg := outreachUserMessage(funded); !strings.Contains(msg, "They just raised: "+round) || strings.Contains(msg, "Job they posted") {
+		t.Errorf("funding message:\n%s", msg)
+	}
+	if outreachSystemPrompt(funded) != fundingOutreachPrompt {
+		t.Error("a round with no posting is written to about the round")
+	}
+	both := Outreach{Product: "P", ContactName: "Dana", Company: "Drillbit", JobTitle: "Software Engineer", JobLocation: "Rio de Janeiro, Brazil", Funding: round}
+	msg := outreachUserMessage(both)
+	if !strings.Contains(msg, "Job they posted this week: Software Engineer (Rio de Janeiro, Brazil)") || !strings.Contains(msg, "They just raised: "+round) {
+		t.Errorf("hiring message:\n%s", msg)
+	}
+	if outreachSystemPrompt(both) != outreachPrompt || outreachSystemPrompt(Outreach{SegmentPain: "x"}) != prospectOutreachPrompt {
+		t.Error("a posting is the reason to write when there is one; nothing at all is a prospect")
+	}
+}

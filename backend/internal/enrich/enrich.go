@@ -47,21 +47,26 @@ type Subject struct {
 
 // Result is stored as leads.metadata.enrichment and persons.metadata.enrichment.
 type Result struct {
-	FullName      string            `json:"full_name,omitempty"`
-	Bio           string            `json:"bio,omitempty"` // public profile text (X, Hacker News)
-	Title         string            `json:"title,omitempty"`
-	LinkedInURL   string            `json:"linkedin_url,omitempty"`
-	Location      string            `json:"location,omitempty"`
-	Company       string            `json:"company,omitempty"`
-	CompanyDomain string            `json:"company_domain,omitempty"`
-	Industry      string            `json:"industry,omitempty"`
-	Employees     string            `json:"employees,omitempty"`
-	CompanySize   int               `json:"company_size,omitempty"`
-	Email         string            `json:"email,omitempty"`
-	EmailStatus   string            `json:"email_status,omitempty"` // verified|invalid|catchall|risky|unknown
-	EmailSource   string            `json:"email_source,omitempty"` // the data provider that found the email
-	Steps         map[string]string `json:"steps"`
-	EnrichedAt    time.Time         `json:"enriched_at"`
+	FullName      string `json:"full_name,omitempty"`
+	Bio           string `json:"bio,omitempty"` // public profile text (X, Hacker News)
+	Title         string `json:"title,omitempty"`
+	LinkedInURL   string `json:"linkedin_url,omitempty"`
+	Location      string `json:"location,omitempty"`
+	Company       string `json:"company,omitempty"`
+	CompanyDomain string `json:"company_domain,omitempty"`
+	// CompanyLinkedInURL is the employer's LinkedIn page, when a provider gives one.
+	CompanyLinkedInURL string `json:"company_linkedin_url,omitempty"`
+	// IdentityMismatch says what disagreed when the employer was withheld
+	// (the email found is at another organisation); "" when nothing did.
+	IdentityMismatch string            `json:"identity_mismatch,omitempty"`
+	Industry         string            `json:"industry,omitempty"`
+	Employees        string            `json:"employees,omitempty"`
+	CompanySize      int               `json:"company_size,omitempty"`
+	Email            string            `json:"email,omitempty"`
+	EmailStatus      string            `json:"email_status,omitempty"` // verified|invalid|catchall|risky|unknown
+	EmailSource      string            `json:"email_source,omitempty"` // the data provider that found the email
+	Steps            map[string]string `json:"steps"`
+	EnrichedAt       time.Time         `json:"enriched_at"`
 }
 
 // Found reports whether any step produced data.
@@ -135,6 +140,7 @@ func (p *Pipeline) Run(ctx context.Context, ws string, s Subject) (*Result, erro
 		verify = map[string]any{"email": r.Email, "resolve_catchall": false}
 	}
 	step(ToolEmailVerify, verify, r.applyVerify)
+	r.checkEmployer()
 	return r, nil
 }
 
@@ -210,6 +216,7 @@ func (r *Result) applyPerson(o map[string]any) bool {
 	r.Title = str(o, "title")
 	r.Company = str(o, "company")
 	r.CompanyDomain = str(o, "company_domain")
+	r.CompanyLinkedInURL = str(o, "company_linkedin_url")
 	r.LinkedInURL = str(o, "linkedin_url")
 	r.Location = str(o, "location")
 	return true
@@ -222,6 +229,7 @@ func (r *Result) applyCompany(o map[string]any) bool {
 	}
 	r.Company = name
 	r.CompanyDomain = firstNonEmpty(str(o, "domain"), r.CompanyDomain)
+	r.CompanyLinkedInURL = firstNonEmpty(r.CompanyLinkedInURL, str(o, "linkedin_url"))
 	r.Industry = str(o, "industry")
 	r.Employees = str(o, "employees")
 	r.CompanySize = parseSize(o["employees"])

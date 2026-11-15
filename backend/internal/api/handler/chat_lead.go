@@ -127,18 +127,38 @@ func (h *ChatHandler) leadContext(ctx context.Context, ws, mentionID string) (st
 		Signal            string `json:"signal"`
 		Company           string `json:"company"`
 		JobTitle          string `json:"job_title"`
+		JobURL            string `json:"job_url"`
 		ContactTitle      string `json:"contact_title"`
 		Confirmed         *bool  `json:"confirmed"`
 		UnconfirmedReason string `json:"unconfirmed_reason"`
+		IdentityMismatch  string `json:"identity_mismatch"`
+		FundingType       string `json:"funding_type"`
+		FundingAmount     string `json:"funding_amount"`
+		FundingDate       string `json:"funding_date"`
+		FundingURL        string `json:"funding_url"`
 	}
 	_ = json.Unmarshal(m.PlatformMetadata, &pm)
-	if pm.Signal == "hiring" {
-		line("Kind", "hiring signal: the company posted this job this week")
+	if pm.Signal == "hiring" || pm.Signal == "funding" {
+		if pm.Signal == "funding" {
+			line("Kind", "funding signal: the company just raised a round (companies hire within weeks of one)")
+		} else {
+			line("Kind", "hiring signal: the company posted this job this week")
+		}
 		line("Company", pm.Company)
-		line("Job posted", pm.JobTitle)
+		if pm.Signal == "funding" && pm.JobTitle != "" {
+			// Added to the round's lead later, by the company's name alone.
+			line("Possibly also hiring", pm.JobTitle+" ("+pm.JobURL+"): a posting matched by company name only, so it may be another company's; not a checked fact")
+		} else {
+			line("Job posted", pm.JobTitle)
+		}
+		if pm.FundingType != "" {
+			line("Round raised", strings.TrimSpace(strings.ReplaceAll(pm.FundingType, "_", " ")+" "+pm.FundingAmount)+", announced "+pm.FundingDate)
+			line("Round announced at", pm.FundingURL)
+		}
 		line("Contact's title", pm.ContactTitle)
 		if pm.Confirmed != nil && !*pm.Confirmed {
 			line("Contact NOT confirmed", pm.UnconfirmedReason)
+			line("What disagreed", pm.IdentityMismatch)
 		}
 	}
 	var sm struct {
