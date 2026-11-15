@@ -226,6 +226,9 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 		return false
 	}
 
+	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
+		ctx = withScanBrand(ctx, newBrand(bp.Product, bp.SourceUrl))
+	}
 	if m.credits.PaidPlatformsLocked(ctx, wsID) { // billing: X/Reddit/LinkedIn need a paid plan
 		kws = withoutPaidPlatforms(kws)
 	}
@@ -395,6 +398,11 @@ func (m *Monitor) insertMentionErr(ctx context.Context, p database.CreateMention
 	p.Content = html.UnescapeString(p.Content)
 	p.Title.String = html.UnescapeString(p.Title.String)
 	if tooOld(ctx, p.PlatformCreatedAt, time.Now()) {
+		return nil, nil
+	}
+	// A brand keyword's result that never names the brand is not a mention of
+	// it: not stored, so it is not counted anywhere either.
+	if brandFrom(ctx).missing(keyword, p.Title.String+" "+p.Content+" "+p.AuthorUsername.String+" "+p.Url) {
 		return nil, nil
 	}
 	if m.isMuted(ctx, p) { // sources: mute lists

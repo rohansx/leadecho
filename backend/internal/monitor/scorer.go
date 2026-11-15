@@ -28,8 +28,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 
 	// The customer's own posts are not leads: don't pay to score them.
 	product, about := "", ""
+	var own brand
 	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
-		product, about = bp.Product, filterAbout(bp)
+		product, about, own = bp.Product, filterAbout(bp), newBrand(bp.Product, bp.SourceUrl)
 	}
 
 	// Collect scoreable mentions (pass Stage 0 rules filter)
@@ -38,7 +39,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 		switch {
 		case ownAccount(a.Author, product):
 			m.markStageFiltered(ctx, a, "stage0_own_post", "posted by your own account")
-		case brandNotNamed(a, product):
+		case brandNotNamed(a, own): // posts stored before the insert path checked this
 			m.markStageFiltered(ctx, a, "stage0_brand_not_named", "found by a keyword with your product's name, but the post does not mention it")
 		case scoreStage1Rules(a.Content):
 			scoreable = append(scoreable, a)

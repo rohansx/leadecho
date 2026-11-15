@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"context"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -120,20 +122,76 @@ func ownAccount(author, product string) bool {
 	return false
 }
 
-// brandNotNamed reports whether a post found by a keyword that names the
-// product ("Utkrusht interview") never mentions the product. Searches match
-// the keyword's other words, so most results for such a keyword are about
-// interviews in general (589 of 593 for one customer); a brand keyword
-// exists to find mentions of the brand, and these are not that.
-func brandNotNamed(a mentionAlert, product string) bool {
-	// The name's first word: a post that says "Utkrusht" names "Utkrusht AI".
-	p := ""
+// brand is how the workspace's product is recognised in text: its name's
+// first word ("Utkrusht" for "Utkrusht AI") and its website's host, both
+// lower-case with everything but letters and digits removed. Either is ""
+// when unknown or too short to match safely.
+type brand struct{ name, domain string }
+
+func newBrand(product, siteURL string) brand {
+	var b brand
 	if f := strings.Fields(product); len(f) > 0 {
-		p = nonAlnumLower.ReplaceAllString(strings.ToLower(f[0]), "")
+		b.name = squash(f[0])
 	}
-	if len(p) < 4 || !strings.Contains(nonAlnumLower.ReplaceAllString(strings.ToLower(a.Keyword), ""), p) {
-		return false
+	if u, err := url.Parse(strings.TrimSpace(siteURL)); err == nil {
+		b.domain = squash(strings.TrimPrefix(strings.ToLower(u.Hostname()), "www."))
 	}
-	text := strings.ToLower(a.Title + " " + a.Content + " " + a.Author + " " + a.URL)
-	return !strings.Contains(nonAlnumLower.ReplaceAllString(text, ""), p)
+	if len(b.name) < 4 {
+		b.name = ""
+	}
+	if len(b.domain) < 4 {
+		b.domain = ""
+	}
+	return b
+}
+
+func squash(s string) string { return nonAlnumLower.ReplaceAllString(strings.ToLower(s), "") }
+
+// in reports whether text names the brand.
+func (b brand) in(text string) bool {
+	t := squash(text)
+	return (b.name != "" && strings.Contains(t, b.name)) || (b.domain != "" && strings.Contains(t, b.domain))
+}
+
+// missing reports whether a post found by a keyword that names the product
+// ("Utkrusht interview") never mentions the product. Searches match the
+// keyword's other words, so most results for such a keyword are about
+// interviews in general (852 of 852 for one customer); a brand keyword
+// exists to find mentions of the brand, and these are not that.
+func (b brand) missing(keyword, text string) bool {
+	return b.in(keyword) && !b.in(text)
+}
+
+// quote puts the brand words of a search term in double quotes, for sources
+// whose search treats a quoted word as "must appear exactly". A term the
+// customer already quoted is left alone.
+func (b brand) quote(term string) string {
+	if strings.Contains(term, `"`) || !b.in(term) {
+		return term
+	}
+	fields := strings.Fields(term)
+	for i, f := range fields {
+		if b.in(f) {
+			fields[i] = `"` + f + `"`
+		}
+	}
+	return strings.Join(fields, " ")
+}
+
+type brandKey struct{}
+
+// withScanBrand carries the workspace's brand through a scan, so the insert
+// path and the crawlers' search queries can use it without a lookup per post.
+func withScanBrand(ctx context.Context, b brand) context.Context {
+	return context.WithValue(ctx, brandKey{}, b)
+}
+
+func brandFrom(ctx context.Context) brand {
+	b, _ := ctx.Value(brandKey{}).(brand)
+	return b
+}
+
+// brandNotNamed is brand.missing for a post that is already stored.
+func brandNotNamed(a mentionAlert, b brand) bool {
+	return b.missing(a.Keyword, a.Title+" "+a.Content+" "+a.Author+" "+a.URL)
 }
