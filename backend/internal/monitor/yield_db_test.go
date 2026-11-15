@@ -64,6 +64,21 @@ func TestBrandKeywordAndYieldDB(t *testing.T) {
 		t.Error("a non-brand keyword's post was dropped")
 	}
 
+	// "hiring signal" is a label, not a customer keyword: a product called
+	// Signal must not lose its hiring leads to the brand check.
+	label := post(noisy, "h1", "A fintech company posted a job for a senior backend engineer in Berlin this week")
+	label.KeywordID = pgtype.UUID{}
+	if a := m.insertMention(withScanBrand(ctx, newBrand("Signal", "")), label, "hiring signal"); a == nil {
+		t.Error("a post without a customer keyword went through the brand check")
+	}
+	// Posts stored for the brand keyword before this check existed count for nothing.
+	if _, err := pool.Exec(ctx, `
+INSERT INTO mentions (workspace_id, keyword_id, platform, platform_id, url, content, scoring_metadata, platform_metadata, engagement_metrics, keyword_matches)
+SELECT $1, $2, 'hackernews', 'legacy'||g, 'https://news.example/legacy'||g, 'an interview story '||g, '{"stage":"stage0_brand_not_named"}', '{}', '{}', '{}'
+FROM generate_series(1, 200) g`, ws, brandKW.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	// 120 more posts for the noisy keyword on Hacker News, none of them a lead.
 	if _, err := pool.Exec(ctx, `
 INSERT INTO mentions (workspace_id, keyword_id, platform, platform_id, url, content, scoring_metadata, relevance_score, platform_metadata, engagement_metrics, keyword_matches)
