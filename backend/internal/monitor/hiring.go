@@ -59,6 +59,7 @@ const (
 	hiringTeamContactSize = 500
 	// Candidates tried per company when the first can't be confirmed.
 	maxContactTries = 2
+	maxPeopleRows   = 25 // people from one search considered before ranking
 	// Unconfirmed signals stay below the lead threshold (6): visible under
 	// "All conversations" with the reason, but not presented as a lead.
 	hiringScoreUnconfirmed = 5.0
@@ -502,6 +503,13 @@ func hiringPlatformID(company, month string) string {
 // buy, best first. No candidates with a nil error means the search worked and
 // found nobody suitable; an error means the search itself failed.
 func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job jobPost, companySize int) ([]foundPerson, error) {
+	return m.searchBuyers(ctx, wsID, titles, job, companySize, nil)
+}
+
+// searchBuyers is the people search behind hiringBuyers. order, when set,
+// sorts every matching person before the list is cut to maxContactTries,
+// so the best title is among the people who get a paid lookup.
+func (m *Monitor) searchBuyers(ctx context.Context, wsID, titles string, job jobPost, companySize int, order func([]foundPerson) []foundPerson) ([]foundPerson, error) {
 	resp, err := m.treg.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregPeopleTool,
 		Body: map[string]string{"q": buyerQuery(titles, job, companySize)}})
 	if err != nil {
@@ -510,7 +518,11 @@ func (m *Monitor) hiringBuyers(ctx context.Context, wsID, titles string, job job
 		}
 		return nil, err
 	}
-	return pickBuyers(parsePeople(resp.Body), job.Company, maxContactTries), nil
+	if order == nil {
+		return pickBuyers(parsePeople(resp.Body), job.Company, maxContactTries), nil
+	}
+	all := order(pickBuyers(parsePeople(resp.Body), job.Company, maxPeopleRows))
+	return all[:min(len(all), maxContactTries)], nil
 }
 
 // chooseContact checks candidates in order until one is confirmed. The first

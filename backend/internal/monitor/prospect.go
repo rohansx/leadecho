@@ -238,18 +238,21 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 // people search has run.
 func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.BrandProfile, seg ai.CustomerSegment, c ai.ProspectCandidate, fit ai.ProspectFit, pid string, remember func(string)) (created, stop bool) {
 	job := jobPost{Company: c.Name, CompanyURL: "https://" + c.Domain} // no job: the buyer query names the titles
-	candidates, err := m.hiringBuyers(ctx, wsID, seg.BuyerTitles, job, c.Employees)
+	candidates, err := m.searchBuyers(ctx, wsID, seg.BuyerTitles, job, c.Employees,
+		func(p []foundPerson) []foundPerson { return rankByTitles(p, seg.BuyerTitles) })
 	if err != nil {
 		return false, true
 	}
 	co := hiringCompany{size: c.Employees, domain: c.Domain}
-	person, contact, check, capped := chooseContact(rankByTitles(candidates, seg.BuyerTitles),
+	// Up to maxContactTries paid lookups per company: a catch-all email sends
+	// it to the next person, so a run pays for at most 2 x its contact cap.
+	person, contact, check, capped := chooseContact(candidates,
 		func(p foundPerson) (*enrich.Result, bool) { return m.verifyContact(ctx, wsID, job, p) },
 		func(p foundPerson, res *enrich.Result) contactCheck {
 			return confirmProspectContact(c.Name, co, p, res)
 		})
-	if capped && person.Name == "" {
-		return false, true // today's contact lookups ran out before anyone was checked: retry another day
+	if capped && !check.confirmed {
+		return false, true // today's contact lookups ran out before a buyer was confirmed: retry another day
 	}
 	remember(c.Domain)
 	if !check.confirmed {
@@ -345,19 +348,25 @@ func confirmProspectContact(company string, co hiringCompany, p foundPerson, res
 // first: "VP Engineering or Head of Talent" tries engineering leaders before
 // recruiters. A phrase matches on its last word (Engineering, Talent, CTO).
 // ponytail: last-word match; use the model to rank if titles get subtler.
-var titleSplitRe = regexp.MustCompile(`(?i)\s+or\s+|,|;|/`)
+var (
+	titleSplitRe = regexp.MustCompile(`(?i)\s+or\s+|,|;|/`)
+	nonWordRe    = regexp.MustCompile(`[^a-z0-9]+`)
+)
 
 func rankByTitles(people []foundPerson, titles string) []foundPerson {
 	var keys []string
 	for _, ph := range titleSplitRe.Split(titles, -1) {
 		if f := strings.Fields(ph); len(f) > 0 {
-			keys = append(keys, strings.ToLower(f[len(f)-1]))
+			keys = append(keys, strings.Trim(strings.ToLower(f[len(f)-1]), ".:()"))
 		}
 	}
 	rank := func(title string) int {
-		t := strings.ToLower(title)
+		words := map[string]bool{}
+		for _, w := range nonWordRe.Split(strings.ToLower(title), -1) {
+			words[w] = true
+		}
 		for i, k := range keys {
-			if strings.Contains(t, k) {
+			if words[k] { // whole words: "cto" must not match "director"
 				return i
 			}
 		}
