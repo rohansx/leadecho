@@ -33,7 +33,7 @@ func (s *screenOnly) ScreenHiringJobs(_ context.Context, _ string, in ai.HiringS
 }
 
 // DB-backed: a re-screen archives the workspace's recent company leads that
-// fail, says why and who asked, leaves alone posts, old leads and leads the
+// fail, says why, leaves alone posts, old leads and leads the
 // customer acted on, and changes nothing when run again. The monitor has no
 // data provider at all: nothing paid can be called.
 func TestRescreenCompanyLeadsDB(t *testing.T) {
@@ -57,7 +57,7 @@ func TestRescreenCompanyLeadsDB(t *testing.T) {
 	m := &Monitor{q: q, logger: zerolog.Nop()}
 
 	// Without a profile there is nothing to screen against.
-	if _, _, err := m.rescreen(ctx, ws, "ops@example.com"); err == nil {
+	if _, _, err := m.rescreen(ctx, ws); err == nil {
 		t.Fatal("a workspace without a profile must not be re-screened")
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO brand_profiles (workspace_id, product, overview, target_audience) VALUES ($1, 'Skill tests', 'Assessments for hiring engineers', 'Engineering leaders')`, ws); err != nil {
@@ -87,20 +87,46 @@ RETURNING id::text`, ws, pid, status, platformMeta, foundDaysAgo).Scan(&id); err
 
 	planner := &screenOnly{drop: "Staffing Co"}
 	m.hiringPlanner = planner
-	checked, archived, err := m.rescreen(ctx, ws, "ops@example.com")
+
+	// A plan that does not apply names no roles: screening against it would
+	// drop every posting, so the run fails and nothing is archived.
+	setPlan := func(plan string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `UPDATE workspaces SET settings = jsonb_set(settings, '{hiring_signals,plan}', $2::jsonb) WHERE id = $1`, ws, plan); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setPlan(`{"applies":false,"roles":[]}`)
+	if _, archived, err := m.rescreen(ctx, ws); err == nil || archived != 0 || planner.calls != 0 {
+		t.Fatalf("without an applying plan: %d archived, %d screen calls, err %v; want an error and nothing done", archived, planner.calls, err)
+	}
+	var gone int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM mentions WHERE workspace_id = $1 AND status = 'archived'`, ws).Scan(&gone); err != nil || gone != 0 {
+		t.Fatalf("without an applying plan %d leads were archived (%v)", gone, err)
+	}
+	setPlan(`{"applies":true,"roles":["software engineer"],"max_company_size":5000}`)
+	checked, archived, err := m.rescreen(ctx, ws)
 	if err != nil || checked != 3 || archived != 2 {
 		t.Fatalf("rescreen = %d checked, %d archived, %v; want 3 and 2", checked, archived, err)
 	}
-	state := func(id string) (status, reason, by string) {
+	// state returns the lead's status, why the re-screen archived it, and when.
+	state := func(id string) (status, reason, at string) {
 		t.Helper()
-		if err := pool.QueryRow(ctx, `SELECT status::text, COALESCE(scoring_metadata->'rescreen'->>'reason', ''), COALESCE(scoring_metadata->'rescreen'->>'by', '')
-FROM mentions WHERE id = $1 AND scoring_metadata->>'stage' = 'hiring_signal'`, id).Scan(&status, &reason, &by); err != nil {
+		var meta string
+		if err := pool.QueryRow(ctx, `SELECT status::text, COALESCE(scoring_metadata->'rescreen'->>'reason', ''), COALESCE(scoring_metadata->'rescreen'->>'at', ''), scoring_metadata::text
+FROM mentions WHERE id = $1 AND scoring_metadata->>'stage' = 'hiring_signal'`, id).Scan(&status, &reason, &at, &meta); err != nil {
 			t.Fatal(err) // also fails if the scoring metadata already there was lost
+		}
+		// The customer's API returns scoring_metadata as stored: who asked is
+		// in the ops audit log, not here.
+		if strings.Contains(meta, `"by"`) {
+			t.Fatalf("who asked is stored where the customer can read it: %s", meta)
 		}
 		return
 	}
-	if s, why, by := state(agency); s != "archived" || why != rescreenPostingReason || by != "ops@example.com" {
-		t.Fatalf("agency = %s, %q, by %q", s, why, by)
+	_, _, archivedAt := state(agency)
+	if s, why, _ := state(agency); s != "archived" || why != rescreenPostingReason || archivedAt == "" {
+		t.Fatalf("agency = %s, %q, at %q", s, why, archivedAt)
 	}
 	if s, why, _ := state(ruledOut); s != "archived" || !strings.Contains(why, "not a buyer") {
 		t.Fatalf("ruled out = %s, %q", s, why)
@@ -112,12 +138,12 @@ FROM mentions WHERE id = $1 AND scoring_metadata->>'stage' = 'hiring_signal'`, i
 	}
 
 	// Again: only the lead that passed is still there to check.
-	checked, archived, err = m.rescreen(ctx, ws, "someone-else@example.com")
+	checked, archived, err = m.rescreen(ctx, ws)
 	if err != nil || checked != 1 || archived != 0 {
 		t.Fatalf("second run = %d checked, %d archived, %v; want 1 and 0", checked, archived, err)
 	}
-	if _, _, by := state(agency); by != "ops@example.com" {
-		t.Fatalf("a second run rewrote the record: by %q", by)
+	if _, why, at := state(agency); why != rescreenPostingReason || at != archivedAt {
+		t.Fatalf("a second run rewrote the record: %q at %q", why, at)
 	}
 	if planner.calls != 2 {
 		t.Fatalf("the screen ran %d times, want once per run", planner.calls)

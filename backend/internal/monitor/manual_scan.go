@@ -218,7 +218,7 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 			return
 		}
 		defer m.scanning.Delete(ws)
-		checked, archived, err := m.rescreen(ctx, ws, scan.By)
+		checked, archived, err := m.rescreen(ctx, ws)
 		note = fmt.Sprintf("checked %d company leads from the last 30 days and archived %d", checked, archived)
 		if err != nil {
 			note += "; " + err.Error()

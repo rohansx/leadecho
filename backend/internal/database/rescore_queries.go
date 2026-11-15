@@ -79,7 +79,7 @@ ORDER BY created_at DESC`, workspaceID, since)
 }
 
 // ArchiveRescreenedLead archives a lead that failed a re-screen and stores
-// the record (why, when, who asked) under scoring_metadata.rescreen. Only a
+// the record (why, when) under scoring_metadata.rescreen. Only a
 // lead still "new" is touched; it reports whether this one was.
 func (q *Queries) ArchiveRescreenedLead(ctx context.Context, workspaceID, mentionID string, record []byte) (bool, error) {
 	tag, err := q.db.Exec(ctx, `

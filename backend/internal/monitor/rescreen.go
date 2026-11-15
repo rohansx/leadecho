@@ -50,11 +50,12 @@ func rescreenReasons(leads []database.CompanyLead, screen func([]ai.HiringJob) (
 }
 
 // rescreen checks the workspace's company leads of the last 30 days again and
-// archives the ones that fail, recording why and who asked. It returns how
-// many leads it checked and how many it archived. Leads the customer acted on
+// archives the ones that fail, recording why. Who asked is in the ops audit
+// log, not on the lead: the customer can read a lead's metadata. It returns
+// how many leads it checked and how many it archived. Leads the customer acted on
 // are left alone, and so is everything when the run cannot finish; a second
 // run finds only the leads that passed.
-func (m *Monitor) rescreen(ctx context.Context, ws, by string) (checked, archived int, err error) {
+func (m *Monitor) rescreen(ctx context.Context, ws string) (checked, archived int, err error) {
 	bp, err := m.q.GetBrandProfile(ctx, ws)
 	if err != nil || bp.Product == "" {
 		return 0, 0, errors.New("the workspace has not finished onboarding")
@@ -69,7 +70,8 @@ func (m *Monitor) rescreen(ctx context.Context, ws, by string) (checked, archive
 		return 0, 0, errors.New("the workspace's leads could not be read")
 	}
 	reasons, err := rescreenReasons(leads, func(jobs []ai.HiringJob) ([]ai.ProspectFit, error) {
-		if st.Plan == nil {
+		// A plan that does not apply has no roles: every posting would fail.
+		if st.Plan == nil || !st.Plan.Applies {
 			return nil, errors.New("no hiring plan")
 		}
 		return m.hiringPlanner.ScreenHiringJobs(ctx, ws, ai.HiringScreen{
@@ -87,7 +89,7 @@ func (m *Monitor) rescreen(ctx context.Context, ws, by string) (checked, archive
 		if !failed {
 			continue
 		}
-		done, err := m.q.ArchiveRescreenedLead(ctx, ws, l.ID, jsonBytes(map[string]any{"reason": reason, "at": at, "by": by}))
+		done, err := m.q.ArchiveRescreenedLead(ctx, ws, l.ID, jsonBytes(map[string]any{"reason": reason, "at": at}))
 		if err != nil {
 			m.logger.Error().Err(err).Str("mention_id", l.ID).Msg("rescreen: archive lead")
 			return len(leads), archived, errors.New("a lead could not be archived; ask again to carry on")
