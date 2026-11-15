@@ -101,9 +101,10 @@ func TestNewProspects(t *testing.T) {
 
 func TestSegmentQueriesRotate(t *testing.T) {
 	q := segmentQueries(ai.CustomerSegment{Name: "Technical recruiters", Criteria: []string{"accountancy practice with 5-30 staff", "Partner-led"},
-		ExampleCompanies: []string{"Ryan & Co"}})
+		ExampleCompanies: []string{"Ryan & Co"}}, []string{"Blake LLP", "Ryan & Co"})
 	want := []string{ // never the segment name: it names the buyer, not the company
 		"accountancy practice with 5-30 staff; Partner-led",
+		"accountancy practice with 5-30 staff; Partner-led; similar to Blake LLP", // a found lead first
 		"accountancy practice with 5-30 staff; Partner-led; similar to Ryan & Co",
 	}
 	if !reflect.DeepEqual(q, want) {
@@ -183,5 +184,22 @@ func TestTitleOwnsBuying(t *testing.T) {
 		if got := titleOwnsBuying(c.title, c.buyers, c.size); got != c.want {
 			t.Errorf("titleOwnsBuying(%q, %q, %d) = %v, want %v", c.title, c.buyers, c.size, got, c.want)
 		}
+	}
+}
+
+func TestRankByTitlesPutsOwnersFirst(t *testing.T) {
+	people := []foundPerson{
+		{Name: "L", Title: "Senior HR Manager - Talent, HR Operations & People Strategy"},
+		{Name: "G", Title: "HR Business Partner"},
+		{Name: "H", Title: "Head of Talent Acquisition"},
+		{Name: "X", Title: "Office Manager"},
+	}
+	got := rankByTitles(people, "VP Engineering or Director of Talent Acquisition")
+	names := ""
+	for _, p := range got {
+		names += p.Name
+	}
+	if got[0].Name != "H" || got[1].Name != "L" {
+		t.Fatalf("order = %s, want the Head of TA first, then the talent manager", names)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ const (
 	prospectInterval    = 24 * time.Hour
 	// Rows per company search: the provider bills per row, so this is the
 	// price dial. Most rows are dropped by the fit check.
-	prospectSearchLimit = 15
+	prospectSearchLimit = 25 // Exa bills per result, ~$0.001: more rows, fewer dry runs
 	// People searches per run (each then pays for a contact lookup).
 	maxProspectContactsPerRun = 5 // Pro
 	starterProspectContacts   = 2 // Starter
@@ -73,7 +74,12 @@ type prospectState struct {
 	// Last is what happened to each company in the latest run, so an
 	// operator can tell a strict filter from a broken step.
 	Last []prospectOutcome `json:"last,omitempty"`
+	// Found holds, per segment name, the companies that became leads: later
+	// searches look for companies like them (see segmentQueries).
+	Found map[string][]string `json:"found,omitempty"`
 }
+
+const maxProspectFound = 10 // per segment
 
 type prospectOutcome struct {
 	Company string `json:"company"`
@@ -158,7 +164,7 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 		return
 	}
 	seg := segments[st.Round%len(segments)]
-	queries := segmentQueries(seg)
+	queries := segmentQueries(seg, st.Found[seg.Name])
 	query := queries[(st.Round/len(segments))%len(queries)]
 	st.Round++
 	defer func() { // outlive a shutdown: losing Seen means paying to judge the same companies again
@@ -247,6 +253,12 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 		note(c.Name, outcome)
 		if done {
 			created++
+			if st.Found == nil {
+				st.Found = map[string][]string{}
+			}
+			// Newest first, so the next search is seeded by the latest find.
+			found := append([]string{c.Name}, st.Found[seg.Name]...)
+			st.Found[seg.Name] = found[:min(len(found), maxProspectFound)]
 		}
 		if stop {
 			break
@@ -320,6 +332,7 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 		// latter was wrong live (BillDesk 11, Perfios 54).
 		fixed := *contact
 		fixed.CompanySize = c.Employees
+		fixed.Employees = strconv.Itoa(c.Employees) // the stored lead showed both (Juspay 2071 and 1316)
 		contact = &fixed
 	}
 	mentionID := m.insertProspect(ctx, wsID, pid, seg, c, fit, person, contact, brief)
@@ -348,16 +361,17 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 // run in turn. They describe the buyer's company (the criteria), never the
 // segment's name: a name like "Technical recruiters" made the search return
 // recruiting firms (live, 2026-11-15). The same query returns the same
-// companies, all seen after the first run, so later runs add one example
-// company at a time for the search to find others like it.
-// ponytail: a fixed list of wordings; once they are used up a segment finds
-// little. Next step: companies.similar seeded with the domains of confirmed
-// prospects.
-func segmentQueries(s ai.CustomerSegment) []string {
+// companies, all seen after the first run, so later runs add one company at
+// a time for the search to find others like it: first the companies that
+// became leads (found, newest first), then the segment's examples. Without
+// them the search ran dry (live: 3 new companies in a run).
+func segmentQueries(s ai.CustomerSegment, found []string) []string {
 	base := strings.Join(s.Criteria, "; ")
 	out := []string{base}
-	for _, ex := range s.ExampleCompanies {
-		out = append(out, base+"; similar to "+ex)
+	for _, ex := range append(append([]string(nil), found...), s.ExampleCompanies...) {
+		if q := base + "; similar to " + ex; !slices.Contains(out, q) {
+			out = append(out, q)
+		}
 	}
 	return out
 }
@@ -497,9 +511,41 @@ func rankByTitles(people []foundPerson, titles string) []foundPerson {
 		}
 		return len(keys)
 	}
+	matched := func(p foundPerson) bool { return rank(p.Title) < len(keys) }
 	out := append([]foundPerson(nil), people...)
-	sort.SliceStable(out, func(i, j int) bool { return rank(out[i].Title) < rank(out[j].Title) })
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if matched(a) != matched(b) {
+			return matched(a)
+		}
+		// Among buyers, the one who owns the decision first: a Head of
+		// Talent Acquisition before a Senior HR Manager (live, Juspay).
+		if sa, sb := titleSeniority(a.Title), titleSeniority(b.Title); sa != sb {
+			return sa > sb
+		}
+		return rank(a.Title) < rank(b.Title)
+	})
 	return out
+}
+
+// titleSeniority: 3 owns a function (chief, VP, head, director, founder), 2
+// leads a team, 1 manages, 0 anything else. An HR or People title with no
+// recruiting word in it is a generalist and drops a step.
+func titleSeniority(title string) int {
+	w := titleWords(title)
+	n := 0
+	switch {
+	case w["chief"] || w["cto"] || w["ceo"] || w["vp"] || w["svp"] || w["evp"] || w["head"] || w["director"] || w["founder"] || w["cofounder"]:
+		n = 3
+	case w["lead"] || w["principal"]:
+		n = 2
+	case w["manager"]:
+		n = 1
+	}
+	if (w["hr"] || w["people"]) && !w["talent"] && !w["acquisition"] && !w["recruiting"] && !w["recruitment"] && !w["hiring"] {
+		n--
+	}
+	return n
 }
 
 // countryName turns an ISO code into the words a search query understands.

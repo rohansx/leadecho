@@ -75,6 +75,7 @@ Rules:
 - Run several different searches before you answer: the company's own site, recent news about it, and its open jobs. Prefer news, press releases and the careers page over marketing copy, and take each fact from a different page where you can. Do not give two facts that say the same thing.
 - Put the date (month and year) in any fact about an event or a count, taken from the page. A count or a "now" with no date you can find (an estimated headcount, "currently hiring") is not a fact: leave it out.
 - Never let a fact say more than its page. If a count of open jobs covers every team, say "across all teams", never "engineering roles"; if a page estimates, say "about"; never add "first", "largest" or "fastest" unless the page says it.
+- A funding fact says whether the round was new money or a sale of existing shares (secondary) when the page says so: a secondary sale is not money to hire with.
 - When a headcount is given below, use that number and give no other headcount: no fact may state a different employee count.
 - A fact earns its place only if the salesperson could mention it to explain why they are writing now. Best: how many roles like this one are open, how large the engineering or product team is, recent funding, growth, layoffs or a move, and what this role will work on. Do not spend a fact on the company's industry label, its website address, or a restatement of what it sells: that belongs in "what_they_do".
 - Research the company only. Do not search for, or write about, any individual person.
