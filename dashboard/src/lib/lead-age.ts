@@ -15,9 +15,10 @@ export function leadAge(m: Dated, now: Date): string {
 }
 
 /**
- * A hiring signal's stored text says its job was posted "this week", which
- * stops being true as the lead ages. This puts the posting's real age there
- * instead, or nothing when its date is unknown.
+ * An older hiring signal's stored text says its job was posted "this week",
+ * which stops being true as the lead ages. This puts the posting's real age
+ * there instead, or nothing when its date is unknown. Newer leads are stored
+ * with the posting's date and pass through unchanged.
  */
 export function hiringText(text: string, m: Dated, now: Date): string {
   const when = m.platform_created_at ? leadAge(m, now).replace(/^posted/, "") : "";

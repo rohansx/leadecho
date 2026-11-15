@@ -32,4 +32,7 @@ test("hiringText replaces the fixed 'this week' with the posting's real age", ()
   // Only the opening sentence is touched.
   const other = "We ship this week.\n\nAcme posted a job this week.";
   assert.equal(hiringText(other, old, now), other);
+  // Leads stored since carry the posting's date and are shown as written.
+  const dated = 'Acme posted a job for "Dev" (Austin, TX) on 6 November 2026.\n\nWho to contact: Ann, CTO at Acme.';
+  assert.equal(hiringText(dated, old, now), dated);
 });
