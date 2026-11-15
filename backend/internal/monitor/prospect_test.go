@@ -7,6 +7,7 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/database"
+	"leadecho/internal/enrich"
 )
 
 func brandProfileWithSegments(raw string) database.BrandProfile {
@@ -128,5 +129,34 @@ func TestProspectableSegments(t *testing.T) {
 func TestNewManualScanAcceptsProspects(t *testing.T) {
 	if _, err := NewManualScan(ScanProspects, "op", time.Now()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRankByTitles(t *testing.T) {
+	people := []foundPerson{
+		{Name: "R", Title: "Senior Talent Partner"},
+		{Name: "X", Title: "Office Manager"},
+		{Name: "E", Title: "Vice President of Engineering"},
+	}
+	if r := rankByTitles([]foundPerson{{Name: "D", Title: "Director of Marketing"}, {Name: "C", Title: "CTO."}}, "CTO or VP Engineering"); r[0].Name != "C" {
+		t.Fatalf("cto must not match director: %+v", r)
+	}
+	got := rankByTitles(people, "VP Engineering or Director of Talent Acquisition, Head of Talent")
+	if got[0].Name != "E" || got[1].Name != "R" || got[2].Name != "X" || people[0].Name != "R" {
+		t.Fatalf("rankByTitles = %+v (input must not change)", got)
+	}
+}
+
+func TestConfirmProspectContactRejectsCatchAll(t *testing.T) {
+	co := hiringCompany{domain: "credgenics.com", size: 900}
+	p := foundPerson{Name: "S R"}
+	res := &enrich.Result{FullName: "S R", Company: "Credgenics", CompanyDomain: "credgenics.com", Email: "s@credgenics.com", EmailStatus: "catchall"}
+	if ck := confirmProspectContact("Credgenics", co, p, res); ck.confirmed {
+		t.Fatal("a catch-all email must not confirm a prospect")
+	}
+	ok := *res
+	ok.EmailStatus = "verified"
+	if ck := confirmProspectContact("Credgenics", co, p, &ok); !ck.confirmed {
+		t.Fatalf("verified email should confirm: %+v", ck)
 	}
 }
