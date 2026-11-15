@@ -69,10 +69,12 @@ func TestMuteCandidate(t *testing.T) {
 // lead, or fewer posts, and it is not.
 func TestThrottledPairs(t *testing.T) {
 	rows := []database.KeywordYield{
-		{KeywordID: "k1", Term: "coding test", Platform: "hackernews", Posts: 273},
-		{KeywordID: "k1", Term: "coding test", Platform: "bluesky", Posts: 242},
-		{KeywordID: "k1", Term: "coding test", Platform: "linkedin", Posts: 20},
-		{KeywordID: "k2", Term: "HackerRank alternative", Platform: "hackernews", Posts: 120, Leads: 1},
+		{KeywordID: "k1", Term: "coding test", Platform: "hackernews", Posts: 273, Judged: 273},
+		{KeywordID: "k1", Term: "coding test", Platform: "bluesky", Posts: 242, Judged: 242},
+		{KeywordID: "k1", Term: "coding test", Platform: "linkedin", Posts: 20, Judged: 20},
+		{KeywordID: "k2", Term: "HackerRank alternative", Platform: "hackernews", Posts: 120, Judged: 120, Leads: 1},
+		// A first scan stored 300 posts and none is scored yet: not "no leads".
+		{KeywordID: "k3", Term: "skills assessment", Platform: "reddit", Posts: 300},
 	}
 	if got, want := throttledPlatforms(rows), map[string][]string{"k1": {"hackernews", "bluesky"}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("throttledPlatforms = %v, want %v", got, want)

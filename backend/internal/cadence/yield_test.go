@@ -11,13 +11,18 @@ func TestYieldFlags(t *testing.T) {
 		y                  Yield
 		throttled, lowFlag bool
 	}{
-		{"99 posts, no lead", Yield{Posts: 99}, false, false},
-		{"100 posts, no lead", Yield{Posts: 100}, true, false},
-		{"149 posts, no lead", Yield{Posts: 149}, true, false},
-		{"150 posts, no lead", Yield{Posts: 150}, true, true},
-		{"535 posts, no lead, some asks", Yield{Posts: 535, Passed: 40, Asks: 12}, true, true},
-		{"one lead lifts both", Yield{Posts: 535, Leads: 1}, false, false},
+		{"99 posts, no lead", Yield{Posts: 99, Judged: 99}, false, false},
+		{"100 posts, no lead", Yield{Posts: 100, Judged: 100}, true, false},
+		{"149 posts, no lead", Yield{Posts: 149, Judged: 149}, true, false},
+		{"150 posts, no lead", Yield{Posts: 150, Judged: 150}, true, true},
+		{"535 posts, no lead, some asks", Yield{Posts: 535, Judged: 535, Passed: 40, Asks: 12}, true, true},
+		{"one lead lifts both", Yield{Posts: 535, Judged: 535, Leads: 1}, false, false},
 		{"nothing fetched", Yield{}, false, false},
+		// "No lead" is only known of posts that were scored: a first scan's
+		// backlog, or posts waiting for an AI key, say nothing yet.
+		{"535 posts, none scored yet", Yield{Posts: 535}, false, false},
+		{"535 posts, 99 scored", Yield{Posts: 535, Judged: 99}, false, false},
+		{"535 posts, 120 scored", Yield{Posts: 535, Judged: 120}, true, false},
 	}
 	for _, tt := range tests {
 		if got := tt.y.Throttled(); got != tt.throttled {
@@ -27,8 +32,8 @@ func TestYieldFlags(t *testing.T) {
 			t.Errorf("%s: LowYield = %v, want %v", tt.name, got, tt.lowFlag)
 		}
 	}
-	sum := Yield{Posts: 80, Passed: 5, Leads: 0, Asks: 1}.Add(Yield{Posts: 70, Passed: 2, Leads: 0, Asks: 3})
-	if sum != (Yield{Posts: 150, Passed: 7, Asks: 4}) || !sum.LowYield() {
+	sum := Yield{Posts: 80, Judged: 80, Passed: 5, Leads: 0, Asks: 1}.Add(Yield{Posts: 70, Judged: 70, Passed: 2, Leads: 0, Asks: 3})
+	if sum != (Yield{Posts: 150, Judged: 150, Passed: 7, Asks: 4}) || !sum.LowYield() {
 		t.Errorf("sum = %+v", sum)
 	}
 }

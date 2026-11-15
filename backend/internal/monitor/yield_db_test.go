@@ -89,16 +89,34 @@ FROM generate_series(1, 120) g`, ws, noisy.ID); err != nil {
 		t.Fatal(err)
 	}
 
+	// 150 posts from a first scan that nobody has scored yet (and a few the
+	// classifier failed on): nothing is known about them, so the keyword is
+	// neither throttled nor sent to the cheapest filter.
+	fresh := keyword("skills assessment")
+	if _, err := pool.Exec(ctx, `
+INSERT INTO mentions (workspace_id, keyword_id, platform, platform_id, url, content, scoring_metadata, platform_metadata, engagement_metrics, keyword_matches)
+SELECT $1, $2, 'hackernews', 'fresh'||g, 'https://news.example/fresh'||g, 'a new post '||g,
+       CASE WHEN g <= 5 THEN '{"stage":"stage3_classification_error"}' ELSE '{}' END::jsonb, '{}', '{}', '{}'
+FROM generate_series(1, 150) g`, ws, fresh.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	rows := m.keywordYield(ctx, ws)
+	if got := throttledPlatforms(rows)[fresh.ID]; len(got) != 0 || bulkFilterPairs(rows)[[2]string{fresh.Term, "hackernews"}] {
+		t.Errorf("a keyword whose posts are not scored yet was throttled: %v", got)
+	}
 	by := map[string]database.KeywordYield{}
 	for _, r := range rows {
 		by[r.Term+"/"+r.Platform] = r
 	}
+	if got := by["skills assessment/hackernews"]; got.Posts != 150 || got.Judged != 0 {
+		t.Errorf("unscored keyword yield = %+v, want 150 posts, none scored", got)
+	}
 	if got := by["Utkrusht interview/hackernews"]; got.Posts != 1 {
 		t.Errorf("brand keyword yield = %+v, want the one real mention and nothing else", got)
 	}
-	if got := by["coding test/hackernews"]; got.Posts != 121 || got.Passed != 20 || got.Leads != 0 || got.Asks != 15 {
-		t.Errorf("noisy keyword yield = %+v, want 121 posts, 20 past the first filter, 0 leads, 15 asks", got)
+	if got := by["coding test/hackernews"]; got.Posts != 121 || got.Judged != 120 || got.Passed != 20 || got.Leads != 0 || got.Asks != 15 {
+		t.Errorf("noisy keyword yield = %+v, want 121 posts, 120 scored, 20 past the first filter, 0 leads, 15 asks", got)
 	}
 
 	// Scanned 5 hours ago on both platforms: Hacker News is throttled to once

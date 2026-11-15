@@ -81,7 +81,7 @@ func (m *Monitor) keywordYield(ctx context.Context, wsID string) []database.Keyw
 func throttledPlatforms(rows []database.KeywordYield) map[string][]string {
 	out := map[string][]string{}
 	for _, r := range rows {
-		if (cadence.Yield{Posts: r.Posts, Leads: r.Leads}).Throttled() {
+		if (cadence.Yield{Judged: r.Judged, Leads: r.Leads}).Throttled() {
 			out[r.KeywordID] = append(out[r.KeywordID], r.Platform)
 		}
 	}
@@ -94,7 +94,7 @@ func throttledPlatforms(rows []database.KeywordYield) map[string][]string {
 func bulkFilterPairs(rows []database.KeywordYield) map[[2]string]bool {
 	out := map[[2]string]bool{}
 	for _, r := range rows {
-		if (cadence.Yield{Posts: r.Posts, Leads: r.Leads}).Throttled() {
+		if (cadence.Yield{Judged: r.Judged, Leads: r.Leads}).Throttled() {
 			out[[2]string{r.Term, r.Platform}] = true
 		}
 	}

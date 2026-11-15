@@ -96,7 +96,7 @@ type keywordYield struct {
 func keywordYields(rows []database.KeywordYield) map[string]keywordYield {
 	out := map[string]keywordYield{}
 	for _, r := range rows {
-		one := cadence.Yield{Posts: r.Posts, Passed: r.Passed, Leads: r.Leads, Asks: r.Asks}
+		one := cadence.Yield{Posts: r.Posts, Judged: r.Judged, Passed: r.Passed, Leads: r.Leads, Asks: r.Asks}
 		y := out[r.KeywordID]
 		y.Yield = y.Yield.Add(one)
 		if one.Throttled() {
