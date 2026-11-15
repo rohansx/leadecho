@@ -14,7 +14,9 @@ const (
 	// or classifier prompts change in a way that should move old scores: a
 	// re-score then picks up exactly the posts scored under older rules, and
 	// one that was cut short resumes where it stopped.
-	ScoringRubric = 2
+	// 3: a buyer's first-hand account of the problem counts as a lead whatever
+	// its form; a buyer's success story is a proof point (low score, ask kept).
+	ScoringRubric = 3
 
 	rescoreWindow = 30 * 24 * time.Hour
 	rescoreBatch  = 100
