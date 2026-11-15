@@ -8,6 +8,7 @@ import (
 
 	"leadecho/internal/api"
 	"leadecho/internal/metrics"
+	"leadecho/internal/monitor"
 	"leadecho/internal/platform"
 )
 
@@ -27,7 +28,7 @@ func main() {
 		logger.Fatal().Msg("PROCESS_ROLE=worker is not valid for cmd/api; use cmd/worker")
 	}
 
-	shared.StartMonitor(ctx, 5*time.Minute)
+	shared.StartMonitor(ctx, monitor.TickInterval)
 	shared.StartDigests(ctx)     // digests (P1 #13)
 	shared.StartDemand(ctx)      // demand themes (daily)
 	shared.StartCompetitors(ctx) // competitor watch

@@ -701,12 +701,10 @@ func (r *Router) loadSettings(ctx context.Context, workspaceID string) (map[stri
 	return settings, nil
 }
 
+// saveSettings writes llm, the one key the router changes. Not the whole
+// object: other keys are written by other processes meanwhile.
 func (r *Router) saveSettings(ctx context.Context, workspaceID string, settings map[string]json.RawMessage) error {
-	raw, err := json.Marshal(settings)
-	if err != nil {
-		return err
-	}
-	return r.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{ID: workspaceID, Settings: raw})
+	return r.q.SetWorkspaceSettingsKey(ctx, workspaceID, "llm", settings["llm"])
 }
 
 func parseConfig(settings map[string]json.RawMessage) (Config, map[string]string, error) {

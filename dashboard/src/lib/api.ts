@@ -930,6 +930,10 @@ export function getFirstValue() {
   return request<import("@/components/onboarding/types").FirstValue>("/onboarding/first-value");
 }
 
+export function getSetupStatus() {
+  return request<import("@/lib/setup-status").SetupStatus>("/onboarding/setup-status");
+}
+
 // ─── UTM Tracking Links ────────────────────────────────
 
 export function listUTMLinks() {

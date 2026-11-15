@@ -313,9 +313,11 @@ func retryableProfile(list []database.MonitoringProfile, name, goal string, now 
 
 // startFirstScan triggers the 7-day backfill (or a plain scan if the scanner
 // cannot backfill). Split deployments have no scanner: the worker tick picks
-// the new keywords up without a backfill.
-func (h *OnboardingHandler) startFirstScan(wsID string) {
+// the new keywords up without a backfill, and a workspace with company leads
+// has its scan asked for now rather than left to the tick (requestFirstScan).
+func (h *OnboardingHandler) startFirstScan(ctx context.Context, wsID string) {
 	if h.scanner == nil {
+		h.requestFirstScan(ctx, wsID)
 		return
 	}
 	if bs, ok := h.scanner.(BackfillScanner); ok {

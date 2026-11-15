@@ -21,6 +21,10 @@ const (
 	ScanRescore   = "rescore"   // score recent posts again with the current rules
 	ScanRescreen  = "rescreen"  // check recent company leads again and archive the ones that fail
 
+	// ScanByOnboarding is who asked when a workspace finishes onboarding (the
+	// By of an operator's request is their email).
+	ScanByOnboarding = "onboarding"
+
 	ScanRequested = "requested"
 	ScanRunning   = "running"
 	ScanDone      = "done"
@@ -112,6 +116,18 @@ func forcedScan(ctx context.Context) string {
 	return kind
 }
 
+// scanContext is what a requested scan runs under. An operator's request
+// skips the scan's own timer. The one made when a workspace finishes
+// onboarding does not: it starts the workspace's scheduled scan early, so
+// whatever already ran today (the daily company scan, a search that is not
+// due yet) is not run a second time.
+func scanContext(scan ManualScan) context.Context {
+	if scan.By == ScanByOnboarding {
+		return context.Background()
+	}
+	return withForcedScan(context.Background(), scan.Kind)
+}
+
 // hiringClaimInterval is how long after the last hiring scan the next may
 // run: a day, or at once when an operator asked for a hiring scan.
 func hiringClaimInterval(ctx context.Context) time.Duration {
@@ -191,7 +207,7 @@ func (m *Monitor) startManualScans(ctx context.Context) {
 }
 
 func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
-	ctx, cancel := context.WithTimeout(withForcedScan(context.Background(), scan.Kind), manualScanTimeout)
+	ctx, cancel := context.WithTimeout(scanContext(scan), manualScanTimeout)
 	defer cancel()
 	note, busy := "", false
 	defer func() {
@@ -222,6 +238,7 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		}
 		defer m.scanning.Delete(ws)
 		m.scanHiring(ctx, ws)
+		m.notifyFirstLeads(ctx, ws)
 	case ScanProspects:
 		if note = m.prospectBlocked(ctx, ws); note != "" {
 			return
@@ -236,6 +253,7 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		}
 		defer m.scanning.Delete(ws)
 		m.scanProspects(ctx, ws)
+		m.notifyFirstLeads(ctx, ws)
 	case ScanRescore:
 		if m.llmRouter == nil {
 			note = "no AI provider is set up on this server"

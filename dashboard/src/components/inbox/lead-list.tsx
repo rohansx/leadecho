@@ -7,6 +7,8 @@ import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
 import { hiringText } from "@/lib/lead-age";
 import { PlatformLogo } from "@/components/ui/platform-logo";
 import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
+import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import type { SetupStatus } from "@/lib/setup-status";
 
 const actionLabel: Record<string, string> = {
   ready_to_send: "Review & send",
@@ -108,6 +110,7 @@ export function LeadList({
   agentNeedsAI,
   activeKeywordCount,
   totalMentions,
+  setup,
 }: {
   mentions: Mention[];
   listTotal?: number;
@@ -142,10 +145,13 @@ export function LeadList({
   agentNeedsAI?: boolean;
   activeKeywordCount?: number;
   totalMentions?: number;
+  /** Set while the workspace may have no lead yet; the checklist shows until it has one. */
+  setup?: SetupStatus;
 }) {
   const isProposalsView = queueFilter === INBOX_QUEUES.PROPOSALS;
   const isActionView = queueFilter === INBOX_QUEUES.ACTION_REQUIRED;
   const isBrowseView = queueFilter === INBOX_QUEUES.ALL;
+  const waitingForFirstLead = Boolean(setup && !setup.has_lead);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -370,7 +376,20 @@ export function LeadList({
           </div>
         )}
 
-        {!isLoading && !isProposalsView && mentions.length === 0 && (
+        {/* No lead yet: what the workspace is waiting for, instead of an empty inbox. */}
+        {!isLoading && !isProposalsView && waitingForFirstLead && setup && (
+          <div className="m-3 rounded-lg border border-border p-4">
+            <p className="mb-2 text-sm font-medium">{setup.finished_empty ? "No leads yet" : "Finding your first leads"}</p>
+            <SetupChecklist status={setup} />
+            {agentNeedsAI && (
+              <p className="mt-2 text-xs text-orange-600 dark:text-orange-400">
+                No AI key configured: posts are not scored. Add one in Settings → AI Router.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!isLoading && !isProposalsView && mentions.length === 0 && !waitingForFirstLead && (
           <div className="p-6 text-center text-sm text-muted-foreground space-y-4">
             {/* Agent status indicator — shown when no mentions yet but agent is active */}
             {agentActive && totalMentions === 0 && (

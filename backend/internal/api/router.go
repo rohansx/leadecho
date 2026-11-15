@@ -315,6 +315,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/onboarding/listeners/feedback", onboarding.SampleFeedback)
 			r.Post("/onboarding/complete", onboarding.Complete)
 			r.Get("/onboarding/first-value", onboarding.FirstValue)
+			onboarding.SetSetupFacts(llmRouter != nil && mon.Treg().Enabled(), cfg.ResendAPIKey != "")
+			r.Get("/onboarding/setup-status", onboarding.SetupStatus)
 			// sources: mute lists, CSV export, keyword cadence + cost preview
 			muteH := handler.NewMuteHandler(muteStore)
 			r.Get("/mutes", muteH.List)

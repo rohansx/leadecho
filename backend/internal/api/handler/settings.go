@@ -185,14 +185,12 @@ func (h *SettingsHandler) extractAPIKeys(settings map[string]any) apiKeysSetting
 	return keys
 }
 
-// saveSettings writes the settings map back to the workspace.
+// saveSettings writes api_keys, the one key this handler changes. Not the
+// whole object: other keys are written by other processes meanwhile.
 func (h *SettingsHandler) saveSettings(r *http.Request, wsID string, settings map[string]any) error {
-	data, err := json.Marshal(settings)
+	data, err := json.Marshal(settings["api_keys"])
 	if err != nil {
 		return err
 	}
-	return h.queries.UpdateWorkspaceSettings(r.Context(), database.UpdateWorkspaceSettingsParams{
-		ID:       wsID,
-		Settings: data,
-	})
+	return h.queries.SetWorkspaceSettingsKey(r.Context(), wsID, "api_keys", data)
 }

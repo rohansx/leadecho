@@ -75,6 +75,10 @@ type Monitor struct {
 
 	// enrich: tracked LinkedIn/X profile poll interval (0 = off).
 	trackedEvery time.Duration
+
+	// first leads email (first_leads.go): nil = never sent.
+	mail   Mailer
+	appURL string
 }
 
 // SetGoogleNewsEnabled toggles the opt-in Google News source. Kept as a setter
@@ -111,6 +115,10 @@ func New(q *database.Queries, logger zerolog.Logger, resendAPIKey string, llmRou
 
 // SetCredits meters scoring and pauses scans at an empty balance.
 func (m *Monitor) SetCredits(c *billing.Credits) { m.credits = c }
+
+// TickInterval is how often a round over every workspace starts. A round
+// that takes longer delays the next one.
+const TickInterval = 5 * time.Minute
 
 // Run starts polling all workspaces on an interval. Blocks until ctx is cancelled.
 func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
@@ -252,6 +260,7 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	m.handleNewMentionBatch(ctx, wsID, alerts, "monitor")
 	m.scanHiring(ctx, wsID)    // company hiring signals (daily, paid data only)
 	m.scanProspects(ctx, wsID) // companies in the customer segments (daily, paid data only)
+	m.notifyFirstLeads(ctx, wsID)
 	return true
 }
 
