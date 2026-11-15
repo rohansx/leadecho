@@ -19,6 +19,7 @@ const (
 	ScanHiring    = "hiring"    // company hiring signals
 	ScanProspects = "prospects" // companies in the customer segments
 	ScanRescore   = "rescore"   // score recent posts again with the current rules
+	ScanRescreen  = "rescreen"  // check recent company leads again and archive the ones that fail
 
 	ScanRequested = "requested"
 	ScanRunning   = "running"
@@ -41,11 +42,11 @@ type ManualScan struct {
 	RequestedAt time.Time `json:"requested_at,omitzero"`
 	StartedAt   time.Time `json:"started_at,omitzero"`
 	FinishedAt  time.Time `json:"finished_at,omitzero"`
-	Note        string    `json:"note,omitempty"` // why a run did nothing
+	Note        string    `json:"note,omitempty"` // why a run did nothing, or what a re-screen did
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore {
+	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen {
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -206,6 +207,21 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 			note = fmt.Sprintf("it stopped after %d posts with more to go; ask again to carry on", done)
 		case done == 0:
 			note = "no recent post was scored under older rules"
+		}
+	case ScanRescreen:
+		if m.hiringPlanner == nil {
+			note = "no AI provider is set up on this server"
+			return
+		}
+		if _, taken := m.scanning.LoadOrStore(ws, struct{}{}); taken {
+			busy = true
+			return
+		}
+		defer m.scanning.Delete(ws)
+		checked, archived, err := m.rescreen(ctx, ws, scan.By)
+		note = fmt.Sprintf("checked %d company leads from the last 30 days and archived %d", checked, archived)
+		if err != nil {
+			note += "; " + err.Error()
 		}
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)

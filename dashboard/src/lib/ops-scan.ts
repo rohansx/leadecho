@@ -1,9 +1,9 @@
 // ops: an operator's "scan now" request for one workspace and its outcome
 // (workspaces.settings.manual_scan). Pure helpers for the console.
 
-export type ScanKind = "posts" | "hiring" | "prospects" | "rescore";
+export type ScanKind = "posts" | "hiring" | "prospects" | "rescore" | "rescreen";
 
-const SCAN_NAMES: Record<ScanKind, string> = { posts: "Posts scan", hiring: "Hiring scan", prospects: "Prospect scan", rescore: "Re-score" };
+const SCAN_NAMES: Record<ScanKind, string> = { posts: "Posts scan", hiring: "Hiring scan", prospects: "Prospect scan", rescore: "Re-score", rescreen: "Re-screen" };
 
 export interface ManualScan {
   kind: ScanKind;
