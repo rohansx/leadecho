@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -37,6 +38,9 @@ type OnboardingHandler struct {
 	search onboarding.Searcher    // nil = public sources
 
 	credits *billing.Credits // billing: keywords past the plan limit start inactive
+
+	// setup status (onboarding_setup.go): what this server can do
+	companyLeads, emailOn bool
 }
 
 // SetCredits applies the plan's keyword limit to onboarding keywords.
@@ -55,6 +59,9 @@ func NewOnboardingHandler(q *database.Queries, scrapling *browser.ScraplingClien
 type onboardingState struct {
 	Completed bool `json:"completed"`
 	Step      int  `json:"step"`
+	// CompletedAt is when Complete finished. Workspaces that finished before
+	// it was recorded do not have it (see monitor.FirstLeadsEmailTo).
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 // GetOnboardingStatus returns the current onboarding state from workspace.settings.
@@ -333,7 +340,7 @@ func (h *OnboardingHandler) Complete(w http.ResponseWriter, r *http.Request) {
 
 	// Kick off the first crawl (7-day backfill) instead of waiting for the next tick.
 	if keywordsCreated > 0 {
-		h.startFirstScan(wsID)
+		h.startFirstScan(ctx, wsID)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -385,7 +392,7 @@ func (h *OnboardingHandler) completeWithListeners(w http.ResponseWriter, r *http
 		h.saveBrandProfile(ctx, wsID, *body.BrandProfile)
 	}
 	h.markOnboardingComplete(ctx, wsID)
-	h.startFirstScan(wsID)
+	h.startFirstScan(ctx, wsID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "completed", "profile_ids": profileIDs, "keywords_created": created,
 		"backfill_days": int(backfillLookback.Hours() / 24),
@@ -412,7 +419,8 @@ func (h *OnboardingHandler) markOnboardingComplete(ctx context.Context, wsID str
 	if settings == nil {
 		settings = map[string]json.RawMessage{}
 	}
-	obJSON, _ := json.Marshal(onboardingState{Completed: true, Step: 3})
+	now := time.Now().UTC()
+	obJSON, _ := json.Marshal(onboardingState{Completed: true, Step: 3, CompletedAt: &now})
 	settings["onboarding"] = obJSON
 	newRaw, _ := json.Marshal(settings)
 	if err := h.q.UpdateWorkspaceSettings(ctx, database.UpdateWorkspaceSettingsParams{ID: wsID, Settings: newRaw}); err != nil {
