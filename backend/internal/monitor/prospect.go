@@ -415,7 +415,8 @@ var sellingWords = []string{"sales", "presales", "account", "accounts", "solutio
 
 // titleOwnsBuying reports whether a contact's title matches one of the
 // segment's buyer titles, and is not a selling-side title. At a company
-// under 200 people a founder or CEO owns every buying decision.
+// under 200 people, or of unknown size, a founder or CEO owns every buying
+// decision (AlgoTest, live: no CTO or engineering head among those found).
 // ponytail: word lists; use the model to judge titles if these misfire.
 func titleOwnsBuying(title, buyerTitles string, employees int) bool {
 	words := titleWords(title)
@@ -432,7 +433,7 @@ func titleOwnsBuying(title, buyerTitles string, employees int) bool {
 			break
 		}
 	}
-	if employees > 0 && employees < 200 {
+	if employees < 200 {
 		keys = append(keys, "founder", "cofounder", "ceo")
 	}
 	for _, k := range keys {

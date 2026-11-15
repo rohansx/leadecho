@@ -174,6 +174,7 @@ func TestTitleOwnsBuying(t *testing.T) {
 		{"Head of Finance", "CTO, VP Engineering or Head of Engineering", 900, false},
 		{"Co-founder & CEO", "CTO, VP Engineering", 60, true},
 		{"Co-founder & CEO", "CTO, VP Engineering", 900, false},
+		{"Co-founder", "CTO, VP Engineering", 0, true},    // size unknown
 		{"Head of HR", "CTO, VP Engineering", 400, false}, // HR only where recruiting is asked for
 		{"VP Sales", "VP Sales or CRO", 300, true},        // the selling side, when it is the buyer
 		{"Director", "CTO", 300, false},                   // cto is not in director
