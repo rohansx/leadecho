@@ -111,10 +111,11 @@
   --hairline-edge: #a1a1a9;
   --hairline-mid: #c8c8cd;
   --hairline-lo: #e6e6e8;
-  font-family: var(--font-inst);
+  font-family: var(--font-sans); /* Geist for body and UI; Instrument Sans only on the big headlines below */
   font-size: 17px;
   line-height: 1.6;
 }
+.mkt h1, .mkt h2 { font-family: var(--font-inst); }
 .dark .mkt {
   --background: #0e0e10;
   --card: #18181b;
@@ -134,9 +135,10 @@
   --primary-ink: #ffd43b;
   --hairline-plate: #18181b;
   --hairline-hi: #f2f2f0;
-  --hairline-edge: #75757d;
-  --hairline-mid: #4a4a50;
-  --hairline-lo: #2e2e33;
+  --hairline-edge: #a1a1aa;
+  --hairline-mid: #6e6e76;
+  --hairline-lo: #3a3a40;
+  --hairline-stroke: 1.1;
 }
 /* Figures drawn straight on the page need the page colour as their plate. */
 .mkt .on-page { --hairline-plate: var(--background); }
@@ -146,7 +148,7 @@
 /* Live feed: each new post slides in at the top. */
 @keyframes mkt-feed-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 .mkt-feed-in { animation: mkt-feed-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-@keyframes mkt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--dot) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes mkt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--foreground) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 .mkt-live { animation: mkt-pulse 2s ease-in-out infinite; }
 @keyframes mkt-caret { 50% { opacity: 0; } }
 .mkt-caret { animation: mkt-caret 1s step-end infinite; }

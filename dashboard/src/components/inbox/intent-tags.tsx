@@ -8,15 +8,8 @@ import type { Mention } from "@/lib/types";
 
 // scoring: intent tag chips, sentiment marker and 👍/👎 scorer feedback.
 
-const tagTone: Record<string, string> = {
-  buying_intent: "bg-primary/15 text-primary-ink border-primary/25",
-  seeking_alternative: "bg-primary/10 text-primary-ink border-primary/20",
-  recommendation_request: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
-  comparison: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
-  competitor_complaint: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
-  pain_point: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
-};
-const neutralTone = "bg-muted text-muted-foreground border-border";
+// Tags are labels, not states: one neutral chip for all of them.
+const neutralTone = "text-muted-foreground border-border";
 
 const sentimentTone: Record<string, string> = {
   positive: "text-green-600 dark:text-green-400",
@@ -43,7 +36,7 @@ export function TagChips({ tags, sentiment, max = 3 }: TagChipsProps) {
       {shown.map((t) => (
         <span
           key={t}
-          className={`px-1.5 py-0.5 rounded-md border text-[10px] font-medium ${tagTone[t] ?? neutralTone}`}
+          className={`px-1.5 py-0.5 rounded-md border text-[10px] font-medium ${neutralTone}`}
         >
           {tagLabel(t)}
         </span>
@@ -52,8 +45,8 @@ export function TagChips({ tags, sentiment, max = 3 }: TagChipsProps) {
         <span className="text-[10px] text-muted-foreground">+{list.length - shown.length}</span>
       )}
       {sentiment && (
-        <span className={`text-[10px] font-medium ${sentimentTone[sentiment] ?? ""}`}>
-          ● {sentiment}
+        <span className="text-[10px] text-muted-foreground">
+          <span className={sentimentTone[sentiment] ?? ""}>●</span> {sentiment}
         </span>
       )}
     </div>

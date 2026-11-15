@@ -77,7 +77,7 @@ export function EnrichmentCard({ metadata }: { metadata?: Record<string, unknown
           <div className="contents">
             <dt className="text-muted-foreground">LinkedIn</dt>
             <dd>
-              <a href={e.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-primary">
+              <a href={e.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:underline">
                 Profile <ExternalLink className="h-3 w-3" />
               </a>
             </dd>

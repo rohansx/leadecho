@@ -8,7 +8,7 @@ const badgeVariants = cva("font-medium rounded-md inline-flex items-center gap-1
       default: "bg-muted text-muted-foreground",
       outline: "border border-border text-foreground",
       solid: "bg-foreground text-background",
-      surface: "bg-accent-soft text-primary-ink",
+      surface: "bg-secondary text-foreground",
     },
     size: {
       sm: "px-1.5 py-0.5 text-[11px]",

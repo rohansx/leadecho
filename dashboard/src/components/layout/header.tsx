@@ -46,14 +46,14 @@ export function Header() {
         >
           <Bell className="h-4 w-4" />
           {newCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums ring-2 ring-background flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full border border-border bg-secondary text-foreground text-[10px] leading-none font-medium tabular-nums flex items-center justify-center">
               {newCount > 99 ? "99+" : newCount}
             </span>
           )}
         </button>
         {user ? (
           <>
-            <div className="ml-1 size-7 rounded-full bg-accent-soft text-primary-ink flex items-center justify-center text-[11px] font-semibold">
+            <div className="ml-1 size-7 rounded-full border border-border bg-secondary text-foreground-soft flex items-center justify-center text-[11px] font-medium">
               {initials}
             </div>
             <button
@@ -66,7 +66,7 @@ export function Header() {
             </button>
           </>
         ) : (
-          <div className="ml-1 size-7 rounded-full bg-accent-soft text-primary-ink flex items-center justify-center text-[11px] font-semibold">
+          <div className="ml-1 size-7 rounded-full border border-border bg-secondary text-foreground-soft flex items-center justify-center text-[11px] font-medium">
             U
           </div>
         )}

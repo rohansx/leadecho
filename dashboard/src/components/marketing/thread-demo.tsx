@@ -104,7 +104,7 @@ function ReplyBody({ r }: { r: Reply }) {
 
 function ThreadCard({ t }: { t: Thread }) {
   return (
-    <figure className="overflow-hidden rounded-[18px] border border-border bg-card shadow-[0_1px_2px_rgba(24,24,27,0.04),0_24px_48px_-28px_rgba(24,24,27,0.3)]">
+    <figure className="overflow-hidden rounded-[18px] border border-border bg-card">
       <div className="flex min-w-0 items-center gap-2 border-b border-border px-5 py-3 text-[13px] text-muted-foreground">
         <t.Icon className="size-4 shrink-0" />
         <span className="shrink-0 font-medium text-foreground">{t.where}</span>
@@ -128,7 +128,7 @@ function ThreadCard({ t }: { t: Thread }) {
         )}
       </div>
       <figcaption className="border-t border-border px-5 py-3 text-[13px] text-muted-foreground">
-        LeadEcho read all {t.read} replies. One person is looking to buy.
+        Sample thread. LeadEcho reads all {t.read} replies and flags the one person looking to buy.
       </figcaption>
     </figure>
   );
@@ -155,8 +155,8 @@ export function ThreadDemo() {
                 aria-selected={i === n}
                 onClick={() => setI(n)}
                 className={cn(
-                  "inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-1.5 text-[14px] font-medium transition-colors",
-                  i === n ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3.5 py-1.5 text-[14px] font-medium transition-colors",
+                  i === n ? "border-border bg-card text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 <t.Icon className="size-3.5" />

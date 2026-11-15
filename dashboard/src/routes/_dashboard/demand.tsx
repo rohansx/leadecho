@@ -181,7 +181,7 @@ function AskList({ asks }: { asks: DemandAsk[] }) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3 text-xs">
-            <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: a.mention_id }} className="text-primary-ink underline underline-offset-2">
+            <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: a.mention_id }} className="text-foreground underline underline-offset-2">
               Open lead
             </Link>
             {/^https?:\/\//i.test(a.url) && (

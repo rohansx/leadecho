@@ -69,7 +69,7 @@ function LiveFeed() {
               <div className="truncate text-[14px]">{p.text}</div>
             </div>
             {p.score ? (
-              <span className="shrink-0 rounded-full bg-chip-bg px-2 py-0.5 text-[13px] font-semibold text-chip-fg">{p.score}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[13px] font-semibold", Number(p.score) >= 8.5 ? "bg-chip-bg text-chip-fg" : "border border-border text-foreground-soft")}>{p.score}</span>
             ) : (
               <span className="shrink-0 text-[12px] text-muted-foreground">skipped</span>
             )}
@@ -80,13 +80,56 @@ function LiveFeed() {
   );
 }
 
+/** The product video in a hairline browser frame. Sized by width/height so nothing shifts while it loads. */
+function HeroVideo() {
+  const reduce = useReducedMotion();
+  return (
+    <div className={cn(container, "pb-16")}>
+      <div className="overflow-hidden rounded-[18px] border border-border bg-card">
+        <video
+          className="block h-auto w-full bg-[#0b0b0c]"
+          width={1600}
+          height={1000}
+          autoPlay={!reduce}
+          controls={!!reduce}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster="/hero-demo-poster.jpg"
+          aria-label="Animated walkthrough of LeadEcho with sample data: posts are filtered, a buyer is scored and researched, and a drafted reply is approved"
+        >
+          <source src="/hero-demo.webm" type="video/webm" />
+          <source src="/hero-demo.mp4" type="video/mp4" />
+        </video>
+      </div>
+    </div>
+  );
+}
+
+function ProofStrip() {
+  return (
+    <div className="border-y border-border">
+      <ul className={cn(container, "flex flex-wrap items-center justify-between gap-x-10 gap-y-2 py-4 text-[14px] text-foreground-soft")}>
+        <li>
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="underline decoration-border underline-offset-4 hover:text-foreground">
+            MIT licensed, open source
+          </a>
+        </li>
+        <li>7 communities</li>
+        <li>Our own workspace, last 30 days: 2,486 posts read, 27 leads.</li>
+      </ul>
+    </div>
+  );
+}
+
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div className={cn(container, "grid gap-14 pt-12 pb-20 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pt-14 lg:pb-20 [&>*]:min-w-0")}>
+      <div className={cn(container, "grid gap-14 pt-12 pb-12 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pt-14 lg:pb-14 [&>*]:min-w-0")}>
         <div>
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[13px] text-foreground-soft">
-            <span className="mkt-live size-2 rounded-full bg-dot" aria-hidden="true" />
+            <span className="mkt-live size-2 rounded-full bg-foreground" aria-hidden="true" />
             Listening on 7 communities, open source
           </p>
           <h1 className="mt-7 text-[clamp(2.9rem,6.2vw,5rem)] leading-[0.96] font-semibold tracking-[-0.045em] text-balance [font-stretch:90%]">
@@ -117,10 +160,10 @@ export function Hero() {
 
         <div className="relative">
           <Dish className="on-page mx-auto w-full max-w-[460px]" play intensity={0.7} label="A dish antenna turning to listen" />
-          <div className="relative -mt-16 overflow-hidden rounded-[20px] border border-border bg-card shadow-[0_1px_2px_rgba(24,24,27,0.04),0_24px_48px_-24px_rgba(24,24,27,0.25)] sm:mx-6">
+          <div className="relative -mt-16 overflow-hidden rounded-[20px] border border-border bg-card sm:mx-6">
             <div className="flex items-center justify-between border-b border-border px-5 py-3 text-[13px]">
               <span className="inline-flex items-center gap-2 font-medium">
-                <span className="mkt-live size-1.5 rounded-full bg-dot" aria-hidden="true" />
+                <span className="mkt-live size-1.5 rounded-full bg-foreground" aria-hidden="true" />
                 Incoming
               </span>
               <span className="text-muted-foreground">sample data</span>
@@ -129,6 +172,8 @@ export function Hero() {
           </div>
         </div>
       </div>
+      <HeroVideo />
+      <ProofStrip />
     </section>
   );
 }

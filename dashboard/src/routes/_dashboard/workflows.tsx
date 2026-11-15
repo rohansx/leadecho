@@ -32,11 +32,11 @@ function Templates({ onPick }: { onPick: (d: WorkflowDefinition) => void }) {
           key={t.id}
           type="button"
           onClick={() => onPick(t.def)}
-          className="rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-primary/60 hover:bg-accent"
+          className="rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-foreground/40 hover:bg-accent"
         >
           <span className="block text-sm font-medium">{t.title}</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">{t.why}</span>
-          <span className="mt-2 block text-[11px] text-primary-ink">{describeActions(t.def.actions)}</span>
+          <span className="mt-2 block text-[11px] text-muted-foreground">{describeActions(t.def.actions)}</span>
         </button>
       ))}
     </div>
@@ -87,7 +87,7 @@ function RealTime() {
             <Button size="sm" variant="outline" onClick={() => setShowTemplates(!showTemplates)}>
               <Sparkles className="h-3.5 w-3.5" /> Templates
             </Button>
-            <Button size="sm" variant="accent" onClick={() => start(blankDefinition())}>
+            <Button size="sm" onClick={() => start(blankDefinition())}>
               <Plus className="h-3.5 w-3.5" /> New workflow
             </Button>
           </div>
@@ -137,7 +137,7 @@ function WorkflowsPage() {
             onClick={() => navigate({ search: t.id === "realtime" ? {} : { tab: t.id } })}
             className={cn(
               "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
-              tab === t.id ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              tab === t.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             {t.label}

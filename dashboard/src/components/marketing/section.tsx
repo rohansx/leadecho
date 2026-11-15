@@ -20,7 +20,7 @@ export function Section({
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
     <p className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-dot" aria-hidden="true" />
+      <span className="size-1.5 rounded-full bg-foreground" aria-hidden="true" />
       {children}
     </p>
   );

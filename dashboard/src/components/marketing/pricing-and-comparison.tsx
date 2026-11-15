@@ -68,13 +68,13 @@ export function PricingSection() {
             delay={i * 0.06}
             className={cn(
               "flex flex-col rounded-[24px] border p-7",
-              p.featured ? "border-foreground bg-card shadow-[0_24px_48px_-28px_rgba(24,24,27,0.35)]" : "border-border bg-card",
+              p.featured ? "border-foreground bg-card" : "border-border bg-card",
             )}
           >
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-[19px] font-semibold">{p.name}</h3>
               {p.featured && (
-                <span className="rounded-full bg-chip-bg px-2.5 py-0.5 text-[12px] font-semibold text-chip-fg">Recommended</span>
+                <span className="rounded-full border border-border px-2.5 py-0.5 text-[12px] font-semibold text-foreground-soft">Recommended</span>
               )}
             </div>
             <p className="text-[14px] text-muted-foreground">{p.for}</p>

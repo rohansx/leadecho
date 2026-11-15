@@ -29,7 +29,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       onClick={onClick}
       className={cn(
         "rounded-full border px-2.5 py-1 text-xs transition-colors",
-        on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground",
+        on ? "border-foreground bg-accent text-foreground" : "border-border text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
@@ -135,9 +135,9 @@ export function WorkflowEditor({ initial, saving, error, onSave, onCancel }: Pro
         <Section label="Then">
           <div className="grid gap-2 sm:grid-cols-2">
             {ACTION_ORDER.map((t) => (
-              <div key={t} className={cn("rounded-lg border p-3", has(t) ? "border-primary/60 bg-primary/5" : "border-border")}>
+              <div key={t} className={cn("rounded-lg border p-3", has(t) ? "border-foreground/40 bg-accent" : "border-border")}>
                 <label className="flex cursor-pointer items-start gap-2.5">
-                  <input type="checkbox" className="mt-0.5 accent-[var(--primary)]" checked={has(t)} onChange={() => toggleAction(t)} />
+                  <input type="checkbox" className="mt-0.5 accent-[var(--foreground)]" checked={has(t)} onChange={() => toggleAction(t)} />
                   <span>
                     <span className="block text-sm font-medium">{ACTION_INFO[t].label}</span>
                     <span className="block text-xs text-muted-foreground">{ACTION_INFO[t].hint}</span>
@@ -176,7 +176,7 @@ export function WorkflowEditor({ initial, saving, error, onSave, onCancel }: Pro
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="accent-[var(--primary)]" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.target.checked })} />
+            <input type="checkbox" className="accent-[var(--foreground)]" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.target.checked })} />
             Turn on after saving
           </label>
           <div className="flex items-center gap-2">

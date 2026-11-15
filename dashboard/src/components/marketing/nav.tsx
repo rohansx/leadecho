@@ -57,7 +57,7 @@ export function MarketingNav() {
           </Link>
           <Link
             to="/register"
-            className="inline-flex h-9 items-center rounded-full bg-primary-bg px-4 text-[14px] font-semibold text-primary-fg transition-opacity hover:opacity-90"
+            className="inline-flex h-9 items-center rounded-full border border-border px-4 text-[14px] font-semibold transition-colors hover:bg-accent"
           >
             Start free
           </Link>

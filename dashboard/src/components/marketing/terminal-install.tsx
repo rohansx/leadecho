@@ -20,7 +20,7 @@ const commands = {
 };
 type Tab = keyof typeof commands;
 
-// Always dark, in both themes: the one place the bright yellow carries the page.
+// Always dark, in both themes: yellow is on the one action only.
 const band = {
   "--hairline-plate": "var(--band)",
   "--hairline-hi": "#f2f2f0",
@@ -37,7 +37,7 @@ export function TerminalInstall() {
       <div className={cn(container, "grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:gap-20 [&>*]:min-w-0")}>
         <Reveal>
           <p className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] text-white/55">
-            <span className="size-1.5 rounded-full bg-[#ffd43b]" aria-hidden="true" />
+            <span className="size-1.5 rounded-full bg-white/40" aria-hidden="true" />
             Self-host
           </p>
           <h2 className="mt-4 text-[clamp(2.1rem,4vw,3.1rem)] leading-[1.04] font-semibold tracking-[-0.035em] text-balance [font-stretch:92%]">
@@ -62,7 +62,7 @@ export function TerminalInstall() {
                   onClick={() => setTab(t)}
                   className={cn(
                     "cursor-pointer rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors",
-                    tab === t ? "bg-[#ffd43b] text-[#18181b]" : "text-white/55 hover:text-white",
+                    tab === t ? "bg-white/10 text-white" : "text-white/55 hover:text-white",
                   )}
                 >
                   {t === "docker" ? "Docker" : "From source"}
@@ -72,7 +72,7 @@ export function TerminalInstall() {
             <pre className="overflow-x-auto p-6 font-[family-name:var(--font-mono)] text-[14px] leading-7 text-white/85">
               {commands[tab].map((line) => (
                 <div key={line}>
-                  <span className="select-none text-[#ffd43b]">$ </span>
+                  <span className="select-none text-white/40">$ </span>
                   {line}
                 </div>
               ))}
