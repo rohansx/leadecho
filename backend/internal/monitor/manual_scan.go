@@ -43,6 +43,8 @@ type ManualScan struct {
 	StartedAt   time.Time `json:"started_at,omitzero"`
 	FinishedAt  time.Time `json:"finished_at,omitzero"`
 	Note        string    `json:"note,omitempty"` // why a run did nothing, or what a re-screen did
+	// Restarts is how many times a server restart cut this scan short.
+	Restarts int `json:"restarts,omitempty"`
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
@@ -73,6 +75,22 @@ func StaleBefore(now time.Time) time.Time { return now.Add(-manualScanStale) }
 func (s ManualScan) Requeue() ManualScan {
 	s.State, s.StartedAt = ScanRequested, time.Time{}
 	return s
+}
+
+// Recover is what becomes of a scan found "running" when a monitor starts
+// up: a run started before this process was cut short by the restart (a
+// deploy), so it is asked for again, once. A second cut-short run is marked
+// done, so a scan that brings the server down does not run forever.
+func (s ManualScan) Recover(processStart, now time.Time) (ManualScan, bool) {
+	if s.State != ScanRunning || !s.StartedAt.Before(processStart) {
+		return s, false
+	}
+	if s.Restarts > 0 {
+		return s.Finish(now, "a server restart stopped it twice; ask again"), true
+	}
+	s = s.Requeue()
+	s.Restarts++
+	return s, true
 }
 
 // Finish returns the scan marked done; note says why it did nothing, if so.
@@ -106,6 +124,7 @@ func hiringClaimInterval(ctx context.Context) time.Duration {
 // watchManualScans runs requested scans until ctx ends. It is its own loop
 // because a tick over every workspace can take many minutes.
 func (m *Monitor) watchManualScans(ctx context.Context) {
+	m.recoverManualScans(ctx, time.Now().UTC())
 	t := time.NewTicker(manualScanPoll)
 	defer t.Stop()
 	for {
@@ -114,6 +133,31 @@ func (m *Monitor) watchManualScans(ctx context.Context) {
 			return
 		case <-t.C:
 			m.startManualScans(ctx)
+		}
+	}
+}
+
+// recoverManualScans puts back the scans a restart cut short: before this,
+// one stayed "running" until it went stale an hour later, and never ran.
+// ponytail: assumes one monitor process (the worker); with several, one
+// starting up would requeue a scan another is still running.
+func (m *Monitor) recoverManualScans(ctx context.Context, processStart time.Time) {
+	scans, err := m.q.ListManualScans(ctx)
+	if err != nil {
+		m.logger.Warn().Err(err).Msg("manual scan: list on startup")
+		return
+	}
+	for ws, raw := range scans {
+		var scan ManualScan
+		var id struct {
+			RequestedAt string `json:"requested_at"`
+		}
+		if json.Unmarshal(raw, &scan) != nil || json.Unmarshal(raw, &id) != nil {
+			continue
+		}
+		if next, changed := scan.Recover(processStart, time.Now().UTC()); changed {
+			m.logger.Info().Str("workspace_id", ws).Str("kind", scan.Kind).Str("state", next.State).Msg("manual scan: recovered after a restart")
+			m.saveManualScan(ws, next, id.RequestedAt)
 		}
 	}
 }
