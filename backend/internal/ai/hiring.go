@@ -144,6 +144,8 @@ type Outreach struct {
 	// fits a customer segment, with no event behind it. The message asks
 	// about the segment's problem rather than claiming they have it.
 	SegmentPain string
+	// CompanySize is the headcount when known (0 = unknown).
+	CompanySize int
 }
 
 // outreachUserMessage is what the drafting model is given.
@@ -151,6 +153,9 @@ func outreachUserMessage(o Outreach) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Product: %s\nWhat it does: %s\nHow it differs: %s\n\nRecipient: %s, %s at %s",
 		o.Product, o.Overview, o.Positioning, o.ContactName, o.ContactTitle, o.Company)
+	if o.CompanySize > 0 {
+		fmt.Fprintf(&b, " (about %d employees)", o.CompanySize)
+	}
 	if o.JobTitle != "" {
 		fmt.Fprintf(&b, "\nJob they posted this week: %s", o.JobTitle)
 	} else if o.SegmentPain != "" {
@@ -200,7 +205,7 @@ Rules:
 - Never open by telling them what their own company does or sells: they know. If no fact explains why now, open with the problem as a short question to them instead.
 - The problem: the one companies like theirs often have, as a likely issue, not a claim about them ("that usually means ..."). Pick the consequence that fits this recipient's role: an engineering leader loses the team's time to interviews; a recruiter cannot judge technical skill from a CV.
 - One sentence on what the product does about it, in your own plain words. Never copy a sentence from the product description, and avoid its jargon.
-- End with one question answerable in a few words (an either/or, a yes/no, or "who looks after this?"). Not an offer of "notes" or "ideas", not an open "how do you ...".
+- End with one question answerable in a few words (an either/or or a yes/no). Ask "who looks after this?" only of a senior executive at a company of several hundred people or more; a founder or CTO of a smaller company owns hiring, so ask them about it directly. Not an offer of "notes" or "ideas", not an open "how do you ...".
 - Never name the site a fact came from. No flattery, no "I hope this finds you well", no buzzwords, no exclamation marks, no claims or numbers that are not in the product description or the facts, no links, no signature.
 - Use at most one fact from what we found. Never add a detail that is not in that list.
 

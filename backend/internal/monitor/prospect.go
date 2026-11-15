@@ -69,6 +69,14 @@ type prospectState struct {
 	// Seen holds company domains already judged, so a company is never
 	// checked (or contacted) twice.
 	Seen []string `json:"seen,omitempty"`
+	// Last is what happened to each company in the latest run, so an
+	// operator can tell a strict filter from a broken step.
+	Last []prospectOutcome `json:"last,omitempty"`
+}
+
+type prospectOutcome struct {
+	Company string `json:"company"`
+	Outcome string `json:"outcome"`
 }
 
 // prospectClaimInterval is a day, or at once for an operator's manual scan.
@@ -172,6 +180,10 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 			st.Seen = st.Seen[len(st.Seen)-maxProspectSeen:]
 		}
 	}
+	st.Last = nil
+	note := func(company, outcome string) {
+		st.Last = append(st.Last, prospectOutcome{Company: truncateRunes(company, maxProspectName), Outcome: outcome})
+	}
 	candidates, err := m.searchCompanies(ctx, wsID, query, seg.Country)
 	if err != nil {
 		return // out of credits, paused or provider down: the round still advances
@@ -195,6 +207,7 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 	for i, c := range candidates {
 		if !fitting[i] {
 			remember(c.Domain) // judged not to fit: never paid for again
+			note(c.Name, "not a fit for the segment")
 		}
 	}
 	// A fitting company is remembered once its people search has run, so
@@ -217,10 +230,12 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 		}
 		if exists {
 			remember(c.Domain)
+			note(c.Name, "already a lead")
 			continue
 		}
 		lookups++
-		done, stop := m.prospectCompany(ctx, wsID, bp, seg, c, fit, pid, remember)
+		done, stop, outcome := m.prospectCompany(ctx, wsID, bp, seg, c, fit, pid, remember)
+		note(c.Name, outcome)
 		if done {
 			created++
 		}
@@ -236,12 +251,13 @@ func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
 // stores the lead. stop reports that the run should end (a failed search,
 // the daily contact cap, or shutdown). remember is called once the paid
 // people search has run.
-func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.BrandProfile, seg ai.CustomerSegment, c ai.ProspectCandidate, fit ai.ProspectFit, pid string, remember func(string)) (created, stop bool) {
+// outcome says what happened, in plain words, for the run's record.
+func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.BrandProfile, seg ai.CustomerSegment, c ai.ProspectCandidate, fit ai.ProspectFit, pid string, remember func(string)) (created, stop bool, outcome string) {
 	job := jobPost{Company: c.Name, CompanyURL: "https://" + c.Domain} // no job: the buyer query names the titles
 	candidates, err := m.searchBuyers(ctx, wsID, seg.BuyerTitles, job, c.Employees,
 		func(p []foundPerson) []foundPerson { return rankByTitles(p, seg.BuyerTitles) })
 	if err != nil {
-		return false, true
+		return false, true, "people search failed: " + err.Error()
 	}
 	co := hiringCompany{size: c.Employees, domain: c.Domain}
 	// Up to maxContactTries paid lookups per company: a catch-all email sends
@@ -252,29 +268,29 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 			return confirmProspectContact(c.Name, co, p, res)
 		})
 	if capped && !check.confirmed {
-		return false, true // today's contact lookups ran out before a buyer was confirmed: retry another day
+		return false, true, "daily contact lookups used up; tried again on a later run"
 	}
 	remember(c.Domain)
 	if !check.confirmed {
 		// Without a confirmed buyer a fitting company is only a name on a
 		// list: not stored, and (already judged) not looked up again.
-		return false, capped
+		return false, capped, "no buyer confirmed: " + check.reason
 	}
-	brief := m.researchLead(ctx, wsID, ai.CompanyResearch{
+	brief, researchErr := m.researchLeadErr(ctx, wsID, ai.CompanyResearch{
 		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
 		Company: c.Name, CompanyURL: job.CompanyURL, ContactTitle: person.Title,
 		Fit: seg.Name + ": " + strings.Join(seg.Criteria, "; "),
 	})
 	if ctx.Err() != nil {
 		m.refundResearch(ctx, wsID, brief)
-		return false, true
+		return false, true, "stopped: shutting down"
 	}
 	if brief != nil && brief.NotABuyer != "" {
 		// Its own pages contradict the fit (too small, not hiring, a vendor):
 		// not stored, not charged, not looked at again.
 		m.logger.Info().Str("company", c.Name).Str("why", brief.NotABuyer).Str("workspace_id", wsID).Msg("prospects: research ruled the company out")
 		m.refundResearch(ctx, wsID, brief)
-		return false, capped
+		return false, capped, "ruled out by research: " + truncateRunes(brief.NotABuyer, 200)
 	}
 	if c.Employees > 0 {
 		// The company search's headcount, not the contact provider's: the
@@ -286,14 +302,23 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 	mentionID := m.insertProspect(ctx, wsID, pid, seg, c, fit, person, contact, brief)
 	if mentionID == "" {
 		m.refundResearch(ctx, wsID, brief)
-		return false, capped
+		return false, capped, "not stored (duplicate or muted)"
+	}
+	if brief == nil {
+		// No sourced fact to open on: a draft would be the same generic
+		// question for everyone, so none is written.
+		why := "research found nothing"
+		if researchErr != nil {
+			why = "research failed: " + truncateRunes(researchErr.Error(), 200)
+		}
+		return true, capped, "lead without a draft (" + why + ")"
 	}
 	m.draftOutreach(ctx, wsID, mentionID, ai.Outreach{
 		Product: bp.Product, Overview: bp.Overview, Positioning: bp.Positioning,
 		ContactName: person.Name, ContactTitle: person.Title, Company: c.Name,
-		Research: brief, SegmentPain: seg.Pain,
+		Research: brief, SegmentPain: seg.Pain, CompanySize: c.Employees,
 	})
-	return true, capped
+	return true, capped, "lead"
 }
 
 // segmentQueries are the wordings of a segment's company search, one per
