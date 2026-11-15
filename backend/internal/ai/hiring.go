@@ -221,6 +221,8 @@ func outreachUserMessage(o Outreach) string {
 		}
 	} else if o.SegmentPain != "" {
 		fmt.Fprintf(&b, "\nA problem companies like theirs often have: %s", o.SegmentPain)
+	}
+	if o.JobTitle == "" && o.Funding == "" { // a prospect: the opening fact's date is read against today
 		fmt.Fprintf(&b, "\nToday is %s", today.UTC().Format(outreachDate))
 	}
 	if o.Funding != "" {

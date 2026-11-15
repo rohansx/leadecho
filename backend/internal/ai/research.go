@@ -67,7 +67,7 @@ const researchPrompt = `You research one company for a salesperson who is about 
 
 Search for: what the company sells and to whom; anything from the last 12 months that bears on the job it just posted (funding, growth, layoffs, a product launch, an acquisition, a new office, how many similar roles are open); and anything that connects its situation to the product being offered.
 
-When no job was posted (a "Why we think it fits" line is given instead), the brief must find a dated reason to write now. Search for each of these, with the company's name: a funding round or acquisition in the last 12 months; a new technology, engineering or people leader who joined in the last 12 months; and its open engineering jobs on its careers page or a job board. Put those first among the facts.
+When no job was posted (a "Why we think it fits" line is given instead), the brief must find a dated reason to write now. Search for each of these, with the company's name: a funding round or acquisition in the last 12 months; a leadership change the company or the press announced in the last 12 months (a new CTO, head of engineering or head of people), written as the role only, never the person's name; and its open engineering jobs on its careers page or a job board. Put those first among the facts.
 
 Rules:
 - State only what a page you found says. If you cannot find something, leave it out. Never guess a number, a date or a name.

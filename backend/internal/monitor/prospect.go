@@ -268,6 +268,15 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 	if err != nil {
 		return false, true, "people search failed: " + err.Error()
 	}
+	// Titles from the search are free to check: a person whose title does
+	// not buy is never paid for. The looked-up title is checked again.
+	candidates = slices.DeleteFunc(candidates, func(p foundPerson) bool {
+		return p.Title != "" && !titleOwnsBuying(p.Title, seg.BuyerTitles, c.Employees)
+	})
+	if len(candidates) == 0 {
+		remember(c.Domain)
+		return false, false, "no one with a buyer title (" + truncateRunes(seg.BuyerTitles, 80) + ") found"
+	}
 	co := hiringCompany{size: c.Employees, domain: c.Domain}
 	// Up to maxContactTries paid lookups per company: a catch-all email sends
 	// it to the next person, so a run pays for at most 2 x its contact cap.
@@ -400,9 +409,9 @@ var titleAliases = strings.NewReplacer(
 var hiringWords = []string{"talent", "acquisition", "recruiting", "recruitment", "recruiter", "hiring", "hr", "people"}
 
 // sellingWords mark a title on the selling side of a company: "VP & Head of
-// Business Engineering solutions" ends in Engineering but sells (live,
+// Business Engineering solutions" has Engineering in it but sells (live,
 // Cashfree 2026-11-15). Ignored when the buyer titles ask for that side.
-var sellingWords = []string{"sales", "presales", "business", "account", "accounts", "customer", "solutions", "marketing", "revenue", "partnerships"}
+var sellingWords = []string{"sales", "presales", "account", "accounts", "solution", "solutions", "client", "revenue", "partnerships"}
 
 // titleOwnsBuying reports whether a contact's title matches one of the
 // segment's buyer titles, and is not a selling-side title. At a company
@@ -442,16 +451,24 @@ func titleWords(s string) map[string]bool {
 	return words
 }
 
-// titleKeys are the last words of each buyer title phrase (Engineering,
-// Talent, CTO), in order.
+// titleKeys are the topic words of the buyer titles, in order: "CTO and VP
+// Engineering & Product" gives cto, engineering, product. Rank words (VP,
+// Head, Lead, Manager) are dropped: on their own they match any department.
 func titleKeys(titles string) []string {
 	var keys []string
-	for _, ph := range titleSplitRe.Split(titles, -1) {
-		if f := strings.Fields(titleAliases.Replace(strings.ToLower(ph))); len(f) > 0 {
-			keys = append(keys, strings.Trim(f[len(f)-1], ".:()"))
+	for _, w := range nonWordRe.Split(titleAliases.Replace(strings.ToLower(titles)), -1) {
+		if w != "" && !rankWords[w] && !slices.Contains(keys, w) {
+			keys = append(keys, w)
 		}
 	}
 	return keys
+}
+
+var rankWords = map[string]bool{
+	"vp": true, "svp": true, "evp": true, "avp": true, "head": true, "of": true, "director": true, "lead": true,
+	"leader": true, "manager": true, "senior": true, "sr": true, "chief": true, "officer": true, "the": true,
+	"and": true, "or": true, "president": true, "principal": true, "global": true, "group": true, "deputy": true,
+	"associate": true, "assistant": true, "for": true, "in": true, "at": true, "a": true,
 }
 
 // rankByTitles puts the people whose title matches an earlier buyer title
