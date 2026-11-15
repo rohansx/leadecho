@@ -519,7 +519,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 			// erase it. Left unstamped, the next re-score tries it again.
 			return
 		}
-		m.markStageFiltered(ctx, c.alert, "stage3_classification_error", err.Error())
+		m.markStageFiltered(ctx, c.alert, classifyErrorStage(err), err.Error())
 		return
 	}
 	// scoring: normalize whatever the scorer returned (idempotent for the router)
@@ -579,6 +579,16 @@ func (m *Monitor) runWorkflows(ctx context.Context, a mentionAlert, r *ai.Classi
 		Title: a.Title, Content: a.Content, URL: a.URL, Author: a.Author,
 		Intent: r.Intent, IntentTags: r.IntentTags, Score: r.RelevanceScore,
 	})
+}
+
+// classifyErrorStage: the backfill retries "stage3_classification_error" every
+// tick, which is right for an outage but loops forever on a refusal (the same
+// post is refused every time, two paid calls per post every 5 minutes).
+func classifyErrorStage(err error) string {
+	if errors.Is(err, ai.ErrRefused) {
+		return "stage3_refused"
+	}
+	return "stage3_classification_error"
 }
 
 // leadScoreThreshold must match the leads_ready SQL predicate in

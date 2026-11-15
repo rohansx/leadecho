@@ -23,7 +23,7 @@ func (q *Queries) ListKeywordYield(ctx context.Context, workspaceID string, sinc
 	rows, err := q.db.Query(ctx, `
 SELECT k.id::text, k.term, m.platform::text,
        COUNT(*)::int,
-       COUNT(*) FILTER (WHERE COALESCE(m.scoring_metadata->>'stage', '') NOT IN ('', 'stage3_classification_error'))::int,
+       COUNT(*) FILTER (WHERE COALESCE(m.scoring_metadata->>'stage', '') NOT IN ('', 'stage3_classification_error', 'stage3_refused'))::int,
        COUNT(*) FILTER (WHERE m.scoring_metadata->>'stage' LIKE 'stage2%' OR m.scoring_metadata->>'stage' LIKE 'stage3%')::int,
        COUNT(*) FILTER (WHERE m.relevance_score >= 6.0)::int,
        COUNT(*) FILTER (WHERE COALESCE(m.scoring_metadata->>'ask', '') <> '')::int

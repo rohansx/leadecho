@@ -2,12 +2,17 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go/v2"
 	"github.com/anthropics/anthropic-sdk-go/v2/option"
 )
+
+// ErrRefused marks a request the model declined (stop_reason "refusal").
+// Retrying the same post gets the same answer, so callers must not retry it.
+var ErrRefused = errors.New("request refused")
 
 // maxCacheBreakpoints is the API's limit on cache_control markers per request.
 const maxCacheBreakpoints = 4
@@ -56,7 +61,7 @@ func callAnthropic(ctx context.Context, p Provider, messages []chatMessage) (str
 		return "", Usage{}, fmt.Errorf("anthropic: %w", err)
 	}
 	if resp.StopReason == anthropic.StopReasonRefusal {
-		return "", Usage{}, fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
+		return "", Usage{}, fmt.Errorf("anthropic: %w (%s)", ErrRefused, resp.StopDetails.Category)
 	}
 
 	var out strings.Builder
