@@ -221,8 +221,8 @@ function KeywordsPage() {
                   onClick={() => togglePlatform(p)}
                   className={`px-2.5 py-1 rounded-lg text-xs border cursor-pointer transition font-medium ${
                     selectedPlatforms.includes(p)
-                      ? "bg-accent-soft text-primary-ink border-primary/40"
-                      : "bg-muted text-muted-foreground border-transparent hover:border-border"
+                      ? "bg-secondary text-foreground border-foreground/30"
+                      : "bg-transparent text-muted-foreground border-border hover:text-foreground"
                   }`}
                 >
                   {p}
@@ -243,8 +243,8 @@ function KeywordsPage() {
                   onClick={() => setMatchType(mt)}
                   className={`px-2.5 py-1 rounded-lg text-xs border cursor-pointer transition font-medium ${
                     matchType === mt
-                      ? "bg-accent-soft text-primary-ink border-primary/40"
-                      : "bg-muted text-muted-foreground border-transparent hover:border-border"
+                      ? "bg-secondary text-foreground border-foreground/30"
+                      : "bg-transparent text-muted-foreground border-border hover:text-foreground"
                   }`}
                 >
                   {mt}
@@ -356,7 +356,7 @@ function KeywordRow({ kw, rates, onToggle, onDelete }: KeywordRowProps) {
 
       <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1">
         {kw.platforms.map((p) => (
-          <Badge key={p} variant="surface" size="sm" title={isPaid(p, rates) ? "Paid data source" : undefined}>
+          <Badge key={p} size="sm" title={isPaid(p, rates) ? "Paid data source" : undefined}>
             {p}
             {isPaid(p, rates) && <DollarSign className="h-2.5 w-2.5" aria-label="paid" />}
           </Badge>

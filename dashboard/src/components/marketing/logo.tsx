@@ -31,8 +31,8 @@ export function Logo({ className, to = "/" }: { className?: string; to?: "/" | "
     >
       <LogoMark className="h-6 w-6" />
       <span>
-        <b className="font-semibold">Lead</b>
-        <i className="font-[family-name:var(--font-serif)] italic text-primary-ink">Echo</i>
+        <span className="font-medium">Lead</span>
+        <span className="font-medium text-primary-ink">Echo</span>
       </span>
     </Link>
   );

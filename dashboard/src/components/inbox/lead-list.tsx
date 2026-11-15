@@ -7,34 +7,17 @@ import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
 import { PlatformLogo } from "@/components/ui/platform-logo";
 import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 
-const intentColors: Record<string, string> = {
-  buy_signal: "text-primary-ink",
-  recommendation_ask: "text-blue-600 dark:text-blue-400",
-  comparison: "text-purple-600 dark:text-purple-400",
-  complaint: "text-orange-600 dark:text-orange-400",
-  general: "text-muted-foreground",
+const actionLabel: Record<string, string> = {
+  ready_to_send: "Review & send",
+  needs_draft: "Draft reply",
+  needs_review: "Needs review",
 };
 
-const actionBadge: Record<string, { label: string; className: string }> = {
-  ready_to_send: {
-    label: "Review & send",
-    className: "bg-primary/15 text-primary-ink border-primary/25",
-  },
-  needs_draft: {
-    label: "Draft reply",
-    className: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
-  },
-  needs_review: {
-    label: "Needs review",
-    className: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
-  },
-};
-
+// Gold is reserved for the top band, so a gold tile means "look here first".
 function scoreClass(score: number | null) {
-  if (score == null) return "bg-muted text-muted-foreground";
-  if (score >= 6) return "bg-primary/15 text-primary-ink";
-  if (score >= 4) return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
-  return "bg-muted text-muted-foreground";
+  if (score == null || score < 7) return "border border-border text-muted-foreground";
+  if (score >= 8.5) return "bg-primary/15 text-primary-ink";
+  return "bg-secondary text-foreground";
 }
 
 function timeAgo(dateStr: string): string {
@@ -277,7 +260,7 @@ export function LeadList({
                   onClick={() => onActionKindChange(t.key)}
                   className={`px-2 py-0.5 rounded-md text-[11px] font-medium cursor-pointer transition-colors border ${
                     active
-                      ? "border-primary/40 bg-primary/10 text-primary-ink"
+                      ? "border-foreground bg-foreground text-background"
                       : "border-border text-muted-foreground hover:bg-accent"
                   }`}
                 >
@@ -385,10 +368,10 @@ export function LeadList({
               <div className="space-y-3 py-4">
                 <div className="flex items-center justify-center gap-2">
                   <span className="relative flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-primary"></span>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-muted-foreground opacity-60"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-muted-foreground"></span>
                   </span>
-                  <span className="text-primary-ink font-medium text-sm">Agent is live & scanning</span>
+                  <span className="text-foreground font-medium text-sm">Agent is live & scanning</span>
                 </div>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>
@@ -409,8 +392,8 @@ export function LeadList({
             {agentActive && totalMentions !== undefined && totalMentions > 0 && (
               <div className="flex items-center justify-center gap-2 py-2">
                 <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40"></span>
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary"></span>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-muted-foreground opacity-40"></span>
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-muted-foreground"></span>
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Agent active · {totalMentions.toLocaleString()} mention{totalMentions === 1 ? "" : "s"} found
@@ -429,41 +412,37 @@ export function LeadList({
         )}
 
         {!isProposalsView &&
-          mentions.map((m, i) => {
-            const action = m.next_action;
-            const badge = action ? actionBadge[action] : null;
+          mentions.map((m) => {
+            // A filter that already names the action would repeat it on every row.
+            const badge = m.next_action && !(isActionView && actionKind) ? actionLabel[m.next_action] : null;
             return (
               <motion.button
                 key={m.id}
                 onClick={() => onSelect(m.id)}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15 }}
                 className={`w-full text-left px-4 py-3.5 border-b border-border flex gap-3 transition-colors cursor-pointer ${
-                  selectedId === m.id ? "bg-accent-soft/60" : "hover:bg-accent/50"
+                  selectedId === m.id ? "bg-accent" : "hover:bg-accent/50"
                 }`}
               >
                 <div
-                  className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium ${scoreClass(m.relevance_score)}`}
+                  className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium tabular-nums ${scoreClass(m.relevance_score)}`}
                 >
                   {m.relevance_score != null ? m.relevance_score.toFixed(1) : "–"}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1 flex-wrap">
                     {badge && (
-                      <span
-                        className={`px-1.5 py-0.5 rounded-lg border text-[10px] font-medium ${badge.className}`}
-                      >
-                        {badge.label}
+                      <span className="px-1.5 py-0.5 rounded-md border border-border bg-secondary text-foreground-soft text-[10px] font-medium">
+                        {badge}
                       </span>
                     )}
                     <PlatformLogo platform={m.platform} />
                     {m.intent && (
                       <>
                         <span>·</span>
-                        <span className={intentColors[m.intent] ?? ""}>
-                          {m.intent.replace("_", " ")}
-                        </span>
+                        <span>{m.intent.replace("_", " ")}</span>
                       </>
                     )}
                     <span className="ml-auto shrink-0">
@@ -514,7 +493,7 @@ export function LeadList({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
               className={`w-full text-left px-4 py-3.5 border-b border-border ${
-                selectedId === p.id ? "bg-accent-soft/60" : ""
+                selectedId === p.id ? "bg-accent" : ""
               }`}
             >
               <button type="button" onClick={() => onSelect(p.id)} className="w-full text-left cursor-pointer">
@@ -531,7 +510,7 @@ export function LeadList({
                     type="button"
                     disabled={proposalActionPending}
                     onClick={() => onProposalAction(p.id, "accepted")}
-                    className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground cursor-pointer disabled:opacity-50"
+                    className="px-2 py-1 text-xs rounded-md border border-border bg-card text-foreground hover:bg-accent cursor-pointer disabled:opacity-50"
                   >
                     Accept
                   </button>

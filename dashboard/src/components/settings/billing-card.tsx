@@ -31,7 +31,7 @@ interface PlanTileProps {
 
 function PlanTile({ plan, current, canBuy, busy, prospecting, onChoose }: PlanTileProps) {
   return (
-    <div className={cn("flex flex-col gap-2 rounded-lg border p-4", current ? "border-primary bg-primary/5" : "border-border")}>
+    <div className={cn("flex flex-col gap-2 rounded-lg border p-4", current ? "border-foreground bg-accent" : "border-border")}>
       <div className="flex items-baseline justify-between">
         <Text as="p" className="font-medium">{plan.name}</Text>
         <Text as="p" className="text-sm">
@@ -47,7 +47,7 @@ function PlanTile({ plan, current, canBuy, busy, prospecting, onChoose }: PlanTi
       {current ? (
         <Badge variant="outline" size="sm" className="mt-auto w-fit"><Check className="h-3 w-3" /> Current plan</Badge>
       ) : plan.price_cents > 0 && canBuy ? (
-        <Button size="sm" variant="accent" className="mt-auto" disabled={busy} onClick={onChoose}>
+        <Button size="sm" variant="outline" className="mt-auto" disabled={busy} onClick={onChoose}>
           {busy ? "Opening checkout…" : `Choose ${plan.name}`}
         </Button>
       ) : null}
@@ -98,7 +98,7 @@ function ProspectDailyRow({ data, onUpgrade }: ProspectDailyRowProps) {
         {toggle.error && <Text as="p" className="text-xs text-destructive">{toggle.error.message}</Text>}
       </div>
       {included ? (
-        <Button size="sm" variant={data.prospect_daily ? "outline" : "accent"} disabled={toggle.isPending}
+        <Button size="sm" variant="outline" disabled={toggle.isPending}
           onClick={() => toggle.mutate(!data.prospect_daily)}>
           {data.prospect_daily ? "Turn off" : "Turn on"}
         </Button>
@@ -209,7 +209,7 @@ export function BillingCard() {
                     Manage billing <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 )}
-                <Button size="sm" variant="accent" disabled={!data.can_checkout || busyItem === "topup"} onClick={() => checkout.mutate("topup")}>
+                <Button size="sm" variant="outline" disabled={!data.can_checkout || busyItem === "topup"} onClick={() => checkout.mutate("topup")}>
                   {busyItem === "topup" ? "Opening checkout…" : `Buy for ${formatPrice(data.topup.price_cents)}`}
                 </Button>
               </div>

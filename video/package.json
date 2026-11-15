@@ -1,0 +1,20 @@
+{
+  "name": "leadecho-hero-video",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Hero out/hero-demo.mp4 --codec=h264 --pixel-format=yuv420p --crf=23 --muted && remotion render src/index.ts Hero out/hero-demo.webm --codec=vp9 --crf=36 --muted && remotion still src/index.ts Hero out/hero-demo-poster.jpg --frame=375 --image-format=jpeg --jpeg-quality=85 && cp out/hero-demo.mp4 out/hero-demo.webm out/hero-demo-poster.jpg ../dashboard/public/"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.543",
+    "@remotion/google-fonts": "4.0.543",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.543"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

@@ -218,13 +218,13 @@ function LLMRouterCard() {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border border-border bg-background">
-          <Badge variant={config?.health.ready ? "surface" : "outline"} size="sm">
+          <Badge variant={config?.health.ready ? "outline" : "default"} size="sm">
             {isLoading ? "Loading" : config?.health.ready ? "Ready" : "Needs setup"}
           </Badge>
           <Text as="p" className="text-sm text-muted-foreground">
             Chat {config?.health.chat_ok ? "OK" : "missing"} · Strong {config?.health.strong_ok ? "OK" : "missing"} · Embedding {config?.health.embed_ok ? "OK" : "missing"}
           </Text>
-          {message && <Text as="p" className="text-sm text-primary-ink">{message}</Text>}
+          {message && <Text as="p" className="text-sm text-muted-foreground">{message}</Text>}
         </div>
 
         <div className="space-y-3">
@@ -244,7 +244,7 @@ function LLMRouterCard() {
                         {provider.is_set ? `${provider.masked_key} · ${provider.key_source}` : provider.capabilities.join(", ")}
                       </Text>
                     </div>
-                    <Badge variant={provider.is_set ? "surface" : "outline"} size="sm">
+                    <Badge variant={provider.is_set ? "outline" : "default"} size="sm">
                       {provider.is_set ? "Configured" : "No key"}
                     </Badge>
                   </div>
@@ -485,7 +485,7 @@ function ChromeExtensionCard() {
         {/* Token status */}
         <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
           <div className="flex items-center gap-2">
-            <Badge variant={hasToken ? "surface" : "outline"} size="sm">
+            <Badge variant={hasToken ? "outline" : "default"} size="sm">
               {isLoading ? "Loading..." : hasToken ? "Active" : "No key"}
             </Badge>
             {hasToken && tokenInfo?.masked_token && (

@@ -99,18 +99,18 @@ function AnalyticsPage() {
   });
 
   const stats = [
-    { label: "Mentions (30d)", value: overview?.mentions_30d ?? 0, icon: MessageSquare },
-    { label: "New / Unread", value: overview?.mentions_new ?? 0, icon: Zap },
-    { label: "Total Leads", value: overview?.total_leads ?? 0, icon: Users },
-    { label: "Converted", value: overview?.converted_leads ?? 0, icon: TrendingUp },
-    { label: "Replies Posted", value: overview?.replies_posted ?? 0, icon: Send },
-    { label: "Active Keywords", value: overview?.active_keywords ?? 0, icon: Target },
+    { label: "Mentions (30d)", value: overview?.mentions_30d, icon: MessageSquare },
+    { label: "New / Unread", value: overview?.mentions_new, icon: Zap },
+    { label: "Total Leads", value: overview?.total_leads, icon: Users },
+    { label: "Converted", value: overview?.converted_leads, icon: TrendingUp },
+    { label: "Replies Posted", value: overview?.replies_posted, icon: Send },
+    { label: "Active Keywords", value: overview?.active_keywords, icon: Target },
   ];
 
   const conversionRate =
     overview && overview.total_leads > 0
       ? ((overview.converted_leads / overview.total_leads) * 100).toFixed(1)
-      : "0";
+      : overview ? "0" : "—";
 
   return (
     <div className="space-y-6">
@@ -128,7 +128,7 @@ function AnalyticsPage() {
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <p className="mt-2 font-[family-name:var(--font-head)] text-2xl font-semibold tracking-tight tabular-nums">
-                  {s.value.toLocaleString()}
+                  {s.value == null ? "—" : s.value.toLocaleString()}
                 </p>
               </CardContent>
             </Card>
@@ -159,9 +159,9 @@ function AnalyticsPage() {
                     {Math.round(band.reject_rate * 100)}%
                   </span>
                 </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-primary rounded-full"
+                    className="h-full bg-foreground/70 rounded-full"
                     style={{ width: `${Math.min(band.reject_rate * 100, 100)}%` }}
                   />
                 </div>
@@ -183,13 +183,13 @@ function AnalyticsPage() {
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Approved", value: attribution?.replies_approved ?? 0 },
-                { label: "Posted", value: attribution?.replies_posted ?? 0 },
-                { label: "UTM clicks", value: attribution?.utm_clicks ?? 0 },
-                { label: "Signups", value: attribution?.utm_signups ?? 0 },
+                { label: "Approved", value: attribution?.replies_approved },
+                { label: "Posted", value: attribution?.replies_posted },
+                { label: "UTM clicks", value: attribution?.utm_clicks },
+                { label: "Signups", value: attribution?.utm_signups },
               ].map((item) => (
                 <div key={item.label} className="rounded-lg border border-border p-3 text-center">
-                  <Text as="p" className="text-xl font-[family-name:var(--font-head)]">{item.value}</Text>
+                  <Text as="p" className="text-xl font-[family-name:var(--font-head)]">{item.value ?? "—"}</Text>
                   <Text as="p" className="text-xs text-muted-foreground">{item.label}</Text>
                 </div>
               ))}
@@ -214,8 +214,8 @@ function AnalyticsPage() {
                     <Badge className={platformTone(p.platform)} size="sm">{p.platform}</Badge>
                     <Text as="span" className="text-sm font-medium">{p.count}</Text>
                   </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full bg-foreground/70 rounded-full" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -237,8 +237,8 @@ function AnalyticsPage() {
                     <Text as="span" className="text-sm">{intentLabels[item.intent] ?? item.intent}</Text>
                     <Text as="span" className="text-sm font-medium">{item.count}</Text>
                   </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${item.intent === "buy_signal" ? "bg-foreground" : "bg-foreground/40"}`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -249,7 +249,7 @@ function AnalyticsPage() {
         {/* Conversion Funnel */}
         <Card>
           <CardHeader>
-            <CardTitle>Conversion Funnel <Badge variant="surface" size="sm" className="ml-2">{conversionRate}% rate</Badge></CardTitle>
+            <CardTitle>Conversion Funnel <Badge size="sm" className="ml-2">{conversionRate}% rate</Badge></CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {!(funnel ?? []).length && <Text as="p" className="text-sm text-muted-foreground">No leads yet.</Text>}
@@ -261,9 +261,9 @@ function AnalyticsPage() {
               return (
                 <div key={stage} className="flex items-center gap-3">
                   <Badge className={`${stageTone(stage)} w-24 justify-center`} size="sm">{stage}</Badge>
-                  <div className="flex-1 h-6 bg-muted rounded-lg border border-border overflow-hidden">
-                    <div className="h-full bg-primary rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(pct, 8)}%` }}>
-                      <span className="text-xs font-medium text-primary-foreground">{count}</span>
+                  <div className="flex-1 h-6 bg-secondary rounded-lg border border-border overflow-hidden">
+                    <div className="h-full bg-foreground/70 rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(pct, 8)}%` }}>
+                      <span className="text-xs font-medium text-background tabular-nums">{count}</span>
                     </div>
                   </div>
                 </div>

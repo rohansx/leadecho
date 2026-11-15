@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { isCompanySignal, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
+import { splitLeadSections } from "@/lib/lead-sections";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -62,6 +63,39 @@ function SignalRow({ label, value }: { label: string; value: React.ReactNode }) 
       <span className="text-muted-foreground shrink-0">{label}</span>
       <span className="text-right text-foreground-soft">{value}</span>
     </div>
+  );
+}
+
+// The post body. A company signal's body carries labelled paragraphs ("Who to
+// contact: ..."): those render as rows. Anything else renders as plain text.
+function LeadBody({ mention }: { mention: Mention }) {
+  const parts = splitLeadSections(mention.content);
+  if (!parts) {
+    return <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>;
+  }
+  // The research panel beside this column already shows what the web search found.
+  const hideResearch = parseResearch(mention.platform_metadata) != null;
+  const rows = parts.sections.filter((s) => !(hideResearch && s.research));
+  return (
+    <>
+      {parts.intro && (
+        <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{parts.intro}</p>
+      )}
+      <dl className="mt-3 border-t border-border">
+        {rows.map((s) => (
+          <div key={s.label} className="grid gap-x-4 gap-y-0.5 border-b border-border py-2.5 sm:grid-cols-[132px_1fr]">
+            <dt className="text-xs leading-[1.375rem] text-muted-foreground">{s.label}</dt>
+            <dd className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{s.text}</dd>
+          </div>
+        ))}
+      </dl>
+      {rows.length < parts.sections.length && (
+        <details className="mt-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none hover:text-foreground">Show full signal</summary>
+          <p className="mt-2 text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>
+        </details>
+      )}
+    </>
   );
 }
 
@@ -177,6 +211,10 @@ function OverviewTab({
 
   const profileUrl = safeHttpUrl(mention.person?.linkedin_url) ?? safeHttpUrl(mention.author_profile_url);
 
+  // One primary action per view: for a company signal with an email it is
+  // "Open in email"; otherwise approving the draft.
+  const emailPrimary = companySignal && !!mention.person?.email;
+
   const replyBody = draft?.reply
     ? draft.reply.edited_content ?? draft.reply.content
     : "";
@@ -203,7 +241,7 @@ function OverviewTab({
             href={mention.url}
             target="_blank"
             rel="noreferrer"
-            className="ml-auto inline-flex items-center gap-1 text-primary-ink hover:underline"
+            className="ml-auto inline-flex shrink-0 items-center gap-1 text-foreground underline-offset-2 hover:underline"
           >
             View original <ExternalLink className="h-3 w-3" />
           </a>
@@ -211,17 +249,15 @@ function OverviewTab({
         {mention.title && (
           <h3 className="font-[family-name:var(--font-head)] text-lg font-medium mb-2">{mention.title}</h3>
         )}
-        <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>
+        <LeadBody mention={mention} />
         <div className="mt-3">
           <TagChips tags={mention.intent_tags} sentiment={mention.sentiment} max={13} />
         </div>
       </article>
 
-      <FeedbackButtons key={mention.id} mention={mention} />
-
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         {!mention.intent && (
-          <Button size="sm" variant="outline" onClick={() => classifyMutation.mutate()} disabled={classifyMutation.isPending}>
+          <Button size="sm" variant="ghost" onClick={() => classifyMutation.mutate()} disabled={classifyMutation.isPending}>
             {classifyMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
@@ -231,7 +267,8 @@ function OverviewTab({
           </Button>
         )}
         {!companySignal && (
-          <Button size="sm" onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
+          // Primary until there is a draft; then the draft card's action is.
+          <Button size="sm" variant={draft ? "ghost" : "default"} onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
             {draftMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
@@ -245,7 +282,7 @@ function OverviewTab({
             aria-label="Reply voice"
             value={profileId}
             onChange={(e) => setProfileId(e.target.value)}
-            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground shadow-xs"
+            className="h-7 rounded-lg border border-border bg-card px-2 text-xs text-foreground"
           >
             <option value="">Default voice</option>
             {voices.map((v) => (
@@ -285,6 +322,9 @@ function OverviewTab({
             Not a lead
           </Button>
         )}
+        <div className="ml-auto">
+          <FeedbackButtons key={mention.id} mention={mention} />
+        </div>
       </div>
 
       <AnimatePresence>
@@ -293,10 +333,10 @@ function OverviewTab({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border border-primary/30 bg-accent-soft/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
               {draft.status === "queued" && !draft.reply ? (
                 <>
                   <div className="text-sm font-medium mb-1">Draft queued</div>
@@ -324,6 +364,7 @@ function OverviewTab({
                     <div className="flex gap-2 mt-2">
                       <Button
                         size="sm"
+                        variant="outline"
                         onClick={() => handleManualDraft()}
                         disabled={!manualReply.trim() || manualMutation.isPending}
                       >
@@ -360,16 +401,16 @@ function OverviewTab({
                         </span>
                       )}
                       {draft.awareness_level && (
-                        <span className="rounded-full bg-accent-soft text-primary-ink px-2 py-0.5">
+                        <span className="rounded-full bg-muted px-2 py-0.5">
                           {awarenessLabels[draft.awareness_level] ?? draft.awareness_level}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {companySignal && mention.person?.email && (
+                      {emailPrimary && mention.person?.email && (
                         <a
                           href={mailtoHref(mention.person.email, replyBody)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground hover:bg-muted"
+                          className="order-last inline-flex h-7 items-center gap-1.5 rounded-lg bg-foreground px-2.5 text-xs font-medium text-background hover:bg-foreground/85"
                         >
                           <Mail className="h-3.5 w-3.5" />
                           Open in email
@@ -380,7 +421,7 @@ function OverviewTab({
                           href={profileUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground hover:bg-muted"
+                          className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-foreground hover:bg-accent"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                           LinkedIn profile
@@ -400,7 +441,7 @@ function OverviewTab({
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{replyBody}</p>
 
                   {draft.reply.status === "draft" && (
-                    <div className="rounded-lg border border-border bg-card/80 p-3 space-y-2">
+                    <div className="border-t border-border pt-3 space-y-2">
                       <div className="flex items-center gap-1.5 text-xs font-medium text-foreground-soft">
                         <Link2 className="h-3.5 w-3.5" />
                         Track conversion (optional)
@@ -419,6 +460,7 @@ function OverviewTab({
                       )}
                       <Button
                         size="sm"
+                        variant={emailPrimary ? "outline" : "default"}
                         onClick={() => approveMutation.mutate(draft.reply!.id)}
                         disabled={approveMutation.isPending}
                       >
@@ -438,7 +480,7 @@ function OverviewTab({
                       {draft.reply.short_url && (
                         <button
                           type="button"
-                          className="ml-2 text-primary-ink hover:underline cursor-pointer"
+                          className="ml-2 text-foreground underline underline-offset-2 cursor-pointer"
                           onClick={() =>
                             handleCopy(
                               draft.reply!.short_url!.startsWith("http")
@@ -500,11 +542,11 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
           </div>
           <div className="flex flex-col items-end gap-1">
             {person.icp_fit_score != null && (
-              <span className="text-xs rounded-full bg-primary text-primary-foreground px-2 py-0.5">
+              <span className="text-xs tabular-nums rounded-full bg-secondary text-foreground px-2 py-0.5">
                 ICP fit {Math.round(person.icp_fit_score * 100)}%
               </span>
             )}
-            <span className="text-xs rounded-full bg-primary/10 text-primary px-2 py-0.5">
+            <span className="text-xs tabular-nums rounded-full bg-muted text-muted-foreground px-2 py-0.5">
               {Math.round(person.confidence * 100)}% confidence
             </span>
           </div>
@@ -528,7 +570,7 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>{Math.round(id.confidence * 100)}%</span>
                 {id.profile_url && (
-                  <a href={id.profile_url} target="_blank" rel="noreferrer" className="hover:text-primary">
+                  <a href={id.profile_url} target="_blank" rel="noreferrer" className="hover:text-foreground">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
@@ -599,23 +641,23 @@ function ResearchPanel({ mention }: { mention: Mention }) {
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">About the company</h5>
       {research.whatTheyDo && <p className="text-sm leading-relaxed">{research.whatTheyDo}</p>}
       {research.whyNow && (
-        <p className="mt-2 text-sm leading-relaxed">
-          <span className="font-medium">Why now: </span>
-          {research.whyNow}
-        </p>
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="text-xs text-muted-foreground">Why now</div>
+          <p className="mt-0.5 text-sm leading-relaxed">{research.whyNow}</p>
+        </div>
       )}
       {research.hook && (
-        <p className="mt-2 text-sm leading-relaxed text-foreground-soft">
-          <span className="font-medium text-foreground">A way in: </span>
-          {research.hook}
-        </p>
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="text-xs text-muted-foreground">A way in</div>
+          <p className="mt-0.5 text-sm leading-relaxed">{research.hook}</p>
+        </div>
       )}
       {research.facts.length > 0 && (
         <ul className="mt-3 space-y-2 border-t border-border pt-3">
           {research.facts.map((f) => (
             <li key={f.url + f.text} className="text-sm leading-relaxed text-foreground-soft">
               {f.text}{" "}
-              <a href={f.url} target="_blank" rel="noreferrer noopener" className="whitespace-nowrap text-xs text-primary-ink underline underline-offset-2">
+              <a href={f.url} target="_blank" rel="noreferrer noopener" className="whitespace-nowrap text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
                 {sourceHost(f.url)}
               </a>
             </li>
@@ -761,7 +803,7 @@ export function LeadDetail({
           >
             {t === "person360" ? "Person360" : t}
             {tab === t && (
-              <motion.div layoutId="detail-tab" className="absolute left-0 right-0 -bottom-px h-0.5 bg-primary" />
+              <motion.div layoutId="detail-tab" className="absolute left-0 right-0 -bottom-px h-0.5 bg-foreground" />
             )}
           </button>
         ))}
@@ -774,7 +816,7 @@ export function LeadDetail({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: 0.15 }}
           >
             {tab === "overview" ? (
               <OverviewTab mention={mention} onFeedback={onFeedback} />

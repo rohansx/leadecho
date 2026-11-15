@@ -66,8 +66,8 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-border bg-card/60">
-      <div className="flex h-[var(--header-height)] items-center px-5">
-        <Logo to="/inbox" />
+      <div className="flex h-[var(--header-height)] min-w-0 shrink-0 items-center px-[18px]">
+        <Logo to="/inbox" className="min-w-0 gap-2.5 text-base [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:overflow-visible" />
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 pb-4 pt-2">

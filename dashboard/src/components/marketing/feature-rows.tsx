@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Sieve, Hub, Keyboard, Plot } from "@lucasmarkes/hairline/react";
 import { cn } from "@/lib/utils";
 import { Section, Eyebrow, H2 } from "./section";
-import { Reveal, CountUp, Bar } from "./fx";
+import { Reveal, Bar } from "./fx";
 import { useTypewriter } from "./use-typewriter";
 
 function Row({
@@ -23,19 +23,17 @@ function Row({
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-20 [&>*]:min-w-0">
       <Reveal className={cn(flip && "lg:order-2")}>
-        <div className="rounded-[24px] border border-border bg-card px-8 py-10 sm:px-14">{figure}</div>
-      </Reveal>
-      <Reveal delay={0.08}>
+        <div className="on-page mb-5 w-[140px]">{figure}</div>
         <Eyebrow>{eyebrow}</Eyebrow>
         <H2 className="mt-4">{title}</H2>
         <p className="mt-5 max-w-lg text-foreground-soft">{body}</p>
-        <div className="mt-8">{children}</div>
       </Reveal>
+      <Reveal delay={0.08}>{children}</Reveal>
     </div>
   );
 }
 
-// Example workspace, 30 days. Bar width uses sqrt so the small stages stay visible.
+// Sample numbers, not a real workspace. Bar width uses sqrt so the small stages stay visible.
 const stages = [
   { name: "Collected", count: 2184 },
   { name: "Not spam", count: 966 },
@@ -46,15 +44,15 @@ const stages = [
 function Funnel() {
   const max = Math.sqrt(stages[0].count);
   return (
-    <ul className="space-y-3.5">
+    <ul className="space-y-3.5 rounded-[18px] border border-border bg-card p-5">
       {stages.map((s, i) => {
         const last = i === stages.length - 1;
         return (
           <li key={s.name} className="grid grid-cols-[9.5rem_1fr_3.5rem] items-center gap-4 text-[15px] sm:grid-cols-[11rem_1fr_4rem]">
             <span className={last ? "font-semibold" : "text-foreground-soft"}>{s.name}</span>
-            <Bar pct={(Math.sqrt(s.count) / max) * 100} className={cn("h-full rounded-full", last ? "bg-dot" : "bg-foreground/80")} />
-            <span className={cn("text-right font-[family-name:var(--font-mono)] text-[14px]", last && "font-semibold")}>
-              <CountUp to={s.count} />
+            <Bar pct={(Math.sqrt(s.count) / max) * 100} className={cn("h-full rounded-full", last ? "bg-foreground" : "bg-foreground/40")} />
+            <span className={cn("text-right font-[family-name:var(--font-mono)] text-[14px] tabular-nums", last && "font-semibold")}>
+              {s.count.toLocaleString("en-US")}
             </span>
           </li>
         );
@@ -77,7 +75,7 @@ function Profile() {
           <div className="font-semibold">Daniel Reyes</div>
           <div className="text-[13px] text-muted-foreground">u/build_in_public on Reddit</div>
         </div>
-        <span className="rounded-full bg-chip-bg px-2.5 py-0.5 text-[13px] font-semibold text-chip-fg">88% fit</span>
+        <span className="rounded-full border border-border px-2.5 py-0.5 text-[13px] font-semibold text-foreground-soft">88% fit</span>
       </div>
       <dl className="mt-4 border-t border-border">
         {rows.map(([k, v]) => (
@@ -118,9 +116,9 @@ function Draft() {
 }
 
 const results = [
-  { label: "Replies posted", to: 61 },
-  { label: "Signed up", to: 14 },
-  { label: "Revenue added", to: 4872, prefix: "$" },
+  { label: "Replies posted", value: "61" },
+  { label: "Signed up", value: "14" },
+  { label: "Revenue added", value: "$4,872" },
 ];
 
 function Results() {
@@ -130,15 +128,13 @@ function Results() {
         {results.map((r) => (
           <div key={r.label} className="p-4 sm:p-5">
             <dt className="text-[13px] text-muted-foreground">{r.label}</dt>
-            <dd className="mt-1 text-[26px] font-semibold tracking-[-0.03em]">
-              <CountUp to={r.to} prefix={r.prefix} />
-            </dd>
+            <dd className="mt-1 text-[26px] font-semibold tracking-[-0.03em] tabular-nums">{r.value}</dd>
           </div>
         ))}
       </dl>
       <div className="flex items-center gap-4 border-t border-border p-4 text-[14px] sm:px-5">
         <span className="w-40 shrink-0 text-foreground-soft">Best style: story</span>
-        <Bar pct={78} className="h-full rounded-full bg-dot" />
+        <Bar pct={78} className="h-full rounded-full bg-foreground" />
         <span className="font-[family-name:var(--font-mono)] text-[13px]">31%</span>
       </div>
     </div>
@@ -149,25 +145,26 @@ export function FeatureRows() {
   return (
     <Section className="space-y-20 sm:space-y-24">
       <Row
-        figure={<Sieve play className="mx-auto max-w-[380px]" intensity={0.7} label="Stacked sieves sorting what passes through" />}
+        figure={<Sieve play intensity={0.7} label="Stacked sieves sorting what passes through" />}
         eyebrow="Filters"
         title="Thousands of posts in. Only buyers out."
-        body="Four passes drop spam, match posts to the problems you described by meaning, and score buying intent. Cheap models go first, so AI costs stay at a few dollars a month."
+        body="Four passes drop spam, match posts to the problems you described by meaning, and score buying intent. Cheap models go first, so the expensive ones only read the posts worth reading."
       >
         <Funnel />
-        <p className="mt-4 text-[13px] text-muted-foreground">One example workspace, last 30 days.</p>
+        <p className="mt-4 text-[13px] text-muted-foreground">Sample numbers, to show the shape of the funnel.</p>
       </Row>
       <Row
         flip
-        figure={<Hub play className="mx-auto max-w-[380px]" intensity={0.7} label="A hub linking several sources together" />}
+        figure={<Hub play intensity={0.7} label="A hub linking several sources together" />}
         eyebrow="Researches"
         title="Know who is asking before you answer."
         body="Each lead is linked to a GitHub profile and a company, then scored against your ideal customer, so you can tell a founder with a budget from someone just curious."
       >
         <Profile />
+        <p className="mt-4 text-[13px] text-muted-foreground">Sample data.</p>
       </Row>
       <Row
-        figure={<Keyboard play className="mx-auto max-w-[400px]" intensity={0.6} label="A keyboard whose keys sink under the pointer" />}
+        figure={<Keyboard play intensity={0.6} label="A keyboard whose keys sink under the pointer" />}
         eyebrow="Drafts"
         title="A reply drafted from your docs and the thread."
         body="Drafts read the full thread and quote your real product. Nothing posts until you approve it, and it posts from your own account through the Chrome extension."
@@ -176,12 +173,13 @@ export function FeatureRows() {
       </Row>
       <Row
         flip
-        figure={<Plot play className="mx-auto max-w-[380px]" intensity={0.7} label="A bar chart whose bars lift under the pointer" />}
+        figure={<Plot play intensity={0.7} label="A bar chart whose bars lift under the pointer" />}
         eyebrow="Attributes"
         title="See which replies turn into customers."
         body="Every reply carries its own link. Signups and revenue flow back to the post, the community and the reply style that earned them, or on to HubSpot and Attio."
       >
         <Results />
+        <p className="mt-4 text-[13px] text-muted-foreground">Sample data.</p>
       </Row>
     </Section>
   );

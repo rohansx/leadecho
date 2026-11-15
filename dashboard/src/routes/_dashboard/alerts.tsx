@@ -101,7 +101,7 @@ function AlertsPage() {
               type="checkbox"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
-              className="w-4 h-4 accent-primary"
+              className="w-4 h-4 accent-foreground"
             />
             <div>
               <Text as="span" className="text-sm font-medium">
@@ -204,7 +204,7 @@ function AlertsPage() {
             </div>
           </div>
           {resendConfigured ? (
-            <Badge variant="surface" size="sm" className="ml-auto">Resend connected</Badge>
+            <Badge variant="outline" size="sm" className="ml-auto">Resend connected</Badge>
           ) : (
             <Badge variant="outline" size="sm" className="text-orange-600 border-orange-300 ml-auto">
               Set RESEND_API_KEY in .env
@@ -260,7 +260,7 @@ function AlertsPage() {
               type="checkbox"
               checked={onNewMention}
               onChange={(e) => setOnNewMention(e.target.checked)}
-              className="w-4 h-4 accent-primary mt-0.5"
+              className="w-4 h-4 accent-foreground mt-0.5"
             />
             <div>
               <Text as="span" className="text-sm font-medium">New mentions</Text>
@@ -274,7 +274,7 @@ function AlertsPage() {
               type="checkbox"
               checked={onHighIntent}
               onChange={(e) => setOnHighIntent(e.target.checked)}
-              className="w-4 h-4 accent-primary mt-0.5"
+              className="w-4 h-4 accent-foreground mt-0.5"
             />
             <div>
               <Text as="span" className="text-sm font-medium">High-intent signals</Text>
@@ -288,7 +288,7 @@ function AlertsPage() {
               type="checkbox"
               checked={onNewLead}
               onChange={(e) => setOnNewLead(e.target.checked)}
-              className="w-4 h-4 accent-primary mt-0.5"
+              className="w-4 h-4 accent-foreground mt-0.5"
             />
             <div>
               <Text as="span" className="text-sm font-medium">New leads created</Text>

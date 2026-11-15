@@ -212,7 +212,7 @@ function ProfilesPage() {
                   {profile.pain_points.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 mt-2">
                       {profile.pain_points.map((phrase) => (
-                        <Badge key={phrase} variant="surface" size="sm" className="text-xs">
+                        <Badge key={phrase} size="sm" className="text-xs">
                           {phrase}
                         </Badge>
                       ))}

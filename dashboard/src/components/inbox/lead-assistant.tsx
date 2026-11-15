@@ -91,7 +91,7 @@ function YourCustomers() {
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
           />
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            <Button size="sm" variant="outline" onClick={() => save.mutate()} disabled={save.isPending}>
               {save.isPending ? "Saving…" : "Save"}
             </Button>
             {save.isError && <span className="text-destructive">Could not save. Try again.</span>}
@@ -188,7 +188,7 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
   return (
     <section className="rounded-xl border border-border bg-card p-4" aria-label="Ask about this lead">
       <div className="mb-3 flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-primary-ink" />
+        <Sparkles className="h-4 w-4 text-muted-foreground" />
         <h4 className="text-sm font-medium">Ask about this lead</h4>
         <span className="text-xs text-muted-foreground">It knows this lead and your product, and can search the web.</span>
       </div>
@@ -243,7 +243,7 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
           aria-label="Question about this lead"
           className="min-h-[38px] flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
         />
-        <Button type="submit" size="sm" disabled={streaming || !input.trim()} aria-label="Send question">
+        <Button type="submit" size="sm" variant="secondary" disabled={streaming || !input.trim()} aria-label="Send question">
           {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
         </Button>
       </form>

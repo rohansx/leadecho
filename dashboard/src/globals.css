@@ -146,7 +146,7 @@
 /* Live feed: each new post slides in at the top. */
 @keyframes mkt-feed-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 .mkt-feed-in { animation: mkt-feed-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-@keyframes mkt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--dot) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes mkt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--foreground) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 .mkt-live { animation: mkt-pulse 2s ease-in-out infinite; }
 @keyframes mkt-caret { 50% { opacity: 0; } }
 .mkt-caret { animation: mkt-caret 1s step-end infinite; }

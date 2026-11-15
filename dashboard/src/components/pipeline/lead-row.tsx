@@ -57,13 +57,13 @@ export function LeadRow({ lead, onStage, pending }: LeadRowProps) {
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {lead.stage === "prospect" && (
-          <Button size="sm" variant="accent" disabled={pending} onClick={() => onStage(lead.id, "qualified")}>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => onStage(lead.id, "qualified")}>
             <Check className="h-3.5 w-3.5" />
             Mark replied
           </Button>
         )}
         {lead.mention_id && (
-          <Button size="sm" variant="outline" asChild>
+          <Button size="sm" variant="ghost" asChild>
             <Link to="/inbox" search={{ id: lead.mention_id, queue: "all" }}>
               <PenLine className="h-3.5 w-3.5" />
               Draft reply
