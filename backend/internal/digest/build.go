@@ -50,6 +50,34 @@ type DemandTheme struct {
 
 const maxDigestThemes = 3
 
+// CompetitorMove is one thing a competitor did this period (see package
+// competitors): what happened and what it means for the customer.
+type CompetitorMove struct {
+	Competitor string
+	Kind       string // launch | pricing | positioning | news
+	Title      string
+	Impact     string
+	URL        string
+	High       bool
+}
+
+// MaxDigestMoves is how many competitor moves a digest lists.
+const MaxDigestMoves = 5
+
+// TopCompetitorMoves keeps the high-importance moves first, then the rest
+// in the order given, at most MaxDigestMoves.
+func TopCompetitorMoves(all []CompetitorMove) []CompetitorMove {
+	out := make([]CompetitorMove, 0, MaxDigestMoves)
+	for _, high := range []bool{true, false} {
+		for _, m := range all {
+			if m.High == high && len(out) < MaxDigestMoves {
+				out = append(out, m)
+			}
+		}
+	}
+	return out
+}
+
 // coverageLabel says in plain words how the product stands on a theme.
 func coverageLabel(c string) string {
 	switch c {
@@ -85,9 +113,12 @@ type Data struct {
 	Pipeline []Count
 	// Demand is what the market asked for: the themes with the most new
 	// asks this week (weekly digest only).
-	Demand       []DemandTheme
-	Summary      string // weekly AI (or template) paragraph
-	DashboardURL string
+	Demand []DemandTheme
+	// CompetitorMoves is what the watched competitors did this period
+	// (weekly digest only). Empty when nothing moved.
+	CompetitorMoves []CompetitorMove
+	Summary         string // weekly AI (or template) paragraph
+	DashboardURL    string
 }
 
 // NoisyKeywords picks keywords with many mentions but low fit, loudest first.
@@ -154,7 +185,7 @@ func (d Data) Complaints() int { return d.intentCount("complaint") }
 
 // Empty reports a period with nothing worth sending.
 func (d Data) Empty() bool {
-	return d.TotalMentions() == 0 && d.RepliesPosted == 0 && d.Clicks == 0 && d.RevenueCents == 0
+	return d.TotalMentions() == 0 && d.RepliesPosted == 0 && d.Clicks == 0 && d.RevenueCents == 0 && len(d.CompetitorMoves) == 0
 }
 
 func plural(n int, one, many string) string {
@@ -226,6 +257,12 @@ func Facts(d Data) string {
 	b.WriteString("by intent:\n")
 	for _, c := range d.Intents {
 		fmt.Fprintf(&b, "  %s: %d\n", c.Label, c.N)
+	}
+	if len(d.CompetitorMoves) > 0 {
+		b.WriteString("competitor moves:\n")
+		for _, m := range d.CompetitorMoves {
+			fmt.Fprintf(&b, "  %s (%s): %s\n", m.Competitor, m.Kind, truncate(m.Title, 140))
+		}
 	}
 	b.WriteString("top leads:\n")
 	for _, l := range d.TopLeads {
