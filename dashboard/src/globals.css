@@ -111,10 +111,11 @@
   --hairline-edge: #a1a1a9;
   --hairline-mid: #c8c8cd;
   --hairline-lo: #e6e6e8;
-  font-family: var(--font-inst);
+  font-family: var(--font-sans); /* Geist for body and UI; Instrument Sans only on the big headlines below */
   font-size: 17px;
   line-height: 1.6;
 }
+.mkt h1, .mkt h2 { font-family: var(--font-inst); }
 .dark .mkt {
   --background: #0e0e10;
   --card: #18181b;
