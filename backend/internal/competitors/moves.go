@@ -30,7 +30,11 @@ type Product struct {
 }
 
 // Theme is an open demand theme: what the customer's market is asking for.
-type Theme struct{ ID, Title, Coverage string }
+type Theme struct {
+	ID, Title, Coverage string
+	Competitors         []string // products people named when describing the need
+	People              int      // how many people raised it
+}
 
 // RecentMove is a move already stored for the competitor, shown to the model
 // so the same event seen through a second source is merged, not repeated.

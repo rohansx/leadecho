@@ -7,6 +7,7 @@ package competitors
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"regexp"
 	"strings"
@@ -205,4 +206,36 @@ func Discover(ctx context.Context, fetch onboarding.PageFetcher, website string)
 		return []Source{{KindLanding, website}}
 	}
 	return ExtractSources(website, body)
+}
+
+// NormalizeSource validates a source a person typed and returns it in the
+// form discovery would have stored: an account as its canonical profile URL,
+// a page as an http(s) URL.
+func NormalizeSource(kind, raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if !ValidKind(kind) {
+		return "", errors.New("unknown source kind")
+	}
+	if kind == KindX && !strings.Contains(raw, "/") {
+		raw = "https://x.com/" + strings.TrimPrefix(raw, "@")
+	}
+	u, err := onboarding.NormalizeProductURL(raw)
+	if err != nil {
+		return "", err
+	}
+	switch kind {
+	case KindX, KindLinkedIn, KindGitHub:
+		// A profile link is recognised exactly as it would be on a homepage.
+		for _, s := range ExtractSources("https://example.invalid/", `<a href="`+html.EscapeString(u)+`">x</a>`) {
+			if s.Kind == kind {
+				return s.URL, nil
+			}
+		}
+		return "", map[string]error{
+			KindX:        errors.New("enter an X profile, like x.com/acme"),
+			KindLinkedIn: errors.New("enter a LinkedIn company page, like linkedin.com/company/acme"),
+			KindGitHub:   errors.New("enter a GitHub organisation, like github.com/acme"),
+		}[kind]
+	}
+	return u, nil
 }

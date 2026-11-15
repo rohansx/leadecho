@@ -82,3 +82,27 @@ func TestFeedLink(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeSource(t *testing.T) {
+	ok := []struct{ kind, in, want string }{
+		{KindX, "@Acme", "https://x.com/acme"},
+		{KindX, "https://twitter.com/acme?s=20", "https://x.com/acme"},
+		{KindLinkedIn, "linkedin.com/company/Acme-Inc/posts", "https://www.linkedin.com/company/acme-inc"},
+		{KindGitHub, "https://github.com/acme/widget", "https://github.com/acme"},
+		{KindPricing, "acme.com/pricing", "https://acme.com/pricing"},
+	}
+	for _, c := range ok {
+		if got, err := NormalizeSource(c.kind, c.in); err != nil || got != c.want {
+			t.Errorf("NormalizeSource(%s, %q) = %q, %v; want %q", c.kind, c.in, got, err, c.want)
+		}
+	}
+	bad := []struct{ kind, in string }{
+		{KindX, "https://x.com/intent/tweet"}, {KindLinkedIn, "https://linkedin.com/in/jane"},
+		{KindGitHub, "https://gitlab.com/acme"}, {KindBlog, "ftp://acme.com"}, {"rss", "https://acme.com"}, {KindPricing, ""},
+	}
+	for _, c := range bad {
+		if got, err := NormalizeSource(c.kind, c.in); err == nil {
+			t.Errorf("NormalizeSource(%s, %q) = %q, want an error", c.kind, c.in, got)
+		}
+	}
+}
