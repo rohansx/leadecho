@@ -877,7 +877,7 @@ func isEmbeddingTask(task Task) bool {
 }
 
 func retryable(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, ai.ErrRefused) {
 		return false
 	}
 	s := strings.ToLower(err.Error())
