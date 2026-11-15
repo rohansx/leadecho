@@ -214,7 +214,7 @@ func ResearchCompany(ctx context.Context, p Provider, in CompanyResearch) (_ *Re
 		u.TotalTokens = u.PromptTokens + u.CompletionTokens + u.CacheReadTokens + u.CacheWriteTokens
 		used += int(resp.Usage.ServerToolUse.WebSearchRequests)
 		if resp.StopReason == anthropic.StopReasonRefusal {
-			return nil, u, fmt.Errorf("anthropic: request refused (%s)", resp.StopDetails.Category)
+			return nil, u, fmt.Errorf("anthropic: %w (%s)", ErrRefused, resp.StopDetails.Category)
 		}
 		text.Reset() // only the final turn's text is the answer
 		for _, block := range resp.Content {

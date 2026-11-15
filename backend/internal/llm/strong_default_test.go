@@ -35,23 +35,14 @@ func TestAnthropicTierDefaults(t *testing.T) {
 }
 
 // The bulk noise filter (keywords with many posts and no leads) runs on the
-// provider's cheapest model, but never overrides a model the workspace pinned.
-func TestBulkFilterUsesCheapestModel(t *testing.T) {
-	auto := ModelTarget{Provider: "anthropic"}
-	if p := cheapest(providerForTarget("anthropic", "k", auto, SystemKeys{}), auto); p.Model != "claude-haiku-5-5" || p.Effort != "" {
-		t.Errorf("auto cheap tier: got %q effort %q, want claude-haiku-5-5 at its default effort", p.Model, p.Effort)
-	}
-	pinned := ModelTarget{Provider: "anthropic", Model: "claude-sonnet-5-5"}
-	if p := cheapest(providerForTarget("anthropic", "k", pinned, SystemKeys{}), pinned); p.Model != "claude-sonnet-5-5" {
-		t.Errorf("pinned model replaced by %q", p.Model)
-	}
-	other := ModelTarget{Provider: "openai"}
-	before := providerForTarget("openai", "k", other, SystemKeys{})
-	if p := cheapest(before, other); p.Model != before.Model {
-		t.Errorf("a provider with no cheaper model changed: %q", p.Model)
-	}
+// same model as the normal filter: Sonnet, not Haiku.
+func TestBulkFilterUsesFilterModel(t *testing.T) {
 	r := &Router{system: SystemKeys{AnthropicAPIKey: "k"}}
-	if c := r.targetsForTask(TaskFilterBulk, DefaultConfig(), nil); len(c) == 0 || c[0].Provider != "anthropic" || c[0].Model != "" {
-		t.Errorf("bulk filter should route like the cheap tier, got %+v", c)
+	c := r.targetsForTask(TaskFilterBulk, DefaultConfig(), nil)
+	if len(c) == 0 {
+		t.Fatal("no bulk filter target")
+	}
+	if p := providerForTarget("anthropic", "k", c[0], SystemKeys{}); p.Model != "claude-sonnet-5-5" {
+		t.Errorf("bulk filter resolves to %q, want claude-sonnet-5-5", p.Model)
 	}
 }

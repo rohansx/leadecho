@@ -331,22 +331,11 @@ func (r *Router) FilterMention(ctx context.Context, workspaceID, title, content,
 type bulkFilterKey struct{}
 
 // WithBulkFilter marks a FilterMention call as one of many from a keyword
-// that has not produced a lead: it runs on the provider's cheapest model.
+// that has not produced a lead. It runs on the same model as the normal
+// filter (a weaker model there kept such keywords from ever producing a
+// lead); the separate task name only keeps its usage visible.
 func WithBulkFilter(ctx context.Context) context.Context {
 	return context.WithValue(ctx, bulkFilterKey{}, true)
-}
-
-// cheapestModel is the lowest-priced chat model per provider. Providers not
-// listed have one model for the cheap tier already.
-var cheapestModel = map[string]string{"anthropic": "claude-haiku-5-5"}
-
-// cheapest swaps in the provider's cheapest model, unless the workspace
-// pinned a model for the tier (its choice stands).
-func cheapest(p ai.Provider, target ModelTarget) ai.Provider {
-	if m := cheapestModel[p.Name]; m != "" && target.Model == "" {
-		p.Model, p.Effort = m, ""
-	}
-	return p
 }
 
 func (r *Router) PreFilterForReply(ctx context.Context, workspaceID, title, content, platform, intent string) (*ai.PreFilterResult, error) {
@@ -521,9 +510,6 @@ func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, 
 			continue
 		}
 		provider := providerForTarget(providerName, key, target, r.system)
-		if task == TaskFilterBulk {
-			provider = cheapest(provider, target)
-		}
 		var sink ai.Usage
 		provider.UsageSink = &sink
 		start := time.Now()
