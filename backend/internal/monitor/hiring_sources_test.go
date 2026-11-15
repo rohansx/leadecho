@@ -40,7 +40,7 @@ func TestParseBlitzJobs(t *testing.T) {
 	want := jobPost{Company: "Voyager Technologies", CompanyURL: "https://www.linkedin.com/company/voyagertechnologies-inc",
 		Title: "Senior Build & Release Software Engineer", Location: "Pittsburgh, US",
 		URL:        "https://www.linkedin.com/jobs/view/senior-build-release-software-engineer-at-voyager-technologies-4491218423",
-		CreatedUTC: time.Date(2026, 11, 15, 3, 27, 4, 0, time.UTC).Unix(), Source: sourceBlitz, SizeFits: true}
+		CreatedUTC: time.Date(2026, 11, 15, 3, 27, 4, 0, time.UTC).Unix(), Source: sourceBlitz, SizeFits: true, Country: "US"}
 	if first != want {
 		t.Fatalf("first posting:\n got %+v\nwant %+v", first, want)
 	}

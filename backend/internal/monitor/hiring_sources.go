@@ -292,7 +292,7 @@ func parseBlitzJobs(body []byte, sizeFiltered bool) (jobs []jobPost, cursor stri
 	}
 	for _, r := range got.Results {
 		job := jobPost{Company: r.CompanyName, CompanyURL: r.CompanyURL, Title: r.Title, URL: r.URL,
-			Location: joinNonEmpty(", ", r.Location.City, r.Location.Country), Source: sourceBlitz, SizeFits: sizeFiltered}
+			Location: joinNonEmpty(", ", r.Location.City, r.Location.Country), Country: r.Location.Country, Source: sourceBlitz, SizeFits: sizeFiltered}
 		// "2026-11-15 04:27:04+01", sometimes with fractional seconds (which
 		// time.Parse accepts without the layout naming them).
 		if t, err := time.Parse("2006-01-02 15:04:05-07", r.DatePosted); err == nil {
@@ -469,10 +469,10 @@ func companySiteURL(text string) string {
 	return ""
 }
 
-// jobSiteDomain is the company website a posting itself named, for when the
-// company lookup knows none. Only a Hacker News post carries one.
+// jobSiteDomain is the company website the entry itself names: a Hacker News
+// post links to it, a funding round comes with it. Other postings carry none.
 func jobSiteDomain(job jobPost) string {
-	if job.Source != sourceHN {
+	if job.Source != sourceHN && job.Source != sourceFunding {
 		return ""
 	}
 	return cleanDomain(job.CompanyURL)
@@ -498,7 +498,10 @@ type hiringReport struct {
 	// Skipped counts postings by the reason they did not become a lead.
 	Skipped    map[string]int `json:"skipped,omitempty"`
 	SpendMicro int64          `json:"search_spend_micro"` // what the job searches cost, micro-USD
-	Stopped    string         `json:"stopped,omitempty"`  // why the run ended before every company was tried
+	// FundingSpendMicro is what the day's funding rounds cost (sources.funding
+	// counts them: fetched = rounds billed, new = companies sent to the screen).
+	FundingSpendMicro int64  `json:"funding_spend_micro,omitempty"`
+	Stopped           string `json:"stopped,omitempty"` // why the run ended before every company was tried
 }
 
 func (r *hiringReport) source(name string) *sourceReport {

@@ -468,16 +468,15 @@ func (m *Monitor) insertProspect(ctx context.Context, wsID, pid string, seg ai.C
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s fits your customer segment %q: %s", c.Name, seg.Name, fit.Reason)
 	fmt.Fprintf(&b, "\n\nWho to contact: %s, %s at %s.", person.Name, contactTitle, c.Name)
-	if contact.EmailStatus == "catchall" {
-		b.WriteString(" Their email could not be verified (the company's mail server accepts any address), so it may bounce.")
-	}
+	email := emailLabel(contact.EmailStatus)
+	b.WriteString(emailCaveat(email))
 	b.WriteString(researchNote(brief))
 	if seg.Pain != "" {
 		b.WriteString("\n\nWhat this segment struggles with: " + seg.Pain)
 	}
 	companyURL := "https://" + c.Domain
 	meta := map[string]any{"signal": "prospect", "company": c.Name, "company_url": companyURL, "segment": seg.Name,
-		"fit_reason": fit.Reason, "contact_title": contactTitle, "confirmed": true}
+		"fit_reason": fit.Reason, "contact_title": contactTitle, "confirmed": true, "email_status": email}
 	if brief != nil {
 		meta["research"] = brief
 	}
@@ -494,7 +493,11 @@ func (m *Monitor) insertProspect(ctx context.Context, wsID, pid string, seg ai.C
 	if alert == nil {
 		return "" // duplicate or muted
 	}
-	score := hiringLeadScore(contact) - prospectScoreDiscount
+	// Scored on fit like a hiring lead (no posting, so no country or date),
+	// never under the lead threshold: the contact was confirmed.
+	score := max(leadScoreThreshold, hiringLeadScore(leadFit{
+		contact: contactFit(contactTitle, seg.BuyerTitles, c.Employees, ""), sizeFits: c.Employees > 0, email: email,
+	}, time.Now())-prospectScoreDiscount)
 	reasoning := fmt.Sprintf("Fits the customer segment %q: %s", seg.Name, fit.Reason)
 	res := &ai.ClassifyResult{
 		Intent: string(database.IntentTypeGeneral), RelevanceScore: score, ConversionProbability: 0.1,
@@ -516,7 +519,7 @@ func (m *Monitor) insertProspect(ctx context.Context, wsID, pid string, seg ai.C
 		m.storeIntentTags(ctx, wsID, alert.ID, res)
 	}
 	m.createCompanyLead(ctx, *alert, companyLead{company: c.Name, person: person, contact: contact,
-		tag: "prospect", score: score, intent: database.IntentTypeGeneral})
+		tag: "prospect", score: score, email: email, intent: database.IntentTypeGeneral})
 	return alert.ID
 }
 
