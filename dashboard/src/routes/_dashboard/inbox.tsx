@@ -16,6 +16,7 @@ import {
   updateProposalStatus,
   listKeywords,
   getLLMConfig,
+  getSetupStatus,
 } from "@/lib/api";
 import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 import type { InboxQueueCountsResponse } from "@/lib/types";
@@ -80,6 +81,20 @@ function InboxPage() {
     queryKey: ["llm-config"],
     queryFn: getLLMConfig,
     retry: false,
+  });
+
+  // A workspace with nothing to act on may not have a lead yet: ask what it
+  // is waiting for. Workspaces with leads in the queue never make this call,
+  // and it stops repeating once a lead exists.
+  const nothingToActOn =
+    queueCountsData !== undefined &&
+    (queueCountsData.queues.find((c) => c.queue === INBOX_QUEUES.ACTION_REQUIRED)?.count ?? 0) === 0;
+  const { data: setup } = useQuery({
+    queryKey: ["setup-status"],
+    queryFn: getSetupStatus,
+    enabled: nothingToActOn,
+    staleTime: 5 * 60_000,
+    refetchInterval: (query) => (query.state.data?.has_lead ? false : 5000),
   });
 
   const activeKeywords = (keywords ?? []).filter((k) => k.is_active);
@@ -316,6 +331,7 @@ function InboxPage() {
         agentNeedsAI={agentNeedsAI}
         activeKeywordCount={activeKeywords.length}
         totalMentions={totalMentions}
+        setup={nothingToActOn ? setup : undefined}
       />
       {isProposalsView ? (
         <section className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-8">
