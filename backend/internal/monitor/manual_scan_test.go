@@ -95,3 +95,24 @@ func TestForcedScanSkipsOnlyItsOwnTimer(t *testing.T) {
 		t.Fatalf("posts scan: forced=%q hiring interval=%s", forcedScan(posts), hiringClaimInterval(posts))
 	}
 }
+
+func TestManualScanRecoverRequeuesOnceAfterARestart(t *testing.T) {
+	start := time.Date(2026, 11, 15, 13, 40, 0, 0, time.UTC)
+	running := ManualScan{Kind: ScanProspects, State: ScanRunning, RequestedAt: start.Add(-time.Minute), StartedAt: start.Add(-20 * time.Second)}
+
+	again, ok := running.Recover(start, start)
+	if !ok || again.State != ScanRequested || again.Restarts != 1 || !again.StartedAt.IsZero() || !again.RequestedAt.Equal(running.RequestedAt) {
+		t.Fatalf("first restart should requeue the same request: %+v %v", again, ok)
+	}
+	again.State, again.StartedAt = ScanRunning, start.Add(time.Minute)
+	if _, ok := again.Recover(start, start); ok {
+		t.Fatal("a scan this process started is not interrupted")
+	}
+	done, ok := again.Recover(start.Add(time.Hour), start.Add(time.Hour))
+	if !ok || done.State != ScanDone || done.Note == "" {
+		t.Fatalf("second restart should finish it with a note: %+v", done)
+	}
+	if _, ok := (ManualScan{State: ScanDone}).Recover(start, start); ok {
+		t.Fatal("a finished scan is left alone")
+	}
+}
