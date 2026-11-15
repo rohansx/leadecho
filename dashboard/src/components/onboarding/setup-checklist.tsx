@@ -31,7 +31,7 @@ export function SetupChecklist({ status }: { status: SetupStatus }) {
 
       {status.finished_empty && (
         <div className="mt-3 border-t border-border pt-3">
-          <p className="font-medium">No buyers were found in the last 7 days for these keywords.</p>
+          <p className="font-medium">No buyers were found for these keywords so far.</p>
           {active.length > 0 && (
             <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
               {active.map((k) => (

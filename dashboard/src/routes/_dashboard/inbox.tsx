@@ -19,6 +19,7 @@ import {
   getSetupStatus,
 } from "@/lib/api";
 import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
+import { setupPollMs } from "@/lib/setup-status";
 import type { InboxQueueCountsResponse } from "@/lib/types";
 
 const PAGE_SIZE = 30;
@@ -94,7 +95,7 @@ function InboxPage() {
     queryFn: getSetupStatus,
     enabled: nothingToActOn,
     staleTime: 5 * 60_000,
-    refetchInterval: (query) => (query.state.data?.has_lead ? false : 5000),
+    refetchInterval: (query) => setupPollMs(query.state.data, 5000),
   });
 
   const activeKeywords = (keywords ?? []).filter((k) => k.is_active);

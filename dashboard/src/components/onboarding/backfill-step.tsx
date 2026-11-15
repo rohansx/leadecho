@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFirstValue, getSetupStatus } from "@/lib/api";
+import { setupPollMs } from "@/lib/setup-status";
 import { NextSteps } from "./next-steps";
 import { SetupChecklist } from "./setup-checklist";
 import type { FirstValue } from "./types";
@@ -17,7 +18,7 @@ const AUTO_OPEN_AFTER_IDLE_MS = 4000;
 /** Step 4: what the first scan has done so far; opens the inbox once leads are in. */
 export function BackfillStep({ onOpenInbox }: BackfillStepProps) {
   const { data } = useQuery({ queryKey: ["onboarding-first-value"], queryFn: getFirstValue, refetchInterval: POLL_MS });
-  const { data: setup } = useQuery({ queryKey: ["setup-status"], queryFn: getSetupStatus, refetchInterval: POLL_MS });
+  const { data: setup } = useQuery({ queryKey: ["setup-status"], queryFn: getSetupStatus, refetchInterval: (query) => setupPollMs(query.state.data, POLL_MS) });
   const [startedAt] = useState(() => Date.now());
   const opened = useRef(false);
 
@@ -34,7 +35,7 @@ export function BackfillStep({ onOpenInbox }: BackfillStepProps) {
   return (
     <div>
       <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Step 4 of 4</p>
-      <h1 className="font-[family-name:var(--font-head)] text-2xl mb-2">Scanning the last 7 days</h1>
+      <h1 className="font-[family-name:var(--font-head)] text-2xl mb-2">Finding your first leads</h1>
       <div className="mb-5">
         {setup ? (
           <SetupChecklist status={setup} />

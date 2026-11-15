@@ -57,7 +57,7 @@ export function ListenerCard({ state, onProposalChange, onToggle, onFeedback }: 
         </div>
       )}
       {p && state.samples.length === 0 && (
-        <p className="text-xs text-muted-foreground mb-3">No recent public posts yet: the 7-day backfill and scheduled scans keep looking.</p>
+        <p className="text-xs text-muted-foreground mb-3">No recent public posts yet: scheduled scans keep looking.</p>
       )}
 
       {p && state.included && (

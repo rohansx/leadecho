@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { keywordResult, leaveLine, scheduleTime, setupLines, type SetupStatus } from "./setup-status.ts";
+import { keywordResult, leaveLine, scheduleTime, setupLines, setupPollMs, type SetupStatus } from "./setup-status.ts";
 
 const when = (iso: string) => `@${iso}`;
 const texts = (s: SetupStatus) => setupLines(s, when).map((l) => l.text);
@@ -21,7 +21,7 @@ const free: SetupStatus = {
 test("a free workspace mid-scan: counts, and what the plan leaves out", () => {
   assert.deepEqual(texts(free), [
     "Searching posts: 40 posts collected so far",
-    "Scoring posts: 25 of 40 done. This usually takes a few minutes.",
+    "Scoring posts: 25 of 40 done",
     "X, LinkedIn and Reddit are not in this plan",
     "Company leads are not in this plan",
     "No leads yet",
@@ -62,9 +62,9 @@ test("no time known: the interval is given, or nothing", () => {
     ],
   };
   assert.deepEqual(texts(waiting).slice(0, 4), [
-    "The search starts with the next round. Rounds start every 5 minutes.",
+    "The search starts with the next round. A round starts every 5 minutes at the soonest.",
     "Scoring starts once posts are collected",
-    "X, LinkedIn and Reddit join the next search round. Rounds start every 5 minutes.",
+    "X, LinkedIn and Reddit join the next search round. A round starts every 5 minutes at the soonest.",
     "Company search starts when the post search finishes",
   ]);
   const done: SetupStatus = { ...waiting, stages: [{ key: "company_leads", state: "done" }] };
@@ -79,6 +79,41 @@ test("out of credits is said, not shown as still working", () => {
   };
   assert.equal(texts(blocked)[0], "30 posts wait to be scored: out of credits");
   assert.match(leaveLine(blocked), /out of credits/);
+});
+
+test("a failed company search and paused paid data are said, not shown as done", () => {
+  const s: SetupStatus = {
+    ...free,
+    stages: [
+      { key: "paid_sources", state: "waiting", reason: "paid_paused" },
+      { key: "company_leads", state: "waiting", reason: "retry", next_at: "2026-11-15T10:00:00Z" },
+    ],
+  };
+  assert.deepEqual(texts(s).slice(0, 2), [
+    "X, LinkedIn and Reddit are paused for now",
+    "Company search could not finish. Next try @2026-11-15T10:00:00Z",
+  ]);
+});
+
+test("no time is promised that the code cannot know", () => {
+  const all: SetupStatus = {
+    ...free,
+    stages: [
+      { key: "posts", state: "running", posts: 1 },
+      { key: "scoring", state: "running", scored: 0, unscored: 1 },
+      { key: "paid_sources", state: "running" },
+      { key: "company_leads", state: "running" },
+    ],
+  };
+  for (const line of texts(all)) assert.doesNotMatch(line, /usually|minute|soon|shortly/i, line);
+});
+
+test("polling: fast while something runs, slow when nothing does, off once a lead exists", () => {
+  assert.equal(setupPollMs(undefined, 5000), 5000);
+  assert.equal(setupPollMs(free, 5000), 5000);
+  assert.equal(setupPollMs({ ...free, finished_empty: true }, 5000), 60_000);
+  assert.equal(setupPollMs({ ...free, blocked: "paused" }, 5000), 60_000);
+  assert.equal(setupPollMs({ ...free, has_lead: true }, 5000), false);
 });
 
 test("the email is only promised when it will be sent", () => {

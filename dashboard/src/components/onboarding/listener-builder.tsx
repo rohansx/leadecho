@@ -94,7 +94,7 @@ export function ListenerBuilder({ goals, platforms, creating, createError, onCre
       )}
       {createError && <p className="text-destructive text-sm mb-3">{createError}</p>}
       <Button className="w-full" disabled={!done || creating || chosen.length === 0} onClick={() => onCreate(chosen)}>
-        {!done ? "Testing keywords..." : creating ? "Creating..." : `Create ${chosen.length} listener${chosen.length === 1 ? "" : "s"} & scan last 7 days`}
+        {!done ? "Testing keywords..." : creating ? "Creating..." : `Create ${chosen.length} listener${chosen.length === 1 ? "" : "s"} & start scanning`}
       </Button>
     </div>
   );

@@ -38,8 +38,8 @@ const n = (count: number, one: string, many: string) => `${count.toLocaleString(
 const stopped = (reason?: string) =>
   reason === "out_of_credits" ? "out of credits" : reason === "paused" ? "scanning is paused for this workspace" : "";
 
-/** "Rounds start every 5 minutes." when the payload gives the interval. */
-const rounds = (s: SetupStage) => (s.every_minutes ? ` Rounds start every ${s.every_minutes} minutes.` : "");
+/** The interval when the payload gives it. A long round delays the next, so no time is promised. */
+const rounds = (s: SetupStage) => (s.every_minutes ? ` A round starts every ${s.every_minutes} minutes at the soonest.` : "");
 
 function postsLine(s: SetupStage): string {
   const found = n(s.posts ?? 0, "post", "posts");
@@ -55,7 +55,7 @@ function scoringLine(s: SetupStage): string {
   const scored = s.scored ?? 0;
   const total = scored + (s.unscored ?? 0);
   if (s.state === "done") return `${n(scored, "post", "posts")} scored`;
-  if (s.state === "running") return `Scoring posts: ${scored.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} done. This usually takes a few minutes.`;
+  if (s.state === "running") return `Scoring posts: ${scored.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} done`;
   if (stopped(s.reason)) return `${n(s.unscored ?? 0, "post waits", "posts wait")} to be scored: ${stopped(s.reason)}`;
   return "Scoring starts once posts are collected";
 }
@@ -67,6 +67,7 @@ function paidLine(s: SetupStage, when: (iso: string) => string): string {
   if (s.state === "done") return `${PAID} searched${s.next_at ? `. Next search ${when(s.next_at)}` : ""}`;
   if (s.state === "running") return `Searching ${PAID}`;
   if (s.reason === "queued") return `${PAID} are searched with the queued search`;
+  if (s.reason === "paid_paused") return `${PAID} are paused for now`;
   if (stopped(s.reason)) return `${PAID} are not searched: ${stopped(s.reason)}`;
   return `${PAID} join the next search round.${rounds(s)}`;
 }
@@ -84,6 +85,7 @@ function companyLine(s: SetupStage, found: number, when: (iso: string) => string
   if (s.state === "running") return "Looking for companies with a matching job posting or funding round";
   if (s.reason === "queued") return "Company search starts when the post search finishes";
   if (s.reason === "paused") return "Company search is paused";
+  if (s.reason === "retry") return `Company search could not finish${s.next_at ? `. Next try ${when(s.next_at)}` : ""}`;
   if (stopped(s.reason)) return `Company search is not running: ${stopped(s.reason)}`;
   return `Company search starts with the next search round.${rounds(s)}`;
 }
@@ -115,6 +117,16 @@ export function setupLines(status: SetupStatus, when: (iso: string) => string = 
       ? `Leads so far: ${post.toLocaleString("en-US")} from posts, ${company.toLocaleString("en-US")} from companies`
       : `Leads so far: ${post.toLocaleString("en-US")}`;
   return [...lines, { key: "leads", state: status.has_lead ? "done" : "waiting", text: leads }];
+}
+
+/**
+ * How often to ask again: not at all once a lead exists, rarely when nothing
+ * is in progress (the count behind the status reads every post of the workspace).
+ */
+export function setupPollMs(status: SetupStatus | undefined, activeMs: number): number | false {
+  if (!status) return activeMs;
+  if (status.has_lead) return false;
+  return status.finished_empty || status.blocked ? 60_000 : activeMs;
 }
 
 /** What to tell someone who is about to leave the page. */
