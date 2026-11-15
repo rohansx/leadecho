@@ -6,7 +6,6 @@ import {
   ArchiveIcon,
   ArrowLeft,
   ArrowRight,
-  Ban,
   Brain,
   Check,
   CheckCircle2,
@@ -39,6 +38,15 @@ import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
 import { LeadAssistant } from "./lead-assistant";
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
+import { hiringText, leadAge } from "@/lib/lead-age";
+
+// Why the customer says a lead is wrong; stored with the archived mention.
+const NOT_A_FIT_REASONS = ["Wrong company", "Not a buyer", "Too old", "Other"];
+
+/** A hiring signal's text with the posting's real age in place of "this week". */
+function signalText(mention: Mention, text: string): string {
+  return mention.platform_metadata?.signal === "hiring" ? hiringText(text, mention, new Date()) : text;
+}
 
 const awarenessLabels: Record<string, string> = {
   problem_aware: "Problem aware",
@@ -211,7 +219,7 @@ function OverviewTab({
         {mention.title && (
           <h3 className="font-[family-name:var(--font-head)] text-lg font-medium mb-2">{mention.title}</h3>
         )}
-        <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{mention.content}</p>
+        <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{signalText(mention, mention.content)}</p>
         <div className="mt-3">
           <TagChips tags={mention.intent_tags} sentiment={mention.sentiment} max={13} />
         </div>
@@ -276,14 +284,18 @@ function OverviewTab({
           </Button>
         )}
         {mention.status !== "archived" && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onFeedback("archived", "Not a lead")}
+          <select
+            aria-label="Not a fit"
+            title="Archive this lead and say why it is wrong"
+            value=""
+            onChange={(e) => e.target.value && onFeedback("archived", e.target.value)}
+            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground shadow-xs cursor-pointer"
           >
-            <Ban className="h-3.5 w-3.5" />
-            Not a lead
-          </Button>
+            <option value="">Not a fit…</option>
+            {NOT_A_FIT_REASONS.map((r) => (
+              <option key={r} value={`Not a fit: ${r.toLowerCase()}`}>{r}</option>
+            ))}
+          </select>
         )}
       </div>
 
@@ -641,7 +653,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Why this is here</h5>
-      {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{reasoning}</p>}
+      {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{signalText(mention, reasoning)}</p>}
       <SignalRow label="Platform" value={<span className="capitalize">{mention.platform}</span>} />
       {subreddit && <SignalRow label="Community" value={subreddit} />}
       <SignalRow label="Author" value={mention.author_username ? `@${mention.author_username}` : null} />
@@ -712,7 +724,7 @@ export function LeadDetail({
     <section className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="flex items-center gap-3 px-6 h-14 border-b border-border shrink-0">
         <div className="text-sm text-muted-foreground truncate">
-          Inbox / <b className="text-foreground">{mention.platform}</b> · {timeAgo(mention.created_at)}
+          Inbox / <b className="text-foreground">{mention.platform}</b> · {leadAge(mention, new Date())}
           {mention.status === "spam" && (
             <span className="ml-2 rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[10px] uppercase tracking-wide">
               spam

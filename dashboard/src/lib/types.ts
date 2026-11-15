@@ -251,6 +251,8 @@ export interface ActionSubcounts {
   ready_to_send: number;
   needs_draft: number;
   needs_review: number;
+  /** Leads whose post or posting has gone stale (absent on older API builds). */
+  older?: number;
 }
 
 export interface InboxQueueCountsResponse {
