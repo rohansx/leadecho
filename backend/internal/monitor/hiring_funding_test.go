@@ -219,7 +219,7 @@ func TestFundingSignalTextAndMetadata(t *testing.T) {
 	// Raised and hiring: a hiring signal that also carries the round.
 	both := jobPost{Company: "Acme", Title: "Backend Engineer", Location: "Austin, TX", URL: "https://www.linkedin.com/jobs/view/1", Source: sourceLinkedIn, Funding: f}
 	title, opening = signalText(both)
-	if title != "Acme is hiring: Backend Engineer" || opening != `Acme posted a job for "Backend Engineer" (Austin, TX) this week. It also raised a Series A round of $85 million, announced 2026-11-17.` {
+	if title != "Acme is hiring: Backend Engineer" || opening != `Acme posted a job for "Backend Engineer" (Austin, TX). It also raised a Series A round of $85 million, announced 2026-11-17.` {
 		t.Errorf("both: %q / %q", title, opening)
 	}
 	meta = nil
@@ -229,9 +229,15 @@ func TestFundingSignalTextAndMetadata(t *testing.T) {
 	}
 	// A plain posting stores no funding keys, and reads as before.
 	plain := jobPost{Company: "Acme", Title: "Backend Engineer", URL: "https://www.linkedin.com/jobs/view/1"}
-	if title, opening := signalText(plain); title != "Acme is hiring: Backend Engineer" || opening != `Acme posted a job for "Backend Engineer" this week.` {
+	if title, opening := signalText(plain); title != "Acme is hiring: Backend Engineer" || opening != `Acme posted a job for "Backend Engineer".` {
 		t.Errorf("plain: %q / %q", title, opening)
 	}
+	// The stored text is read for weeks: it carries the posting's date, never "this week".
+	plain.CreatedUTC = time.Date(2026, 11, 12, 23, 0, 0, 0, time.UTC).Unix()
+	if _, opening := signalText(plain); opening != `Acme posted a job for "Backend Engineer" on 12 November 2026.` {
+		t.Errorf("dated: %q", opening)
+	}
+	plain.CreatedUTC = 0
 	if raw := string(hiringMetadata(plain, "", contactCheck{}, nil)); strings.Contains(raw, "funding") {
 		t.Errorf("plain: %s", raw)
 	}

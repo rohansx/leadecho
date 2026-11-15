@@ -89,7 +89,7 @@ func TestOutreachForFundingAndJobLocation(t *testing.T) {
 	}
 	both := Outreach{Product: "P", ContactName: "Dana", Company: "Drillbit", JobTitle: "Software Engineer", JobLocation: "Rio de Janeiro, Brazil", Funding: round}
 	msg := outreachUserMessage(both)
-	if !strings.Contains(msg, "Job they posted this week: Software Engineer\nWhere the job is: Rio de Janeiro, Brazil") || !strings.Contains(msg, "They just raised: "+round) {
+	if !strings.Contains(msg, "Job they posted: Software Engineer\nWhere the job is: Rio de Janeiro, Brazil") || !strings.Contains(msg, "They just raised: "+round) {
 		t.Errorf("hiring message:\n%s", msg)
 	}
 	if outreachSystemPrompt(both) != outreachPrompt || outreachSystemPrompt(Outreach{SegmentPain: "x"}) != prospectOutreachPrompt {
@@ -113,5 +113,29 @@ func TestOutreachForFundingAndJobLocation(t *testing.T) {
 	}
 	if system, _ := outreachPrompts(Outreach{Funding: round, JobLocation: "Santiago, Chile"}); system != fundingOutreachPrompt {
 		t.Error("without a job title there is no posting language to match")
+	}
+}
+
+// The plan's smallest company: 20 unless the plan says otherwise, and the
+// screen is told it beside the largest.
+func TestHiringPlanMinSize(t *testing.T) {
+	if got := (HiringPlan{}).MinSize(); got != DefaultMinCompanySize || got != 20 {
+		t.Errorf("default minimum = %d, want 20", got)
+	}
+	if got := (HiringPlan{MinCompanySize: 5}).MinSize(); got != 5 {
+		t.Errorf("a plan's own minimum = %d, want 5", got)
+	}
+	if p := NormalizeHiringPlan(HiringPlan{Applies: true, Roles: []string{"engineer"}, BuyerTitles: "CTO", MinCompanySize: -3}); p.MinSize() != 20 {
+		t.Errorf("a negative minimum is unset: %d", p.MinSize())
+	}
+	msg := hiringScreenMessage(HiringScreen{MaxCompanySize: 5000, MinCompanySize: 20, Jobs: []HiringJob{{Company: "Acme", Title: "Engineer"}}})
+	if !strings.Contains(msg, "Size limit: 5000 employees\nSmallest size: 20 employees\n") {
+		t.Errorf("message:\n%s", msg)
+	}
+	if msg := hiringScreenMessage(HiringScreen{MinCompanySize: 1}); strings.Contains(msg, "Smallest size") {
+		t.Errorf("a minimum of 1 is no minimum:\n%s", msg)
+	}
+	if !strings.Contains(hiringScreenPrompt, "smaller than the smallest size given") {
+		t.Error("the screen's brief must mention the smallest size")
 	}
 }

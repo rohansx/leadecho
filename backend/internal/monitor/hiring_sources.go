@@ -37,10 +37,6 @@ const (
 	// page is sized so its full price stays under treg's per-call ceiling,
 	// which refuses a dearer call outright.
 	blitzJobCostMicro = 1000
-	// blitzMinCompanySize: under about 20 people there is no hiring team to sell to.
-	// ponytail: fixed; make it a plan field if a customer sells to smaller firms.
-	blitzMinCompanySize = 20
-
 	// New companies sent to the screen per paid people search the plan allows:
 	// the screen and the size check drop most of them.
 	hiringScreenPerLookup = 3
@@ -241,7 +237,7 @@ func blitzJobsBody(plan *ai.HiringPlan, countries []string, recent bool, maxResu
 	}
 	company := map[string]any{"is_agency": false}
 	if plan.MaxCompanySize > 0 {
-		company["employee_count"] = map[string]any{"min": blitzMinCompanySize, "max": plan.MaxCompanySize}
+		company["employee_count"] = map[string]any{"min": plan.MinSize(), "max": plan.MaxCompanySize}
 	}
 	body := map[string]any{"job": job, "company": company, "max_results": maxResults}
 	if cursor != "" {
@@ -502,6 +498,10 @@ type hiringReport struct {
 	// counts them: fetched = rounds billed, new = companies sent to the screen).
 	FundingSpendMicro int64  `json:"funding_spend_micro,omitempty"`
 	Stopped           string `json:"stopped,omitempty"` // why the run ended before every company was tried
+	// CarriedIn: screened companies an earlier run did not reach, tried first
+	// by this one. CarriedOver: those this run leaves for the next.
+	CarriedIn   int `json:"carried_in,omitempty"`
+	CarriedOver int `json:"carried_over,omitempty"`
 }
 
 func (r *hiringReport) source(name string) *sourceReport {

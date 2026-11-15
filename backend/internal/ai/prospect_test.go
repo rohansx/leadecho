@@ -43,7 +43,7 @@ func TestOutreachMessageForProspect(t *testing.T) {
 		t.Fatalf("prospect must get the facts, not the company description:\n%s", msg)
 	}
 	msg = outreachUserMessage(Outreach{Product: "P", ContactName: "A", Company: "C", JobTitle: "Engineer", SegmentPain: "x"})
-	if !strings.Contains(msg, "Job they posted this week: Engineer") || strings.Contains(msg, "often have") {
+	if !strings.Contains(msg, "Job they posted: Engineer") || strings.Contains(msg, "often have") {
 		t.Fatalf("hiring message:\n%s", msg)
 	}
 }

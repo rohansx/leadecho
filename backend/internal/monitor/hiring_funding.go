@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"leadecho/internal/database"
 	"leadecho/internal/enrich"
 	"leadecho/internal/treg"
 )
@@ -277,9 +276,9 @@ func signalFact(job jobPost) (patch map[string]any, marker, domain string) {
 
 // addSignalFact records the second signal on the stored lead. Best effort:
 // the lead stands without it.
-func (m *Monitor) addSignalFact(ctx context.Context, wsID, pid string, job jobPost) {
+func (m *Monitor) addSignalFact(ctx context.Context, wsID, platform, pid string, job jobPost) {
 	patch, marker, domain := signalFact(job)
-	if err := m.q.AddMentionMetadata(ctx, wsID, string(database.PlatformTypeLinkedin), pid, marker, domain, jsonBytes(patch)); err != nil {
+	if err := m.q.AddMentionMetadata(ctx, wsID, platform, pid, marker, domain, jsonBytes(patch)); err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", wsID).Str("company", job.Company).Msg("hiring: add second signal to the lead")
 	}
 }
@@ -296,11 +295,21 @@ func signalText(job jobPost) (title, opening string) {
 	if job.Location != "" {
 		fmt.Fprintf(&b, " (%s)", job.Location)
 	}
-	b.WriteString(" this week.")
+	b.WriteString(postedOn(job) + ".")
 	if job.Funding != nil {
 		fmt.Fprintf(&b, " It also raised %s, announced %s.", job.Funding.headline(), job.Funding.Date)
 	}
 	return fmt.Sprintf("%s is hiring: %s", job.Company, job.Title), b.String()
+}
+
+// postedOn is " on 12 November 2026" when the posting's date is known, and
+// nothing otherwise: the stored text is read for weeks, so it never says
+// "this week".
+func postedOn(job jobPost) string {
+	if job.CreatedUTC <= 0 {
+		return ""
+	}
+	return " on " + time.Unix(job.CreatedUTC, 0).UTC().Format("2 January 2006")
 }
 
 // signalKind names the signal behind an entry: a round with no posting is a

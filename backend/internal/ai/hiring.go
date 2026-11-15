@@ -17,8 +17,22 @@ type HiringPlan struct {
 	Roles       []string `json:"roles"`        // job-search queries, e.g. "senior backend engineer"
 	BuyerTitles string   `json:"buyer_titles"` // e.g. "CTO, VP Engineering or Head of Engineering"
 	// MaxCompanySize is the largest company (employees) that would buy; 0 = any size.
-	MaxCompanySize int    `json:"max_company_size"`
+	MaxCompanySize int `json:"max_company_size"`
+	// MinCompanySize is the smallest company that would buy. Unset (0) means
+	// DefaultMinCompanySize; an operator sets 1 for "no minimum".
+	MinCompanySize int    `json:"min_company_size,omitempty"`
 	Why            string `json:"why"`
+}
+
+// DefaultMinCompanySize: under about 20 people there is no hiring team to sell to.
+const DefaultMinCompanySize = 20
+
+// MinSize is the smallest company the plan accepts when its size is known.
+func (p HiringPlan) MinSize() int {
+	if p.MinCompanySize > 0 {
+		return p.MinCompanySize
+	}
+	return DefaultMinCompanySize
 }
 
 const maxHiringRoles = 3
@@ -71,8 +85,11 @@ func NormalizeHiringPlan(plan HiringPlan) HiringPlan {
 	if plan.MaxCompanySize < 0 {
 		plan.MaxCompanySize = 0
 	}
+	if plan.MinCompanySize < 0 {
+		plan.MinCompanySize = 0
+	}
 	if !plan.Applies {
-		plan.Roles, plan.BuyerTitles, plan.MaxCompanySize = []string{}, "", 0
+		plan.Roles, plan.BuyerTitles, plan.MaxCompanySize, plan.MinCompanySize = []string{}, "", 0, 0
 	}
 	return plan
 }
@@ -91,13 +108,14 @@ type HiringScreen struct {
 	Product, Overview, Audience string
 	Roles                       []string // the roles the plan searches for
 	MaxCompanySize              int      // 0 = any size
+	MinCompanySize              int      // 0 or 1 = no minimum
 	Jobs                        []HiringJob
 }
 
 const hiringScreenPrompt = `You screen job postings for a salesperson. A posting counts as a sign that the employer needs the product; the salesperson then pays to find a contact there and writes to them. Keep a posting only when every one of these holds:
 - The job is really one of the roles being looked for. Leave out internships, apprenticeships and trainee schemes, hourly or per-task gig ads, and jobs in another function that only share a word with the role.
 - The employer is hiring for its own team. Leave out staffing and recruiting agencies, outsourcing and nearshoring firms, talent marketplaces and train-and-place firms: they hire for their clients and run their own screening.
-- The employer could be one of the buyers described. Leave out a company you know to be outside that description (for example, far larger than the size limit given), and any company that sells a product like this one. When you do not know the company, keep it: its size is checked later.
+- The employer could be one of the buyers described. Leave out a company you know to be outside that description (for example, far larger than the size limit given, or smaller than the smallest size given), and any company that sells a product like this one. When you do not know the company, keep it: its size is checked later.
 - The posting is written in the same language as the product description. The message to the employer will be written in that language.
 
 An entry marked [FUNDED] is not a posting: the company just raised money, and newly funded companies hire within weeks. Keep it only when its name, website and announcement link show a company that employs people in the roles being looked for and could be one of the buyers described; the second and third rules above apply to it too. When they do not show what the company does, leave it out.
@@ -113,6 +131,9 @@ func hiringScreenMessage(in HiringScreen) string {
 	fmt.Fprintf(&b, "PRODUCT: %s\nWhat it does: %s\nWho buys it: %s\n", clipText(in.Product, 150), clipText(in.Overview, 600), clipText(in.Audience, 400))
 	if in.MaxCompanySize > 0 {
 		fmt.Fprintf(&b, "Size limit: %d employees\n", in.MaxCompanySize)
+	}
+	if in.MinCompanySize > 1 {
+		fmt.Fprintf(&b, "Smallest size: %d employees\n", in.MinCompanySize)
 	}
 	fmt.Fprintf(&b, "Roles being looked for: %s\n\nPOSTINGS:\n", clipText(strings.Join(in.Roles, ", "), 300))
 	for i, j := range in.Jobs {
@@ -191,7 +212,7 @@ func outreachUserMessage(o Outreach) string {
 		today = time.Now()
 	}
 	if o.JobTitle != "" {
-		fmt.Fprintf(&b, "\nJob they posted this week: %s", o.JobTitle)
+		fmt.Fprintf(&b, "\nJob they posted: %s", o.JobTitle)
 		if o.JobLocation != "" {
 			fmt.Fprintf(&b, "\nWhere the job is: %s", clipText(o.JobLocation, 150))
 		}

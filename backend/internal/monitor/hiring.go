@@ -114,6 +114,9 @@ type hiringState struct {
 	// Skip remembers companies that are over the plan's size ceiling or were
 	// rejected on insert, so they are not looked up (and paid for) again.
 	Skip []string `json:"skip,omitempty"`
+	// Carry holds companies that passed the screen and were not reached before
+	// the day's caps: the next run tries them first (hiring_carry.go).
+	Carry []carriedJob `json:"carry,omitempty"`
 }
 
 type jobPost struct {
@@ -221,55 +224,76 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	}
 	// Pages are pulled until enough new companies are in hand for the day's
 	// people searches: not on the skip list, not stored this month, one each.
+	carried := map[string]bool{} // waiting from an earlier run: already searched for and screened
 	skipReason := func(job jobPost) string {
 		switch {
 		case skip[companyKey(job.Company)]:
 			return "on_skip_list"
+		case carried[companyKey(job.Company)]:
+			return "carried_over"
 		case !validHTTPURL(job.URL):
 			return "bad_url"
 		case job.CreatedUTC > 0 && time.Since(time.Unix(job.CreatedUTC, 0)) > maxMentionAge:
 			return "too_old" // would be dropped on insert, after its lookups were paid for
 		}
 		pid := hiringPlatformID(job.Company, month)
-		if exists, err := m.q.MentionExists(ctx, wsID, string(database.PlatformTypeLinkedin), pid); err != nil || exists {
-			if exists {
-				m.addSignalFact(ctx, wsID, pid, job) // raised and hiring: one lead carrying both
+		for _, platform := range signalPlatforms {
+			if exists, err := m.q.MentionExists(ctx, wsID, platform, pid); err != nil || exists {
+				if exists {
+					m.addSignalFact(ctx, wsID, platform, pid, job) // raised and hiring: one lead carrying both
+				}
+				return "already_stored_this_month"
 			}
-			return "already_stored_this_month"
 		}
 		return ""
 	}
-	fresh, searched := m.collectHiringJobs(ctx, m.hiringSources(wsID, st, st.LastScan, started), min(dailyCap*hiringScreenPerLookup, maxHiringScreened), skipReason, rep)
-	if !searched {
-		retrySoon("every job search failed") // out of credits, spend cap, provider down
-		return
-	}
-	fresh = mergeFunded(fresh, m.fundedCompanies(ctx, wsID, &st, started, rep), skipReason, rep)
-	// One model call over the whole list, before anything is paid for: job
-	// search returns agencies, internships, other functions and postings in
-	// other languages, and every one of them used to cost a company lookup.
-	fits, err := m.hiringPlanner.ScreenHiringJobs(ctx, wsID, ai.HiringScreen{
-		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
-		Roles: st.Plan.Roles, MaxCompanySize: st.Plan.MaxCompanySize, Jobs: screenInput(fresh),
-	})
-	if err != nil {
-		// Unscreened postings are what filled the inbox with non-buyers:
-		// better no leads this hour than those.
-		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: screen failed")
-		retrySoon("the model screen failed")
-		return
-	}
-	// From here the run counts as a scan: tomorrow's asks only for newer postings.
-	st.LastScan = started
-	jobs, dropped := screenedJobs(fresh, fits)
-	rep.skip("screened_out", len(dropped))
+	// Companies an earlier run screened and did not reach go first, and count
+	// towards the day's target: new searches are bought only for what is
+	// still missing.
+	jobs, firstSeen := carriedJobs(st.Carry, started, skipReason, rep)
+	rep.CarriedIn = len(jobs)
 	for _, job := range jobs {
-		rep.source(job.Source).Passed++
+		carried[companyKey(job.Company)] = true
 	}
-	// Dropped postings are not remembered: a company that posted an internship
-	// today may post a real opening next week, and screening again costs no
-	// paid data.
-	m.logger.Info().Int("kept", len(jobs)).Int("dropped", len(dropped)).Str("workspace_id", wsID).Msg("hiring: postings screened")
+	if target := min(dailyCap*hiringScreenPerLookup, maxHiringScreened) - len(jobs); target > 0 {
+		fresh, searched := m.collectHiringJobs(ctx, m.hiringSources(wsID, st, st.LastScan, started), target, skipReason, rep)
+		if !searched {
+			retrySoon("every job search failed") // out of credits, spend cap, provider down
+			return
+		}
+		fresh = mergeFunded(fresh, m.fundedCompanies(ctx, wsID, &st, started, rep), skipReason, rep)
+		// One model call over the whole list, before anything is paid for: job
+		// search returns agencies, internships, other functions and postings in
+		// other languages, and every one of them used to cost a company lookup.
+		fits, err := m.hiringPlanner.ScreenHiringJobs(ctx, wsID, ai.HiringScreen{
+			Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
+			Roles: st.Plan.Roles, MaxCompanySize: st.Plan.MaxCompanySize, MinCompanySize: st.Plan.MinSize(), Jobs: screenInput(fresh),
+		})
+		if err != nil {
+			// Unscreened postings are what filled the inbox with non-buyers:
+			// better no leads this hour than those.
+			m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("hiring: screen failed")
+			retrySoon("the model screen failed")
+			return
+		}
+		// From here the run counts as a scan: tomorrow's asks only for newer postings.
+		st.LastScan = started
+		kept, dropped := screenedJobs(fresh, fits)
+		rep.skip("screened_out", len(dropped))
+		for _, job := range kept {
+			rep.source(job.Source).Passed++
+		}
+		// Dropped postings are not remembered: a company that posted an internship
+		// today may post a real opening next week, and screening again costs no
+		// paid data.
+		m.logger.Info().Int("kept", len(kept)).Int("dropped", len(dropped)).Str("workspace_id", wsID).Msg("hiring: postings screened")
+		// Funded companies come first in what was just screened: ahead of the
+		// postings, behind what was already waiting.
+		jobs = append(jobs, kept...)
+	}
+	jobs, overShare := limitFunded(jobs, fundedShare(dailyCap))
+	rep.skip("funded_over_share", len(overShare))
+	minSize := st.Plan.MinSize()
 	tried := 0 // companies the loop finished with; the rest are reported as not reached
 	stop := func(why string) { rep.Stopped = why }
 	for _, job := range jobs {
@@ -321,6 +345,11 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 			remember(key)
 			continue
 		}
+		if co.size > 0 && co.size < minSize {
+			rep.skip("too_small", 1)
+			remember(key)
+			continue
+		}
 		if st.Plan.MaxCompanySize > 0 && co.size == 0 && co.domain == "" {
 			// Nothing is known about the company, so its size can't come from
 			// a contact either (that needs the websites to match): record it
@@ -361,6 +390,11 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		}
 		if check.tooBig {
 			rep.skip("too_big", 1)
+			remember(key)
+			continue
+		}
+		if check.size > 0 && check.size < minSize { // the size came from the contact's profile
+			rep.skip("too_small", 1)
 			remember(key)
 			continue
 		}
@@ -421,6 +455,10 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		}
 	}
 	rep.skip("not_reached", len(jobs)-tried)
+	var full int
+	st.Carry, full = carryOver(append(jobs[tried:len(jobs):len(jobs)], overShare...), firstSeen, started)
+	rep.CarriedOver = len(st.Carry)
+	rep.skip("carry_full", full)
 	// Outlive a shutdown: losing the skip list means paying for the same lookups again.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
@@ -828,7 +866,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		created = pgtype.Timestamptz{Time: time.Unix(job.CreatedUTC, 0), Valid: true}
 	}
 	alert := m.insertMention(ctx, database.CreateMentionParams{
-		WorkspaceID: wsID, Platform: string(database.PlatformTypeLinkedin), PlatformID: pid, Url: job.URL,
+		WorkspaceID: wsID, Platform: signalPlatform(job), PlatformID: pid, Url: job.URL,
 		Title: pgtextPtr(title), Content: b.String(),
 		AuthorUsername: pgtextPtr(author), AuthorProfileUrl: pgtextPtr(authorURL),
 		Status:            hiringSignalStatus(check),
@@ -841,7 +879,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 		return "" // duplicate, muted or too old
 	}
 
-	event := "Company posted a matching job this week"
+	event := "Company posted a matching job" + postedOn(job)
 	if kind == "funding" {
 		event = "Company just raised " + job.Funding.headline() + ", and newly funded companies hire within weeks"
 	}

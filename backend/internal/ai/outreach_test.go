@@ -68,7 +68,7 @@ func TestOutreachPromptStatesOnlyStoredFacts(t *testing.T) {
 	system, user := outreachPrompts(o)
 
 	for _, want := range []string{
-		"Job they posted this week: Senior Staff Software Engineer",
+		"Job they posted: Senior Staff Software Engineer",
 		"Where the job is: Rio de Janeiro, Rio de Janeiro, Brazil (On-site)",
 		"Posted on: 12 November 2026 (today is 15 November 2026)",
 		"Nubank lists engineering openings in several countries.",
@@ -139,7 +139,7 @@ func TestOutreachPromptOptionalParts(t *testing.T) {
 }
 
 func TestUngroundedNumbers(t *testing.T) {
-	given := "What it does: a ranked shortlist of the best 5-10.\nJob they posted this week: Reviewer | $25/hr\nPosted on: 12 November 2026\n- It gets more than 2 million applications a year, up 3.7%."
+	given := "What it does: a ranked shortlist of the best 5-10.\nJob they posted: Reviewer | $25/hr\nPosted on: 12 November 2026\n- It gets more than 2 million applications a year, up 3.7%."
 	for _, c := range []struct {
 		draft string
 		want  []string
