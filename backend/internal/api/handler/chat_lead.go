@@ -133,7 +133,7 @@ func (h *ChatHandler) leadContext(ctx context.Context, ws, mentionID string) (st
 	}
 	_ = json.Unmarshal(m.PlatformMetadata, &pm)
 	if pm.Signal == "hiring" {
-		line("Kind", "hiring signal: the company posted this job this week")
+		line("Kind", "hiring signal: the company posted this job") // when: the "Posted" line above
 		line("Company", pm.Company)
 		line("Job posted", pm.JobTitle)
 		line("Contact's title", pm.ContactTitle)
