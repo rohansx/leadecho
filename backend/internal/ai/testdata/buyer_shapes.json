@@ -147,6 +147,55 @@
    "min_score": 8,
    "want_ask": true,
    "note": "Written for this set: a buyer asking for a tool must stay a strong lead."
+  },
+  {
+   "id": "b8b97bc3",
+   "author": "author_16",
+   "platform": "reddit",
+   "title": "Frustrated while Interviewing Candidates",
+   "content": "I have been interviewing engineers over the past few years for various roles, but especially recently, I find myself frustrated at the end of interviews with some candidates.\n\nEvery time I interview a candidate, I really want them to succeed. It's in my best interest, it's in their best interest, I go into the interview wanting it to be a success. More importantly, all of the hires that I have made in the past that were great engineers are very engaging to talk with.\n\nMore and more, though, I meet engineers who look like absolute rockstars on paper but are frustrating to talk to. The most common reasons are:\n\n* Not entertaining any ideas other than their own.\n* Refusing to explain why they chose a certain technology or approach.\n* Being unable to say why they’d be a good fit for what we’re looking for (this is a freebie IMO!).\n\nOur technical round and behavioral rounds are *very* lenient, some would say too lenient. Yet, every time we resume hiring, I find it harder and harder to find engineers.\n\nI apologize if this comes off as a vent and is against the rules, but I'm disheartened. Interviews are taking a lot out of me, as I really care deeply about the people I interview, and I want to see them succeed. So I personally end up taking a lot of that home and feel defeated on their behalf when it doesn't work out.\n\nAnyone else experience this? If so, how do you prep yourself mentally to not feel so drained post-interviewing?",
+   "want": "lead",
+   "note": "Hiring manager: candidates who look strong on paper fall apart in interviews, and it gets harder every round. Product scored 5 (\"partly solves\").",
+   "min_score": 6,
+   "want_ask": true
+  },
+  {
+   "id": "22f5599c",
+   "author": "author_17",
+   "platform": "hackernews",
+   "title": "",
+   "content": "The one thing that will hold out forever or will at least be the last thing to fall is critical thinking. So I think you simply interview for that.\n\nAt my small company we interview all candidates, regardless of experience level, using the same set of questions during the primary round. They’re a combination of open ended scenario type questions and pure debate style questions. We try to design them such that when you’re answering them, it’s similar to when you’re on the job collaborating on a technical solution, or triaging an incident.\n\nWe provide limited information at first to force the candidate to immediately ask for more info, to see what kind of questions they ask and what kind of information they care about. When they start to provide the solution, we like to throw in alterations or wrenches to see how they pivot. It’s very much “turn based”.\n\nIf you’re taking it seriously, it’s very obvious when candidates are either solving it for the first time, are recalling true experience, or are simply reciting information like they studied it. That’s why many of our questions work for many levels of engineering.\n\nAdditionally, because there is so much back and forth, you get to also “vibe-check” the candidate engineering wise. In our experience most candidates have enjoyed the process, so we feel like we uncover a lot about personalities here as well.\n\nUnfortunately, the heel to this approach is that you pretty much have to conduct these in person. Because an LLM hypothetically would do well in this style of interview. We’re hybrid one day a week so it works for us, but it doesn’t exactly scale.",
+   "want": "lead",
+   "note": "Small company describes its own interview process and says it does not scale (must be in person). Scored 4.5 under an older rubric.",
+   "min_score": 6,
+   "want_ask": true
+  },
+  {
+   "id": "24d70412",
+   "author": "author_18",
+   "platform": "twitter",
+   "title": "",
+   "content": "@GergelyOrosz Leetcode is shit. It tested things that had nothing to do with the field. If you have to practice a different skillset to do well on interviews, they aren't testing your capabilities.\n\nInterviews are tough. Best thing is to just test people by hiring them a short time.",
+   "want": "not_lead",
+   "note": "A commenter venting about LeetCode; nothing about their own hiring."
+  },
+  {
+   "id": "67bda07e",
+   "author": "author_19",
+   "platform": "twitter",
+   "title": "",
+   "content": "@GergelyOrosz Good. Interviews should be a conversation, not a test. The best interviews I’ve had and conducted were engaging conversations with engineers passionate about some specific thing. You don’t need to solve leetcode hard problems to demonstrate knowledge and capability.",
+   "want": "not_lead",
+   "note": "Someone who has interviewed gives an opinion (interviews should be a conversation); no struggle of their own."
+  },
+  {
+   "id": "59e533c3",
+   "author": "author_20",
+   "platform": "hackernews",
+   "title": "",
+   "content": "I hope there's some real consequence of DMCA abuse like this. I hope companies would announce HackerRank boycott in hiring process. There are better alternatives tbh",
+   "want": "not_lead",
+   "note": "Reaction to HackerRank DMCA news; not about their own hiring."
   }
  ]
 }

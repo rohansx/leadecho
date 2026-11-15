@@ -16,7 +16,9 @@ const (
 	// one that was cut short resumes where it stopped.
 	// 3: a buyer's first-hand account of the problem counts as a lead whatever
 	// its form; a buyer's success story is a proof point (low score, ask kept).
-	ScoringRubric = 3
+	// 4: a buyer's own struggle is not "partly solves" (6+), and a buyer's
+	// pain or ask scored 4.5+ is lifted to the lead line.
+	ScoringRubric = 4
 
 	rescoreWindow = 30 * 24 * time.Hour
 	rescoreBatch  = 100
