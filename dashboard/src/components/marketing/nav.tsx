@@ -29,7 +29,7 @@ export function MarketingNav() {
     <header
       className={cn(
         "sticky top-0 z-40 border-b transition-[background-color,border-color] duration-300",
-        scrolled ? "border-border bg-background/80 backdrop-blur-md" : "border-transparent",
+        scrolled ? "mkt-veil border-border" : "border-transparent",
       )}
     >
       <div className={cn(container, "flex h-16 items-center gap-6")}>

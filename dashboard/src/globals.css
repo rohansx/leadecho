@@ -140,6 +140,49 @@
   --hairline-lo: #3a3a40;
   --hairline-stroke: 1.1;
 }
+/* Landing glass: soft colour washes fixed behind the page, frosted surfaces over them.
+   ponytail: only the landing gets this; the app keeps flat cards. */
+.mkt-aura {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38rem 30rem at 12% 8%, rgba(240, 180, 41, 0.42), transparent 70%),
+    radial-gradient(34rem 28rem at 92% 22%, rgba(76, 139, 217, 0.30), transparent 70%),
+    radial-gradient(40rem 30rem at 55% 105%, rgba(15, 157, 124, 0.20), transparent 70%);
+}
+.dark .mkt-aura {
+  background:
+    radial-gradient(38rem 30rem at 12% 8%, rgba(255, 212, 59, 0.22), transparent 70%),
+    radial-gradient(34rem 28rem at 92% 22%, rgba(76, 139, 217, 0.30), transparent 70%),
+    radial-gradient(40rem 30rem at 55% 105%, rgba(167, 139, 250, 0.22), transparent 70%);
+}
+.mkt .mkt-glass {
+  background-color: color-mix(in oklab, var(--card) 22%, transparent);
+  backdrop-filter: blur(9px) saturate(170%);
+  -webkit-backdrop-filter: blur(9px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 10px 30px -14px rgba(24, 24, 27, 0.18);
+}
+.dark .mkt .mkt-glass {
+  background-color: color-mix(in oklab, var(--card) 18%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 12px 32px -14px rgba(0, 0, 0, 0.6);
+}
+/* Full-width bands and the scrolled nav: translucent, lighter blur. */
+.mkt .mkt-veil {
+  background-color: color-mix(in oklab, var(--card) 26%, transparent);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+}
+.dark .mkt .mkt-veil { background-color: color-mix(in oklab, var(--background) 32%, transparent); }
+/* Solid fallback where blur is unsupported or the viewer asks for less transparency. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mkt .mkt-glass, .mkt .mkt-veil { background-color: var(--card); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .mkt .mkt-glass, .mkt .mkt-veil { background-color: var(--card); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .mkt-aura { display: none; }
+}
 /* Figures drawn straight on the page need the page colour as their plate. */
 .mkt .on-page { --hairline-plate: var(--background); }
 .mkt ::selection { background: var(--marker); color: #18181b; }

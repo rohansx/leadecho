@@ -68,7 +68,7 @@ export function PricingSection() {
             delay={i * 0.06}
             className={cn(
               "flex flex-col rounded-[24px] border p-7",
-              p.featured ? "border-foreground bg-card" : "border-border bg-card",
+              p.featured ? "mkt-glass border-foreground" : "mkt-glass border-border",
             )}
           >
             <div className="flex items-center justify-between gap-3">
@@ -107,7 +107,7 @@ export function PricingSection() {
 
       <Reveal className="mt-14">
         <h3 className="text-[20px] font-semibold tracking-[-0.01em]">Compared with Common Room and Trigify</h3>
-        <div className="mt-6 overflow-x-auto rounded-[20px] border border-border bg-card">
+        <div className="mt-6 overflow-x-auto mkt-glass rounded-[20px] border border-border">
           <table className="w-full min-w-[34rem] text-left text-[15px]">
             <thead>
               <tr className="border-b border-border">

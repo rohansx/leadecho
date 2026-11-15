@@ -15,7 +15,8 @@ export const Route = createFileRoute("/")({
 
 function LandingPage() {
   return (
-    <div className="mkt min-h-screen overflow-x-clip bg-background text-foreground">
+    <div className="mkt relative isolate min-h-screen overflow-x-clip bg-background text-foreground">
+      <div className="mkt-aura" aria-hidden="true" />
       <MarketingNav />
       <main>
         <Hero />

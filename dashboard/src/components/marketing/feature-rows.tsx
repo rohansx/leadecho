@@ -44,7 +44,7 @@ const stages = [
 function Funnel() {
   const max = Math.sqrt(stages[0].count);
   return (
-    <ul className="space-y-3.5 rounded-[18px] border border-border bg-card p-5">
+    <ul className="space-y-3.5 mkt-glass rounded-[18px] border border-border p-5">
       {stages.map((s, i) => {
         const last = i === stages.length - 1;
         return (
@@ -68,7 +68,7 @@ function Profile() {
     ["Stage", "Comparing vendors, has a budget"],
   ];
   return (
-    <div className="rounded-[18px] border border-border bg-card p-5">
+    <div className="mkt-glass rounded-[18px] border border-border p-5">
       <div className="flex items-center gap-3">
         <span className="flex size-10 items-center justify-center rounded-full bg-muted text-[14px] font-semibold">DR</span>
         <div className="min-w-0 flex-1">
@@ -95,7 +95,7 @@ const DRAFT =
 function Draft() {
   const { ref, typed, done } = useTypewriter(DRAFT);
   return (
-    <div ref={ref} className="rounded-[18px] border border-border bg-card p-5">
+    <div ref={ref} className="mkt-glass rounded-[18px] border border-border p-5">
       <div className="flex items-center justify-between text-[13px] text-muted-foreground">
         <span>Reply to u/build_in_public</span>
         <span>Grounded in 3 docs</span>
@@ -123,7 +123,7 @@ const results = [
 
 function Results() {
   return (
-    <div className="rounded-[18px] border border-border bg-card">
+    <div className="mkt-glass rounded-[18px] border border-border">
       <dl className="grid grid-cols-3 divide-x divide-border">
         {results.map((r) => (
           <div key={r.label} className="p-4 sm:p-5">
