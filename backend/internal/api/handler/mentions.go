@@ -504,7 +504,7 @@ func nextActionFor(m database.Mention, hasDraftReply bool) string {
 	if flagged {
 		return "needs_review"
 	}
-	if !isLeadIntentMention(m) {
+	if !m.IsLead() { // the queue's own rule: a lead in the queue always has a badge
 		return ""
 	}
 	if hasDraftReply {
@@ -514,21 +514,6 @@ func nextActionFor(m database.Mention, hasDraftReply bool) string {
 		return "needs_draft"
 	}
 	return ""
-}
-
-func isLeadIntentMention(m database.Mention) bool {
-	if !m.RelevanceScore.Valid || m.RelevanceScore.Float32 < 7.0 {
-		return false
-	}
-	if !m.Intent.Valid {
-		return false
-	}
-	switch m.Intent.IntentType {
-	case database.IntentTypeBuySignal, database.IntentTypeRecommendationAsk, database.IntentTypeComplaint:
-		return true
-	default:
-		return false
-	}
 }
 
 func bytesContainsTrue(meta []byte, key string) bool {

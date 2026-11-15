@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -39,12 +40,12 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 
 	switch p.Tier {
 	case "leads_ready":
-		clauses = append(clauses, "relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')")
+		clauses = append(clauses, leadIntentPredicate())
 	case "worth_watching":
-		clauses = append(clauses, "relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)")
+		clauses = append(clauses, "relevance_score >= 4.0 AND NOT COALESCE("+leadIntentPredicate()+", false)")
 	case "filtered":
 		clauses = append(clauses,
-			"NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))"+
+			"NOT (COALESCE("+leadIntentPredicate()+", false))"+
 				" AND COALESCE(relevance_score, 0) < 4.0")
 	}
 
@@ -140,8 +141,24 @@ func freshPredicate() string {
 		ELSE interval '%d days' END)`, CompanyLeadFreshDays, PostLeadFreshDays)
 }
 
+// What makes a mention a lead: the one rule behind the inbox queue, the tier
+// counts and the next-action badge.
+const LeadMinScore = 6.0
+
+var leadIntents = []IntentType{IntentTypeBuySignal, IntentTypeRecommendationAsk, IntentTypeComplaint, IntentTypeComparison}
+
+// leadIntentPredicate is the rule as SQL.
 func leadIntentPredicate() string {
-	return "relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')"
+	names := make([]string, len(leadIntents))
+	for i, in := range leadIntents {
+		names[i] = "'" + string(in) + "'"
+	}
+	return fmt.Sprintf("relevance_score >= %.1f AND intent IN (%s)", LeadMinScore, strings.Join(names, ", "))
+}
+
+// IsLead is the same rule for a row in hand.
+func (m Mention) IsLead() bool {
+	return m.RelevanceScore.Valid && m.RelevanceScore.Float32 >= LeadMinScore && m.Intent.Valid && slices.Contains(leadIntents, m.Intent.IntentType)
 }
 
 func escalationFlaggedPredicate() string {
