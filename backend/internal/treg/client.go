@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -115,9 +116,12 @@ func New(cfg Config, ledger Ledger, logger zerolog.Logger) *Client {
 func (c *Client) Enabled() bool { return c != nil }
 
 type Request struct {
-	WorkspaceID    string
-	Tool           string // catalog endpoint id, e.g. treg.x.search.posts
-	Body           any    // JSON body (POST)
+	WorkspaceID string
+	Tool        string // catalog endpoint id, e.g. treg.x.search.posts
+	Body        any    // JSON body (POST)
+	// Method is "" (POST) or http.MethodGet. A GET sends Query and no body.
+	Method         string
+	Query          url.Values
 	IdempotencyKey string // optional; generated once per Call and reused on retries
 	// NoWaterfall asks a routed tool to try only its cheapest provider. Use it
 	// when an empty answer is expected (e.g. "nothing new since the last
@@ -140,7 +144,7 @@ var (
 
 func validTag(v string) bool { return tagValueRe.MatchString(v) && !strings.Contains(v, "@") }
 
-// Call POSTs to /call/<tool>, retrying 5xx/timeouts/409 with the same
+// Call sends to /call/<tool> (POST unless Request.Method is GET), retrying 5xx/timeouts/409 with the same
 // Idempotency-Key so a lost answer is replayed rather than paid twice.
 // Meter charges a workspace's prepaid balance for paid calls (billing.Credits).
 type Meter interface {
@@ -174,6 +178,9 @@ func cacheKey(req Request) (string, bool) {
 	body, err := json.Marshal(req.Body) // map keys marshal sorted: stable
 	if err != nil {
 		return "", false
+	}
+	if req.Method == http.MethodGet { // POST keys are unchanged
+		body = []byte("GET?" + req.Query.Encode())
 	}
 	sum := sha256.Sum256(append([]byte(req.Tool+"\x00"), body...))
 	return "treg:v1:" + hex.EncodeToString(sum[:]), true
@@ -239,6 +246,9 @@ func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 	if !toolRe.MatchString(req.Tool) {
 		return nil, fmt.Errorf("treg: invalid tool id %q", req.Tool)
 	}
+	if req.Method != "" && req.Method != http.MethodPost && req.Method != http.MethodGet {
+		return nil, fmt.Errorf("treg: unsupported method %q", req.Method)
+	}
 	if time.Now().UnixNano() < c.pausedUntil.Load() {
 		return nil, ErrPaused
 	}
@@ -276,11 +286,20 @@ func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 }
 
 func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key string) (*Response, bool, error) {
-	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+"/call/"+req.Tool, bytes.NewReader(payload))
+	method, target, body := http.MethodPost, c.cfg.BaseURL+"/call/"+req.Tool, io.Reader(bytes.NewReader(payload))
+	if req.Method == http.MethodGet {
+		method, body = http.MethodGet, nil
+		if len(req.Query) > 0 {
+			target += "?" + req.Query.Encode()
+		}
+	}
+	hr, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		return nil, false, fmt.Errorf("treg: build request: %w", err)
 	}
-	hr.Header.Set("Content-Type", "application/json")
+	if method == http.MethodPost {
+		hr.Header.Set("Content-Type", "application/json")
+	}
 	hr.Header.Set("X-Treg-Token", c.cfg.Token)
 	hr.Header.Set("X-Treg-Meta", "customer="+req.WorkspaceID)
 	hr.Header.Set("Idempotency-Key", key)
@@ -298,19 +317,19 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 		return nil, true, fmt.Errorf("treg: %s: %w", req.Tool, err)
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(res.Body, maxBodyBytes))
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxBodyBytes))
 	if err != nil {
 		return nil, true, fmt.Errorf("treg: read %s: %w", req.Tool, err)
 	}
 
 	out := &Response{
 		Status:    res.StatusCode,
-		Body:      body,
+		Body:      data,
 		CallID:    res.Header.Get("X-Treg-Call-Id"),
 		CostMicro: parseMicro(res.Header.Get("X-Treg-Cost-Micro")),
 		ServedBy:  res.Header.Get("X-Treg-Served-By"),
 	}
-	callErr, retry := c.classify(res, body)
+	callErr, retry := c.classify(res, data)
 	if errors.Is(callErr, ErrCustomerDailyCap) {
 		// Re-probe every capRecheck: the operator may raise the budget, and
 		// treg's "day" may not end exactly at UTC midnight.

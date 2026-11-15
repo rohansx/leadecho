@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -248,5 +249,36 @@ func TestMaxCostHeaderFormat(t *testing.T) {
 		if got := microToUSD(micro); got != want {
 			t.Errorf("microToUSD(%d) = %q, want %q", micro, got, want)
 		}
+	}
+}
+
+func TestCallGET(t *testing.T) {
+	c, l := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if r.Method != http.MethodGet || r.URL.Path != "/call/some.get.tool" || r.URL.Query().Get("q") != "series a" || len(body) != 0 {
+			t.Errorf("unexpected %s %s body=%q", r.Method, r.URL.String(), body)
+		}
+		if r.Header.Get("X-Treg-Meta") != "customer="+testWS || r.Header.Get("Content-Type") != "" {
+			t.Errorf("headers = %v", r.Header)
+		}
+		w.Header().Set("X-Treg-Cost-Micro", "100")
+		_, _ = w.Write([]byte(`{}`))
+	})
+	resp, err := c.Call(context.Background(), Request{WorkspaceID: testWS, Tool: "some.get.tool", Method: http.MethodGet, Query: url.Values{"q": {"series a"}}})
+	if err != nil || resp.CostMicro != 100 {
+		t.Fatalf("resp = %+v, err = %v", resp, err)
+	}
+	if len(l.rows) != 1 || l.rows[0].CostMicro != 100 {
+		t.Fatalf("a GET call must be recorded like any other: %+v", l.rows)
+	}
+	if _, err := c.Call(context.Background(), Request{WorkspaceID: testWS, Tool: "some.get.tool", Method: http.MethodDelete}); err == nil {
+		t.Fatal("only GET and POST are allowed")
+	}
+	// The cache must not serve one query's answer for another.
+	a, _ := cacheKey(Request{Tool: "t", Method: http.MethodGet, Query: url.Values{"q": {"a"}}})
+	b, _ := cacheKey(Request{Tool: "t", Method: http.MethodGet, Query: url.Values{"q": {"b"}}})
+	post, _ := cacheKey(Request{Tool: "t"})
+	if a == b || a == post {
+		t.Fatal("cache key must include the method and query")
 	}
 }
