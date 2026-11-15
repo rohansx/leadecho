@@ -37,6 +37,11 @@ func TestOutreachMessageForProspect(t *testing.T) {
 	if strings.Contains(msg, "Job they posted") || !strings.Contains(msg, "multi-site packs get messy") {
 		t.Fatalf("prospect message:\n%s", msg)
 	}
+	brief := &ResearchBrief{WhatTheyDo: "JRK runs restaurants", Facts: []ResearchFact{{Text: "JRK has 40 roles open", URL: "https://x"}}}
+	msg = outreachUserMessage(Outreach{Product: "P", ContactName: "A", Company: "C", SegmentPain: "x", Research: brief})
+	if strings.Contains(msg, "runs restaurants") || !strings.Contains(msg, "40 roles open") {
+		t.Fatalf("prospect must get the facts, not the company description:\n%s", msg)
+	}
 	msg = outreachUserMessage(Outreach{Product: "P", ContactName: "A", Company: "C", JobTitle: "Engineer", SegmentPain: "x"})
 	if !strings.Contains(msg, "Job they posted this week: Engineer") || strings.Contains(msg, "often have") {
 		t.Fatalf("hiring message:\n%s", msg)

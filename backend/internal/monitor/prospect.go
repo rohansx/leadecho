@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -241,9 +243,11 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 		return false, true
 	}
 	co := hiringCompany{size: c.Employees, domain: c.Domain}
-	person, contact, check, capped := chooseContact(candidates,
+	person, contact, check, capped := chooseContact(rankByTitles(candidates, seg.BuyerTitles),
 		func(p foundPerson) (*enrich.Result, bool) { return m.verifyContact(ctx, wsID, job, p) },
-		func(p foundPerson, res *enrich.Result) contactCheck { return confirmContact(c.Name, co, 0, p, res) })
+		func(p foundPerson, res *enrich.Result) contactCheck {
+			return confirmProspectContact(c.Name, co, p, res)
+		})
 	if capped && person.Name == "" {
 		return false, true // today's contact lookups ran out before anyone was checked: retry another day
 	}
@@ -254,12 +258,27 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 		return false, capped
 	}
 	brief := m.researchLead(ctx, wsID, ai.CompanyResearch{
-		Product: bp.Product, Overview: bp.Overview,
+		Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
 		Company: c.Name, CompanyURL: job.CompanyURL, ContactTitle: person.Title,
+		Fit: seg.Name + ": " + strings.Join(seg.Criteria, "; "),
 	})
 	if ctx.Err() != nil {
 		m.refundResearch(ctx, wsID, brief)
 		return false, true
+	}
+	if brief != nil && brief.NotABuyer != "" {
+		// Its own pages contradict the fit (too small, not hiring, a vendor):
+		// not stored, not charged, not looked at again.
+		m.logger.Info().Str("company", c.Name).Str("why", brief.NotABuyer).Str("workspace_id", wsID).Msg("prospects: research ruled the company out")
+		m.refundResearch(ctx, wsID, brief)
+		return false, capped
+	}
+	if c.Employees > 0 {
+		// The company search's headcount, not the contact provider's: the
+		// latter was wrong live (BillDesk 11, Perfios 54).
+		fixed := *contact
+		fixed.CompanySize = c.Employees
+		contact = &fixed
 	}
 	mentionID := m.insertProspect(ctx, wsID, pid, seg, c, fit, person, contact, brief)
 	if mentionID == "" {
@@ -309,6 +328,44 @@ func (m *Monitor) searchCompanies(ctx context.Context, wsID, query, country stri
 		return nil, err
 	}
 	return parseCompanies(resp.Body), nil
+}
+
+// confirmProspectContact is confirmContact, but a catch-all email does not
+// count: with no event behind the lead, a message that may bounce is not
+// worth sending, so the next candidate is tried instead.
+func confirmProspectContact(company string, co hiringCompany, p foundPerson, res *enrich.Result) contactCheck {
+	ck := confirmContact(company, co, 0, p, res)
+	if ck.confirmed && res.EmailStatus == "catchall" {
+		return contactCheck{reason: "could not verify " + p.Name + "'s email (the company's mail server accepts any address)"}
+	}
+	return ck
+}
+
+// rankByTitles puts the people whose title matches an earlier buyer title
+// first: "VP Engineering or Head of Talent" tries engineering leaders before
+// recruiters. A phrase matches on its last word (Engineering, Talent, CTO).
+// ponytail: last-word match; use the model to rank if titles get subtler.
+var titleSplitRe = regexp.MustCompile(`(?i)\s+or\s+|,|;|/`)
+
+func rankByTitles(people []foundPerson, titles string) []foundPerson {
+	var keys []string
+	for _, ph := range titleSplitRe.Split(titles, -1) {
+		if f := strings.Fields(ph); len(f) > 0 {
+			keys = append(keys, strings.ToLower(f[len(f)-1]))
+		}
+	}
+	rank := func(title string) int {
+		t := strings.ToLower(title)
+		for i, k := range keys {
+			if strings.Contains(t, k) {
+				return i
+			}
+		}
+		return len(keys)
+	}
+	out := append([]foundPerson(nil), people...)
+	sort.SliceStable(out, func(i, j int) bool { return rank(out[i].Title) < rank(out[j].Title) })
+	return out
 }
 
 // countryName turns an ISO code into the words a search query understands.
