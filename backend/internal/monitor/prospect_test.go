@@ -99,11 +99,11 @@ func TestNewProspects(t *testing.T) {
 }
 
 func TestSegmentQueriesRotate(t *testing.T) {
-	q := segmentQueries(ai.CustomerSegment{Name: "SME accountancy firms", Criteria: []string{"5-30 person practice", "Partner-led"}})
-	want := []string{
-		"SME accountancy firms: 5-30 person practice; Partner-led",
-		"SME accountancy firms: 5-30 person practice",
-		"SME accountancy firms: Partner-led",
+	q := segmentQueries(ai.CustomerSegment{Name: "Technical recruiters", Criteria: []string{"accountancy practice with 5-30 staff", "Partner-led"},
+		ExampleCompanies: []string{"Ryan & Co"}})
+	want := []string{ // never the segment name: it names the buyer, not the company
+		"accountancy practice with 5-30 staff; Partner-led",
+		"accountancy practice with 5-30 staff; Partner-led; similar to Ryan & Co",
 	}
 	if !reflect.DeepEqual(q, want) {
 		t.Fatalf("segmentQueries = %q", q)

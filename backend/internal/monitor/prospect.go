@@ -275,15 +275,19 @@ func (m *Monitor) prospectCompany(ctx context.Context, wsID string, bp database.
 }
 
 // segmentQueries are the wordings of a segment's company search, one per
-// run in turn. The same query returns the same companies, all seen after
-// the first run, so later runs ask with one criterion at a time.
+// run in turn. They describe the buyer's company (the criteria), never the
+// segment's name: a name like "Technical recruiters" made the search return
+// recruiting firms (live, 2026-11-15). The same query returns the same
+// companies, all seen after the first run, so later runs add one example
+// company at a time for the search to find others like it.
 // ponytail: a fixed list of wordings; once they are used up a segment finds
 // little. Next step: companies.similar seeded with the domains of confirmed
 // prospects.
 func segmentQueries(s ai.CustomerSegment) []string {
-	out := []string{s.Name + ": " + strings.Join(s.Criteria, "; ")}
-	for _, c := range s.Criteria {
-		out = append(out, s.Name+": "+c)
+	base := strings.Join(s.Criteria, "; ")
+	out := []string{base}
+	for _, ex := range s.ExampleCompanies {
+		out = append(out, base+"; similar to "+ex)
 	}
 	return out
 }
