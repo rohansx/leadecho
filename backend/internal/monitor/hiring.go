@@ -804,7 +804,7 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 // hiringMetadata is what the lead view reads about a hiring signal. The
 // research (with its source links) is only present when something was found.
 func hiringMetadata(job jobPost, contactTitle string, check contactCheck, brief *ai.ResearchBrief) []byte {
-	meta := map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title,
+	meta := map[string]any{"signal": "hiring", "company": job.Company, "company_url": job.CompanyURL, "job_title": job.Title, "job_location": job.Location,
 		"contact_title": contactTitle, "confirmed": check.confirmed, "unconfirmed_reason": check.reason}
 	if brief != nil {
 		meta["research"] = brief
@@ -966,6 +966,13 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o a
 	if o.ContactName == "" {
 		return // nobody to write to
 	}
+	// What the message may open on comes from the stored signal, and its
+	// proof point and sign-off from what the customer wrote: nothing else.
+	if mention, err := m.q.GetMention(ctx, database.GetMentionParams{ID: mentionID, WorkspaceID: wsID}); err == nil {
+		o = withSignalFacts(o, mention.PlatformMetadata, mention.PlatformCreatedAt)
+	}
+	ds := m.q.GetDraftSettings(ctx, wsID)
+	o.ProofPoint, o.SignOff = ds.ProofPoint, ds.SignOff
 	if err := m.credits.Spend(ctx, wsID, billing.CostDraft, billing.ReasonDraft); err != nil {
 		return // out of credits: the lead still stands without a draft
 	}
@@ -980,4 +987,31 @@ func (m *Monitor) draftOutreach(ctx context.Context, wsID, mentionID string, o a
 		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostDraft, billing.ReasonDraft) // a cancelled draft must still be refunded
 		m.logger.Warn().Err(err).Str("mention_id", mentionID).Msg("outreach draft failed")
 	}
+}
+
+// withSignalFacts fills in the facts stored with the signal: where the job
+// is, when it was posted, and a funding round when the signal carries one
+// (metadata keys funding_round, funding_amount, funding_date).
+func withSignalFacts(o ai.Outreach, metadata []byte, posted pgtype.Timestamptz) ai.Outreach {
+	var meta struct {
+		JobLocation   string `json:"job_location"`
+		FundingRound  string `json:"funding_round"`
+		FundingAmount string `json:"funding_amount"`
+		FundingDate   string `json:"funding_date"`
+	}
+	_ = json.Unmarshal(metadata, &meta)
+	if o.JobTitle != "" {
+		o.JobLocation = meta.JobLocation
+		if posted.Valid {
+			o.JobPosted = posted.Time
+		}
+	}
+	var funding []string
+	for _, f := range []string{meta.FundingRound, meta.FundingAmount, meta.FundingDate} {
+		if f = strings.TrimSpace(f); f != "" {
+			funding = append(funding, f)
+		}
+	}
+	o.Funding = strings.Join(funding, ", ")
+	return o
 }

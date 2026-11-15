@@ -84,14 +84,15 @@ func TestOutreachUsesTheResearchBrief(t *testing.T) {
 		Research: &ResearchBrief{WhatTheyDo: "Publishes courseware.", WhyNow: "Hiring four backend engineers.", Hook: "Many interviews for a small team.",
 			Facts: []ResearchFact{{Text: "Raised $40M.", URL: "https://techcrunch.com/x"}}},
 	})
-	for _, want := range []string{"What we found", "Publishes courseware.", "Raised $40M."} {
+	for _, want := range []string{"What we found", "Raised $40M."} {
 		if !strings.Contains(withBrief, want) {
 			t.Errorf("outreach input is missing %q", want)
 		}
 	}
 	// Only what has a source may end up in an email: the model's own
-	// summary lines (why now, the hook) are for the reader of the lead.
-	for _, not := range []string{"Hiring four backend engineers.", "Many interviews"} {
+	// summary lines (what they do, why now, the hook) are for the reader of
+	// the lead.
+	for _, not := range []string{"Publishes courseware.", "Hiring four backend engineers.", "Many interviews"} {
 		if strings.Contains(withBrief, not) {
 			t.Errorf("unsourced line %q must not reach the draft", not)
 		}
