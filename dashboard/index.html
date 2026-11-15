@@ -7,12 +7,15 @@
     <meta name="referrer" content="no-referrer" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>LeadEcho - Social Intent Orchestrator</title>
+    <meta
+      name="description"
+      content="LeadEcho reads Reddit, Hacker News, X, LinkedIn and developer communities, finds the people already asking for what you sell, and drafts a reply you approve. Open source."
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts load without blocking first paint; display=swap shows fallback text meanwhile. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700&display=swap" /></noscript>
     <!-- Umami. data-exclude-search: verify/reset URLs carry tokens in the query.
          data-domains: only production is counted (not staging or localhost). -->
     <script

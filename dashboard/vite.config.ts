@@ -9,7 +9,7 @@ const API_URL = process.env.API_URL ?? "http://localhost:8090";
 
 export default defineConfig({
   base: "/",
-  plugins: [TanStackRouterVite({ quoteStyle: "double" }), react(), tailwindcss()],
+  plugins: [TanStackRouterVite({ quoteStyle: "double", autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

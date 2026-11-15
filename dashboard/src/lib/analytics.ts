@@ -1,4 +1,3 @@
-import posthog from "posthog-js";
 
 // PostHog is off unless VITE_POSTHOG_KEY is set at build time.
 const KEY = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
@@ -11,9 +10,15 @@ function stripQuery(url: unknown): unknown {
   return i === -1 ? url : url.slice(0, i);
 }
 
+// Loaded on demand so the library stays out of the first-paint bundle. Calls
+// chain on one promise, so init always runs before identify/reset.
+let loaded: Promise<typeof import("posthog-js").default> | undefined;
+const posthog = () => (loaded ??= import("posthog-js").then((m) => m.default));
+
 export function initAnalytics(): void {
   if (!KEY) return;
-  posthog.init(KEY, {
+  const key = KEY;
+  void posthog().then((ph) => ph.init(key, {
     api_host: HOST,
     person_profiles: "identified_only",
     capture_pageview: "history_change",
@@ -24,16 +29,16 @@ export function initAnalytics(): void {
       }
       return event;
     },
-  });
+  }));
 }
 
 // Identify by internal ids only: no email or name goes to PostHog.
 export function identifyUser(userId: string, workspaceId: string): void {
   if (!KEY) return;
-  posthog.identify(userId, { workspace_id: workspaceId });
+  void posthog().then((ph) => ph.identify(userId, { workspace_id: workspaceId }));
 }
 
 export function resetAnalytics(): void {
   if (!KEY) return;
-  posthog.reset();
+  void posthog().then((ph) => ph.reset());
 }
