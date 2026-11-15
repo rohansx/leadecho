@@ -853,8 +853,14 @@ func (m *Monitor) refundResearch(ctx context.Context, wsID string, brief *ai.Res
 // best effort: a lead without research is still a lead. Credits are returned
 // when nothing usable comes back.
 func (m *Monitor) researchLead(ctx context.Context, wsID string, in ai.CompanyResearch) *ai.ResearchBrief {
+	b, _ := m.researchLeadErr(ctx, wsID, in)
+	return b
+}
+
+// researchLeadErr is researchLead that also says why nothing came back.
+func (m *Monitor) researchLeadErr(ctx context.Context, wsID string, in ai.CompanyResearch) (*ai.ResearchBrief, error) {
 	if err := m.credits.Spend(ctx, wsID, billing.CostResearch, billing.ReasonResearch); err != nil {
-		return nil
+		return nil, fmt.Errorf("credits: %w", err)
 	}
 	rctx, cancel := context.WithTimeout(ctx, researchTimeout)
 	defer cancel()
@@ -862,10 +868,10 @@ func (m *Monitor) researchLead(ctx context.Context, wsID string, in ai.CompanyRe
 	if err != nil || brief == nil {
 		m.credits.Refund(context.WithoutCancel(ctx), wsID, billing.CostResearch, billing.ReasonResearch)
 		m.logger.Info().Err(err).Str("company", in.Company).Str("workspace_id", wsID).Msg("lead research: nothing found")
-		return nil
+		return nil, err
 	}
 	m.logger.Info().Int("searches", brief.Searches).Int("facts", len(brief.Facts)).Str("company", in.Company).Str("workspace_id", wsID).Msg("lead research: company researched")
-	return brief
+	return brief, nil
 }
 
 // hiringResearch is the research request for a hiring signal's company.
