@@ -127,6 +127,7 @@ func (h *ChatHandler) leadContext(ctx context.Context, ws, mentionID string) (st
 		Signal            string `json:"signal"`
 		Company           string `json:"company"`
 		JobTitle          string `json:"job_title"`
+		JobURL            string `json:"job_url"`
 		ContactTitle      string `json:"contact_title"`
 		Confirmed         *bool  `json:"confirmed"`
 		UnconfirmedReason string `json:"unconfirmed_reason"`
@@ -144,7 +145,12 @@ func (h *ChatHandler) leadContext(ctx context.Context, ws, mentionID string) (st
 			line("Kind", "hiring signal: the company posted this job this week")
 		}
 		line("Company", pm.Company)
-		line("Job posted", pm.JobTitle)
+		if pm.Signal == "funding" && pm.JobTitle != "" {
+			// Added to the round's lead later, by the company's name alone.
+			line("Possibly also hiring", pm.JobTitle+" ("+pm.JobURL+"): a posting matched by company name only, so it may be another company's; not a checked fact")
+		} else {
+			line("Job posted", pm.JobTitle)
+		}
 		if pm.FundingType != "" {
 			line("Round raised", strings.TrimSpace(strings.ReplaceAll(pm.FundingType, "_", " ")+" "+pm.FundingAmount)+", announced "+pm.FundingDate)
 			line("Round announced at", pm.FundingURL)

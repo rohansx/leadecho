@@ -163,3 +163,28 @@ func TestLeadContextFundingSignal(t *testing.T) {
 		t.Errorf("a funding lead with no posting must not be called a hiring signal:\n%s", got)
 	}
 }
+
+// A posting added to a funding lead later was matched to it by the company's
+// name alone (monitor.signalFact): the assistant must not be told it as a
+// checked fact.
+func TestLeadContextPostingOnFundingLeadIsUnverified(t *testing.T) {
+	s := &fakeLeadStore{mention: database.Mention{
+		ID: leadMention, WorkspaceID: leadWS, Platform: "linkedin", Url: "https://news.example/round",
+		Title:   pgtype.Text{String: "Acme raised a Seed round", Valid: true},
+		Content: "Acme raised a Seed round, announced 2026-11-17.",
+		PlatformMetadata: []byte(`{"signal":"funding","company":"Acme","confirmed":true,"funding_type":"seed","funding_date":"2026-11-17",
+			"job_title":"Backend Engineer","job_url":"https://www.linkedin.com/jobs/view/1"}`),
+	}}
+	got, _, err := newLeadHandler(s).leadContext(context.Background(), leadWS, leadMention)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "Job posted: Backend Engineer") {
+		t.Errorf("a posting matched by name must not read as a checked fact:\n%s", got)
+	}
+	for _, want := range []string{"Backend Engineer", "matched by company name only", "https://www.linkedin.com/jobs/view/1"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lead context is missing %q:\n%s", want, got)
+		}
+	}
+}
