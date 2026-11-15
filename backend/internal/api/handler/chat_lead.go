@@ -142,7 +142,7 @@ func (h *ChatHandler) leadContext(ctx context.Context, ws, mentionID string) (st
 		if pm.Signal == "funding" {
 			line("Kind", "funding signal: the company just raised a round (companies hire within weeks of one)")
 		} else {
-			line("Kind", "hiring signal: the company posted this job this week")
+			line("Kind", "hiring signal: the company posted this job") // when: the "Posted" line above
 		}
 		line("Company", pm.Company)
 		if pm.Signal == "funding" && pm.JobTitle != "" {

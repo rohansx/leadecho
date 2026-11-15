@@ -181,6 +181,7 @@ async function enrichQueueCounts(base: InboxQueueCountsResponse): Promise<InboxQ
         ),
       ]);
       actions = {
+        ...actions, // keeps "older", which this backfill does not count
         ready_to_send: ready.total,
         needs_draft: draft.total,
         needs_review: review.total,

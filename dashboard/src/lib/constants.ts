@@ -74,6 +74,8 @@ export const ACTION_KINDS = {
   READY_TO_SEND: "ready_to_send",
   NEEDS_DRAFT: "needs_draft",
   NEEDS_REVIEW: "needs_review",
+  /** Leads whose post or posting is too old for the default queue. */
+  OLDER: "older",
 } as const;
 
 export const MENTION_STATUSES = ["new", "reviewed", "replied", "archived", "spam"] as const;

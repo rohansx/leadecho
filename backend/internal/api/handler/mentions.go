@@ -36,6 +36,7 @@ var (
 	}
 	validActionKinds = map[string]bool{
 		"ready_to_send": true, "needs_draft": true, "needs_review": true,
+		"older": true, // leads whose post or posting has gone stale
 	}
 	validEscalationKinds = map[string]bool{
 		"needs_draft": true, "flagged": true,
