@@ -37,6 +37,7 @@ type OpsHandler struct {
 	treg    TregBalance // nil: treg not configured
 	admins  map[string]bool
 	logger  zerolog.Logger
+	lobby   claimCreator // nil: LOBBY_SECRET_KEY not set
 }
 
 func NewOpsHandler(q *database.Queries, credits *billing.Credits, treg TregBalance, admins map[string]bool, logger zerolog.Logger) *OpsHandler {
@@ -335,6 +336,12 @@ func (h *OpsHandler) finish(w http.ResponseWriter, r *http.Request, ws, action s
 		writeError(w, http.StatusInternalServerError, "action failed")
 		return
 	}
+	h.audit(r, ws, action, detail)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// audit records an /ops action in the audit log.
+func (h *OpsHandler) audit(r *http.Request, ws, action string, detail map[string]any) {
 	actor := ""
 	if c := middleware.ClaimsFromContext(r.Context()); c != nil {
 		actor = c.Email
@@ -350,5 +357,4 @@ func (h *OpsHandler) finish(w http.ResponseWriter, r *http.Request, ws, action s
 		h.logger.Error().Err(aerr).Msg("ops: audit write failed")
 	}
 	h.logger.Info().Str("actor", actor).Str("action", action).Str("workspace_id", ws).Msg(fmt.Sprintf("ops: %s", action))
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

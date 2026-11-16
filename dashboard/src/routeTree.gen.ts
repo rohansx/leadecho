@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root"
+import { Route as SetPasswordRouteImport } from "./routes/set-password"
 import { Route as PrivacyRouteImport } from "./routes/privacy"
 import { Route as OnboardingRouteImport } from "./routes/onboarding"
 import { Route as DashboardRouteImport } from "./routes/_dashboard"
@@ -34,6 +35,11 @@ import { Route as AuthRegisterRouteImport } from "./routes/_auth/register"
 import { Route as AuthLoginRouteImport } from "./routes/_auth/login"
 import { Route as AuthForgotPasswordRouteImport } from "./routes/_auth/forgot-password"
 
+const SetPasswordRoute = SetPasswordRouteImport.update({
+  id: "/set-password",
+  path: "/set-password",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: "/privacy",
   path: "/privacy",
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/onboarding": typeof OnboardingRoute
   "/privacy": typeof PrivacyRoute
+  "/set-password": typeof SetPasswordRoute
   "/forgot-password": typeof AuthForgotPasswordRoute
   "/login": typeof AuthLoginRoute
   "/register": typeof AuthRegisterRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   "/": typeof IndexRoute
   "/onboarding": typeof OnboardingRoute
   "/privacy": typeof PrivacyRoute
+  "/set-password": typeof SetPasswordRoute
   "/forgot-password": typeof AuthForgotPasswordRoute
   "/login": typeof AuthLoginRoute
   "/register": typeof AuthRegisterRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   "/_dashboard": typeof DashboardRouteWithChildren
   "/onboarding": typeof OnboardingRoute
   "/privacy": typeof PrivacyRoute
+  "/set-password": typeof SetPasswordRoute
   "/_auth/forgot-password": typeof AuthForgotPasswordRoute
   "/_auth/login": typeof AuthLoginRoute
   "/_auth/register": typeof AuthRegisterRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | "/"
     | "/onboarding"
     | "/privacy"
+    | "/set-password"
     | "/forgot-password"
     | "/login"
     | "/register"
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | "/"
     | "/onboarding"
     | "/privacy"
+    | "/set-password"
     | "/forgot-password"
     | "/login"
     | "/register"
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | "/_dashboard"
     | "/onboarding"
     | "/privacy"
+    | "/set-password"
     | "/_auth/forgot-password"
     | "/_auth/login"
     | "/_auth/register"
@@ -311,10 +323,18 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
+  SetPasswordRoute: typeof SetPasswordRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/set-password": {
+      id: "/set-password"
+      path: "/set-password"
+      fullPath: "/set-password"
+      preLoaderRoute: typeof SetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/privacy": {
       id: "/privacy"
       path: "/privacy"
@@ -548,6 +568,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
+  SetPasswordRoute: SetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -13,6 +13,7 @@ import (
 	"leadecho/internal/auth"
 	"leadecho/internal/config"
 	"leadecho/internal/database"
+	"leadecho/internal/lobby"
 )
 
 // registerAuthRoutes mounts built-in auth: email/password (with verification
@@ -45,6 +46,12 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 	r.Post("/auth/resend-verification", email.ResendVerification)
 	r.Post("/auth/forgot-password", email.ForgotPassword)
 	r.Post("/auth/reset-password", email.ResetPassword)
+	// Lobby claimable accounts: this GET is the waitlist's Invite URL.
+	if l := lobby.New(cfg.LobbyURL, cfg.LobbySecretKey); l != nil {
+		claim := auth.NewClaimHandler(email, l)
+		r.Get("/auth/claim", claim.Redeem)
+		r.Post("/auth/claim/password", claim.SetPassword)
+	}
 
 	front := strings.TrimRight(cfg.FrontendURL, "/")
 	redirect := func(set, provider string) string {

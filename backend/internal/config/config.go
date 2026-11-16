@@ -126,7 +126,11 @@ type Config struct {
 	// enforced exactly when Dodo is configured (self-host stays unlimited).
 	CreditsEnforcedEnv string `env:"CREDITS_ENFORCED,default="`
 	// OpsAdminEmails: comma-separated emails allowed into /ops (operator console).
-	OpsAdminEmails           string `env:"OPS_ADMIN_EMAILS,default="`
+	OpsAdminEmails string `env:"OPS_ADMIN_EMAILS,default="`
+	// Lobby claimable accounts: LOBBY_SECRET_KEY is the waitlist's sk_ key,
+	// server side only. Unset disables /auth/claim and ops claim links.
+	LobbySecretKey           string `env:"LOBBY_SECRET_KEY,default="`
+	LobbyURL                 string `env:"LOBBY_URL,default=https://trylobby.app"`
 	TrackedProfilesPollHours int    `env:"TRACKED_PROFILES_POLL_HOURS,default=6"`
 	// RedditCommentsEnabled searches subreddit comments (free public JSON).
 	RedditCommentsEnabled bool `env:"REDDIT_COMMENTS_ENABLED,default=true"`
