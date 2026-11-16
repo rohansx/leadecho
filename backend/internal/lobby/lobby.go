@@ -88,17 +88,71 @@ func (c *Client) CreateClaim(ctx context.Context, accountRef, label, email strin
 	return out, nil
 }
 
-func (c *Client) post(ctx context.Context, path string, body, out any) (int, error) {
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return 0, err
+// ErrFeedbackOff: Lobby won't give this person the feedback widget.
+var ErrFeedbackOff = errors.New("lobby: feedback is off for this person")
+
+// ReporterToken returns the feedback-widget token for a signed-in user
+// (valid 90 days). ErrFeedbackOff when Lobby's "who sees the widget" rules
+// leave them out.
+func (c *Client) ReporterToken(ctx context.Context, email string) (string, error) {
+	var out struct {
+		Token         string `json:"token"`
+		ReporterToken string `json:"reporter_token"`
+		Reporter      string `json:"reporter"`
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(raw))
+	status, err := c.post(ctx, "/v1/reporters", map[string]string{"email": email}, &out)
+	if err != nil {
+		return "", err
+	}
+	// 403: feedback off for them; 404: not on the waitlist at all.
+	if status == http.StatusForbidden || status == http.StatusNotFound {
+		return "", ErrFeedbackOff
+	}
+	// ponytail: the success shape isn't documented in llms.txt; take whichever
+	// of these Lobby fills (redeem calls it reporter_token).
+	tok := out.Token + out.ReporterToken + out.Reporter
+	if status/100 != 2 || tok == "" {
+		return "", fmt.Errorf("lobby: reporters answered %d", status)
+	}
+	return tok, nil
+}
+
+// PublicKey returns the waitlist's public pk_ key (safe to publish).
+func (c *Client) PublicKey(ctx context.Context) (string, error) {
+	var out struct {
+		PublicKey string `json:"public_key"`
+	}
+	status, err := c.send(ctx, http.MethodGet, "/v1/project", nil, &out)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK || out.PublicKey == "" {
+		return "", fmt.Errorf("lobby: project answered %d", status)
+	}
+	return out.PublicKey, nil
+}
+
+func (c *Client) post(ctx context.Context, path string, body, out any) (int, error) {
+	return c.send(ctx, http.MethodPost, path, body, out)
+}
+
+func (c *Client) send(ctx context.Context, method, path string, body, out any) (int, error) {
+	var r io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return 0, err
+		}
+		r = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, r)
 	if err != nil {
 		return 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.key)
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	res, err := c.http.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("lobby %s: %w", path, err)

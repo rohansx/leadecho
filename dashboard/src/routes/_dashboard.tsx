@@ -8,6 +8,7 @@ import {
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
+import { FeedbackWidget } from "@/components/feedback-widget";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useAuth } from "@/lib/auth";
@@ -56,6 +57,7 @@ function DashboardLayout() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
+      <FeedbackWidget />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
