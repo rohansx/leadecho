@@ -46,8 +46,18 @@ func (q *Queries) SetIdPUserID(ctx context.Context, userID, idpUserID string) er
 	return err
 }
 
+// ClaimableIdPUserID returns an unclaimed temp account's Keycloak user id
+// ("" if it has none). pgx.ErrNoRows: no unclaimed temp account with that id.
+func (q *Queries) ClaimableIdPUserID(ctx context.Context, userID string) (string, error) {
+	var id string
+	err := q.db.QueryRow(ctx,
+		`SELECT COALESCE(idp_user_id, '') FROM users WHERE id = $1 AND claimable`, userID).Scan(&id)
+	return id, err
+}
+
 // DeleteClaimableAccount removes an unclaimed temp account and its workspace
-// (rollback when its Keycloak user can't be made). Claimed accounts are untouched.
+// (rollback when its Keycloak user can't be made, or the ops Delete action).
+// Claimed accounts are untouched.
 func (q *Queries) DeleteClaimableAccount(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, `
 		DELETE FROM workspaces WHERE id = (SELECT workspace_id FROM users WHERE id = $1 AND claimable)`, userID)

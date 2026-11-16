@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"leadecho/internal/database"
@@ -110,6 +111,36 @@ func (h *OpsHandler) CreateTempAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r, wsID, "create_temp_account", map[string]any{"email": email, "user_id": userID, "skip_verification": verified, "keycloak": h.idp != nil})
 	writeJSON(w, http.StatusCreated, map[string]any{"user_id": userID, "workspace_id": wsID, "email": email, "keycloak": h.idp != nil})
+}
+
+// DeleteTempAccount removes an unclaimed temp account: its Keycloak login
+// first (so a failure leaves no orphan login behind), then the account and
+// its workspace. Claimed accounts are refused.
+func (h *OpsHandler) DeleteTempAccount(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(userID); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid account id")
+		return
+	}
+	idpID, err := h.q.ClaimableIdPUserID(r.Context(), userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "no unclaimed temporary account with that id")
+		return
+	}
+	if err != nil {
+		h.logger.Error().Err(err).Msg("ops: load temp account")
+		writeError(w, http.StatusInternalServerError, "action failed")
+		return
+	}
+	if idpID != "" && h.idp != nil {
+		if err := h.idp.DeleteUserRetry(r.Context(), idpID); err != nil {
+			h.logger.Error().Err(err).Str("keycloak_user_id", idpID).Msg("ops: delete temp keycloak user")
+			writeError(w, http.StatusBadGateway, "could not remove the sign-in user in Keycloak; nothing was deleted")
+			return
+		}
+	}
+	err = h.q.DeleteClaimableAccount(r.Context(), userID)
+	h.finish(w, r, "", "delete_temp_account", map[string]any{"user_id": userID, "keycloak_user_id": idpID}, err)
 }
 
 // createTempIdPUser makes the temp account's Keycloak user; on failure it

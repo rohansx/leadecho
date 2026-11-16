@@ -86,6 +86,9 @@ func TestClaimableAccountsDB(t *testing.T) {
 	if err := q.SetIdPUserID(ctx, id, "kc-"+tag); err != nil {
 		t.Fatal(err)
 	}
+	if got, err := q.ClaimableIdPUserID(ctx, id); err != nil || got != "kc-"+tag {
+		t.Fatalf("ClaimableIdPUserID = %q, %v", got, err)
+	}
 
 	// Success: email swapped and verified, temp password dropped, sessions revoked, flag cleared.
 	real := uniq("pat")
@@ -101,6 +104,16 @@ func TestClaimableAccountsDB(t *testing.T) {
 	}
 	if ok, _ := q.IsClaimable(ctx, id); ok {
 		t.Fatal("claimed account must not be claimable again")
+	}
+	// Delete refuses claimed accounts: nothing to look up, nothing removed.
+	if _, err := q.ClaimableIdPUserID(ctx, id); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("claimed account still deletable: %v", err)
+	}
+	if err := q.DeleteClaimableAccount(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.GetUser(ctx, id); err != nil {
+		t.Fatalf("DeleteClaimableAccount removed a claimed account: %v", err)
 	}
 	if _, err := q.ConsumeAuthToken(ctx, "reset", "h-"+tag); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("pre-claim reset token still works: %v", err)

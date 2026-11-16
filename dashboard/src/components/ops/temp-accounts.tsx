@@ -8,7 +8,31 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
-import { OPS_KEYS, createClaimLink, createTempAccount, listTempAccounts, type ClaimLink, type TempAccount } from "@/lib/ops-api";
+import { OPS_KEYS, createClaimLink, createTempAccount, deleteTempAccount, listTempAccounts, type ClaimLink, type TempAccount } from "@/lib/ops-api";
+
+function DeleteTempAccountButton({ account }: { account: TempAccount }) {
+  const qc = useQueryClient();
+  const del = useMutation({
+    mutationFn: () => deleteTempAccount(account.user_id),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["ops"] }),
+  });
+  return (
+    <div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-xs text-destructive"
+        disabled={del.isPending}
+        onClick={() => {
+          if (window.confirm(`Delete ${account.email} and ${account.workspace_name}? This removes its sign-in and all its data and can't be undone.`)) del.mutate();
+        }}
+      >
+        {del.isPending ? "Deleting..." : "Delete"}
+      </Button>
+      {del.error && <p className="mt-1 max-w-48 text-xs text-destructive">{del.error.message}</p>}
+    </div>
+  );
+}
 
 function CreateTempAccountForm() {
   const qc = useQueryClient();
@@ -114,7 +138,8 @@ export function TempAccountsCard() {
                 <tr className="border-b border-border">
                   <th className="py-2 pr-3 font-medium">Account</th>
                   <th className="py-2 pr-3 font-medium">Created</th>
-                  <th className="py-2 font-medium">Claim link</th>
+                  <th className="py-2 pr-3 font-medium">Claim link</th>
+                  <th className="py-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -125,8 +150,11 @@ export function TempAccountsCard() {
                       <div className="text-xs text-muted-foreground">{a.workspace_name}</div>
                     </td>
                     <td className="py-2 pr-3 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</td>
-                    <td className="py-2">
+                    <td className="py-2 pr-3">
                       <ClaimCell account={a} lobbyConfigured={lobbyConfigured} />
+                    </td>
+                    <td className="py-2">
+                      <DeleteTempAccountButton account={a} />
                     </td>
                   </tr>
                 ))}
