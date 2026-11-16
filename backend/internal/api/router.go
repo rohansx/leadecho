@@ -374,6 +374,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Post("/temp-accounts/{id}/claim", ops.CreateClaim)
 				r.Delete("/temp-accounts/{id}", ops.DeleteTempAccount)
 			})
+			// feedback: Lobby's feedback widget for people Lobby lets report
+			r.Get("/feedback/widget", handler.NewFeedbackHandler(lobby.New(cfg.LobbyURL, cfg.LobbySecretKey), logger).Widget)
 			// billing: plan, balance, checkout and customer portal
 			r.Get("/billing", billingH.Get)
 			r.Post("/billing/checkout", billingH.Checkout)
