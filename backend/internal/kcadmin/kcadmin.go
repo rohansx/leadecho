@@ -27,16 +27,23 @@ type Client struct {
 }
 
 // New derives the admin API from an issuer like
-// https://auth.example.com/realms/leadecho. Returns nil when OIDC isn't configured.
-func New(issuer, clientID, secret string) *Client {
+// https://auth.example.com/realms/leadecho. adminHost (e.g.
+// https://kc-admin.example.com), when set, serves the admin API instead of
+// the issuer's host: public auth domains usually block /admin. Returns nil
+// when OIDC isn't configured.
+func New(issuer, adminHost, clientID, secret string) *Client {
 	issuer = strings.TrimRight(issuer, "/")
 	i := strings.LastIndex(issuer, "/realms/")
 	if issuer == "" || clientID == "" || secret == "" || i < 0 {
 		return nil
 	}
+	host := issuer[:i]
+	if adminHost != "" {
+		host = strings.TrimRight(adminHost, "/")
+	}
 	return &Client{
 		tokenURL: issuer + "/protocol/openid-connect/token",
-		adminURL: issuer[:i] + "/admin" + issuer[i:],
+		adminURL: host + "/admin" + issuer[i:],
 		clientID: clientID, secret: secret,
 		http: &http.Client{Timeout: 15 * time.Second},
 	}

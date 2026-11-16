@@ -356,7 +356,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			}
 			ops := handler.NewOpsHandler(queries, credits, opsTreg, handler.ParseOpsAdmins(cfg.OpsAdminEmails), logger)
 			ops.SetLobby(lobby.New(cfg.LobbyURL, cfg.LobbySecretKey))
-			ops.SetKeycloak(kcadmin.New(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret))
+			ops.SetKeycloak(kcadmin.New(cfg.OIDCIssuer, cfg.KeycloakAdminURL, cfg.OIDCClientID, cfg.OIDCClientSecret))
 			r.Route("/ops", func(r chi.Router) {
 				r.Use(ops.RequireOps)
 				r.Get("/me", ops.Me)

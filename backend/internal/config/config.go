@@ -129,8 +129,12 @@ type Config struct {
 	OpsAdminEmails string `env:"OPS_ADMIN_EMAILS,default="`
 	// Lobby claimable accounts: LOBBY_SECRET_KEY is the waitlist's sk_ key,
 	// server side only. Unset disables /auth/claim and ops claim links.
-	LobbySecretKey           string `env:"LOBBY_SECRET_KEY,default="`
-	LobbyURL                 string `env:"LOBBY_URL,default=https://trylobby.app"`
+	LobbySecretKey string `env:"LOBBY_SECRET_KEY,default="`
+	LobbyURL       string `env:"LOBBY_URL,default=https://trylobby.app"`
+	// KeycloakAdminURL: host serving Keycloak's admin API when the issuer's
+	// public host blocks /admin (e.g. https://kc-admin.example.com). Empty =
+	// the issuer's host. Used to give /ops temp accounts a Keycloak login.
+	KeycloakAdminURL         string `env:"KEYCLOAK_ADMIN_URL,default="`
 	TrackedProfilesPollHours int    `env:"TRACKED_PROFILES_POLL_HOURS,default=6"`
 	// RedditCommentsEnabled searches subreddit comments (free public JSON).
 	RedditCommentsEnabled bool `env:"REDDIT_COMMENTS_ENABLED,default=true"`
