@@ -31,7 +31,7 @@ type cachedReporter struct {
 
 const (
 	reporterTTL    = 24 * time.Hour // tokens last 90 days; re-ask daily
-	feedbackOffTTL = 10 * time.Minute
+	feedbackOffTTL = time.Minute    // a tester added in Lobby shows up within a minute
 )
 
 type FeedbackHandler struct {
