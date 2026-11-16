@@ -31,6 +31,7 @@ import (
 	"leadecho/internal/events/publishers"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
+	"leadecho/internal/lobby"
 	"leadecho/internal/mcp"
 	"leadecho/internal/monitor"
 	"leadecho/internal/mutes"                     // sources
@@ -353,6 +354,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				opsTreg = t
 			}
 			ops := handler.NewOpsHandler(queries, credits, opsTreg, handler.ParseOpsAdmins(cfg.OpsAdminEmails), logger)
+			ops.SetLobby(lobby.New(cfg.LobbyURL, cfg.LobbySecretKey))
 			r.Route("/ops", func(r chi.Router) {
 				r.Use(ops.RequireOps)
 				r.Get("/me", ops.Me)
@@ -365,6 +367,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Post("/workspaces/{id}/paid-data", ops.SetPaidData)
 				r.Post("/workspaces/{id}/scanning", ops.SetScanning)
 				r.Post("/workspaces/{id}/scan", ops.ScanNow)
+				r.Get("/temp-accounts", ops.TempAccounts)
+				r.Post("/temp-accounts", ops.CreateTempAccount)
+				r.Post("/temp-accounts/{id}/claim", ops.CreateClaim)
 			})
 			// billing: plan, balance, checkout and customer portal
 			r.Get("/billing", billingH.Get)

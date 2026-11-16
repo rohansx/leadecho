@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { TempAccountsCard } from "@/components/ops/temp-accounts";
 import { canRequestScan, manualScanStatus, scanPending, type ScanKind } from "@/lib/ops-scan";
 import { cn } from "@/lib/utils";
 import {
@@ -247,6 +248,8 @@ function OpsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <TempAccountsCard />
 
       <Card>
         <CardContent className="space-y-2 p-4">

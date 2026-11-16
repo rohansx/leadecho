@@ -51,6 +51,7 @@ export const OPS_KEYS = {
   overview: ["ops", "overview"],
   workspaces: ["ops", "workspaces"],
   audit: ["ops", "audit"],
+  tempAccounts: ["ops", "temp-accounts"],
 };
 
 export const opsMe = () => request<{ ops: boolean }>("/ops/me");
@@ -68,4 +69,27 @@ export const setPaidData = (id: string, enabled: boolean) => post(`/ops/workspac
 export const setScanning = (id: string, paused: boolean) => post(`/ops/workspaces/${id}/scanning`, { paused });
 export const scanNow = (id: string, kind: ScanKind) => post(`/ops/workspaces/${id}/scan`, { kind });
 
-export const usd = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(3)}`);
+// Temporary (claimable) accounts and their Lobby claim links.
+export interface TempAccount {
+  user_id: string;
+  email: string;
+  name: string;
+  workspace_id: string;
+  workspace_name: string;
+  created_at: string;
+}
+
+export interface ClaimLink {
+  id: string;
+  claim_url: string;
+  state: string;
+}
+
+export const listTempAccounts = () =>
+  request<{ data: TempAccount[]; lobby_configured: boolean }>("/ops/temp-accounts");
+export const createTempAccount = (body: { email: string; password: string; name: string }) =>
+  request<{ user_id: string; workspace_id: string; email: string }>("/ops/temp-accounts", { method: "POST", body: JSON.stringify(body) });
+export const createClaimLink = (userId: string, body: { label: string; email: string }) =>
+  request<ClaimLink>(`/ops/temp-accounts/${userId}/claim`, { method: "POST", body: JSON.stringify(body) });
+
+export const usd =(n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(3)}`);
