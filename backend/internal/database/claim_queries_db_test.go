@@ -83,6 +83,10 @@ func TestClaimableAccountsDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := q.SetIdPUserID(ctx, id, "kc-"+tag); err != nil {
+		t.Fatal(err)
+	}
+
 	// Success: email swapped and verified, temp password dropped, sessions revoked, flag cleared.
 	real := uniq("pat")
 	u, was, err := q.ClaimAccount(ctx, id, real)
@@ -92,8 +96,8 @@ func TestClaimableAccountsDB(t *testing.T) {
 	if u.Email != real || !u.EmailVerified || u.PasswordHash.Valid || u.SessionVersion != 1 || u.ClerkUserID != "email_"+real {
 		t.Fatalf("claimed user: %+v", u)
 	}
-	if was != placeholder {
-		t.Fatalf("placeholder email returned %q, want %q", was, placeholder)
+	if was != "kc-"+tag {
+		t.Fatalf("keycloak user id returned %q, want %q", was, "kc-"+tag)
 	}
 	if ok, _ := q.IsClaimable(ctx, id); ok {
 		t.Fatal("claimed account must not be claimable again")

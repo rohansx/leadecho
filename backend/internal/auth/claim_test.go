@@ -28,13 +28,13 @@ func (f *fakeClaimStore) ClaimAccount(_ context.Context, id, email string) (data
 	if f.claimErr != nil {
 		return database.User{}, "", f.claimErr
 	}
-	return database.User{ID: id, WorkspaceID: "ws-1", Email: email, Name: "Pat", Role: database.UserRoleAdmin, SessionVersion: 3}, "demo+acme@leadecho.test", nil
+	return database.User{ID: id, WorkspaceID: "ws-1", Email: email, Name: "Pat", Role: database.UserRoleAdmin, SessionVersion: 3}, "kc-user-1", nil
 }
 
 type fakeIdP struct{ deleted []string }
 
-func (f *fakeIdP) DeleteTempUserRetry(_ context.Context, accountID string) error {
-	f.deleted = append(f.deleted, accountID)
+func (f *fakeIdP) DeleteUserRetry(_ context.Context, id string) error {
+	f.deleted = append(f.deleted, id)
 	return nil
 }
 
@@ -51,7 +51,7 @@ func TestClaimRedeemWithKeycloakDeletesPlaceholderUser(t *testing.T) {
 	if w.Header().Get("Location") != "http://app.test/inbox" {
 		t.Fatalf("redirect %q", w.Header().Get("Location"))
 	}
-	if len(idp.deleted) != 1 || idp.deleted[0] != testAccountID {
+	if len(idp.deleted) != 1 || idp.deleted[0] != "kc-user-1" {
 		t.Fatalf("deleted %v", idp.deleted)
 	}
 	if cookie(w, "session") == nil || cookie(w, claimPwCookie) != nil {

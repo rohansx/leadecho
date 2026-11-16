@@ -40,6 +40,12 @@ func (q *Queries) CreateClaimableAccount(ctx context.Context, email, name, passw
 	return userID, workspaceID, err
 }
 
+// SetIdPUserID records the Keycloak user made for a temp account.
+func (q *Queries) SetIdPUserID(ctx context.Context, userID, idpUserID string) error {
+	_, err := q.db.Exec(ctx, `UPDATE users SET idp_user_id = $2 WHERE id = $1 AND claimable`, userID, idpUserID)
+	return err
+}
+
 // DeleteClaimableAccount removes an unclaimed temp account and its workspace
 // (rollback when its Keycloak user can't be made). Claimed accounts are untouched.
 func (q *Queries) DeleteClaimableAccount(ctx context.Context, userID string) error {
@@ -91,22 +97,23 @@ func (q *Queries) IsClaimable(ctx context.Context, userID string) (bool, error) 
 // made while building the account is revoked. Anything else left from setup
 // that still grants access goes too: pending reset/verify tokens (sent to the
 // placeholder mailbox), the workspace's API keys and its extension token.
-// It also returns the placeholder email the account had before.
+// It also returns the temp account's Keycloak user id ("" if none), which the
+// caller deletes; the column is cleared here.
 // pgx.ErrNoRows: no such claimable account. ErrEmailTaken: the email belongs
 // to another account (the unique index decides, so a racing sign-up can't
 // slip in between).
 func (q *Queries) ClaimAccount(ctx context.Context, userID, email string) (User, string, error) {
 	var i User
-	var placeholder string
+	var idpUserID string
 	err := q.db.QueryRow(ctx, `
 		WITH old AS (
 			-- snapshot read; no FOR UPDATE: locking the row here makes the UPDATE
 			-- below skip it. The UPDATE's WHERE claimable decides any race.
-			SELECT email FROM users WHERE id = $1 AND claimable
+			SELECT COALESCE(idp_user_id, '') AS idp_user_id FROM users WHERE id = $1 AND claimable
 		), u AS (
 			UPDATE users SET email = $2, clerk_user_id = 'email_' || $2::text,
 			       email_verified = true, claimable = false, password_hash = NULL,
-			       session_version = session_version + 1
+			       idp_user_id = NULL, session_version = session_version + 1
 			WHERE id = $1 AND claimable
 			RETURNING id, clerk_user_id, workspace_id, email, name, avatar_url, role, is_active,
 			          last_active_at, created_at, updated_at, password_hash, email_verified, session_version
@@ -118,15 +125,15 @@ func (q *Queries) ClaimAccount(ctx context.Context, userID, email string) (User,
 		), ext AS (
 			DELETE FROM extension_tokens WHERE workspace_id IN (SELECT workspace_id FROM u)
 		)
-		SELECT u.*, old.email FROM u, old`,
+		SELECT u.*, old.idp_user_id FROM u, old`,
 		userID, email,
 	).Scan(&i.ID, &i.ClerkUserID, &i.WorkspaceID, &i.Email, &i.Name, &i.AvatarUrl, &i.Role,
 		&i.IsActive, &i.LastActiveAt, &i.CreatedAt, &i.UpdatedAt, &i.PasswordHash,
-		&i.EmailVerified, &i.SessionVersion, &placeholder)
+		&i.EmailVerified, &i.SessionVersion, &idpUserID)
 	if isUniqueViolation(err) {
 		return User{}, "", ErrEmailTaken
 	}
-	return i, placeholder, err
+	return i, idpUserID, err
 }
 
 // SetInitialPassword sets a password only on an account that has none (a just

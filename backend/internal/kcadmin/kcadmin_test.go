@@ -11,15 +11,15 @@ import (
 	"testing"
 )
 
-// fakeKeycloak: token endpoint, user create (409 on a known email), search by
-// username (Keycloak's exact search can still return near matches; we must
-// filter) and delete.
+// fakeKeycloak: token endpoint, user create (409 on a known email, Location
+// with the new id) and delete by id.
 func fakeKeycloak(t *testing.T) (*Client, *[]string, *map[string]any) {
 	t.Helper()
 	var mu sync.Mutex
 	deleted := []string{}
 	created := map[string]any{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		switch {
@@ -38,12 +38,8 @@ func fakeKeycloak(t *testing.T) (*Client, *[]string, *map[string]any) {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
+			w.Header().Set("Location", srv.URL+"/admin/realms/leadecho/users/kc-123")
 			w.WriteHeader(http.StatusCreated)
-		case r.Method == http.MethodGet && r.URL.Path == "/admin/realms/leadecho/users":
-			if r.URL.Query().Get("username") != "leadecho-temp-acc1" {
-				t.Errorf("searched by %q", r.URL.RawQuery)
-			}
-			_, _ = w.Write([]byte(`[{"id":"kc-real","username":"leadecho-temp-acc10"},{"id":"kc-temp","username":"leadecho-temp-acc1"}]`))
 		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/admin/realms/leadecho/users/"):
 			deleted = append(deleted, strings.TrimPrefix(r.URL.Path, "/admin/realms/leadecho/users/"))
 			w.WriteHeader(http.StatusNoContent)
@@ -62,26 +58,27 @@ func TestNewNeedsFullConfig(t *testing.T) {
 	}
 }
 
-func TestCreateTempUser(t *testing.T) {
+func TestCreateUserReturnsID(t *testing.T) {
 	c, _, created := fakeKeycloak(t)
-	if err := c.CreateTempUser(context.Background(), "acc1", "demo@x.test", "Pat Lee", "pw-123456", true); err != nil {
-		t.Fatal(err)
+	id, err := c.CreateUser(context.Background(), "demo@x.test", "Pat Lee", "pw-123456", true)
+	if err != nil || id != "kc-123" {
+		t.Fatalf("id %q, err %v", id, err)
 	}
 	got := *created
-	if got["username"] != "leadecho-temp-acc1" || got["email"] != "demo@x.test" || got["emailVerified"] != true || got["firstName"] != "Pat" {
+	if got["email"] != "demo@x.test" || got["emailVerified"] != true || got["firstName"] != "Pat" || got["lastName"] != "Lee" {
 		t.Fatalf("created %v", got)
 	}
-	if err := c.CreateTempUser(context.Background(), "acc2", "taken@x.test", "T", "pw-123456", true); !errors.Is(err, ErrUserExists) {
+	if _, err := c.CreateUser(context.Background(), "taken@x.test", "T", "pw-123456", true); !errors.Is(err, ErrUserExists) {
 		t.Fatalf("want ErrUserExists, got %v", err)
 	}
 }
 
-func TestDeleteTempUserOnlyDeletesExactUsername(t *testing.T) {
+func TestDeleteUserByID(t *testing.T) {
 	c, deleted, _ := fakeKeycloak(t)
-	if err := c.DeleteTempUserRetry(context.Background(), "acc1"); err != nil {
+	if err := c.DeleteUserRetry(context.Background(), "kc-123"); err != nil {
 		t.Fatal(err)
 	}
-	if len(*deleted) != 1 || (*deleted)[0] != "kc-temp" {
+	if len(*deleted) != 1 || (*deleted)[0] != "kc-123" {
 		t.Fatalf("deleted %v", *deleted)
 	}
 }

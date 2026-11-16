@@ -29,7 +29,8 @@ type claimCreator interface {
 // tempIdP mirrors temp accounts into the identity provider (Keycloak), so the
 // operator signs in to them through the normal login.
 type tempIdP interface {
-	CreateTempUser(ctx context.Context, accountID, email, name, password string, verified bool) error
+	CreateUser(ctx context.Context, email, name, password string, verified bool) (string, error)
+	DeleteUserRetry(ctx context.Context, id string) error
 }
 
 // SetLobby enables claim links; without it /ops can still make temp accounts.
@@ -117,9 +118,15 @@ func (h *OpsHandler) createTempIdPUser(ctx context.Context, userID, email, name,
 	if h.idp == nil {
 		return 0, ""
 	}
-	err := h.idp.CreateTempUser(ctx, userID, email, name, password, verified)
+	idpID, err := h.idp.CreateUser(ctx, email, name, password, verified)
 	if err == nil {
-		return 0, ""
+		if err = h.q.SetIdPUserID(ctx, userID, idpID); err == nil {
+			return 0, ""
+		}
+		// Can't record it, so a claim couldn't delete it later: undo it now.
+		if derr := h.idp.DeleteUserRetry(ctx, idpID); derr != nil {
+			h.logger.Error().Err(derr).Str("keycloak_user_id", idpID).Msg("ops: roll back keycloak user; remove it by hand")
+		}
 	}
 	if derr := h.q.DeleteClaimableAccount(context.WithoutCancel(ctx), userID); derr != nil {
 		h.logger.Error().Err(derr).Str("user_id", userID).Msg("ops: roll back temp account after keycloak failure")
