@@ -372,6 +372,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Get("/temp-accounts", ops.TempAccounts)
 				r.Post("/temp-accounts", ops.CreateTempAccount)
 				r.Post("/temp-accounts/{id}/claim", ops.CreateClaim)
+				r.Delete("/temp-accounts/{id}", ops.DeleteTempAccount)
 			})
 			// billing: plan, balance, checkout and customer portal
 			r.Get("/billing", billingH.Get)
