@@ -50,7 +50,7 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 	// Lobby claimable accounts: this GET is the waitlist's Invite URL.
 	if l := lobby.New(cfg.LobbyURL, cfg.LobbySecretKey); l != nil {
 		var idp auth.IdPUsers
-		if kc := kcadmin.New(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); kc != nil {
+		if kc := kcadmin.New(cfg.OIDCIssuer, cfg.KeycloakAdminURL, cfg.OIDCClientID, cfg.OIDCClientSecret); kc != nil {
 			idp = kc
 		}
 		claim := auth.NewClaimHandler(email, l, idp)

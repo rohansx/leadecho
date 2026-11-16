@@ -49,12 +49,23 @@ func fakeKeycloak(t *testing.T) (*Client, *[]string, *map[string]any) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return New(srv.URL+"/realms/leadecho", "leadecho-web", "s"), &deleted, &created
+	return New(srv.URL+"/realms/leadecho", "", "leadecho-web", "s"), &deleted, &created
 }
 
 func TestNewNeedsFullConfig(t *testing.T) {
-	if New("", "id", "s") != nil || New("https://kc.test/realms/x", "id", "") != nil || New("https://kc.test/nope", "id", "s") != nil {
+	if New("", "", "id", "s") != nil || New("https://kc.test/realms/x", "", "id", "") != nil || New("https://kc.test/nope", "", "id", "s") != nil {
 		t.Fatal("incomplete config must disable the client")
+	}
+}
+
+func TestAdminHostOverride(t *testing.T) {
+	c := New("https://auth.example.com/realms/leadecho", "https://kc-admin.example.com/", "id", "s")
+	if c.tokenURL != "https://auth.example.com/realms/leadecho/protocol/openid-connect/token" ||
+		c.adminURL != "https://kc-admin.example.com/admin/realms/leadecho" {
+		t.Fatalf("token %q admin %q", c.tokenURL, c.adminURL)
+	}
+	if d := New("https://auth.example.com/realms/leadecho", "", "id", "s"); d.adminURL != "https://auth.example.com/admin/realms/leadecho" {
+		t.Fatalf("default admin %q", d.adminURL)
 	}
 }
 

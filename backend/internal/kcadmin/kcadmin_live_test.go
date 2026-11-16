@@ -11,7 +11,7 @@ import (
 // Live: runs only with KCADMIN_TEST_ISSUER/CLIENT_ID/SECRET pointing at a
 // test realm whose client has a service account with manage-users.
 func TestLiveKeycloakCreateAndDelete(t *testing.T) {
-	c := New(os.Getenv("KCADMIN_TEST_ISSUER"), os.Getenv("KCADMIN_TEST_CLIENT_ID"), os.Getenv("KCADMIN_TEST_CLIENT_SECRET"))
+	c := New(os.Getenv("KCADMIN_TEST_ISSUER"), os.Getenv("KCADMIN_TEST_ADMIN_HOST"), os.Getenv("KCADMIN_TEST_CLIENT_ID"), os.Getenv("KCADMIN_TEST_CLIENT_SECRET"))
 	if c == nil {
 		t.Skip("KCADMIN_TEST_* not set")
 	}
