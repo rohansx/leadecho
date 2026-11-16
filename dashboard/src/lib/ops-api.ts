@@ -87,8 +87,8 @@ export interface ClaimLink {
 
 export const listTempAccounts = () =>
   request<{ data: TempAccount[]; lobby_configured: boolean }>("/ops/temp-accounts");
-export const createTempAccount = (body: { email: string; password: string; name: string }) =>
-  request<{ user_id: string; workspace_id: string; email: string }>("/ops/temp-accounts", { method: "POST", body: JSON.stringify(body) });
+export const createTempAccount = (body: { email: string; password: string; name: string; skip_verification: boolean }) =>
+  request<{ user_id: string; workspace_id: string; email: string; keycloak: boolean }>("/ops/temp-accounts", { method: "POST", body: JSON.stringify(body) });
 export const createClaimLink = (userId: string, body: { label: string; email: string }) =>
   request<ClaimLink>(`/ops/temp-accounts/${userId}/claim`, { method: "POST", body: JSON.stringify(body) });
 

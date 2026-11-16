@@ -38,6 +38,7 @@ type OpsHandler struct {
 	admins  map[string]bool
 	logger  zerolog.Logger
 	lobby   claimCreator // nil: LOBBY_SECRET_KEY not set
+	idp     tempIdP      // nil: no Keycloak; temp accounts use the ?legacy=1 password form
 }
 
 func NewOpsHandler(q *database.Queries, credits *billing.Credits, treg TregBalance, admins map[string]bool, logger zerolog.Logger) *OpsHandler {

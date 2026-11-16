@@ -41,14 +41,14 @@ type Redemption struct {
 	AccountRef    string `json:"account_ref"`
 	Email         string `json:"email"`
 	Label         string `json:"label"`
-	ClaimID       string `json:"claim_id"`
-	SignupID      string `json:"signup_id"`
+	ClaimID       int64  `json:"claim_id"`
+	SignupID      int64  `json:"signup_id"`
 	ReporterToken string `json:"reporter_token"`
 }
 
 // Claim is a claim link for one account.
 type Claim struct {
-	ID       string `json:"id"`
+	ID       int64  `json:"id"` // Lobby ids are numbers
 	ClaimURL string `json:"claim_url"`
 	State    string `json:"state"`
 }

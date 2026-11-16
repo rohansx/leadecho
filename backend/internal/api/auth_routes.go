@@ -13,6 +13,7 @@ import (
 	"leadecho/internal/auth"
 	"leadecho/internal/config"
 	"leadecho/internal/database"
+	"leadecho/internal/kcadmin"
 	"leadecho/internal/lobby"
 )
 
@@ -48,7 +49,11 @@ func registerAuthRoutes(r chi.Router, cfg *config.Config, q *database.Queries, r
 	r.Post("/auth/reset-password", email.ResetPassword)
 	// Lobby claimable accounts: this GET is the waitlist's Invite URL.
 	if l := lobby.New(cfg.LobbyURL, cfg.LobbySecretKey); l != nil {
-		claim := auth.NewClaimHandler(email, l)
+		var idp auth.IdPUsers
+		if kc := kcadmin.New(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); kc != nil {
+			idp = kc
+		}
+		claim := auth.NewClaimHandler(email, l, idp)
 		r.Get("/auth/claim", claim.Redeem)
 		r.Post("/auth/claim/password", claim.SetPassword)
 	}

@@ -23,25 +23,34 @@ import (
 // Claimable accounts. An operator builds an account for a prospect under a
 // placeholder email; Lobby verifies the prospect's email and sends them to
 // GET /api/v1/auth/claim?claim=<code>. We redeem the code server side, swap in
-// the verified email, sign them in and ask for a password.
+// the verified email and sign them in. With Keycloak (OIDC) on, the temp
+// account's Keycloak user is deleted so the operator's password dies with it;
+// the prospect later signs in through Keycloak (Google, or sign up with the
+// same email) and is linked by email. Without Keycloak they pick a password.
 
 type claimRedeemer interface {
 	Redeem(ctx context.Context, code string) (lobby.Redemption, error)
 }
 
 type claimStore interface {
-	ClaimAccount(ctx context.Context, userID, email string) (database.User, error)
+	ClaimAccount(ctx context.Context, userID, email string) (database.User, string, error)
 	SetInitialPassword(ctx context.Context, userID, hash string) (bool, error)
+}
+
+// IdPUsers removes a user from the identity provider (Keycloak).
+type IdPUsers interface {
+	DeleteUserByEmail(ctx context.Context, email string) error
 }
 
 type ClaimHandler struct {
 	core  *EmailHandler
 	lobby claimRedeemer
 	store claimStore
+	idp   IdPUsers // nil: no Keycloak; claimants set a LeadEcho password instead
 }
 
-func NewClaimHandler(core *EmailHandler, l *lobby.Client) *ClaimHandler {
-	return &ClaimHandler{core: core, lobby: l, store: core.queries}
+func NewClaimHandler(core *EmailHandler, l *lobby.Client, idp IdPUsers) *ClaimHandler {
+	return &ClaimHandler{core: core, lobby: l, store: core.queries, idp: idp}
 }
 
 const (
@@ -76,7 +85,7 @@ func (h *ClaimHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 		expired("bad account_ref or email", err)
 		return
 	}
-	user, err := h.store.ClaimAccount(r.Context(), red.AccountRef, email)
+	user, placeholder, err := h.store.ClaimAccount(r.Context(), red.AccountRef, email)
 	switch {
 	case errors.Is(err, database.ErrEmailTaken):
 		h.core.logger.Info().Str("account_ref", red.AccountRef).Msg("claim refused: email has an account")
@@ -94,12 +103,22 @@ func (h *ClaimHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 	if !h.core.startSession(w, user, user.WorkspaceID, user.SessionVersion) {
 		return
 	}
+	if h.idp != nil {
+		// The placeholder's Keycloak login no longer maps to this account (its
+		// email is gone), but delete it so the temp password is dead everywhere.
+		if err := h.idp.DeleteUserByEmail(r.Context(), placeholder); err != nil {
+			h.core.logger.Error().Err(err).Str("user_id", user.ID).Msg("claim: delete placeholder keycloak user; remove it by hand")
+		}
+		h.core.logger.Info().Str("user_id", user.ID).Int64("claim_id", red.ClaimID).Msg("account claimed")
+		http.Redirect(w, r, front+"/inbox", http.StatusFound)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name: claimPwCookie, Value: h.passwordTicket(user.ID, user.SessionVersion, time.Now().Add(claimPwTTL)),
 		Path: "/api/v1/auth/claim", MaxAge: int(claimPwTTL.Seconds()),
 		HttpOnly: true, Secure: h.core.secure, SameSite: http.SameSiteLaxMode,
 	})
-	h.core.logger.Info().Str("user_id", user.ID).Str("claim_id", red.ClaimID).Msg("account claimed")
+	h.core.logger.Info().Str("user_id", user.ID).Int64("claim_id", red.ClaimID).Msg("account claimed")
 	http.Redirect(w, r, front+"/set-password", http.StatusFound)
 }
 

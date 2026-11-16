@@ -23,12 +23,40 @@ type fakeClaimStore struct {
 	pwSet         bool
 }
 
-func (f *fakeClaimStore) ClaimAccount(_ context.Context, id, email string) (database.User, error) {
+func (f *fakeClaimStore) ClaimAccount(_ context.Context, id, email string) (database.User, string, error) {
 	f.gotID, f.gotEml = id, email
 	if f.claimErr != nil {
-		return database.User{}, f.claimErr
+		return database.User{}, "", f.claimErr
 	}
-	return database.User{ID: id, WorkspaceID: "ws-1", Email: email, Name: "Pat", Role: database.UserRoleAdmin, SessionVersion: 3}, nil
+	return database.User{ID: id, WorkspaceID: "ws-1", Email: email, Name: "Pat", Role: database.UserRoleAdmin, SessionVersion: 3}, "demo+acme@leadecho.test", nil
+}
+
+type fakeIdP struct{ deleted []string }
+
+func (f *fakeIdP) DeleteUserByEmail(_ context.Context, email string) error {
+	f.deleted = append(f.deleted, email)
+	return nil
+}
+
+// With Keycloak: the placeholder's Keycloak user is deleted and the claimant
+// goes straight to the inbox (they sign in through Keycloak from then on).
+func TestClaimRedeemWithKeycloakDeletesPlaceholderUser(t *testing.T) {
+	l, _ := lobbyStub(t, http.StatusOK)
+	idp := &fakeIdP{}
+	h := newClaimHandler(l, &fakeClaimStore{})
+	h.idp = idp
+
+	w := redeem(h)
+
+	if w.Header().Get("Location") != "http://app.test/inbox" {
+		t.Fatalf("redirect %q", w.Header().Get("Location"))
+	}
+	if len(idp.deleted) != 1 || idp.deleted[0] != "demo+acme@leadecho.test" {
+		t.Fatalf("deleted %v", idp.deleted)
+	}
+	if cookie(w, "session") == nil || cookie(w, claimPwCookie) != nil {
+		t.Fatal("want a session and no set-password ticket")
+	}
 }
 
 func (f *fakeClaimStore) SetInitialPassword(context.Context, string, string) (bool, error) {
@@ -52,9 +80,9 @@ func lobbyStub(t *testing.T, status int) (*lobby.Client, *int) {
 		}
 		w.WriteHeader(status)
 		if status == http.StatusOK {
-			_ = json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"account_ref": testAccountID, "email": "Pat@Acme.com", "label": "Pat at Acme",
-				"claim_id": "cl_1", "signup_id": "su_1", "reporter_token": "rt_1",
+				"claim_id": 1, "signup_id": 7, "reporter_token": "rt_1",
 			})
 		} else {
 			_, _ = w.Write([]byte(`{"ok":false,"error":"not found"}`))
