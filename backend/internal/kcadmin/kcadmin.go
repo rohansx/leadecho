@@ -95,74 +95,57 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (*http.R
 	return res, nil
 }
 
-// tempUsername ties a Keycloak user to one LeadEcho temp account, so cleanup
-// can never hit a real person's Keycloak user that happens to share the email.
-// Sign-in still works with the email (Keycloak's login-with-email).
-func tempUsername(accountID string) string { return "leadecho-temp-" + accountID }
-
-// CreateTempUser makes an enabled user for temp account accountID with a
-// permanent password. verified marks the email verified, so Keycloak won't
-// ask for verification at sign-in. ErrUserExists: Keycloak already has a
-// user with that email.
-func (c *Client) CreateTempUser(ctx context.Context, accountID, email, name, password string, verified bool) error {
+// CreateUser makes an enabled user with a permanent password and returns its
+// Keycloak id. verified marks the email verified, so Keycloak won't ask for
+// verification at sign-in. ErrUserExists: Keycloak already has that email.
+// (Realms with "email as username" ignore any username we send, so callers
+// keep the returned id to find this exact user again.)
+func (c *Client) CreateUser(ctx context.Context, email, name, password string, verified bool) (string, error) {
 	first, last, _ := strings.Cut(name, " ")
 	res, err := c.do(ctx, http.MethodPost, "/users", map[string]any{
-		"username": tempUsername(accountID), "email": email, "firstName": first, "lastName": last,
+		"username": email, "email": email, "firstName": first, "lastName": last,
 		"enabled": true, "emailVerified": verified, "requiredActions": []string{},
 		"credentials": []map[string]any{{"type": "password", "value": password, "temporary": false}},
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer res.Body.Close()
 	switch {
 	case res.StatusCode == http.StatusConflict:
-		return ErrUserExists
+		return "", ErrUserExists
 	case res.StatusCode/100 != 2:
-		return fmt.Errorf("keycloak create user: status %d", res.StatusCode)
+		return "", fmt.Errorf("keycloak create user: status %d", res.StatusCode)
 	}
-	return nil
+	// Location: <admin>/users/<id>
+	loc := res.Header.Get("Location")
+	id := loc[strings.LastIndex(loc, "/")+1:]
+	if id == "" {
+		return "", errors.New("keycloak create user: no id in Location")
+	}
+	return id, nil
 }
 
-// DeleteTempUser removes the Keycloak user made for temp account accountID
-// (no-op if there is none). It matches the exact username only.
-func (c *Client) DeleteTempUser(ctx context.Context, accountID string) error {
-	name := tempUsername(accountID)
-	res, err := c.do(ctx, http.MethodGet, "/users?exact=true&username="+url.QueryEscape(name), nil)
+// DeleteUser removes the user with this Keycloak id (gone already is fine).
+func (c *Client) DeleteUser(ctx context.Context, id string) error {
+	res, err := c.do(ctx, http.MethodDelete, "/users/"+url.PathEscape(id), nil)
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("keycloak find user: status %d", res.StatusCode)
-	}
-	var users []struct{ ID, Username string }
-	if err := json.NewDecoder(io.LimitReader(res.Body, 256<<10)).Decode(&users); err != nil {
-		return fmt.Errorf("keycloak find user: %w", err)
-	}
-	for _, u := range users {
-		if u.Username != name {
-			continue
-		}
-		del, err := c.do(ctx, http.MethodDelete, "/users/"+url.PathEscape(u.ID), nil)
-		if err != nil {
-			return err
-		}
-		del.Body.Close()
-		if del.StatusCode/100 != 2 && del.StatusCode != http.StatusNotFound {
-			return fmt.Errorf("keycloak delete user: status %d", del.StatusCode)
-		}
+	res.Body.Close()
+	if res.StatusCode/100 != 2 && res.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("keycloak delete user: status %d", res.StatusCode)
 	}
 	return nil
 }
 
-// DeleteTempUserRetry is DeleteTempUser with a few retries, detached from the
+// DeleteUserRetry is DeleteUser with a few retries, detached from the
 // request's cancellation: a temp login left behind keeps the operator's password alive.
-func (c *Client) DeleteTempUserRetry(ctx context.Context, accountID string) error {
+func (c *Client) DeleteUserRetry(ctx context.Context, id string) error {
 	ctx = context.WithoutCancel(ctx)
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
-		if err = c.DeleteTempUser(ctx, accountID); err == nil {
+		if err = c.DeleteUser(ctx, id); err == nil {
 			return nil
 		}
 		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
