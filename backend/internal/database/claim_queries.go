@@ -19,9 +19,10 @@ func isUniqueViolation(err error) bool {
 }
 
 // CreateClaimableAccount makes a workspace and its admin user in one statement.
-// The email counts as verified so the operator can sign in to build the
-// account; the claim later replaces it with the prospect's verified email.
-func (q *Queries) CreateClaimableAccount(ctx context.Context, email, name, passwordHash string) (userID, workspaceID string, err error) {
+// verified marks the placeholder email verified (the ops "skip email
+// verification" toggle) so the operator can sign in to build the account; the
+// claim later replaces it with the prospect's verified email.
+func (q *Queries) CreateClaimableAccount(ctx context.Context, email, name, passwordHash string, verified bool) (userID, workspaceID string, err error) {
 	err = q.db.QueryRow(ctx, `
 		WITH ws AS (
 			INSERT INTO workspaces (clerk_org_id, name, slug)
@@ -30,13 +31,21 @@ func (q *Queries) CreateClaimableAccount(ctx context.Context, email, name, passw
 			RETURNING id
 		)
 		INSERT INTO users (clerk_user_id, workspace_id, email, name, role, password_hash, email_verified, claimable)
-		SELECT 'email_' || $1::text, ws.id, $1, $2, 'admin', $3, true, true FROM ws
-		RETURNING id, workspace_id`, email, name, passwordHash,
+		SELECT 'email_' || $1::text, ws.id, $1, $2, 'admin', $3, $4, true FROM ws
+		RETURNING id, workspace_id`, email, name, passwordHash, verified,
 	).Scan(&userID, &workspaceID)
 	if isUniqueViolation(err) {
 		return "", "", ErrEmailTaken
 	}
 	return userID, workspaceID, err
+}
+
+// DeleteClaimableAccount removes an unclaimed temp account and its workspace
+// (rollback when its Keycloak user can't be made). Claimed accounts are untouched.
+func (q *Queries) DeleteClaimableAccount(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, `
+		DELETE FROM workspaces WHERE id = (SELECT workspace_id FROM users WHERE id = $1 AND claimable)`, userID)
+	return err
 }
 
 type ClaimableAccount struct {
@@ -82,13 +91,19 @@ func (q *Queries) IsClaimable(ctx context.Context, userID string) (bool, error) 
 // made while building the account is revoked. Anything else left from setup
 // that still grants access goes too: pending reset/verify tokens (sent to the
 // placeholder mailbox), the workspace's API keys and its extension token.
+// It also returns the placeholder email the account had before.
 // pgx.ErrNoRows: no such claimable account. ErrEmailTaken: the email belongs
 // to another account (the unique index decides, so a racing sign-up can't
 // slip in between).
-func (q *Queries) ClaimAccount(ctx context.Context, userID, email string) (User, error) {
+func (q *Queries) ClaimAccount(ctx context.Context, userID, email string) (User, string, error) {
 	var i User
+	var placeholder string
 	err := q.db.QueryRow(ctx, `
-		WITH u AS (
+		WITH old AS (
+			-- snapshot read; no FOR UPDATE: locking the row here makes the UPDATE
+			-- below skip it. The UPDATE's WHERE claimable decides any race.
+			SELECT email FROM users WHERE id = $1 AND claimable
+		), u AS (
 			UPDATE users SET email = $2, clerk_user_id = 'email_' || $2::text,
 			       email_verified = true, claimable = false, password_hash = NULL,
 			       session_version = session_version + 1
@@ -103,15 +118,15 @@ func (q *Queries) ClaimAccount(ctx context.Context, userID, email string) (User,
 		), ext AS (
 			DELETE FROM extension_tokens WHERE workspace_id IN (SELECT workspace_id FROM u)
 		)
-		SELECT * FROM u`,
+		SELECT u.*, old.email FROM u, old`,
 		userID, email,
 	).Scan(&i.ID, &i.ClerkUserID, &i.WorkspaceID, &i.Email, &i.Name, &i.AvatarUrl, &i.Role,
 		&i.IsActive, &i.LastActiveAt, &i.CreatedAt, &i.UpdatedAt, &i.PasswordHash,
-		&i.EmailVerified, &i.SessionVersion)
+		&i.EmailVerified, &i.SessionVersion, &placeholder)
 	if isUniqueViolation(err) {
-		return User{}, ErrEmailTaken
+		return User{}, "", ErrEmailTaken
 	}
-	return i, err
+	return i, placeholder, err
 }
 
 // SetInitialPassword sets a password only on an account that has none (a just

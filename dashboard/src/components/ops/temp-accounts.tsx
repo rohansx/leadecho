@@ -15,8 +15,9 @@ function CreateTempAccountForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [skipVerification, setSkipVerification] = useState(true);
   const create = useMutation({
-    mutationFn: () => createTempAccount({ email, password, name }),
+    mutationFn: () => createTempAccount({ email, password, name, skip_verification: skipVerification }),
     onSuccess: () => {
       setEmail("");
       setPassword("");
@@ -35,13 +36,20 @@ function CreateTempAccountForm() {
       <Input className="h-8 w-64" type="email" placeholder="demo+acme@yourdomain.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
       <Input className="h-8 w-44" type="password" placeholder="Temp password (8+)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} maxLength={72} autoComplete="new-password" />
       <Input className="h-8 w-40" placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Mark the placeholder email verified, so signing in doesn't wait for a verification email">
+        <input type="checkbox" checked={skipVerification} onChange={(e) => setSkipVerification(e.target.checked)} />
+        Skip email verification
+      </label>
       <Button size="sm" type="submit" disabled={create.isPending}>
         {create.isPending ? "Creating..." : "Create temp account"}
       </Button>
       {create.error && <Text as="p" className="w-full text-sm text-destructive">{create.error.message}</Text>}
       {create.data && (
         <Text as="p" className="w-full text-sm text-muted-foreground">
-          Created {create.data.email}. Sign out and sign in with it to set the account up.
+          Created {create.data.email}.{" "}
+          {create.data.keycloak
+            ? "Sign out, then sign in with it on the normal sign-in page to set the account up."
+            : "Sign out, then sign in with it at /login?legacy=1 to set the account up."}
         </Text>
       )}
     </form>

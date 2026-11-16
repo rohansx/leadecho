@@ -28,23 +28,37 @@ func TestClaimableAccountsDB(t *testing.T) {
 	uniq := func(p string) string { return fmt.Sprintf("%s-%d@leadecho.test", p, time.Now().UnixNano()) }
 
 	placeholder := uniq("demo+acct")
-	id, ws, err := q.CreateClaimableAccount(ctx, placeholder, "Demo", "$2a$10$hash")
+	id, ws, err := q.CreateClaimableAccount(ctx, placeholder, "Demo", "$2a$10$hash", true)
 	if err != nil || id == "" || ws == "" {
 		t.Fatalf("create: %q %q %v", id, ws, err)
 	}
-	if _, _, err := q.CreateClaimableAccount(ctx, placeholder, "Demo", "$2a$10$hash"); !errors.Is(err, ErrEmailTaken) {
+	if _, _, err := q.CreateClaimableAccount(ctx, placeholder, "Demo", "$2a$10$hash", true); !errors.Is(err, ErrEmailTaken) {
 		t.Fatalf("duplicate temp email: want ErrEmailTaken, got %v", err)
 	}
 	if ok, _ := q.IsClaimable(ctx, id); !ok {
 		t.Fatal("new temp account must be claimable")
 	}
 
-	// An email another account already uses is refused and nothing changes.
-	other := uniq("taken")
-	if _, _, err := q.CreateClaimableAccount(ctx, other, "Other", "$2a$10$hash"); err != nil {
+	// Rollback removes an unclaimed temp account and its workspace.
+	gone, goneWS, err := q.CreateClaimableAccount(ctx, uniq("rollback"), "R", "$2a$10$hash", true)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.ClaimAccount(ctx, id, other); !errors.Is(err, ErrEmailTaken) {
+	if err := q.DeleteClaimableAccount(ctx, gone); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM workspaces WHERE id = $1`, goneWS).Scan(&left)
+	if _, err := q.GetUser(ctx, gone); !errors.Is(err, pgx.ErrNoRows) || left != 0 {
+		t.Fatalf("rollback left the account behind: %v, %d workspaces", err, left)
+	}
+
+	// An email another account already uses is refused and nothing changes.
+	other := uniq("taken")
+	if _, _, err := q.CreateClaimableAccount(ctx, other, "Other", "$2a$10$hash", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := q.ClaimAccount(ctx, id, other); !errors.Is(err, ErrEmailTaken) {
 		t.Fatalf("conflict: want ErrEmailTaken, got %v", err)
 	}
 	if u, _ := q.GetUser(ctx, id); u.Email != placeholder || !u.PasswordHash.Valid {
@@ -52,7 +66,7 @@ func TestClaimableAccountsDB(t *testing.T) {
 	}
 
 	// Unknown account.
-	if _, err := q.ClaimAccount(ctx, "00000000-0000-0000-0000-000000000000", uniq("x")); !errors.Is(err, pgx.ErrNoRows) {
+	if _, _, err := q.ClaimAccount(ctx, "00000000-0000-0000-0000-000000000000", uniq("x")); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("missing account: want ErrNoRows, got %v", err)
 	}
 
@@ -71,12 +85,15 @@ func TestClaimableAccountsDB(t *testing.T) {
 
 	// Success: email swapped and verified, temp password dropped, sessions revoked, flag cleared.
 	real := uniq("pat")
-	u, err := q.ClaimAccount(ctx, id, real)
+	u, was, err := q.ClaimAccount(ctx, id, real)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if u.Email != real || !u.EmailVerified || u.PasswordHash.Valid || u.SessionVersion != 1 || u.ClerkUserID != "email_"+real {
 		t.Fatalf("claimed user: %+v", u)
+	}
+	if was != placeholder {
+		t.Fatalf("placeholder email returned %q, want %q", was, placeholder)
 	}
 	if ok, _ := q.IsClaimable(ctx, id); ok {
 		t.Fatal("claimed account must not be claimable again")
@@ -90,7 +107,7 @@ func TestClaimableAccountsDB(t *testing.T) {
 	if liveKeys != 0 || extTokens != 0 {
 		t.Fatalf("setup access survived the claim: %d api keys, %d extension tokens", liveKeys, extTokens)
 	}
-	if _, err := q.ClaimAccount(ctx, id, uniq("again")); !errors.Is(err, pgx.ErrNoRows) {
+	if _, _, err := q.ClaimAccount(ctx, id, uniq("again")); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("second claim: want ErrNoRows, got %v", err)
 	}
 

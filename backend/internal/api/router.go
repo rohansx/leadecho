@@ -29,6 +29,7 @@ import (
 	"leadecho/internal/digest" // digests (P1 #13)
 	"leadecho/internal/engagers"
 	"leadecho/internal/events/publishers"
+	"leadecho/internal/kcadmin"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/lobby"
@@ -355,6 +356,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			}
 			ops := handler.NewOpsHandler(queries, credits, opsTreg, handler.ParseOpsAdmins(cfg.OpsAdminEmails), logger)
 			ops.SetLobby(lobby.New(cfg.LobbyURL, cfg.LobbySecretKey))
+			ops.SetKeycloak(kcadmin.New(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret))
 			r.Route("/ops", func(r chi.Router) {
 				r.Use(ops.RequireOps)
 				r.Get("/me", ops.Me)
