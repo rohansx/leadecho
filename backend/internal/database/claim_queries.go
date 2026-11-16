@@ -40,6 +40,14 @@ func (q *Queries) CreateClaimableAccount(ctx context.Context, email, name, passw
 	return userID, workspaceID, err
 }
 
+// DeleteClaimableAccount removes an unclaimed temp account and its workspace
+// (rollback when its Keycloak user can't be made). Claimed accounts are untouched.
+func (q *Queries) DeleteClaimableAccount(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, `
+		DELETE FROM workspaces WHERE id = (SELECT workspace_id FROM users WHERE id = $1 AND claimable)`, userID)
+	return err
+}
+
 type ClaimableAccount struct {
 	UserID        string    `json:"user_id"`
 	Email         string    `json:"email"`

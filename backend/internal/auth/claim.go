@@ -37,9 +37,9 @@ type claimStore interface {
 	SetInitialPassword(ctx context.Context, userID, hash string) (bool, error)
 }
 
-// IdPUsers removes a user from the identity provider (Keycloak).
+// IdPUsers removes a temp account's user from the identity provider (Keycloak).
 type IdPUsers interface {
-	DeleteUserByEmail(ctx context.Context, email string) error
+	DeleteTempUserRetry(ctx context.Context, accountID string) error
 }
 
 type ClaimHandler struct {
@@ -85,7 +85,7 @@ func (h *ClaimHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 		expired("bad account_ref or email", err)
 		return
 	}
-	user, placeholder, err := h.store.ClaimAccount(r.Context(), red.AccountRef, email)
+	user, _, err := h.store.ClaimAccount(r.Context(), red.AccountRef, email)
 	switch {
 	case errors.Is(err, database.ErrEmailTaken):
 		h.core.logger.Info().Str("account_ref", red.AccountRef).Msg("claim refused: email has an account")
@@ -100,15 +100,18 @@ func (h *ClaimHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.core.versions.Forget(user.ID)
+	if h.idp != nil {
+		// The temp Keycloak login no longer maps to this account (its email is
+		// gone), but delete it so the operator's password is dead everywhere.
+		if err := h.idp.DeleteTempUserRetry(r.Context(), user.ID); err != nil {
+			h.core.logger.Error().Err(err).Str("user_id", user.ID).
+				Msg("claim: delete temp keycloak user failed; remove user leadecho-temp-<user_id> by hand")
+		}
+	}
 	if !h.core.startSession(w, user, user.WorkspaceID, user.SessionVersion) {
 		return
 	}
 	if h.idp != nil {
-		// The placeholder's Keycloak login no longer maps to this account (its
-		// email is gone), but delete it so the temp password is dead everywhere.
-		if err := h.idp.DeleteUserByEmail(r.Context(), placeholder); err != nil {
-			h.core.logger.Error().Err(err).Str("user_id", user.ID).Msg("claim: delete placeholder keycloak user; remove it by hand")
-		}
 		h.core.logger.Info().Str("user_id", user.ID).Int64("claim_id", red.ClaimID).Msg("account claimed")
 		http.Redirect(w, r, front+"/inbox", http.StatusFound)
 		return

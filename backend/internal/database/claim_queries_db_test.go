@@ -39,6 +39,20 @@ func TestClaimableAccountsDB(t *testing.T) {
 		t.Fatal("new temp account must be claimable")
 	}
 
+	// Rollback removes an unclaimed temp account and its workspace.
+	gone, goneWS, err := q.CreateClaimableAccount(ctx, uniq("rollback"), "R", "$2a$10$hash", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.DeleteClaimableAccount(ctx, gone); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM workspaces WHERE id = $1`, goneWS).Scan(&left)
+	if _, err := q.GetUser(ctx, gone); !errors.Is(err, pgx.ErrNoRows) || left != 0 {
+		t.Fatalf("rollback left the account behind: %v, %d workspaces", err, left)
+	}
+
 	// An email another account already uses is refused and nothing changes.
 	other := uniq("taken")
 	if _, _, err := q.CreateClaimableAccount(ctx, other, "Other", "$2a$10$hash", true); err != nil {

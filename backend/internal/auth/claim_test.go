@@ -33,12 +33,12 @@ func (f *fakeClaimStore) ClaimAccount(_ context.Context, id, email string) (data
 
 type fakeIdP struct{ deleted []string }
 
-func (f *fakeIdP) DeleteUserByEmail(_ context.Context, email string) error {
-	f.deleted = append(f.deleted, email)
+func (f *fakeIdP) DeleteTempUserRetry(_ context.Context, accountID string) error {
+	f.deleted = append(f.deleted, accountID)
 	return nil
 }
 
-// With Keycloak: the placeholder's Keycloak user is deleted and the claimant
+// With Keycloak: the temp account's Keycloak user is deleted and the claimant
 // goes straight to the inbox (they sign in through Keycloak from then on).
 func TestClaimRedeemWithKeycloakDeletesPlaceholderUser(t *testing.T) {
 	l, _ := lobbyStub(t, http.StatusOK)
@@ -51,7 +51,7 @@ func TestClaimRedeemWithKeycloakDeletesPlaceholderUser(t *testing.T) {
 	if w.Header().Get("Location") != "http://app.test/inbox" {
 		t.Fatalf("redirect %q", w.Header().Get("Location"))
 	}
-	if len(idp.deleted) != 1 || idp.deleted[0] != "demo+acme@leadecho.test" {
+	if len(idp.deleted) != 1 || idp.deleted[0] != testAccountID {
 		t.Fatalf("deleted %v", idp.deleted)
 	}
 	if cookie(w, "session") == nil || cookie(w, claimPwCookie) != nil {

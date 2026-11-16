@@ -29,8 +29,7 @@ type claimCreator interface {
 // tempIdP mirrors temp accounts into the identity provider (Keycloak), so the
 // operator signs in to them through the normal login.
 type tempIdP interface {
-	CreateUser(ctx context.Context, email, name, password string, verified bool) error
-	DeleteUserByEmail(ctx context.Context, email string) error
+	CreateTempUser(ctx context.Context, accountID, email, name, password string, verified bool) error
 }
 
 // SetLobby enables claim links; without it /ops can still make temp accounts.
@@ -92,24 +91,9 @@ func (h *OpsHandler) CreateTempAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	verified := body.SkipVerification == nil || *body.SkipVerification
-	if h.idp != nil {
-		err := h.idp.CreateUser(r.Context(), email, name, body.Password, verified)
-		if errors.Is(err, kcadmin.ErrUserExists) {
-			writeError(w, http.StatusConflict, "the sign-in service already has a user with this email; use another placeholder or delete that user in Keycloak")
-			return
-		}
-		if err != nil {
-			h.logger.Error().Err(err).Msg("ops: create keycloak user for temp account")
-			writeError(w, http.StatusBadGateway, "could not create the sign-in user in Keycloak")
-			return
-		}
-	}
+	// Our DB first: it decides who owns an email, so a real user's address is
+	// refused before any Keycloak password exists for it.
 	userID, wsID, err := h.q.CreateClaimableAccount(r.Context(), email, name, string(hash), verified)
-	if err != nil && h.idp != nil {
-		if derr := h.idp.DeleteUserByEmail(r.Context(), email); derr != nil {
-			h.logger.Error().Err(derr).Str("email", email).Msg("ops: roll back keycloak user; remove it by hand")
-		}
-	}
 	if errors.Is(err, database.ErrEmailTaken) {
 		writeError(w, http.StatusConflict, "an account with this email already exists")
 		return
@@ -119,8 +103,32 @@ func (h *OpsHandler) CreateTempAccount(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "action failed")
 		return
 	}
+	if status, msg := h.createTempIdPUser(r.Context(), userID, email, name, body.Password, verified); status != 0 {
+		writeError(w, status, msg)
+		return
+	}
 	h.audit(r, wsID, "create_temp_account", map[string]any{"email": email, "user_id": userID, "skip_verification": verified, "keycloak": h.idp != nil})
 	writeJSON(w, http.StatusCreated, map[string]any{"user_id": userID, "workspace_id": wsID, "email": email, "keycloak": h.idp != nil})
+}
+
+// createTempIdPUser makes the temp account's Keycloak user; on failure it
+// removes the just-created account and returns the HTTP error to send.
+func (h *OpsHandler) createTempIdPUser(ctx context.Context, userID, email, name, password string, verified bool) (int, string) {
+	if h.idp == nil {
+		return 0, ""
+	}
+	err := h.idp.CreateTempUser(ctx, userID, email, name, password, verified)
+	if err == nil {
+		return 0, ""
+	}
+	if derr := h.q.DeleteClaimableAccount(context.WithoutCancel(ctx), userID); derr != nil {
+		h.logger.Error().Err(derr).Str("user_id", userID).Msg("ops: roll back temp account after keycloak failure")
+	}
+	if errors.Is(err, kcadmin.ErrUserExists) {
+		return http.StatusConflict, "the sign-in service already has a user with this email; use another placeholder email"
+	}
+	h.logger.Error().Err(err).Msg("ops: create keycloak user for temp account")
+	return http.StatusBadGateway, "could not create the sign-in user in Keycloak"
 }
 
 // CreateClaim opens a Lobby claim link for a temp account. A new link revokes

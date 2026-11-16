@@ -95,12 +95,19 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (*http.R
 	return res, nil
 }
 
-// CreateUser makes an enabled user with a permanent password. verified marks
-// the email as verified, so Keycloak won't ask for verification at sign-in.
-func (c *Client) CreateUser(ctx context.Context, email, name, password string, verified bool) error {
+// tempUsername ties a Keycloak user to one LeadEcho temp account, so cleanup
+// can never hit a real person's Keycloak user that happens to share the email.
+// Sign-in still works with the email (Keycloak's login-with-email).
+func tempUsername(accountID string) string { return "leadecho-temp-" + accountID }
+
+// CreateTempUser makes an enabled user for temp account accountID with a
+// permanent password. verified marks the email verified, so Keycloak won't
+// ask for verification at sign-in. ErrUserExists: Keycloak already has a
+// user with that email.
+func (c *Client) CreateTempUser(ctx context.Context, accountID, email, name, password string, verified bool) error {
 	first, last, _ := strings.Cut(name, " ")
 	res, err := c.do(ctx, http.MethodPost, "/users", map[string]any{
-		"username": email, "email": email, "firstName": first, "lastName": last,
+		"username": tempUsername(accountID), "email": email, "firstName": first, "lastName": last,
 		"enabled": true, "emailVerified": verified, "requiredActions": []string{},
 		"credentials": []map[string]any{{"type": "password", "value": password, "temporary": false}},
 	})
@@ -117,9 +124,11 @@ func (c *Client) CreateUser(ctx context.Context, email, name, password string, v
 	return nil
 }
 
-// DeleteUserByEmail removes the user whose email is exactly email (no-op if none).
-func (c *Client) DeleteUserByEmail(ctx context.Context, email string) error {
-	res, err := c.do(ctx, http.MethodGet, "/users?exact=true&email="+url.QueryEscape(email), nil)
+// DeleteTempUser removes the Keycloak user made for temp account accountID
+// (no-op if there is none). It matches the exact username only.
+func (c *Client) DeleteTempUser(ctx context.Context, accountID string) error {
+	name := tempUsername(accountID)
+	res, err := c.do(ctx, http.MethodGet, "/users?exact=true&username="+url.QueryEscape(name), nil)
 	if err != nil {
 		return err
 	}
@@ -127,12 +136,12 @@ func (c *Client) DeleteUserByEmail(ctx context.Context, email string) error {
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("keycloak find user: status %d", res.StatusCode)
 	}
-	var users []struct{ ID, Email string }
+	var users []struct{ ID, Username string }
 	if err := json.NewDecoder(io.LimitReader(res.Body, 256<<10)).Decode(&users); err != nil {
 		return fmt.Errorf("keycloak find user: %w", err)
 	}
 	for _, u := range users {
-		if !strings.EqualFold(u.Email, email) {
+		if u.Username != name {
 			continue
 		}
 		del, err := c.do(ctx, http.MethodDelete, "/users/"+url.PathEscape(u.ID), nil)
@@ -145,4 +154,18 @@ func (c *Client) DeleteUserByEmail(ctx context.Context, email string) error {
 		}
 	}
 	return nil
+}
+
+// DeleteTempUserRetry is DeleteTempUser with a few retries, detached from the
+// request's cancellation: a temp login left behind keeps the operator's password alive.
+func (c *Client) DeleteTempUserRetry(ctx context.Context, accountID string) error {
+	ctx = context.WithoutCancel(ctx)
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err = c.DeleteTempUser(ctx, accountID); err == nil {
+			return nil
+		}
+		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+	}
+	return err
 }
