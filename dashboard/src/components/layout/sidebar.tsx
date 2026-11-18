@@ -20,7 +20,7 @@ import {
   Lightbulb,
   Binoculars,
 } from "lucide-react";
-import { ShieldCheck, Sparkles } from "lucide-react"; // chat (P2 #15), ops
+import { ShieldCheck, Sparkles, X } from "lucide-react"; // chat (P2 #15), ops
 import { opsMe } from "@/lib/ops-api";
 
 const navGroups = [
@@ -54,7 +54,13 @@ const navGroups = [
   },
 ] as const;
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Phones: the sidebar is a drawer, shown while open. */
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ open = false, onClose }: SidebarProps) {
   const router = useRouterState();
   const pathname = router.location.pathname;
 
@@ -67,9 +73,22 @@ export function Sidebar() {
   const { data: isOps } = useQuery({ queryKey: ["ops", "me"], queryFn: opsMe, retry: false, staleTime: 5 * 60_000 });
 
   return (
-    <aside className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-border bg-card/60">
-      <div className="flex h-[var(--header-height)] min-w-0 shrink-0 items-center px-[18px]">
+    <>
+      {/* Phones: a scrim behind the open drawer; tapping it closes the menu. */}
+      {open && <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose} aria-hidden="true" />}
+    <aside
+      className={cn(
+        "flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-border bg-card",
+        "fixed inset-y-0 left-0 z-50 transition-transform duration-200 md:static md:z-auto md:translate-x-0 md:bg-card/60",
+        open ? "translate-x-0 shadow-lg" : "-translate-x-full",
+      )}
+      aria-label="Main navigation"
+    >
+      <div className="flex h-[var(--header-height)] min-w-0 shrink-0 items-center justify-between px-[18px]">
         <Logo to="/inbox" className="min-w-0 gap-2.5 text-base [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:overflow-visible" />
+        <button type="button" onClick={onClose} aria-label="Close menu" className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent md:hidden">
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 pb-4 pt-2">
@@ -77,7 +96,7 @@ export function Sidebar() {
           <Link
             to="/ops"
             className={cn(
-              "flex h-7 items-center gap-2 rounded-md px-2 text-[13px]",
+              "flex h-9 md:h-7 items-center gap-2 rounded-md px-2 text-[13px]",
               pathname.startsWith("/ops") ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
@@ -98,7 +117,7 @@ export function Sidebar() {
                     key={item.label}
                     to={item.to}
                     className={cn(
-                      "relative flex h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors duration-150",
+                      "relative flex h-9 md:h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors duration-150",
                       isActive
                         ? "font-medium text-foreground"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -134,5 +153,6 @@ export function Sidebar() {
         ))}
       </nav>
     </aside>
+    </>
   );
 }

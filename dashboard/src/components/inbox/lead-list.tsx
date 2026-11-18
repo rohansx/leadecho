@@ -210,7 +210,7 @@ export function LeadList({
   ];
 
   return (
-    <section className="w-[380px] shrink-0 border-r border-border flex flex-col min-h-0 h-full bg-background">
+    <section className="w-full md:w-[380px] shrink-0 border-r border-border flex flex-col min-h-0 h-full bg-background">
       <div className="p-4 border-b border-border space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>

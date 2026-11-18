@@ -1,12 +1,17 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Moon, Sun, Bell, LogOut } from "lucide-react";
+import { Moon, Sun, Bell, LogOut, Menu } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
 import { useAuth } from "@/lib/auth";
 import { mentionCounts } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 
-export function Header() {
+interface HeaderProps {
+  /** Phones: opens the navigation drawer. */
+  onMenu?: () => void;
+}
+
+export function Header({ onMenu }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -28,7 +33,15 @@ export function Header() {
     : "U";
 
   return (
-    <header className="flex h-[var(--header-height)] shrink-0 items-center gap-4 border-b border-border bg-background/80 px-5 backdrop-blur">
+    <header className="flex h-[var(--header-height)] shrink-0 items-center gap-4 border-b border-border bg-background/80 px-3 backdrop-blur md:px-5">
+      <button
+        type="button"
+        onClick={onMenu}
+        aria-label="Open menu"
+        className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
       <div className="ml-auto flex items-center gap-1">
         <button
           type="button"

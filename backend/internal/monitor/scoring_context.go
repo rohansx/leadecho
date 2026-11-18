@@ -10,6 +10,7 @@ import (
 
 	"leadecho/internal/ai"
 	"leadecho/internal/database"
+	"leadecho/internal/keywordjudge"
 )
 
 // scoring: per-listener scoring context (Looks for / Skips + few-shot examples).
@@ -57,6 +58,17 @@ func (m *Monitor) scoringContextFor(ctx context.Context, wsID, mentionID string)
 // then extra sources). Lookup failures are reported to onErr and degrade
 // to generic scoring rather than blocking it.
 func ScoringContextFor(ctx context.Context, q *database.Queries, extra []ExampleSource, wsID, mentionID string, onErr func(error)) ai.ScoringContext {
+	return scoringContextWith(ctx, q, extra, wsID, mentionID, nil, onErr)
+}
+
+// examplesOverride replaces the workspace's learned rules and the review's
+// examples (the keyword judge testing a proposal).
+type examplesOverride struct {
+	rules    []string
+	examples []ai.ScoringExample
+}
+
+func scoringContextWith(ctx context.Context, q *database.Queries, extra []ExampleSource, wsID, mentionID string, ov *examplesOverride, onErr func(error)) ai.ScoringContext {
 	var prof *database.GetMentionScoringProfileRow
 	row, err := q.GetMentionScoringProfile(ctx, database.GetMentionScoringProfileParams{MentionID: mentionID, WorkspaceID: wsID})
 	switch {
@@ -71,6 +83,24 @@ func ScoringContextFor(ctx context.Context, q *database.Queries, extra []Example
 	}
 	sources := append([]ExampleSource{FeedbackExamples{Q: q}}, extra...)
 	sc := buildScoringContext(prof, collectExamples(ctx, sources, wsID, profileID, ai.MaxScoringExamples, onErr))
+	// Learned rules and the review's labelled posts: the customer's own
+	// labels come first, the review's fill the rest of the slots.
+	var learned []ai.ScoringExample
+	if ov != nil {
+		sc.Rules, learned = ov.rules, ov.examples
+	} else if lr, err := keywordjudge.LoadRules(ctx, q, wsID); err != nil {
+		onErr(err)
+	} else {
+		sc.Rules, learned = lr.Texts(), lr.Examples
+	}
+	for _, e := range learned {
+		if len(sc.Examples) >= ai.MaxScoringExamples {
+			break
+		}
+		if e.Label == "up" || e.Label == "down" {
+			sc.Examples = append(sc.Examples, e)
+		}
+	}
 	bp, err := q.GetBrandProfile(ctx, wsID)
 	switch {
 	case err == nil:

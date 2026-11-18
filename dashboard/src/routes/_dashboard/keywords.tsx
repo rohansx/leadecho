@@ -17,7 +17,6 @@ import type { Keyword } from "@/lib/types";
 import {
   BulkPaidCadenceButton,
   KeywordCadence,
-  MonthlyCostSummary,
   useCostPreview,
 } from "@/components/sources/keyword-cadence";
 import { isPaid, truncate, yieldLine, type Rates } from "@/lib/keyword-schedule";
@@ -125,8 +124,6 @@ function KeywordsPage() {
               <CardDescription>
                 {keywords?.length ?? 0} keyword{(keywords?.length ?? 0) !== 1 ? "s" : ""} configured
                 {pausedCount > 0 && ` (${pausedCount} paused)`}
-                {" · "}
-                <MonthlyCostSummary />
               </CardDescription>
             </div>
           </div>

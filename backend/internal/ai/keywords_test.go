@@ -77,3 +77,13 @@ func TestListenerPromptCarriesTheEdge(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyPromptCarriesRules(t *testing.T) {
+	p := buildClassifyPrompt(ScoringContext{Product: "- Lungoor", Rules: []string{"  Founders promoting their own app are noise ", ""}})
+	if !strings.Contains(p, "RULES LEARNED FOR THIS WORKSPACE") || !strings.Contains(p, "- Founders promoting their own app are noise\n") {
+		t.Fatalf("rules missing:\n%s", p)
+	}
+	if strings.Contains(buildClassifyPrompt(ScoringContext{Product: "- X"}), "RULES LEARNED") {
+		t.Error("no rules: no rules section")
+	}
+}

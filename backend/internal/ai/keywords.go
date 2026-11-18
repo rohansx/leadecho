@@ -183,6 +183,10 @@ type KeywordReviewInput struct {
 	// the judge can see whether its own advice worked.
 	Previous string
 	Days     int
+	// Rules are the scoring rules in use; Removed are rules the customer
+	// deleted (not to be proposed again).
+	Rules   []string
+	Removed []string
 }
 
 // KeywordVerdict is the judge's call on one existing keyword.
@@ -199,6 +203,13 @@ type ScoringNote struct {
 	Note string `json:"note"`
 }
 
+// PostLabel is the judge's verdict on one numbered post: would the founder
+// want it as a lead?
+type PostLabel struct {
+	N    int  `json:"n"`
+	Lead bool `json:"lead"`
+}
+
 // KeywordReview is the judge's report.
 type KeywordReview struct {
 	Summary     string             `json:"summary"`
@@ -206,6 +217,10 @@ type KeywordReview struct {
 	Verdicts    []KeywordVerdict   `json:"verdicts"`
 	Add         []SuggestedKeyword `json:"add"`
 	Scoring     []ScoringNote      `json:"scoring"`
+	// Rules is the full proposed set of scoring rules (it replaces the
+	// current set once it passes the test).
+	Rules  []string    `json:"rules"`
+	Labels []PostLabel `json:"labels"`
 }
 
 const reviewSystemPrompt = `You are the judge in a social-listening product. You read what a workspace's keywords actually found, as the product's founder would, and decide what to change so next week brings more real buyers and less noise.
@@ -221,8 +236,14 @@ Return ONLY valid JSON (no markdown):
  "lead_quality": "one sentence on the leads found: are they people the founder would pay to reach?",
  "verdicts": [{"term": "<existing keyword exactly>", "action": "keep|pause|platforms", "platforms": [...only for action platforms: the full new list], "why": "one sentence"}],
  "add": [{"term": "...", "platforms": [...], "angle": "buyer|competitor|edge|problem", "why": "one sentence citing what you saw"}],
- "scoring": [{"post": "a short quote from a post the scorer got wrong", "note": "what it should have been and why"}]}
-Give a verdict for every existing keyword. Suggest 5-15 new keywords. "scoring" may be empty.`
+ "scoring": [{"post": "a short quote from a post the scorer got wrong", "note": "what it should have been and why"}],
+ "labels": [{"n": <post number>, "lead": true|false}],
+ "rules": ["..."]}
+Give a verdict for every existing keyword. Suggest 5-15 new keywords. "scoring" may be empty.
+
+"labels": your verdict on EVERY post marked LEAD or "scored" in the list (skip the ones dropped before scoring): lead true when the founder would want to reply to this person as a possible customer.
+
+"rules": 3-8 scoring rules for THIS product, the full set to use from now on (keep current rules that still hold, reword or drop ones that do not, add what the scorer keeps getting wrong). Each is one plain sentence about which posts are or are not leads and how to score them, general enough to apply to future posts and specific to this product's market, e.g. "Founders promoting their own dictation app are noise: score at most 2", "A need on iOS or Android only scores at most 4: the product is Mac-only", "Someone who has already switched to a competitor is not a lead". Never repeat a rule the customer removed. Rules about keywords do not belong here.`
 
 // ReviewKeywords runs the judge.
 func ReviewKeywords(ctx context.Context, p Provider, in KeywordReviewInput) (*KeywordReview, error) {
@@ -244,6 +265,7 @@ func ReviewKeywords(ctx context.Context, p Provider, in KeywordReviewInput) (*Ke
 		known[normTerm(k.Term)] = k.Term
 	}
 	r.Add = CleanSuggestions(r.Add, existing, in.Platforms, 15)
+	r.Rules = CleanRules(r.Rules, in.Removed)
 	r.Verdicts = cleanVerdicts(r.Verdicts, known, in.Platforms)
 	return &r, nil
 }
@@ -292,6 +314,10 @@ func (in KeywordReviewInput) text() string {
 	if in.Previous != "" {
 		fmt.Fprintf(&s, "\nYOUR LAST REVIEW AND WHAT HAPPENED:\n%s\n", in.Previous)
 	}
+	fmt.Fprintf(&s, "\nCURRENT SCORING RULES: %s\n", bullets(in.Rules))
+	if len(in.Removed) > 0 {
+		fmt.Fprintf(&s, "RULES THE CUSTOMER REMOVED (never propose these again): %s\n", bullets(in.Removed))
+	}
 	s.WriteString("\nPOSTS (a sample: leads first, then near misses, low scores and posts the noise filter dropped):\n")
 	for i, p := range in.Posts {
 		score := "not scored"
@@ -305,4 +331,32 @@ func (in KeywordReviewInput) text() string {
 		s.WriteString("\n")
 	}
 	return s.String()
+}
+
+func bullets(list []string) string {
+	if len(list) == 0 {
+		return "(none)"
+	}
+	return "\n- " + strings.Join(list, "\n- ")
+}
+
+// CleanRules trims and dedupes rules, drops the ones the customer removed,
+// and caps them (count and length).
+func CleanRules(in, removed []string) []string {
+	gone := map[string]bool{}
+	for _, r := range removed {
+		gone[normTerm(r)] = true
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, r := range in {
+		r = truncate(r, 240)
+		key := normTerm(r)
+		if key == "" || seen[key] || gone[key] || len(out) == MaxScoringRules {
+			continue
+		}
+		seen[key] = true
+		out = append(out, r)
+	}
+	return out
 }

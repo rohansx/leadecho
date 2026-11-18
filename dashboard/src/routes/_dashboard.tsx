@@ -5,7 +5,7 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { FeedbackWidget } from "@/components/feedback-widget";
@@ -25,6 +25,13 @@ function DashboardLayout() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Phones: the navigation drawer, closed again on every page change.
+  const [navOpen, setNavOpen] = useState(false);
+  const [navPath, setNavPath] = useState(pathname);
+  if (navPath !== pathname) {
+    setNavPath(pathname);
+    setNavOpen(false);
+  }
 
   const { data: onboarding } = useQuery({
     queryKey: ["onboarding"],
@@ -60,9 +67,9 @@ function DashboardLayout() {
     <div className="flex h-dvh overflow-hidden bg-background">
       <FeedbackWidget />
       <KeywordTopUp />
-      <Sidebar />
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header />
+        <Header onMenu={() => setNavOpen(true)} />
         <main className="flex-1 overflow-auto">
           <motion.div
             key={pathname}
@@ -74,7 +81,7 @@ function DashboardLayout() {
               pathname.startsWith("/inbox")
                 ? "h-full"
                 : cn(
-                    "w-full px-5 py-5 md:px-6 md:py-6",
+                    "w-full px-4 py-4 md:px-6 md:py-6",
                     // Kanban needs every column visible; other pages read better in a container.
                     !pathname.startsWith("/pipeline") && "mx-auto max-w-[1200px]",
                   )

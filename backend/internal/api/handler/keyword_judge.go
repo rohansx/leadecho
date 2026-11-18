@@ -3,11 +3,13 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
 	"time"
 
+	"leadecho/internal/ai"
 	"leadecho/internal/api/middleware"
 	"leadecho/internal/billing"
 	"leadecho/internal/database"
@@ -53,6 +55,8 @@ type keywordReviewState struct {
 	CanReview bool `json:"can_review"`
 	// Allowed: the plan includes the keyword AI (Pro, or self-host).
 	Allowed bool `json:"allowed"`
+	// Rules are the learned scoring rules and how the last proposal tested.
+	Rules keywordjudge.ScoringRules `json:"rules"`
 }
 
 func (h *KeywordJudgeHandler) state(r *http.Request, wsID string) (keywordReviewState, error) {
@@ -79,6 +83,9 @@ func (h *KeywordJudgeHandler) state(r *http.Request, wsID string) (keywordReview
 		if json.Unmarshal(raw, &rev) == nil {
 			st.Review = &rev
 		}
+	}
+	if st.Rules, err = keywordjudge.LoadRules(ctx, h.q, wsID); err != nil {
+		return st, err
 	}
 	scan := h.lastScan(r, wsID)
 	if scan != nil && scan.Kind == monitor.ScanKeywords {
@@ -241,4 +248,32 @@ func (h *KeywordJudgeHandler) allowSuggest(wsID string, now time.Time) bool {
 	}
 	h.lastCall[wsID] = now
 	return true
+}
+
+// SetRules handles PUT /scoring/rules {rules: [...]}: the customer's edit
+// of the learned scoring rules. Rules they remove are not proposed again.
+func (h *KeywordJudgeHandler) SetRules(w http.ResponseWriter, r *http.Request) {
+	wsID := middleware.WorkspaceID(r.Context())
+	var body struct {
+		Rules []string `json:"rules"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if len(body.Rules) > ai.MaxScoringRules {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("at most %d rules", ai.MaxScoringRules))
+		return
+	}
+	cur, err := keywordjudge.LoadRules(r.Context(), h.q, wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load the scoring rules")
+		return
+	}
+	next := keywordjudge.SetCustomerRules(cur, body.Rules, time.Now().UTC())
+	if err := keywordjudge.SaveRules(r.Context(), h.q, wsID, next); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save the scoring rules")
+		return
+	}
+	writeJSON(w, http.StatusOK, next)
 }
