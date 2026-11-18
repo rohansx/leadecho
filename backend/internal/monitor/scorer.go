@@ -517,7 +517,8 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		alert      mentionAlert
 		similarity float64
 	}{a, similarity}
-	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform, m.scoringContextFor(ctx, wsID, c.alert.ID))
+	sc := m.scoringContextFor(ctx, wsID, c.alert.ID)
+	result, err := m.llmRouter.ClassifyIntent(ctx, wsID, c.alert.Title, c.alert.Content, c.alert.Platform, sc)
 	if err != nil {
 		// Record the failure. Without this the mention keeps null scoring
 		// metadata, which is indistinguishable from "never reached stage 3":
@@ -548,6 +549,7 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		"matches_skips": result.MatchesSkips,
 		"author_role":   result.AuthorRole,
 		"rubric":        ScoringRubric,
+		"rules":         sc.RulesStamp, // the learned rule set it was scored under
 	}
 	if result.Ask != "" { // demand: what the author is asking for
 		meta["ask"] = result.Ask

@@ -41,6 +41,12 @@ type Reviewer interface {
 	ReviewKeywords(ctx context.Context, workspaceID string, in ai.KeywordReviewInput) (*ai.KeywordReview, error)
 }
 
+// KeywordAI is both jobs (the LLM router implements it).
+type KeywordAI interface {
+	Suggester
+	Reviewer
+}
+
 // ErrNoProfile: the workspace has not finished onboarding.
 var ErrNoProfile = errors.New("the workspace has not finished onboarding")
 

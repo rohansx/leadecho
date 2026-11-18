@@ -15,7 +15,7 @@ type RescoreMention struct {
 // scored yet (the backfill takes those), company signals (hiring, prospects),
 // posts the customer already acted on (any status but "new") and posts that
 // are already leads. Hand-written (no sqlc codegen needed).
-func (q *Queries) ListMentionsToRescore(ctx context.Context, workspaceID string, since time.Time, rubric int, limit int32) ([]RescoreMention, error) {
+func (q *Queries) ListMentionsToRescore(ctx context.Context, workspaceID string, since time.Time, rubric int, rulesStamp string, limit int32) ([]RescoreMention, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT m.id::text, m.platform::text, COALESCE(k.term, ''), COALESCE(m.title, ''), m.url,
        COALESCE(m.author_username, ''), m.content
@@ -25,11 +25,12 @@ WHERE m.workspace_id = $1 AND m.created_at >= $2
   AND m.status = 'new'
   AND m.scoring_metadata ? 'stage'
   AND m.scoring_metadata->>'stage' NOT LIKE 'stage0%'
-  AND COALESCE((m.scoring_metadata->>'rubric')::int, 0) < $3
+  AND (COALESCE((m.scoring_metadata->>'rubric')::int, 0) < $3
+       OR (m.scoring_metadata->>'stage' = 'stage3_classified' AND COALESCE(m.scoring_metadata->>'rules', '') <> $5))
   AND COALESCE(m.platform_metadata->>'signal', '') = ''
   AND NOT EXISTS (SELECT 1 FROM leads l WHERE l.mention_id = m.id)
 ORDER BY m.created_at DESC
-LIMIT $4`, workspaceID, since, rubric, limit)
+LIMIT $4`, workspaceID, since, rubric, limit, rulesStamp)
 	if err != nil {
 		return nil, err
 	}

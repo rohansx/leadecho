@@ -93,6 +93,7 @@ func scoringContextWith(ctx context.Context, q *database.Queries, extra []Exampl
 	} else {
 		sc.Rules, learned = lr.Texts(), lr.Examples
 	}
+	sc.RulesStamp = keywordjudge.RulesStamp(sc.Rules)
 	for _, e := range learned {
 		if len(sc.Examples) >= ai.MaxScoringExamples {
 			break
