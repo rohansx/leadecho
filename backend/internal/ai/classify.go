@@ -31,6 +31,10 @@ type ScoringContext struct {
 	// customer ("Founders promoting their own dictation app are noise").
 	Rules    []string
 	Examples []ScoringExample
+	// RulesStamp identifies the rule set (not sent to the model); it is
+	// stored on each scored post so a re-score can find the posts scored
+	// under older rules.
+	RulesStamp string
 }
 
 // MaxScoringRules caps learned rules per prompt.

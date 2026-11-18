@@ -62,7 +62,7 @@ RETURNING id::text`, ws, pid, status, scoring, platformMeta, score).Scan(&id); e
 	proof := add("proof", "new", `{"stage":"stage3_classified",`+cur+`,"author_role":"buyer","post_type":"proof_point","ask":"A way to see how candidates work with AI"}`, `{}`, f(3))
 
 	q := database.New(pool)
-	got, err := q.ListMentionsToRescore(ctx, ws, time.Now().Add(-time.Hour), ScoringRubric, 50)
+	got, err := q.ListMentionsToRescore(ctx, ws, time.Now().Add(-time.Hour), ScoringRubric, "", 50)
 	if err != nil {
 		t.Fatal(err)
 	}

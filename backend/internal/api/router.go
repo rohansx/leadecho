@@ -373,6 +373,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Get("/workspaces", ops.Workspaces)
 				r.Get("/audit", ops.Audit)
 				r.Post("/paid-data-paused", ops.SetPaidDataPaused)
+				r.Post("/improve-all", ops.ImproveAll)
 				r.Post("/workspaces/{id}/plan", ops.SetPlan)
 				r.Post("/workspaces/{id}/credits", ops.AdjustCredits)
 				r.Post("/workspaces/{id}/paid-data", ops.SetPaidData)

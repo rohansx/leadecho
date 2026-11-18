@@ -291,6 +291,36 @@ func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
 	h.finish(w, r, ws, "scan_now", map[string]any{"kind": scan.Kind}, err)
 }
 
+// ImproveAll asks the keyword judge to review every workspace it can, now:
+// it suggests keyword changes, learns and tests scoring rules, and re-scores
+// the recent posts when the rules change. One strong-model review plus up to
+// 24 test scorings per workspace, and a re-score of its last 30 days.
+func (h *OpsHandler) ImproveAll(w http.ResponseWriter, r *http.Request) {
+	ids, err := h.q.ListReviewableWorkspaces(r.Context())
+	if err != nil {
+		h.finish(w, r, "", "improve_all", nil, err)
+		return
+	}
+	actor := "operator"
+	if c := middleware.ClaimsFromContext(r.Context()); c != nil && c.Email != "" {
+		actor = c.Email
+	}
+	now := time.Now().UTC()
+	asked := 0
+	for _, ws := range ids {
+		if err := h.q.MarkKeywordReviewAttempt(r.Context(), ws, now); err != nil {
+			continue
+		}
+		scan, _ := monitor.NewManualScan(monitor.ScanKeywords, actor, now)
+		raw, _ := json.Marshal(scan)
+		if ok, err := h.q.RequestManualScan(r.Context(), ws, raw, monitor.StaleBefore(now)); err == nil && ok {
+			asked++
+		}
+	}
+	h.audit(r, "", "improve_all", map[string]any{"workspaces": asked})
+	writeJSON(w, http.StatusOK, map[string]int{"requested": asked})
+}
+
 // SetPaidDataPaused is the global kill switch for all paid data (treg).
 func (h *OpsHandler) SetPaidDataPaused(w http.ResponseWriter, r *http.Request) {
 	var body struct {

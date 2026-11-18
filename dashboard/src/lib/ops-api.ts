@@ -62,6 +62,9 @@ export const listOpsAudit = () => request<{ data: OpsAuditEntry[] }>("/ops/audit
 const post = (path: string, body: unknown) =>
   request<{ ok: boolean }>(path, { method: "POST", body: JSON.stringify(body) });
 
+/** Keyword judge on every workspace now: Pro workspaces are topped up to 30 keywords and searched,
+ * then reviewed; tested scoring rules are applied and recent posts re-scored. */
+export const improveAll = () => request<{ requested: number }>("/ops/improve-all", { method: "POST", body: "{}" });
 export const setPaidDataPaused = (paused: boolean) => post("/ops/paid-data-paused", { paused });
 export const setWorkspacePlan = (id: string, plan: string) => post(`/ops/workspaces/${id}/plan`, { plan });
 export const adjustCredits = (id: string, delta: number, note: string) => post(`/ops/workspaces/${id}/credits`, { delta, note });

@@ -21,6 +21,7 @@ import {
   scanNow,
   setPaidData,
   setPaidDataPaused,
+  improveAll,
   setScanning,
   setWorkspacePlan,
   usd,
@@ -51,8 +52,8 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescreen")} title="Check the last 30 days of company leads again with the current posting screen and archive the ones that fail. No paid data is used and no credits are taken from the customer.">
           Re-screen company leads
         </Button>
-        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("keywords")} title="Run the keyword judge now: it reads the last 14 days of posts and leads and suggests keywords to add, pause or move. The customer sees the report on their Keywords page. One strong-model call; no credits are taken from the customer.">
-          Review keywords
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("keywords")} title="Improve this workspace now: a Pro workspace is topped up to 30 keywords and every keyword searched; then the keyword judge reviews the last 14 days, learns and tests scoring rules, and re-scores recent posts when the rules change. The customer sees the report on their Keywords page.">
+          Improve (keywords + rules)
         </Button>
       </div>
       {status && <p className="max-w-56 text-xs text-muted-foreground">{status}</p>}
@@ -131,6 +132,7 @@ function OpsPage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["ops"] });
   const act = useMutation({ mutationFn: (fn: () => Promise<unknown>) => fn(), onSettled: refresh });
+  const improve = useMutation({ mutationFn: improveAll, onSettled: refresh });
 
   if (overview.error) {
     return (
@@ -153,6 +155,18 @@ function OpsPage() {
           <ShieldCheck className="h-5 w-5 text-primary-ink" />
           <Text as="h2">Operator console</Text>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="sm"
+            variant="accent"
+            disabled={improve.isPending}
+            onClick={() => improve.mutate()}
+            title="For every workspace: Pro ones get topped up to 30 keywords and every keyword searched now; then the keyword judge reviews the last 14 days, learns and tests scoring rules, and re-scores recent posts when the rules change. Uses the strong model; no customer credits for the re-score."
+          >
+            {improve.isPending ? "Starting…" : "Improve all workspaces"}
+          </Button>
+          {improve.data && <Text as="span" className="text-xs text-muted-foreground">Started for {improve.data.requested} workspaces; progress shows under each one.</Text>}
+          {improve.isError && <Text as="span" className="text-xs text-destructive">{improve.error.message}</Text>}
         {o && (
           <label className="flex items-center gap-2 text-sm">
             <Toggle
@@ -164,6 +178,7 @@ function OpsPage() {
             {o.paid_data_paused ? "Paid data paused for everyone" : "Paid data on"}
           </label>
         )}
+        </div>
       </div>
 
       {o && (

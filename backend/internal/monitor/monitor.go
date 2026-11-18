@@ -61,13 +61,13 @@ type Monitor struct {
 	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
-	tregState             treg.Cache            // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
-	hiringPlanner         HiringPlanner         // optional: company hiring signals
-	keywordReviewer       keywordjudge.Reviewer // optional: the weekly keyword judge
-	contactVerifier       ContactVerifier       // optional: confirms a hiring contact before it is called a lead
-	prospectJudge         ProspectJudge         // optional: companies that fit a customer segment
-	autoDrafter           AutoDrafter           // optional: strong post leads get their reply drafted unasked
-	credits               *billing.Credits      // billing: nil or unenforced never blocks
+	tregState             treg.Cache             // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
+	hiringPlanner         HiringPlanner          // optional: company hiring signals
+	keywordReviewer       keywordjudge.KeywordAI // optional: the weekly keyword judge and keyword top-up
+	contactVerifier       ContactVerifier        // optional: confirms a hiring contact before it is called a lead
+	prospectJudge         ProspectJudge          // optional: companies that fit a customer segment
+	autoDrafter           AutoDrafter            // optional: strong post leads get their reply drafted unasked
+	credits               *billing.Credits       // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).
 	mutes *mutes.Store

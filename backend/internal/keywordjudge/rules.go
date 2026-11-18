@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -316,6 +317,20 @@ func mergeProposal(cur ScoringRules, proposed []string, now time.Time) []Rule {
 		next = append(next, Rule{ID: suggestionID("rule", p), Text: p, Source: "judge", AddedAt: now})
 	}
 	return next
+}
+
+// RulesStamp is a short id of a rule set ("" for none), independent of
+// order, case and spacing.
+func RulesStamp(rules []string) string {
+	if len(rules) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(rules))
+	for _, r := range rules {
+		keys = append(keys, norm(r))
+	}
+	sort.Strings(keys)
+	return suggestionID("rules", strings.Join(keys, "\n"))
 }
 
 func sameRules(a, b []string) bool {

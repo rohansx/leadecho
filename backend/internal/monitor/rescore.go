@@ -3,11 +3,14 @@ package monitor
 import (
 	"context"
 	"time"
+
+	"leadecho/internal/keywordjudge"
 )
 
 // Re-scoring: when the scoring rules change, posts already scored keep their
 // old verdict, so a buyer the old rules missed stays buried. An operator can
-// ask for a workspace's recent posts to be scored again.
+// ask for a workspace's recent posts to be scored again; a keyword review
+// that changes the workspace's learned rules does it on its own.
 
 const (
 	// ScoringRubric is stamped on every scored post. Raise it when the filter
@@ -30,8 +33,14 @@ const (
 // customer is not charged credits for it.
 func (m *Monitor) rescore(ctx context.Context, ws string) (done int, finished bool) {
 	since := time.Now().Add(-rescoreWindow)
+	// Posts scored under an older set of the workspace's learned rules are
+	// due too (only classified ones: the rules change classification).
+	stamp := ""
+	if lr, err := keywordjudge.LoadRules(ctx, m.q, ws); err == nil {
+		stamp = keywordjudge.RulesStamp(lr.Texts())
+	}
 	for ctx.Err() == nil {
-		rows, err := m.q.ListMentionsToRescore(ctx, ws, since, ScoringRubric, rescoreBatch)
+		rows, err := m.q.ListMentionsToRescore(ctx, ws, since, ScoringRubric, stamp, rescoreBatch)
 		if err != nil {
 			m.logger.Error().Err(err).Str("workspace_id", ws).Msg("rescore: list posts")
 			break
@@ -47,7 +56,7 @@ func (m *Monitor) rescore(ctx context.Context, ws string) (done int, finished bo
 		m.batchScoreMentions(ctx, ws, alerts)
 		// A post whose second classification failed keeps its old verdict and
 		// is listed again: stop when a batch moves nothing (the model is down).
-		left, err := m.q.ListMentionsToRescore(ctx, ws, since, ScoringRubric, rescoreBatch)
+		left, err := m.q.ListMentionsToRescore(ctx, ws, since, ScoringRubric, stamp, rescoreBatch)
 		if err == nil && len(left) == len(rows) && left[0].ID == rows[0].ID {
 			m.logger.Warn().Str("workspace_id", ws).Msg("rescore: a batch changed nothing, stopping")
 			break

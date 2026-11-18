@@ -164,3 +164,29 @@ SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['scoring_rules']
 WHERE id = $1`, workspaceID, string(raw))
 	return err
 }
+
+// ListReviewableWorkspaces returns every workspace the keyword judge can
+// review now: onboarded, with active keywords, scanning on, and no scan
+// waiting or running (the operator's "improve all").
+func (q *Queries) ListReviewableWorkspaces(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT w.id::text FROM workspaces w
+WHERE NOT w.scanning_paused
+  AND EXISTS (SELECT 1 FROM keywords k WHERE k.workspace_id = w.id AND k.is_active)
+  AND EXISTS (SELECT 1 FROM brand_profiles b WHERE b.workspace_id = w.id AND b.product <> '')
+  AND COALESCE(w.settings->'manual_scan'->>'state', '') NOT IN ('requested', 'running')
+ORDER BY w.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
