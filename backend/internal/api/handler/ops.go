@@ -279,7 +279,7 @@ func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	scan, err := monitor.NewManualScan(body.Kind, actor, now)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, `kind must be "posts", "hiring", "prospects", "rescore" or "rescreen"`)
+		writeError(w, http.StatusBadRequest, `kind must be "posts", "hiring", "prospects", "rescore", "rescreen" or "keywords"`)
 		return
 	}
 	raw, _ := json.Marshal(scan)

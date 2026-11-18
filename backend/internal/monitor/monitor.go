@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"html"
+	"leadecho/internal/keywordjudge"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -60,12 +61,13 @@ type Monitor struct {
 	// treg: hosted X/LinkedIn search (nil = X/LinkedIn off). Reddit comment
 	// search via the public JSON stream (see reddit_comments.go).
 	treg                  *treg.Client
-	tregState             treg.Cache       // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
-	hiringPlanner         HiringPlanner    // optional: company hiring signals
-	contactVerifier       ContactVerifier  // optional: confirms a hiring contact before it is called a lead
-	prospectJudge         ProspectJudge    // optional: companies that fit a customer segment
-	autoDrafter           AutoDrafter      // optional: strong post leads get their reply drafted unasked
-	credits               *billing.Credits // billing: nil or unenforced never blocks
+	tregState             treg.Cache            // optional: last-poll memory for X/LinkedIn (see treg_sources.go)
+	hiringPlanner         HiringPlanner         // optional: company hiring signals
+	keywordReviewer       keywordjudge.Reviewer // optional: the weekly keyword judge
+	contactVerifier       ContactVerifier       // optional: confirms a hiring contact before it is called a lead
+	prospectJudge         ProspectJudge         // optional: companies that fit a customer segment
+	autoDrafter           AutoDrafter           // optional: strong post leads get their reply drafted unasked
+	credits               *billing.Credits      // billing: nil or unenforced never blocks
 	redditCommentsEnabled bool
 	// sources: workspace mute lists applied before insert (nil = none).
 	mutes *mutes.Store
@@ -129,7 +131,8 @@ func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
 	engagementTicker := time.NewTicker(30 * time.Minute)
 	defer engagementTicker.Stop()
 
-	go m.watchManualScans(ctx) // ops: "scan now" requests
+	go m.watchManualScans(ctx)    // ops: "scan now" requests
+	go m.watchKeywordReviews(ctx) // Pro: the keyword judge, weekly
 
 	// Run immediately on start
 	m.tick(ctx)

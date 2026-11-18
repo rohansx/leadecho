@@ -22,6 +22,7 @@ import {
 } from "@/components/sources/keyword-cadence";
 import { isPaid, truncate, yieldLine, type Rates } from "@/lib/keyword-schedule";
 import { MuteListCard } from "@/components/sources/mute-list-card";
+import { KeywordReviewCard } from "@/components/keywords/keyword-review-card";
 import { LockedChip, PaidPlatformsNote } from "@/components/billing/paid-platforms";
 import { useLockedPlatforms } from "@/lib/use-locked-platforms";
 import { Plus, Trash2, Power, PowerOff, Search, X, DollarSign } from "lucide-react";
@@ -108,6 +109,8 @@ function KeywordsPage() {
           Terms to monitor across social platforms. LeadEcho searches each platform you pick for these.
         </Text>
       </div>
+
+      <KeywordReviewCard keywords={keywords ?? []} />
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
       {/* Keyword list */}

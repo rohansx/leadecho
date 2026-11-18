@@ -155,6 +155,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	if llmRouter != nil {
 		mon.SetHiringPlanner(llmRouter)
 		mon.SetProspectJudge(llmRouter)
+		mon.SetKeywordReviewer(llmRouter)
 	}
 	if enricher.Enabled() {
 		mon.SetContactVerifier(enricher)

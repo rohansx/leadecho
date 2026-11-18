@@ -47,10 +47,16 @@ type KeywordGroups struct {
 
 // ListenerPrompt is the context for generating one onboarding listener.
 type ListenerPrompt struct {
-	Goal        string
-	Product     string
-	Overview    string
-	Audience    string
+	Goal     string
+	Product  string
+	Overview string
+	Audience string
+	// Positioning is how the product differs ("handles Hinglish"). The edge
+	// is often where the best buyers are, so the keywords must cover it.
+	Positioning string
+	Features    []string
+	// Segments are the buyer groups, each as "name: pain (country)".
+	Segments    []string
 	Competitors []string
 	PainPoints  []string
 	Keywords    []string
@@ -75,6 +81,7 @@ Goals:
 Return ONLY valid JSON (no markdown, no code fences):
 - "name": short listener name (max 6 words)
 - "keywords": 3-6 short search phrases (2-4 words each) that real people type in posts, not marketing copy, ordered best first. For find_buyers and competitor_switchers use phrases a BUYER writes when they need this ("recommend a <category>", "<competitor> alternative", "switching from <competitor>", "<category> for <their situation>"), not the name of a topic: a topic phrase ("technical interviews", "email marketing") mostly finds people chatting about the subject, not people who need the product
+- Cover the product's edge: when the positioning, a feature or a buyer segment names something specific (a language such as Hinglish, a country or region, an industry, an integration, a price point, on-device or privacy), at least one keyword must be a phrase a buyer with THAT need writes ("hinglish speech to text", "dictation for indian accent"). Those buyers have the fewest alternatives and convert best
 - "looks_for": one or two plain-English sentences describing posts to keep
 - "skips": one plain-English sentence describing posts to ignore (vendors self-promoting, job posts, news, unrelated meanings)`
 
@@ -86,6 +93,15 @@ func (lp ListenerPrompt) userText() string {
 	}
 	if lp.Audience != "" {
 		fmt.Fprintf(&b, "Audience: %s\n", lp.Audience)
+	}
+	if lp.Positioning != "" {
+		fmt.Fprintf(&b, "Positioning (the product's edge): %s\n", lp.Positioning)
+	}
+	if len(lp.Features) > 0 {
+		fmt.Fprintf(&b, "Features: %s\n", strings.Join(lp.Features, "; "))
+	}
+	if len(lp.Segments) > 0 {
+		fmt.Fprintf(&b, "Buyer segments: %s\n", strings.Join(lp.Segments, "; "))
 	}
 	if len(lp.Competitors) > 0 {
 		fmt.Fprintf(&b, "Competitors: %s\n", strings.Join(lp.Competitors, ", "))
