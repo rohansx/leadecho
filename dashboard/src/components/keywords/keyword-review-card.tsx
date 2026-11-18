@@ -15,6 +15,7 @@ import {
 } from "@/lib/keyword-judge-api";
 import { topUpCount } from "@/lib/keyword-top-up";
 import { GenerateKeywordsDialog } from "./generate-keywords-dialog";
+import { ScoringRules } from "./scoring-rules";
 
 const KIND_LABEL: Record<KeywordSuggestion["kind"], string> = {
   add: "Add",
@@ -83,7 +84,8 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary">
             <Gavel className="h-4 w-4 text-foreground-soft" />
           </div>
-          <div className="min-w-0 flex-1">
+          {/* basis 12rem: on a phone the buttons wrap to their own line instead of squeezing the text */}
+          <div className="min-w-0 flex-1 basis-48">
             <CardTitle>Keyword review</CardTitle>
             <CardDescription>
               {review
@@ -146,6 +148,8 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
             ) : (
               <Text as="p" className="text-sm text-muted-foreground">No open suggestions. The next review will check how your changes did.</Text>
             )}
+
+            <ScoringRules rules={data.rules ?? { rules: [], removed: [] }} />
 
             {kept.length > 0 && (
               <Text as="p" className="text-xs text-muted-foreground">

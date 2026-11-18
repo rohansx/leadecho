@@ -34,6 +34,19 @@ export interface KeywordReview {
   decisions: Record<string, "applied" | "dismissed">;
 }
 
+export interface ScoringRule {
+  id: string;
+  text: string;
+  source: "judge" | "customer";
+  added_at: string;
+}
+
+export interface ScoringRules {
+  rules: ScoringRule[];
+  removed: string[];
+  last_test?: { at: string; note: string; applied: boolean; posts: number };
+}
+
 export interface KeywordReviewState {
   review: KeywordReview | null;
   scan: ManualScan | null;
@@ -45,6 +58,7 @@ export interface KeywordReviewState {
   can_review: boolean;
   /** The plan includes the keyword AI (Pro, or self-host). */
   allowed: boolean;
+  rules: ScoringRules;
 }
 
 export const getKeywordReview = (): Promise<KeywordReviewState> => request("/keywords/review");
@@ -56,3 +70,6 @@ export const decideSuggestion = (id: string, decision: "applied" | "dismissed"):
 
 export const suggestKeywords = (count: number): Promise<{ keywords: SuggestedKeyword[] }> =>
   request("/keywords/suggest", { method: "POST", body: JSON.stringify({ count }) });
+
+export const setScoringRules = (rules: string[]): Promise<ScoringRules> =>
+  request("/scoring/rules", { method: "PUT", body: JSON.stringify({ rules }) });

@@ -2,6 +2,8 @@ import { CreditsBanner } from "@/components/billing/credits-banner";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { ChevronLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail } from "@/components/inbox/lead-detail";
 import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
@@ -292,6 +294,8 @@ function InboxPage() {
     <div className="flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
       {search.loosened && <LoosenedBanner /> /* onboarding */}
       <CreditsBanner /* billing */ />
+      {/* Phones: one pane at a time, the list, or the open post with a way back. */}
+      <div className={cn("h-full min-h-0 w-full md:flex md:w-auto", id ? "hidden" : "flex")}>
       <LeadList
         mentions={mentions}
         listTotal={listTotal}
@@ -334,11 +338,20 @@ function InboxPage() {
         totalMentions={totalMentions}
         setup={nothingToActOn ? setup : undefined}
       />
+      </div>
       {isProposalsView ? (
-        <section className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-8">
+        <section className="hidden flex-1 items-center justify-center p-8 text-sm text-muted-foreground md:flex">
           Select a proposal to review community opportunities from the Discovery agent.
         </section>
       ) : (
+        <div className={cn("h-full min-w-0 flex-1 flex-col md:flex", id ? "flex" : "hidden")}>
+        <button
+          type="button"
+          onClick={() => setSearch({ id: undefined })}
+          className="flex h-10 shrink-0 items-center gap-1.5 border-b border-border px-4 text-sm text-muted-foreground md:hidden"
+        >
+          <ChevronLeft className="h-4 w-4" /> Back to inbox
+        </button>
         <LeadDetail
           mention={selected}
           onPrev={goPrev}
@@ -353,6 +366,7 @@ function InboxPage() {
           onFeedback={handleFeedback}
           feedbackPending={feedbackMutation.isPending}
         />
+        </div>
       )}
     </div>
   );

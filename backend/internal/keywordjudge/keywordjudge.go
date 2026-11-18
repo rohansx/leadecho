@@ -133,8 +133,9 @@ func Suggest(ctx context.Context, q *database.Queries, s Suggester, wsID string,
 }
 
 // Review runs the judge for one workspace and stores its report. by is who
-// asked ("weekly", or an email).
-func Review(ctx context.Context, q *database.Queries, r Reviewer, wsID, by string, paidLocked bool, now time.Time) (*Stored, error) {
+// asked ("weekly", or an email). With rs set it also tests the scoring
+// rules the judge proposes and keeps them if they pass (see rules.go).
+func Review(ctx context.Context, q *database.Queries, r Reviewer, rs Rescorer, wsID, by string, paidLocked bool, now time.Time) (*Stored, error) {
 	bp, err := q.GetBrandProfile(ctx, wsID)
 	if err != nil || bp.Product == "" {
 		return nil, ErrNoProfile
@@ -160,9 +161,14 @@ func Review(ctx context.Context, q *database.Queries, r Reviewer, wsID, by strin
 			prev = &p
 		}
 	}
+	rules, err := LoadRules(ctx, q, wsID)
+	if err != nil {
+		return nil, err
+	}
 	in := ai.KeywordReviewInput{
 		Brief: Brief(bp), Keywords: stats, Posts: reviewPosts(posts),
 		Platforms: Platforms(paidLocked), Previous: previousText(prev, stats), Days: int(Window.Hours() / 24),
+		Rules: rules.Texts(), Removed: rules.Removed,
 	}
 	rev, err := r.ReviewKeywords(ctx, wsID, in)
 	if err != nil {
@@ -175,6 +181,11 @@ func Review(ctx context.Context, q *database.Queries, r Reviewer, wsID, by strin
 	}
 	if err := q.SaveKeywordReview(ctx, wsID, raw); err != nil {
 		return nil, fmt.Errorf("save keyword review: %w", err)
+	}
+	if rs != nil {
+		if _, err := updateRules(ctx, q, rs, wsID, rules, rev, posts, now); err != nil {
+			return &st, fmt.Errorf("scoring rules: %w", err)
+		}
 	}
 	return &st, nil
 }

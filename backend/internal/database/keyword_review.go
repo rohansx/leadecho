@@ -13,9 +13,9 @@ import (
 
 // ReviewPostRow is one post sampled for the keyword judge.
 type ReviewPostRow struct {
-	Platform, Keyword, Stage, Text, Reason string
-	Score                                  float64
-	IsLead                                 bool
+	MentionID, Platform, Keyword, Stage, Text, Reason string
+	Score                                             float64
+	IsLead                                            bool
 }
 
 // SampleReviewPosts returns a sample of the workspace's posts since `since`
@@ -25,7 +25,7 @@ type ReviewPostRow struct {
 func (q *Queries) SampleReviewPosts(ctx context.Context, workspaceID string, since time.Time) ([]ReviewPostRow, error) {
 	rows, err := q.db.Query(ctx, `
 WITH m AS (
-  SELECT m.platform::text AS platform, COALESCE(k.term, '') AS keyword,
+  SELECT m.id::text AS mention_id, m.platform::text AS platform, COALESCE(k.term, '') AS keyword,
          COALESCE(m.scoring_metadata->>'stage', '') AS stage,
          left(regexp_replace(trim(COALESCE(m.title, '') || ' ' || COALESCE(m.content, '')), '\s+', ' ', 'g'), 420) AS text,
          left(COALESCE(m.scoring_metadata->>'reasoning', m.scoring_metadata->>'reason', ''), 220) AS reason,
@@ -45,7 +45,7 @@ WITH m AS (
 ), r AS (
   SELECT *, row_number() OVER (PARTITION BY grp ORDER BY created_at DESC) AS rn FROM g WHERE grp > 0
 )
-SELECT platform, keyword, stage, text, reason, score, is_lead FROM r
+SELECT mention_id, platform, keyword, stage, text, reason, score, is_lead FROM r
 WHERE (grp = 1 AND rn <= 20) OR (grp = 2 AND rn <= 12) OR (grp = 3 AND rn <= 12) OR (grp = 4 AND rn <= 16)
 ORDER BY grp, rn`, workspaceID, since)
 	if err != nil {
@@ -55,7 +55,7 @@ ORDER BY grp, rn`, workspaceID, since)
 	var out []ReviewPostRow
 	for rows.Next() {
 		var r ReviewPostRow
-		if err := rows.Scan(&r.Platform, &r.Keyword, &r.Stage, &r.Text, &r.Reason, &r.Score, &r.IsLead); err != nil {
+		if err := rows.Scan(&r.MentionID, &r.Platform, &r.Keyword, &r.Stage, &r.Text, &r.Reason, &r.Score, &r.IsLead); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -151,4 +151,16 @@ LIMIT $2`, before, limit)
 		out = append(out, id)
 	}
 	return out, rows.Err()
+}
+
+// ScoringRulesKey holds the workspace's learned scoring rules.
+const ScoringRulesKey = "scoring_rules"
+
+// SaveScoringRules replaces settings.scoring_rules.
+func (q *Queries) SaveScoringRules(ctx context.Context, workspaceID string, raw []byte) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE workspaces
+SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['scoring_rules'], $2::jsonb, true)
+WHERE id = $1`, workspaceID, string(raw))
+	return err
 }

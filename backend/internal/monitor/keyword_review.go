@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"leadecho/internal/ai"
+	"leadecho/internal/database"
 	"time"
 
 	"leadecho/internal/keywordjudge"
@@ -36,7 +38,15 @@ func (m *Monitor) runKeywordReview(ctx context.Context, ws, by string) string {
 	if m.keywordReviewer == nil {
 		return "no AI provider is set up on this server"
 	}
-	st, err := keywordjudge.Review(ctx, m.q, m.keywordReviewer, ws, by, m.credits.PaidPlatformsLocked(ctx, ws), time.Now().UTC())
+	var rs keywordjudge.Rescorer
+	if m.llmRouter != nil {
+		rs = m
+	}
+	st, err := keywordjudge.Review(ctx, m.q, m.keywordReviewer, rs, ws, by, m.credits.PaidPlatformsLocked(ctx, ws), time.Now().UTC())
+	if st != nil && err != nil { // the review was saved; only the rules step failed
+		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review: scoring rules")
+		err = nil
+	}
 	if err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review failed")
 		return KeywordReviewFailed
@@ -80,4 +90,20 @@ func (m *Monitor) requestDueKeywordReviews(ctx context.Context, now time.Time) {
 			m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review: request")
 		}
 	}
+}
+
+// RescoreWith scores a stored post again with candidate scoring rules and
+// examples, without storing anything, and says whether it would be a lead.
+// It is how the keyword judge tests rules before they are used.
+func (m *Monitor) RescoreWith(ctx context.Context, wsID, mentionID string, rules []string, examples []ai.ScoringExample) (bool, error) {
+	mn, err := m.q.GetMention(ctx, database.GetMentionParams{ID: mentionID, WorkspaceID: wsID})
+	if err != nil {
+		return false, fmt.Errorf("load mention: %w", err)
+	}
+	sc := scoringContextWith(ctx, m.q, m.extraExamples, wsID, mentionID, &examplesOverride{rules: rules, examples: examples}, func(error) {})
+	res, err := m.llmRouter.ClassifyIntent(ctx, wsID, mn.Title.String, mn.Content, string(mn.Platform), sc)
+	if err != nil {
+		return false, err
+	}
+	return qualifiesAsLead(res.RelevanceScore, res.Intent), nil
 }

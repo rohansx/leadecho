@@ -200,6 +200,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Get("/keywords/review", kj.GetReview)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/keywords/review", kj.RequestReview)
 				r.Post("/keywords/review/decision", kj.Decide)
+				r.Put("/scoring/rules", kj.SetRules)
 			}
 
 			// Replies
