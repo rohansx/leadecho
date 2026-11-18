@@ -51,6 +51,9 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescreen")} title="Check the last 30 days of company leads again with the current posting screen and archive the ones that fail. No paid data is used and no credits are taken from the customer.">
           Re-screen company leads
         </Button>
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("keywords")} title="Run the keyword judge now: it reads the last 14 days of posts and leads and suggests keywords to add, pause or move. The customer sees the report on their Keywords page. One strong-model call; no credits are taken from the customer.">
+          Review keywords
+        </Button>
       </div>
       {status && <p className="max-w-56 text-xs text-muted-foreground">{status}</p>}
     </div>

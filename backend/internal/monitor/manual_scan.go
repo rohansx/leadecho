@@ -20,6 +20,7 @@ const (
 	ScanProspects = "prospects" // companies in the customer segments
 	ScanRescore   = "rescore"   // score recent posts again with the current rules
 	ScanRescreen  = "rescreen"  // check recent company leads again and archive the ones that fail
+	ScanKeywords  = "keywords"  // the keyword judge: read what the keywords found, suggest changes
 
 	// ScanByOnboarding is who asked when a workspace finishes onboarding (the
 	// By of an operator's request is their email).
@@ -52,7 +53,7 @@ type ManualScan struct {
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen {
+	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords {
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -288,6 +289,8 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		if err != nil {
 			note += "; " + err.Error()
 		}
+	case ScanKeywords:
+		note = m.runKeywordReview(ctx, ws, scan.By)
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)
 		switch {

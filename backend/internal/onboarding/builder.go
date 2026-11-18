@@ -168,6 +168,7 @@ func (b *Builder) draft(ctx context.Context, wsID string, bp BrandProfile, g Goa
 	}
 	d, err := b.Gen.GenerateListener(gctx, wsID, ai.ListenerPrompt{
 		Goal: string(g), Product: bp.Product, Overview: bp.Overview, Audience: bp.TargetAudience,
+		Positioning: bp.Positioning, Features: head(bp.Features, 8), Segments: SegmentLines(bp.CustomerSegments, 6),
 		Competitors: bp.Competitors, PainPoints: head(problems, 8), Keywords: head(bp.AllKeywords(), 15),
 	})
 	if err != nil || d == nil {
@@ -211,4 +212,22 @@ func orDur(d, def time.Duration) time.Duration {
 		return d
 	}
 	return def
+}
+
+// SegmentLines renders buyer segments for a prompt: "name: pain (IN)".
+func SegmentLines(segs []ai.CustomerSegment, n int) []string {
+	var out []string
+	for _, s := range head(segs, n) {
+		line := strings.TrimSpace(s.Name)
+		if pain := strings.TrimSpace(s.Pain); pain != "" {
+			line += ": " + pain
+		}
+		if s.Country != "" {
+			line += " (" + s.Country + ")"
+		}
+		if line != "" {
+			out = append(out, capLen(line, 300))
+		}
+	}
+	return out
 }

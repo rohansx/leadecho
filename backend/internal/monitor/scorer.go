@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -41,7 +42,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 			m.markStageFiltered(ctx, a, "stage0_own_post", "posted by your own account")
 		case brandNotNamed(a, own): // posts stored before the insert path checked this
 			m.markStageFiltered(ctx, a, "stage0_brand_not_named", "found by a keyword with your product's name, but the post does not mention it")
-		case scoreStage1Rules(a.Content):
+		case scoreStage1Rules(a.Title, a.Content):
 			scoreable = append(scoreable, a)
 		default:
 			m.markStageFiltered(ctx, a, "stage0_rules", "failed rules pre-filter")
@@ -375,7 +376,6 @@ func (m *Monitor) IngestSignals(ctx context.Context, wsID string, alerts []Signa
 	m.ProcessIngestedSignals(ctx, wsID, alerts)
 }
 
-// scoreStage1Rules is a zero-cost rules pre-filter (Stage 0). Returns true if the mention should proceed.
 // minPainPointSimilarity is the cosine similarity a post needs to the nearest
 // embedded pain point to reach classification.
 const minPainPointSimilarity = 0.40
@@ -401,12 +401,21 @@ func filterAbout(bp database.BrandProfile) string {
 	return about
 }
 
-func scoreStage1Rules(content string) bool {
-	if len(content) < 50 {
+// minRulesText is the shortest title+body that reaches the AI. Short is not
+// noise: "Anyone switched from Plaud to Wispr Flow?" is a Reddit title with an
+// empty body, and among the best posts a listener can find.
+const minRulesText = 20
+
+// scoreStage1Rules is a zero-cost rules pre-filter (Stage 0). Returns true if
+// the mention should proceed. The title counts: on Reddit the question is
+// often the whole title.
+func scoreStage1Rules(title, content string) bool {
+	text := strings.TrimSpace(strings.TrimSpace(title) + " " + strings.TrimSpace(content))
+	if utf8.RuneCountInString(text) < minRulesText {
 		return false
 	}
 
-	lower := strings.ToLower(content)
+	lower := strings.ToLower(text)
 
 	// Skip obvious spam patterns
 	spamPatterns := []string{
