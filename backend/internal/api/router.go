@@ -196,9 +196,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			if llmRouter != nil {
 				// Generate more keywords (Pro top-up) and the keyword judge's report.
 				kj := handler.NewKeywordJudgeHandler(queries, credits, llmRouter)
-				r.Post("/keywords/suggest", kj.Suggest)
+				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/keywords/suggest", kj.Suggest)
 				r.Get("/keywords/review", kj.GetReview)
-				r.Post("/keywords/review", kj.RequestReview)
+				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/keywords/review", kj.RequestReview)
 				r.Post("/keywords/review/decision", kj.Decide)
 			}
 

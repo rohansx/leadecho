@@ -73,24 +73,50 @@ func (q *Queries) GetKeywordReview(ctx context.Context, workspaceID string) ([]b
 	return raw, err
 }
 
-// SaveKeywordReview replaces the stored review.
+// SaveKeywordReview replaces the stored review, keeping the decisions
+// already recorded: one made while the review ran is not lost, and a
+// suggestion the customer dismissed stays dismissed when the judge repeats it
+// (a suggestion's id is stable: its kind and term).
 func (q *Queries) SaveKeywordReview(ctx context.Context, workspaceID string, review []byte) error {
 	_, err := q.db.Exec(ctx, `
 UPDATE workspaces
-SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['keyword_review'], $2::jsonb, true)
+SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['keyword_review'],
+                         $2::jsonb || jsonb_build_object('decisions',
+                           COALESCE(settings->'keyword_review'->'decisions', '{}'::jsonb) || COALESCE($2::jsonb->'decisions', '{}'::jsonb)),
+                         true)
 WHERE id = $1`, workspaceID, string(review))
 	return err
 }
 
+// MarkKeywordReviewAttempt records that a review was asked for, whether or
+// not it then succeeds, so a failing review is not retried every hour.
+func (q *Queries) MarkKeywordReviewAttempt(ctx context.Context, workspaceID string, at time.Time) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE workspaces
+SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), ARRAY['keyword_review_attempt_at'], to_jsonb($2::text), true)
+WHERE id = $1`, workspaceID, at.UTC().Format(time.RFC3339))
+	return err
+}
+
+// KeywordReviewAttemptAt is when a review was last asked for (zero if never).
+func (q *Queries) KeywordReviewAttemptAt(ctx context.Context, workspaceID string) (time.Time, error) {
+	var at *time.Time
+	err := q.db.QueryRow(ctx, `SELECT (settings->>'keyword_review_attempt_at')::timestamptz FROM workspaces WHERE id = $1`, workspaceID).Scan(&at)
+	if err != nil || at == nil {
+		return time.Time{}, err
+	}
+	return *at, nil
+}
+
 // SetKeywordReviewDecision records what the customer did with one
-// suggestion ("added", "dismissed", "paused", ...), keyed by its id. It is a
-// no-op when there is no stored review.
+// suggestion ("applied" or "dismissed"), keyed by its id. It is a no-op
+// unless the id is one of the stored review's suggestions.
 func (q *Queries) SetKeywordReviewDecision(ctx context.Context, workspaceID, suggestionID, decision string) (bool, error) {
 	tag, err := q.db.Exec(ctx, `
 UPDATE workspaces
 SET settings = jsonb_set(settings, ARRAY['keyword_review', 'decisions'],
                          COALESCE(settings->'keyword_review'->'decisions', '{}'::jsonb) || jsonb_build_object($2::text, $3::text), true)
-WHERE id = $1 AND settings ? 'keyword_review'`, workspaceID, suggestionID, decision)
+WHERE id = $1 AND settings->'keyword_review'->'suggestions' @> jsonb_build_array(jsonb_build_object('id', $2::text))`, workspaceID, suggestionID, decision)
 	if err != nil {
 		return false, err
 	}
@@ -98,17 +124,20 @@ WHERE id = $1 AND settings ? 'keyword_review'`, workspaceID, suggestionID, decis
 }
 
 // ListWorkspacesDueKeywordReview returns the Pro workspaces with active
-// keywords whose last review (or onboarding) was before `before` and that
-// have no scan waiting or running.
-func (q *Queries) ListWorkspacesDueKeywordReview(ctx context.Context, before time.Time) ([]string, error) {
+// keywords whose last review, or last attempt at one, was before `before`
+// (or that were created before it and never reviewed), with no scan waiting
+// or running; at most limit of them.
+func (q *Queries) ListWorkspacesDueKeywordReview(ctx context.Context, before time.Time, limit int) ([]string, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT w.id::text FROM workspaces w
 WHERE w.plan = 'pro' AND NOT w.scanning_paused
   AND EXISTS (SELECT 1 FROM keywords k WHERE k.workspace_id = w.id AND k.is_active)
   AND EXISTS (SELECT 1 FROM brand_profiles b WHERE b.workspace_id = w.id AND b.product <> '')
-  AND COALESCE((w.settings->'keyword_review'->>'generated_at')::timestamptz, w.created_at) < $1
+  AND COALESCE(GREATEST((w.settings->'keyword_review'->>'generated_at')::timestamptz,
+                         (w.settings->>'keyword_review_attempt_at')::timestamptz), w.created_at) < $1
   AND COALESCE(w.settings->'manual_scan'->>'state', '') NOT IN ('requested', 'running')
-ORDER BY w.id`, before)
+ORDER BY w.id
+LIMIT $2`, before, limit)
 	if err != nil {
 		return nil, err
 	}

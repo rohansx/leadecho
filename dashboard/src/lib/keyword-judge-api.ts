@@ -43,6 +43,8 @@ export interface KeywordReviewState {
   plan: string;
   top_up: boolean;
   can_review: boolean;
+  /** The plan includes the keyword AI (Pro, or self-host). */
+  allowed: boolean;
 }
 
 export const getKeywordReview = (): Promise<KeywordReviewState> => request("/keywords/review");

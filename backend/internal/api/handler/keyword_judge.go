@@ -34,8 +34,10 @@ const (
 	// suggestEvery: one strong-model call per workspace per this long.
 	suggestEvery = 20 * time.Second
 	maxSuggest   = 40
-	// reviewEvery: the customer can ask for a fresh review this often.
+	// reviewEvery: the customer can ask for a fresh review this often;
+	// retryEvery: or this long after one that failed.
 	reviewEvery = 6 * time.Hour
+	retryEvery  = 30 * time.Minute
 )
 
 type keywordReviewState struct {
@@ -49,6 +51,8 @@ type keywordReviewState struct {
 	TopUp bool `json:"top_up"`
 	// CanReview: a new review may be requested now.
 	CanReview bool `json:"can_review"`
+	// Allowed: the plan includes the keyword AI (Pro, or self-host).
+	Allowed bool `json:"allowed"`
 }
 
 func (h *KeywordJudgeHandler) state(r *http.Request, wsID string) (keywordReviewState, error) {
@@ -68,7 +72,8 @@ func (h *KeywordJudgeHandler) state(r *http.Request, wsID string) (keywordReview
 			st.ActiveKeywords++
 		}
 	}
-	st.TopUp = st.Plan == "pro" && st.ActiveKeywords < st.Target && st.ActiveKeywords < st.KeywordLimit
+	st.Allowed = h.allowed(st.Plan)
+	st.TopUp = st.Allowed && st.Plan == "pro" && st.ActiveKeywords < st.Target && st.ActiveKeywords < st.KeywordLimit
 	if raw, err := h.q.GetKeywordReview(ctx, wsID); err == nil && len(raw) > 0 {
 		var rev keywordjudge.Stored
 		if json.Unmarshal(raw, &rev) == nil {
@@ -77,11 +82,22 @@ func (h *KeywordJudgeHandler) state(r *http.Request, wsID string) (keywordReview
 	}
 	scan := h.lastScan(r, wsID)
 	if scan != nil && scan.Kind == monitor.ScanKeywords {
-		st.Scan = scan
+		shown := *scan
+		shown.By = "" // may be an operator's email
+		st.Scan = &shown
 	}
 	now := time.Now().UTC()
-	st.CanReview = (scan == nil || scan.CanRequest(now)) && (st.Review == nil || now.Sub(st.Review.GeneratedAt) > reviewEvery)
+	attempt, _ := h.q.KeywordReviewAttemptAt(ctx, wsID)
+	st.CanReview = st.Allowed && (scan == nil || scan.CanRequest(now)) &&
+		(st.Review == nil || now.Sub(st.Review.GeneratedAt) > reviewEvery) &&
+		now.Sub(attempt) > retryEvery
 	return st, nil
+}
+
+// allowed: the keyword AI runs a strong model, so it is a Pro feature on
+// the hosted service; self-host (credits not enforced) always has it.
+func (h *KeywordJudgeHandler) allowed(plan string) bool {
+	return !h.credits.Enforced() || plan == "pro"
 }
 
 func (h *KeywordJudgeHandler) lastScan(r *http.Request, wsID string) *monitor.ManualScan {
@@ -117,6 +133,10 @@ func (h *KeywordJudgeHandler) RequestReview(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "failed to load the keyword review")
 		return
 	}
+	if !st.Allowed {
+		writeError(w, http.StatusForbidden, "keyword reviews are part of the Pro plan")
+		return
+	}
 	if !st.CanReview {
 		writeError(w, http.StatusTooManyRequests, "a review is already running or was made in the last 6 hours")
 		return
@@ -126,6 +146,10 @@ func (h *KeywordJudgeHandler) RequestReview(w http.ResponseWriter, r *http.Reque
 		by = c.Email
 	}
 	now := time.Now().UTC()
+	if err := h.q.MarkKeywordReviewAttempt(r.Context(), wsID, now); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to request a review")
+		return
+	}
 	scan, _ := monitor.NewManualScan(monitor.ScanKeywords, by, now)
 	raw, _ := json.Marshal(scan)
 	stored, err := h.q.RequestManualScan(r.Context(), wsID, raw, monitor.StaleBefore(now))
@@ -165,7 +189,7 @@ func (h *KeywordJudgeHandler) Decide(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeError(w, http.StatusInternalServerError, "failed to save the decision")
 	case !ok:
-		writeError(w, http.StatusNotFound, "no keyword review")
+		writeError(w, http.StatusNotFound, "no such suggestion in the current review")
 	default:
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
@@ -184,6 +208,15 @@ func (h *KeywordJudgeHandler) Suggest(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Count > maxSuggest {
 		body.Count = maxSuggest
+	}
+	bs, err := h.q.GetBillingState(r.Context(), wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check your plan")
+		return
+	}
+	if !h.allowed(bs.Plan) {
+		writeError(w, http.StatusForbidden, "generating keywords is part of the Pro plan")
+		return
 	}
 	if !h.allowSuggest(wsID, time.Now()) {
 		writeError(w, http.StatusTooManyRequests, "still writing the last batch; try again in a few seconds")

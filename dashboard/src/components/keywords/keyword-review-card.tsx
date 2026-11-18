@@ -53,9 +53,13 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
         const kw = keywords.find((k) => k.term.toLowerCase() === s.term.toLowerCase());
         if (s.kind === "add") {
           if (!kw) await createKeyword({ term: s.term, platforms: s.platforms, match_type: "broad" });
+          else if (!kw.is_active) await updateKeyword(kw.id, { is_active: true }); // a paused copy: switch it back on
         } else if (!kw) throw new Error(`"${s.term}" is no longer one of your keywords`);
         else if (s.kind === "pause") await updateKeyword(kw.id, { is_active: false });
-        else if (s.kind === "platforms" && s.platforms?.length) await updateKeyword(kw.id, { platforms: s.platforms as Platform[] });
+        else if (s.kind === "platforms") {
+          if (!s.platforms?.length) throw new Error("This suggestion names no platforms; dismiss it instead");
+          await updateKeyword(kw.id, { platforms: s.platforms as Platform[] });
+        }
       }
       await decideSuggestion(s.id, decision);
     },
@@ -88,7 +92,7 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {count > 0 && (
+            {data.allowed && count > 0 && (
               <Button size="sm" variant="outline" onClick={() => setGenerating(true)}>
                 <Sparkles className="mr-1 h-3.5 w-3.5" /> Generate keywords
               </Button>
