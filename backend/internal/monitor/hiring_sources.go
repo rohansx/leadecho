@@ -85,6 +85,14 @@ func (m *Monitor) hiringSources(wsID string, st hiringState, since, now time.Tim
 // call succeeded at all.
 func (m *Monitor) collectHiringJobs(ctx context.Context, sources []jobSource, target int, skipReason func(jobPost) string, rep *hiringReport) (fresh []jobPost, searched bool) {
 	seen := map[string]bool{}
+	// Distinct matching postings per company, across pages and sources (the
+	// same posting can come up under two role searches).
+	openings := map[string]map[string]bool{}
+	defer func() {
+		for i := range fresh {
+			fresh[i].Openings = len(openings[companyKey(fresh[i].Company)])
+		}
+	}()
 	for _, src := range sources {
 		sr := rep.source(src.name)
 		for page := 0; page < src.maxPages && len(fresh) < target && rep.SpendMicro < maxHiringSourceSpendMicro && ctx.Err() == nil; page++ {
@@ -100,6 +108,16 @@ func (m *Monitor) collectHiringJobs(ctx context.Context, sources []jobSource, ta
 			}
 			rep.SpendMicro += p.costMicro
 			sr.Fetched += len(p.jobs)
+			for _, j := range p.jobs {
+				key := companyKey(j.Company)
+				if j.Title == "" || key == "" {
+					continue
+				}
+				if openings[key] == nil {
+					openings[key] = map[string]bool{}
+				}
+				openings[key][strings.ToLower(strings.TrimSpace(j.Title))+"|"+j.Location] = true
+			}
 			unique := onePerCompany(p.jobs)
 			rep.skip("duplicate_or_incomplete", len(p.jobs)-len(unique))
 			for _, job := range unique {

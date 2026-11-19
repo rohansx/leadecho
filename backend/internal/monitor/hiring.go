@@ -117,6 +117,11 @@ type hiringState struct {
 	// Carry holds companies that passed the screen and were not reached before
 	// the day's caps: the next run tries them first (hiring_carry.go).
 	Carry []carriedJob `json:"carry,omitempty"`
+	// RequireTrigger keeps only companies with a reason to buy now, not just
+	// an open role (hiring_triggers.go). Set by an operator, for products
+	// where nearly every company "hires for the role" (an engineering
+	// assessment tool and software engineers).
+	RequireTrigger bool `json:"require_trigger,omitempty"`
 }
 
 type jobPost struct {
@@ -136,6 +141,10 @@ type jobPost struct {
 	// Funding is the round the company just raised, when one is known. An
 	// entry with a round and no Title is a funding signal (hiring_funding.go).
 	Funding *fundingRound `json:"-"`
+	// Openings is how many matching postings the company had in this run's
+	// searches; Trigger is why it is worth contacting now (hiring_triggers.go).
+	Openings int    `json:"-"`
+	Trigger  string `json:"-"`
 	// site is the company's website domain, set by the scan once it is known.
 	site string
 }
@@ -294,6 +303,11 @@ func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 		// Funded companies come first in what was just screened: ahead of the
 		// postings, behind what was already waiting.
 		jobs = append(jobs, kept...)
+	}
+	if st.RequireTrigger {
+		var noTrigger int
+		jobs, noTrigger = withTriggers(jobs)
+		rep.skip("no_buying_trigger", noTrigger)
 	}
 	jobs, overShare := limitFunded(jobs, fundedShare(dailyCap))
 	rep.skip("funded_over_share", len(overShare))
@@ -884,6 +898,9 @@ func (m *Monitor) insertHiringSignal(ctx context.Context, wsID, pid string, job 
 	}
 
 	event := "Company posted a matching job" + postedOn(job)
+	if job.Trigger != "" {
+		event = "Company is hiring with a reason to buy now: " + job.Trigger + postedOn(job)
+	}
 	if kind == "funding" {
 		event = "Company just raised " + job.Funding.headline() + ", and newly funded companies hire within weeks"
 	}
