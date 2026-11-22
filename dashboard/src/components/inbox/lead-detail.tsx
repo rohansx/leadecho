@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PostMarkdown } from "@/components/ui/post-markdown";
 import { isCompanySignal, parseFunding, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
 import { splitLeadSections } from "@/lib/lead-sections";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -75,12 +76,13 @@ function SignalRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 // The post body. A company signal's body carries labelled paragraphs ("Who to
-// contact: ..."): those render as rows. Anything else renders as plain text.
+// contact: ..."): those render as rows. Anything else is the author's post,
+// rendered as Markdown (bold, lists, links), as Reddit and HN show it.
 function LeadBody({ mention }: { mention: Mention }) {
   const text = signalText(mention, mention.content);
   const parts = splitLeadSections(text);
   if (!parts) {
-    return <p className="text-sm text-foreground-soft leading-relaxed whitespace-pre-wrap">{text}</p>;
+    return <PostMarkdown text={text} />;
   }
   // The research panel beside this column already shows what the web search found.
   const hideResearch = parseResearch(mention.platform_metadata) != null;

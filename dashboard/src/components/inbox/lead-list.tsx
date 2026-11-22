@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { stripMarkdown } from "@/lib/markdown";
 import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
@@ -478,7 +479,7 @@ export function LeadList({
                     </span>
                   </div>
                   <p className="text-sm text-foreground line-clamp-2 leading-snug">
-                    {m.platform_metadata?.signal === "hiring" ? hiringText(m.content, m, new Date()) : m.content}
+                    {m.platform_metadata?.signal === "hiring" ? hiringText(m.content, m, new Date()) : stripMarkdown(m.content)}
                   </p>
                   {m.person ? (
                     <div className="mt-1 text-xs text-foreground truncate" title={m.person.bio}>
