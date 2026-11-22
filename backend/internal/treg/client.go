@@ -360,7 +360,7 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 			until = mid
 		}
 		if _, already := c.capped.LoadOrStore(capKey(req.WorkspaceID, req.Tool), until); !already {
-			// Once per workspace per day; raise its budget at treg (or
+			// Once per workspace and tool per recheck; raise its budget at treg (or
 			// TREG_CUSTOMER_DAILY_CAP_MICRO) if this is a paying customer.
 			c.logger.Warn().Str("alert", "treg").Str("workspace_id", req.WorkspaceID).Str("tool", req.Tool).Time("until", until).
 				Msg("treg: workspace reached its daily spend cap for this tool; it is retried later")
