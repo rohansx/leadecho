@@ -17,7 +17,7 @@ func TestCustomerDailyCapStopsOnlyThatWorkspace(t *testing.T) {
 	var hits atomic.Int32
 	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
-		if r.Header.Get("X-Treg-Meta") == "customer="+testWS {
+		if r.Header.Get("X-Treg-Meta") == "customer="+testWS && r.URL.Path != "/call/treg.companies.enrich" {
 			w.WriteHeader(http.StatusTooManyRequests)
 			_, _ = w.Write([]byte(capBody))
 			return
@@ -40,13 +40,19 @@ func TestCustomerDailyCapStopsOnlyThatWorkspace(t *testing.T) {
 	if hits.Load() != before {
 		t.Fatal("a capped workspace must not keep calling treg")
 	}
+	// Another tool in the same workspace still goes out: an expensive call
+	// refused for not fitting the remaining budget must not stop cheap ones.
+	before = hits.Load()
+	if _, err := c.Call(ctx, Request{WorkspaceID: testWS, Tool: "treg.companies.enrich"}); err != nil || hits.Load() != before+1 {
+		t.Fatalf("other tool should still be called: err=%v hits=%d", err, hits.Load()-before)
+	}
 	// Everyone else carries on.
 	if _, err := c.Call(ctx, Request{WorkspaceID: otherWS, Tool: "treg.x.search.posts"}); err != nil {
 		t.Fatalf("other workspace should be unaffected: %v", err)
 	}
 	// The cap lifts once its time has passed.
-	c.capped.Store(testWS, time.Now().Add(-time.Minute))
-	if _, err := c.Call(ctx, Request{WorkspaceID: testWS, Tool: "treg.x.search.posts"}); !errors.Is(err, ErrCustomerDailyCap) || hits.Load() == before+1 {
+	c.capped.Store(capKey(testWS, "treg.x.search.posts"), time.Now().Add(-time.Minute))
+	if _, err := c.Call(ctx, Request{WorkspaceID: testWS, Tool: "treg.x.search.posts"}); !errors.Is(err, ErrCustomerDailyCap) || hits.Load() == before+2 {
 		t.Fatalf("after the reset the call must go out again (and here be refused again): err=%v hits=%d", err, hits.Load())
 	}
 }
