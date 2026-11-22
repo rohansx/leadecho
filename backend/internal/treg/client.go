@@ -88,7 +88,7 @@ type Client struct {
 	logger      zerolog.Logger
 	backoff     func(attempt int) time.Duration
 	pausedUntil atomic.Int64 // unix nano
-	capped      sync.Map     // workspace id -> time.Time its daily spend cap lifts
+	capped      sync.Map     // capKey(workspace, tool) -> time.Time the refusal is re-tried
 	meter       Meter        // nil: calls are not metered
 	cache       Cache        // nil: no response cache
 	cacheTTL    time.Duration
@@ -218,17 +218,26 @@ func (c *Client) Call(ctx context.Context, req Request) (*Response, error) {
 	return resp, err
 }
 
-// isCapped reports whether the workspace is inside a spend-cap pause, clearing
-// an expired one.
-func (c *Client) isCapped(ws string) bool {
-	until, ok := c.capped.Load(ws)
+// capKey scopes a spend-cap pause to one tool in one workspace. treg refuses
+// a call whose reserved cost does not fit the day's remaining budget, so an
+// expensive tool (a funding search) can be refused while cheap lookups would
+// still pass: one refusal must not switch off every paid call for the day.
+// A workspace that is really out of budget costs one refused, free call per
+// tool per capRecheck.
+func capKey(ws, tool string) string { return ws + "\x00" + tool }
+
+// isCapped reports whether this tool is inside a spend-cap pause for the
+// workspace, clearing an expired one.
+func (c *Client) isCapped(ws, tool string) bool {
+	key := capKey(ws, tool)
+	until, ok := c.capped.Load(key)
 	if !ok {
 		return false
 	}
 	if time.Now().Before(until.(time.Time)) {
 		return true
 	}
-	c.capped.CompareAndDelete(ws, until)
+	c.capped.CompareAndDelete(key, until)
 	return false
 }
 
@@ -236,7 +245,7 @@ func (c *Client) meteredCall(ctx context.Context, req Request) (*Response, error
 	if c == nil || c.meter == nil {
 		return c.call(ctx, req)
 	}
-	if c.isCapped(req.WorkspaceID) { // before the meter: no credit taken and refunded per refused call
+	if c.isCapped(req.WorkspaceID, req.Tool) { // before the meter: no credit taken and refunded per refused call
 		return nil, ErrCustomerDailyCap
 	}
 	if err := c.meter.Spend(ctx, req.WorkspaceID, 1, "search"); err != nil {
@@ -265,7 +274,7 @@ func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 	if time.Now().UnixNano() < c.pausedUntil.Load() {
 		return nil, ErrPaused
 	}
-	if c.isCapped(req.WorkspaceID) {
+	if c.isCapped(req.WorkspaceID, req.Tool) {
 		return nil, ErrCustomerDailyCap // every call would be refused: don't make them
 	}
 	payload, err := json.Marshal(req.Body)
@@ -350,11 +359,11 @@ func (c *Client) attempt(ctx context.Context, req Request, payload []byte, key s
 		if mid := nextUTCMidnight(time.Now()); mid.Before(until) {
 			until = mid
 		}
-		if _, already := c.capped.LoadOrStore(req.WorkspaceID, until); !already {
+		if _, already := c.capped.LoadOrStore(capKey(req.WorkspaceID, req.Tool), until); !already {
 			// Once per workspace per day; raise its budget at treg (or
 			// TREG_CUSTOMER_DAILY_CAP_MICRO) if this is a paying customer.
-			c.logger.Warn().Str("alert", "treg").Str("workspace_id", req.WorkspaceID).Time("until", until).
-				Msg("treg: workspace reached its daily spend cap; paid data is off for it until the cap resets or is raised")
+			c.logger.Warn().Str("alert", "treg").Str("workspace_id", req.WorkspaceID).Str("tool", req.Tool).Time("until", until).
+				Msg("treg: workspace reached its daily spend cap for this tool; it is retried later")
 		}
 	}
 	c.record(ctx, req, out, callErr)
