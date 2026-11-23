@@ -24,6 +24,9 @@ func TestNewManualScanValidatesTheKind(t *testing.T) {
 	if _, err := NewManualScan(ScanRescreen, "", scanT0); err != nil {
 		t.Fatalf("rescreen is a valid kind: %v", err)
 	}
+	if _, err := NewManualScan(ScanPerson360, "", scanT0); err != nil {
+		t.Fatalf("person360: %v", err)
+	}
 	if _, err := NewManualScan(ScanIdentity, "", scanT0); err != nil {
 		t.Fatalf("identity: %v", err)
 	}

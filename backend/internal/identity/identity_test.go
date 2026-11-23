@@ -32,8 +32,11 @@ func TestClassify(t *testing.T) {
 		{"ftp://jane.dev", "", "", false},
 		{"https://types.pl/@agentultra", KindMastodon, "https://types.pl/@agentultra", true}, // any fediverse server
 		{"https://medium.com/@jane", "", "", false},                                          // a shared host, not fediverse
-		{"https://t.me/jane", "", "", false},                                                 // a Telegram handle, not a site
-		{"https://paragraph.com/@jane", "", "", false},                                       // a blog platform, not their site
+		{"https://t.me/jane", "", "", false},
+		{"mailto:infrastructure@cognizant.researcher", "", "", false}, // not a real TLD
+		{"https://intranet/wiki", "", "", false},
+		{"mailto:jane@acme.co.uk", KindEmail, "mailto:jane@acme.co.uk", true}, // a Telegram handle, not a site
+		{"https://paragraph.com/@jane", "", "", false},                        // a blog platform, not their site
 		{"https://linktr.ee/jane", "", "", false},
 		{"https://jane.github.io/", KindWebsite, "https://jane.github.io", true}, // own subdomain stays a site
 	}

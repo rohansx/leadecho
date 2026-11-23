@@ -493,6 +493,13 @@ func (r *Router) withChatProvider(ctx context.Context, workspaceID string, task 
 
 // withChatProviderUsage is withChatProvider for calls that report token usage (chat).
 func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, task Task, fn func(ai.Provider) (ai.Usage, error)) error {
+	return r.withChatProviderModel(ctx, workspaceID, task, "", fn)
+}
+
+// withChatProviderModel is withChatProviderUsage with the Anthropic model
+// forced (for tasks that need one specific model), so usage is recorded
+// under the model actually called.
+func (r *Router) withChatProviderModel(ctx context.Context, workspaceID string, task Task, anthropicModel string, fn func(ai.Provider) (ai.Usage, error)) error {
 	cfg, legacy, err := r.loadConfig(ctx, workspaceID)
 	if err != nil {
 		return err
@@ -510,6 +517,9 @@ func (r *Router) withChatProviderUsage(ctx context.Context, workspaceID string, 
 			continue
 		}
 		provider := providerForTarget(providerName, key, target, r.system)
+		if anthropicModel != "" && provider.Name == "anthropic" {
+			provider.Model = anthropicModel
+		}
 		var sink ai.Usage
 		provider.UsageSink = &sink
 		start := time.Now()
