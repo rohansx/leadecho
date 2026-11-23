@@ -135,6 +135,13 @@ func (s *Service) saveIdentity(ctx context.Context, ws, leadID, personID string,
 		if l.Confidence < identity.Shown {
 			continue
 		}
+		// Never take over a row that already belongs to someone else (the
+		// upsert would move it): it may be another lead's own author.
+		if cur, err := s.q.GetPersonIdentity(ctx, database.GetPersonIdentityParams{
+			WorkspaceID: ws, Platform: l.Kind, Handle: identityHandle(l),
+		}); err == nil && cur.PersonID != personID {
+			continue
+		}
 		meta, _ := json.Marshal(map[string]string{"evidence": l.Evidence, "method": l.Method})
 		if _, err := s.q.UpsertPersonIdentity(ctx, database.UpsertPersonIdentityParams{
 			PersonID: personID, WorkspaceID: ws, Platform: l.Kind, Handle: identityHandle(l),
@@ -327,6 +334,7 @@ func (s *Service) research(ctx context.Context, ws, leadID, personID string, men
 	if fresh, gerr := s.q.GetLead(saveCtx, database.GetLeadParams{ID: leadID, WorkspaceID: ws}); gerr == nil {
 		s.enrichWithTreg(saveCtx, ws, fresh, personID, platform, handle, profileURL, next)
 	}
+	s.dossierAsync(ws, personID, platform, handle) // with what the agent found
 	return err
 }
 

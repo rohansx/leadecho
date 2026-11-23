@@ -123,7 +123,10 @@ type Config struct {
 	IdentityAgentDailyCap int    `env:"IDENTITY_AGENT_DAILY_CAP,default=50"`
 	// IdentityAgentGlobalCap bounds research runs a day across all workspaces
 	// (~$0.05-0.20 each).
-	IdentityAgentGlobalCap    int   `env:"IDENTITY_AGENT_GLOBAL_DAILY_CAP,default=300"`
+	IdentityAgentGlobalCap int `env:"IDENTITY_AGENT_GLOBAL_DAILY_CAP,default=300"`
+	// PersonDossierDailyCap bounds the model calls that write lead authors'
+	// profiles (one per author whose data changed), per workspace per day.
+	PersonDossierDailyCap     int   `env:"PERSON_DOSSIER_DAILY_CAP,default=200"`
 	TregCustomerDailyCapMicro int64 `env:"TREG_CUSTOMER_DAILY_CAP_MICRO,default=0"`
 
 	// billing: Dodo Payments + prepaid credits (see internal/billing).

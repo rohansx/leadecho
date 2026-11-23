@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LeadList } from "@/components/inbox/lead-list";
-import { LeadDetail } from "@/components/inbox/lead-detail";
+import { LeadDetail, type DetailTab } from "@/components/inbox/lead-detail";
 import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
 import {
   getMention,
@@ -35,6 +35,7 @@ interface InboxSearch {
   tag?: string; // scoring
   sentiment?: string; // scoring
   id?: string;
+  tab?: string; // person360: the lead's open tab
   loosened?: string; // onboarding: set when first value fell back below high fit
 }
 
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/_dashboard/inbox")({
     tag: typeof search.tag === "string" ? search.tag : undefined,
     sentiment: typeof search.sentiment === "string" ? search.sentiment : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
+    tab: search.tab === "person360" || search.tab === "thread" ? search.tab : undefined,
     loosened: typeof search.loosened === "string" ? search.loosened : undefined, // onboarding
   }),
   component: InboxPage,
@@ -237,7 +239,8 @@ function InboxPage() {
   const selected = isProposalsView ? null : (inList ?? (linked && linked.id === id ? linked : null));
   const selectedIndex = selected ? mentions.findIndex((m) => m.id === selected.id) : -1;
 
-  const selectMention = (mentionId: string) => setSearch({ id: mentionId });
+  const selectMention = (mentionId: string, tab?: DetailTab) =>
+    setSearch({ id: mentionId, tab: tab === "overview" ? undefined : tab });
   const goPrev = () => selectedIndex > 0 && selectMention(mentions[selectedIndex - 1].id);
   const goNext = () => {
     if (selectedIndex < 0) return;
@@ -365,6 +368,8 @@ function InboxPage() {
           archiving={archiveMutation.isPending}
           onFeedback={handleFeedback}
           feedbackPending={feedbackMutation.isPending}
+          tab={(search.tab as DetailTab | undefined) ?? "overview"}
+          onTabChange={(t) => setSearch({ tab: t === "overview" ? undefined : t })}
         />
         </div>
       )}

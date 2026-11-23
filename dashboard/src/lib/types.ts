@@ -125,10 +125,25 @@ export interface Person360Person {
   updated_at: string;
 }
 
+/** One post by a person that is a lead in this workspace. */
+export interface PersonPost {
+  mention_id: string;
+  lead_id: string;
+  platform: string;
+  url: string;
+  title: string;
+  excerpt: string;
+  intent?: string;
+  score: number;
+  posted_at: string;
+}
+
 export interface Person360Response {
   person?: Person360Person;
   identities: PersonIdentity[];
   enriched: boolean;
+  /** Every post of theirs that is a lead here, newest first. */
+  posts?: PersonPost[];
 }
 
 export interface Reply {
