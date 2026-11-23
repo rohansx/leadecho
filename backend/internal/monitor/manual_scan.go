@@ -21,6 +21,7 @@ const (
 	ScanRescore   = "rescore"   // score recent posts again with the current rules
 	ScanRescreen  = "rescreen"  // check recent company leads again and archive the ones that fail
 	ScanKeywords  = "keywords"  // the keyword judge: read what the keywords found, suggest changes
+	ScanIdentity  = "identity"  // find who is behind older HN/Reddit/Dev.to/Bluesky leads
 
 	// ScanByOnboarding is who asked when a workspace finishes onboarding (the
 	// By of an operator's request is their email).
@@ -53,7 +54,7 @@ type ManualScan struct {
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords {
+	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords && kind != ScanIdentity {
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -291,6 +292,8 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		}
 	case ScanKeywords:
 		note = m.runKeywordReview(ctx, ws, scan.By)
+	case ScanIdentity:
+		note = m.queueIdentityBackfill(ctx, ws)
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)
 		switch {
@@ -330,4 +333,35 @@ func (m *Monitor) hiringBlocked(ctx context.Context, ws string) string {
 		return "the workspace has not finished onboarding"
 	}
 	return ""
+}
+
+// identityBackfillBatch is how many leads one identity request queues; ask
+// again for the next batch (each lead is marked once tried).
+const identityBackfillBatch = 100
+
+// queueIdentityBackfill queues the workspace's Leads Ready leads whose author
+// was never identified through the same enrichment as a new lead (identity
+// walk, research agent, paid lookup, each under its own caps).
+func (m *Monitor) queueIdentityBackfill(ctx context.Context, ws string) string {
+	if m.enricher == nil {
+		return "lead enrichment is not set up on this server"
+	}
+	refs, err := m.q.ListLeadsWithoutIdentity(ctx, ws, identityBackfillBatch)
+	if err != nil {
+		return "could not list the workspace's leads"
+	}
+	// Mark each lead before queueing it: a second request while this batch
+	// runs (up to an hour) or a lead that fails before its lookup is not
+	// queued again for a week.
+	mark, _ := json.Marshal(map[string]any{"identity_attempt_at": time.Now().UTC()})
+	for _, ref := range refs {
+		if err := m.q.MergeLeadMetadata(ctx, ws, ref.ID, mark); err != nil {
+			return "could not mark the workspace's leads"
+		}
+		m.enricher.EnrichLeadAsync(ref.ID, ws)
+	}
+	if len(refs) == 0 {
+		return "every Leads Ready author here was already looked up"
+	}
+	return fmt.Sprintf("queued %d leads to find who wrote them; results appear on each lead within minutes", len(refs))
 }
