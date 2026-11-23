@@ -9,7 +9,8 @@ type LeadRef struct {
 
 // ListLeadsWithoutIdentity returns the newest leads whose author's identity
 // was never resolved, on the platforms that have a public profile to start
-// from (LinkedIn authors go to the paid lookup as they are).
+// from (LinkedIn authors go to the paid lookup as they are). Only Leads Ready
+// (score >= 6) and open leads: the backfill spends the same as live leads.
 // workspaceID "" means every workspace.
 func (q *Queries) ListLeadsWithoutIdentity(ctx context.Context, workspaceID string, limit int32) ([]LeadRef, error) {
 	rows, err := q.db.Query(ctx, `
@@ -21,6 +22,7 @@ func (q *Queries) ListLeadsWithoutIdentity(ctx context.Context, workspaceID stri
 		  AND l.stage::text NOT IN ('lost', 'converted')
 		  AND m.platform::text IN ('hackernews', 'reddit', 'devto', 'bluesky')
 		  AND coalesce(m.author_username, '') <> ''
+		  AND m.relevance_score >= 6 -- Leads Ready, as the live path enriches
 		  AND ($2 = '' OR l.workspace_id::text = $2)
 		ORDER BY l.created_at DESC
 		LIMIT $1`, limit, workspaceID)

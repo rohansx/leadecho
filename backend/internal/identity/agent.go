@@ -36,6 +36,7 @@ func MergeAgent(p *Profile, f *ai.PersonFindings) *Profile {
 		return &out
 	}
 	ev := newEvidence(p, f)
+	ev.claimedName = f.Name
 	accepted := map[int]bool{}
 	for pass := 0; pass < maxAgentPasses; pass++ { // a newly trusted page can vouch for the next link
 		changed := false
@@ -80,21 +81,26 @@ func MergeAgent(p *Profile, f *ai.PersonFindings) *Profile {
 
 // evidence is what the agent read, reduced to the links on each page.
 type evidence struct {
-	handle   string                     // the author's username where the lead came from
-	pages    map[string]map[string]bool // normalized page URL -> canonical links on it
-	trusted  map[string]bool            // canonical URLs that are theirs
-	hosts    map[string]bool            // hosts of their websites
-	searched map[string]bool            // normalized search-result URLs
+	handle      string                     // the author's username where the lead came from
+	name        string                     // the name tier a found ("" if none)
+	claimedName string                     // the name the agent reports (trusted only if a page of theirs shows it)
+	pages       map[string]map[string]bool // normalized page URL -> canonical links on it
+	text        map[string]string          // normalized page URL -> lower-cased text
+	trusted     map[string]bool            // canonical URLs that are theirs
+	hosts       map[string]bool            // hosts of their websites
+	searched    map[string]bool            // normalized search-result URLs
 }
 
 func newEvidence(p *Profile, f *ai.PersonFindings) *evidence {
-	e := &evidence{pages: map[string]map[string]bool{}, trusted: map[string]bool{}, hosts: map[string]bool{}, searched: map[string]bool{}}
+	e := &evidence{name: p.Name, pages: map[string]map[string]bool{}, text: map[string]string{},
+		trusted: map[string]bool{}, hosts: map[string]bool{}, searched: map[string]bool{}}
 	for u, text := range f.Seen {
 		links := map[string]bool{}
 		for _, c := range ExtractLinks(text) {
 			links[c.URL] = true
 		}
 		e.pages[normalize(u)] = links
+		e.text[normalize(u)] = strings.ToLower(text)
 	}
 	for u := range f.SearchURLs {
 		e.searched[normalize(u)] = true
@@ -108,6 +114,31 @@ func newEvidence(p *Profile, f *ai.PersonFindings) *evidence {
 		}
 	}
 	return e
+}
+
+// personTokens are words that name this person: their username, the name
+// tier a found, and the agent's name once a profile page of theirs shows it.
+func (e *evidence) personTokens() []string {
+	tokens := append([]string{e.handle}, nameTokens(e.name)...)
+	if n := strings.ToLower(strings.TrimSpace(e.claimedName)); n != "" {
+		for page, text := range e.text {
+			if c, ok := Classify("https://" + page); ok && c.Kind != KindWebsite && e.trusted[c.URL] && strings.Contains(text, n) {
+				return append(tokens, nameTokens(n)...)
+			}
+		}
+	}
+	return tokens
+}
+
+// personal: a contact link taken from a website names the person, unless the
+// site is named after their username. An employer's /team page lists
+// colleagues; their LinkedIn or email must not become this person's.
+func (e *evidence) personal(c Classified, page string) bool {
+	pc, ok := Classify(page)
+	if !ok || pc.Kind != KindWebsite || e.ownHandle(pc) {
+		return true
+	}
+	return mentionsAny(Link{Kind: c.Kind, URL: c.URL, Handle: c.Handle}, e.personTokens())
 }
 
 // ownHandle: a profile under the author's username, or a site named after it.
@@ -161,26 +192,47 @@ func (e *evidence) theirs(page string) bool {
 func (e *evidence) linksOn(page string) map[string]bool { return e.pages[normalize(page)] }
 
 // vouches returns the confidence the evidence gives a claimed link (0 when
-// none): it is on a page of theirs; or the agent read the claimed profile
-// itself and it links back to something of theirs; or that profile is under
-// the author's own username and linked both ways with another read page.
+// none):
+//   - a page of theirs links to it (a site page only if the link names them);
+//   - or the agent read the claimed profile, it links to something of theirs,
+//     and something of theirs links to it (both ways);
+//   - or it is under the author's own username and linked with another such
+//     profile or a page it links both ways with.
+//
+// A role mailbox (support@, info@) is never theirs.
 func (e *evidence) vouches(c Classified, page string) float64 {
-	if e.linksOn(page)[c.URL] && e.theirs(page) {
+	if c.Kind == KindEmail && roleAddressRe.MatchString(c.Handle) {
+		return 0
+	}
+	if e.linksOn(page)[c.URL] && e.theirs(page) && e.personal(c, page) {
 		return agentTrustedPage
 	}
 	self := e.ownPage(c)
 	if self == nil || c.Kind == KindEmail {
 		return 0
 	}
-	for l := range self {
-		if l != c.URL && (e.trusted[l] || e.theirs(l)) {
-			return agentTrustedPage
+	if e.linkedFromTheirs(c) {
+		for l := range self {
+			if l != c.URL && (e.trusted[l] || e.theirs(l)) {
+				return agentTrustedPage
+			}
 		}
 	}
 	if e.ownHandle(c) && (e.mutual(c, self) || e.handleLinked(c, self)) {
 		return agentHandleCluster
 	}
 	return 0
+}
+
+// linkedFromTheirs: some read page of theirs links to c (and, on a site, the
+// link names them).
+func (e *evidence) linkedFromTheirs(c Classified) bool {
+	for page, links := range e.pages {
+		if links[c.URL] && e.theirs("https://"+page) && e.personal(c, "https://"+page) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleLinked: c and another profile under the author's username point at

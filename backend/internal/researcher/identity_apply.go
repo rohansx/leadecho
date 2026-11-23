@@ -50,12 +50,13 @@ var agentSlots = make(chan struct{}, 3)
 // SetIdentity enables tier a.
 func (s *Service) SetIdentity(r *identity.Resolver) { s.identity = r }
 
-// SetPersonAgent enables tier b. dailyCap is per workspace (0 = off).
-func (s *Service) SetPersonAgent(a PersonAgent, sandbox SandboxFactory, dailyCap int) {
-	if a == nil || dailyCap <= 0 {
+// SetPersonAgent enables tier b. dailyCap is per workspace, globalCap across
+// all of them (either 0 = off).
+func (s *Service) SetPersonAgent(a PersonAgent, sandbox SandboxFactory, dailyCap, globalCap int) {
+	if a == nil || dailyCap <= 0 || globalCap <= 0 {
 		return
 	}
-	s.agent, s.sandbox, s.agentCap = a, sandbox, dailyCap
+	s.agent, s.sandbox, s.agentCap, s.agentGlobalCap = a, sandbox, dailyCap, globalCap
 }
 
 // resolveIdentity runs tier a for a lead's author and saves it. nil when the
@@ -70,10 +71,10 @@ func (s *Service) resolveIdentity(ctx context.Context, ws string, lead database.
 	seed := identity.Seed{Platform: platform, Handle: handle, ProfileURL: profileURL}
 	prof, err := s.identity.Resolve(ctx, seed)
 	if err != nil {
-		if !errors.Is(err, identity.ErrUnsupported) {
+		if !errors.Is(err, identity.ErrUnsupported) { // LinkedIn authors: nothing to try again
 			s.logger.Debug().Err(err).Str("lead_id", lead.ID).Msg("identity: resolve failed")
+			s.markAttempt(ctx, ws, lead.ID)
 		}
-		s.markAttempt(ctx, ws, lead.ID)
 		return nil
 	}
 	if prof.Incomplete && !prof.HasShown() {
@@ -222,16 +223,37 @@ type dayCounter struct {
 	runs map[string]int
 }
 
-// ponytail: per-process counter; one API instance today. Move to Redis if
-// the API is scaled out.
+// ponytail: per-process counters, reset by a restart (one API instance
+// today). Move to Redis if the API is scaled out or deploys get frequent.
 var agentRuns = &dayCounter{runs: map[string]int{}}
+
+// takeBoth takes one run from the workspace's cap and the global cap, or
+// neither.
+func (c *dayCounter) takeBoth(ws string, limit, global int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.roll()
+	total := 0
+	for _, n := range c.runs {
+		total += n
+	}
+	if total >= global || c.runs[ws] >= limit {
+		return false
+	}
+	c.runs[ws]++
+	return true
+}
+
+func (c *dayCounter) roll() {
+	if d := time.Now().UTC().Format("2006-01-02"); d != c.day {
+		c.day, c.runs = d, map[string]int{}
+	}
+}
 
 func (c *dayCounter) take(ws string, limit int) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if d := time.Now().UTC().Format("2006-01-02"); d != c.day {
-		c.day, c.runs = d, map[string]int{}
-	}
+	c.roll()
 	if c.runs[ws] >= limit {
 		return false
 	}
@@ -253,12 +275,17 @@ func (s *Service) researchAsync(ws, leadID, personID string, mention database.Me
 	if _, busy := inflightAuthors.LoadOrStore(author, struct{}{}); busy {
 		return
 	}
-	if !agentRuns.take(ws, s.agentCap) {
+	if !agentRuns.takeBoth(ws, s.agentCap, s.agentGlobalCap) {
 		inflightAuthors.Delete(author)
 		return
 	}
 	go func() {
 		defer inflightAuthors.Delete(author)
+		defer func() {
+			if r := recover(); r != nil { // a bug here must not take the API down
+				s.logger.Error().Interface("panic", r).Str("lead_id", leadID).Msg("identity: research agent panicked")
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), agentTimeout)
 		defer cancel()
 		select { // waiting for a slot counts against the run's time

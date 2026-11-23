@@ -149,7 +149,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 			return s
 		}
 		return nil // no E2B key: web search and fetch only
-	}, cfg.IdentityAgentDailyCap)
+	}, cfg.IdentityAgentDailyCap, cfg.IdentityAgentGlobalCap)
 	mon.SetTrackedProfilesInterval(time.Duration(cfg.TrackedProfilesPollHours) * time.Hour)
 	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 

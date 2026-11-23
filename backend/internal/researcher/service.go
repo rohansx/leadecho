@@ -80,10 +80,11 @@ type Service struct {
 	enricher *enrich.Enricher
 	crm      CRMEmitter
 	// identity: tier a resolver and the tier b research agent (nil = off).
-	identity *identity.Resolver
-	agent    PersonAgent
-	sandbox  SandboxFactory
-	agentCap int
+	identity       *identity.Resolver
+	agent          PersonAgent
+	sandbox        SandboxFactory
+	agentCap       int
+	agentGlobalCap int
 }
 
 func NewService(q *database.Queries, logger zerolog.Logger) *Service {
@@ -188,7 +189,11 @@ func (s *Service) enrichLead(ctx context.Context, leadID, workspaceID string, pa
 	}
 	githubHandle := extractGitHubHandle(profileURL, mention.Content, ghAuthor)
 	if prof != nil {
-		githubHandle = "" // the walk already read their GitHub: don't spend the rate limit twice
+		// The walk confirmed one: use it. Otherwise only a GitHub URL in the
+		// profile or post counts (ghAuthor is off, so no same-name guess).
+		if l, ok := prof.Best(identity.KindGitHub); ok {
+			githubHandle = l.Handle
+		}
 	}
 	if githubHandle != "" {
 		if gh, err = s.enrichFromGitHub(ctx, workspaceID, person.ID, githubHandle); err != nil {

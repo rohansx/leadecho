@@ -101,3 +101,16 @@ func TestFillRulesNeverOverwrite(t *testing.T) {
 		t.Error("an empty company should be filled")
 	}
 }
+
+func TestDayCounterGlobalCap(t *testing.T) {
+	c := &dayCounter{runs: map[string]int{}}
+	if !c.takeBoth("a", 5, 2) || !c.takeBoth("b", 5, 2) {
+		t.Fatal("two runs fit the global cap")
+	}
+	if c.takeBoth("c", 5, 2) {
+		t.Fatal("the global cap holds across workspaces")
+	}
+	if c.runs["c"] != 0 {
+		t.Fatal("a refused run must not be counted")
+	}
+}

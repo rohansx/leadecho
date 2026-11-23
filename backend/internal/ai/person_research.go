@@ -156,6 +156,8 @@ func ResearchPerson(ctx context.Context, p Provider, in PersonResearch, tools Sa
 		MaxTokens:    16000,
 		System:       []anthropic.TextBlockParam{{Text: personResearchPrompt, CacheControl: anthropic.NewCacheControlEphemeralParam()}},
 		OutputConfig: anthropic.OutputConfigParam{Effort: anthropic.OutputConfigEffortMedium},
+		// Each turn resends everything read so far: cache the growing prefix.
+		CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		Messages:     []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(buildPersonPrompt(in)))},
 	}
 	// The tool list must be identical on every turn: Sonnet 5.5 binds its
@@ -214,10 +216,15 @@ func ResearchPerson(ctx context.Context, p Provider, in PersonResearch, tools Sa
 		if resp.StopReason == anthropic.StopReasonToolUse {
 			reply = runPersonTools(ctx, tools, calls, f, over)
 		}
-		if over {
-			// Append-only, so earlier turns stay valid: ask for the answer now.
+		if over && resp.StopReason == anthropic.StopReasonToolUse {
+			// Append-only, so earlier turns stay valid: ask for the answer now,
+			// next to the tool results it is waiting for.
 			wrapUp = true
 			reply = append(reply, anthropic.NewTextBlock("The research budget is used up. Do not call any more tools. Reply now with ONLY the JSON answer from what you found."))
+		} else if over {
+			// A paused server-tool turn must be resumed as is (no user text
+			// after it); it gets one more turn to finish, then we parse.
+			wrapUp = true
 		}
 		if len(reply) > 0 {
 			params.Messages = append(params.Messages, anthropic.NewUserMessage(reply...))

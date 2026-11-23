@@ -117,11 +117,14 @@ type Config struct {
 	// and always on; GITHUB_TOKEN raises GitHub's limit from 60 to 5,000 calls
 	// an hour. Tier b is the research agent (Claude Sonnet 5.5 + an E2B
 	// sandbox), off when IDENTITY_AGENT_DAILY_CAP is 0 or no ANTHROPIC key.
-	GitHubToken               string `env:"GITHUB_TOKEN,default="`
-	E2BAPIKey                 string `env:"E2B_API_KEY,default="`
-	E2BTemplate               string `env:"E2B_TEMPLATE,default=leadecho-identity"`
-	IdentityAgentDailyCap     int    `env:"IDENTITY_AGENT_DAILY_CAP,default=50"`
-	TregCustomerDailyCapMicro int64  `env:"TREG_CUSTOMER_DAILY_CAP_MICRO,default=0"`
+	GitHubToken           string `env:"GITHUB_TOKEN,default="`
+	E2BAPIKey             string `env:"E2B_API_KEY,default="`
+	E2BTemplate           string `env:"E2B_TEMPLATE,default=leadecho-identity"`
+	IdentityAgentDailyCap int    `env:"IDENTITY_AGENT_DAILY_CAP,default=50"`
+	// IdentityAgentGlobalCap bounds research runs a day across all workspaces
+	// (~$0.05-0.20 each).
+	IdentityAgentGlobalCap    int   `env:"IDENTITY_AGENT_GLOBAL_DAILY_CAP,default=300"`
+	TregCustomerDailyCapMicro int64 `env:"TREG_CUSTOMER_DAILY_CAP_MICRO,default=0"`
 
 	// billing: Dodo Payments + prepaid credits (see internal/billing).
 	DodoAPIKey         string `env:"DODO_API_KEY,default="`

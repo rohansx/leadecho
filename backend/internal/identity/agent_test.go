@@ -7,7 +7,8 @@ import (
 )
 
 func TestMergeAgentKeepsOnlyWhatPagesShow(t *testing.T) {
-	base := &Profile{Tier: "a", Links: []Link{
+	base := &Profile{Tier: "a", Name: "Jane Doe", Links: []Link{
+		{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=janed", Handle: "janed", Confidence: 1, Method: "origin"},
 		{Kind: KindWebsite, URL: "https://jane.dev", Confidence: 0.95, Method: "bio_link"},
 	}}
 	f := &ai.PersonFindings{
@@ -50,7 +51,7 @@ func TestMergeAgentKeepsOnlyWhatPagesShow(t *testing.T) {
 	if p.Tier != "b" || p.Name != "Jane Doe" || p.Role != "CTO" || p.Summary == "" || len(p.Topics) != 1 {
 		t.Errorf("fields not merged: %+v", p)
 	}
-	if len(base.Links) != 1 || base.Tier != "a" {
+	if len(base.Links) != 2 || base.Tier != "a" {
 		t.Error("MergeAgent must not modify its input")
 	}
 }
@@ -85,10 +86,11 @@ func TestMergeAgentNeedsExactLinkNotSubstring(t *testing.T) {
 }
 
 func TestMergeAgentChainsAndLinkBack(t *testing.T) {
-	// The HN profile links to jane.dev, jane.dev links to GitHub (trusted only
-	// once jane.dev is), and a Mastodon profile the agent opened links back to
-	// jane.dev. A third-party page listing an email and a LinkedIn is not theirs.
-	base := &Profile{Links: []Link{{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=janed", Confidence: 1, Method: "origin"}}}
+	// The HN profile links to jane.dev, and jane.dev links to GitHub (trusted
+	// only once jane.dev is). A Mastodon profile that links to jane.dev, with
+	// nothing of theirs linking back, could be anyone who links to that site:
+	// a candidate. A third-party page's email and LinkedIn are not theirs.
+	base := &Profile{Links: []Link{{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=janed", Handle: "janed", Confidence: 1, Method: "origin"}}}
 	f := &ai.PersonFindings{
 		Seen: map[string]string{
 			"https://news.ycombinator.com/user?id=janed": "site: https://jane.dev",
@@ -105,10 +107,13 @@ func TestMergeAgentChainsAndLinkBack(t *testing.T) {
 		},
 	}
 	p := MergeAgent(base, f)
-	for _, kind := range []string{KindWebsite, KindGitHub, KindMastodon} {
+	for _, kind := range []string{KindWebsite, KindGitHub} {
 		if _, ok := p.Best(kind); !ok {
 			t.Errorf("%s should be shown: %+v", kind, p.Links)
 		}
+	}
+	if c := linkConf(p, "https://hachyderm.io/@jane"); c >= Shown {
+		t.Errorf("a one-way inbound link must not be trusted, conf %.2f", c)
 	}
 	if p.Email() != "" {
 		t.Errorf("an email on a page that isn't theirs must not count, got %q", p.Email())
@@ -124,6 +129,7 @@ func TestMergeAgentSameHandleCluster(t *testing.T) {
 	// a candidate; a two-way-linked pair under it is shown.
 	origin := Link{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=iepathos", Handle: "iepathos", Confidence: 1, Method: "origin"}
 	f := &ai.PersonFindings{
+		Name: "Glen Baker",
 		Seen: map[string]string{
 			"https://github.com/iepathos": "Glen Baker https://entropicdrift.com",
 			"https://entropicdrift.com/":  "Glen Baker https://github.com/iepathos https://www.linkedin.com/in/glenbbaker",
@@ -157,5 +163,36 @@ func TestMergeAgentSameHandleCluster(t *testing.T) {
 	}
 	if _, ok := MergeAgent(&Profile{Links: []Link{short}}, g).Best(KindGitHub); ok {
 		t.Error("a 3-letter username must not anchor a cluster")
+	}
+}
+
+func TestMergeAgentEmployerSiteAndRoleMailboxes(t *testing.T) {
+	// Their GitHub lists the employer's site. The agent reads acme.com/team
+	// and claims a colleague's LinkedIn and email, plus support@ on their
+	// own site: none of it is theirs.
+	base := &Profile{Name: "Jane Doe", Links: []Link{
+		{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=janed", Handle: "janed", Confidence: 1, Method: "origin"},
+		{Kind: KindGitHub, URL: "https://github.com/janed", Handle: "janed", Confidence: 0.95},
+		{Kind: KindWebsite, URL: "https://acme.com", Confidence: 0.92},
+		{Kind: KindWebsite, URL: "https://jane.dev", Confidence: 0.95},
+	}}
+	f := &ai.PersonFindings{
+		Seen: map[string]string{
+			"https://acme.com/team": "https://www.linkedin.com/in/bob-smith bob@acme.com jane@acme.com",
+			"https://jane.dev/":     "support@jane.dev",
+		},
+		Links: []ai.AgentLink{
+			{URL: "https://www.linkedin.com/in/bob-smith", Evidence: "https://acme.com/team"},
+			{URL: "mailto:bob@acme.com", Evidence: "https://acme.com/team"},
+			{URL: "mailto:jane@acme.com", Evidence: "https://acme.com/team"},
+			{URL: "mailto:support@jane.dev", Evidence: "https://jane.dev/"},
+		},
+	}
+	p := MergeAgent(base, f)
+	if _, ok := p.Best(KindLinkedIn); ok {
+		t.Error("a colleague's LinkedIn on the employer's team page is not theirs")
+	}
+	if p.Email() != "jane@acme.com" {
+		t.Errorf("only the address that names them counts, got %q (links %+v)", p.Email(), p.Links)
 	}
 }

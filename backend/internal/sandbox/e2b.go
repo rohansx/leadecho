@@ -86,7 +86,11 @@ func (s *Session) start(ctx context.Context) error {
 		"templateID": s.c.template, "timeout": sandboxLife,
 		"network": map[string]any{"allowPublicTraffic": false}, // ports need the traffic token
 	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.c.base+"/sandboxes", bytes.NewReader(body))
+	// Not cancelled with the caller: a sandbox created while we stopped
+	// listening would live out its full lifetime with an ID we never saw.
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, s.c.base+"/sandboxes", bytes.NewReader(body))
 	if err != nil {
 		s.startErr = err
 		return err
