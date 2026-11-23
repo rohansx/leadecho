@@ -36,8 +36,8 @@ func TestClassify(t *testing.T) {
 		{"mailto:infrastructure@cognizant.researcher", "", "", false}, // not a real TLD
 		{"https://intranet/wiki", "", "", false},
 		{"mailto:jane@acme.co.uk", KindEmail, "mailto:jane@acme.co.uk", true},
-		{"mailto:first@kohanikin.com", "", "", false}, // "my first name at": a pattern, not a mailbox // a Telegram handle, not a site
-		{"https://paragraph.com/@jane", "", "", false},                        // a blog platform, not their site
+		{"mailto:first@kohanikin.com", "", "", false},  // "my first name at": a pattern, not a mailbox // a Telegram handle, not a site
+		{"https://paragraph.com/@jane", "", "", false}, // a blog platform, not their site
 		{"https://linktr.ee/jane", "", "", false},
 		{"https://jane.github.io/", KindWebsite, "https://jane.github.io", true}, // own subdomain stays a site
 	}
