@@ -63,13 +63,15 @@ type Profile struct {
 	Role     string `json:"role,omitempty"`
 	Location string `json:"location,omitempty"`
 	// Summary and Topics come from the research agent (tier b).
-	Summary     string    `json:"summary,omitempty"`
-	Topics      []string  `json:"topics,omitempty"`
-	Links       []Link    `json:"links"`
-	RecentPosts []Post    `json:"recent_posts,omitempty"`
-	Tier        string    `json:"tier"` // "a" (public profiles) or "b" (research agent)
-	Fetched     []string  `json:"fetched,omitempty"`
-	ResolvedAt  time.Time `json:"resolved_at"`
+	Summary     string   `json:"summary,omitempty"`
+	Topics      []string `json:"topics,omitempty"`
+	Links       []Link   `json:"links"`
+	RecentPosts []Post   `json:"recent_posts,omitempty"`
+	// Notes: what they said about themselves, for the research agent.
+	Notes      []string  `json:"notes,omitempty"`
+	Tier       string    `json:"tier"` // "a" (public profiles) or "b" (research agent)
+	Fetched    []string  `json:"fetched,omitempty"`
+	ResolvedAt time.Time `json:"resolved_at"`
 	// Incomplete: a source failed (rate limit, outage), so this is not the
 	// whole answer. It is used but not cached or stored as final.
 	Incomplete bool `json:"-"`
@@ -213,7 +215,9 @@ func (r *Resolver) Resolve(ctx context.Context, s Seed) (*Profile, error) {
 }
 
 var originKind = map[string]string{
-	"hackernews": KindHackerNews, "reddit": KindReddit, "devto": KindDevto,
+	// No Reddit: it refuses server IPs and its free API is not for commercial
+	// use, so Reddit authors are not looked up at all.
+	"hackernews": KindHackerNews, "devto": KindDevto,
 	"bluesky": KindBluesky, "twitter": KindX, "x": KindX, "github": KindGitHub,
 }
 
@@ -221,8 +225,6 @@ func originURL(kind, handle string) string {
 	switch kind {
 	case KindHackerNews:
 		return "https://news.ycombinator.com/user?id=" + handle
-	case KindReddit:
-		return "https://www.reddit.com/user/" + handle
 	case KindDevto:
 		return "https://dev.to/" + handle
 	case KindBluesky:
@@ -277,7 +279,7 @@ func (w *walk) add(c Classified, conf float64, evidence, method string) *node {
 
 func fetchable(kind string) bool {
 	switch kind {
-	case KindHackerNews, KindReddit, KindDevto, KindBluesky, KindGitHub, KindWebsite, KindX:
+	case KindHackerNews, KindDevto, KindBluesky, KindGitHub, KindWebsite, KindX:
 		return true
 	}
 	return false
@@ -301,8 +303,6 @@ func (w *walk) fetch(ctx context.Context, n *node) (*Page, error) {
 	switch n.Kind {
 	case KindHackerNews:
 		return w.r.hackerNews(ctx, n.Handle)
-	case KindReddit:
-		return w.r.reddit(ctx, n.Handle)
 	case KindDevto:
 		return w.r.devto(ctx, n.Handle)
 	case KindBluesky:
@@ -356,6 +356,11 @@ func (w *walk) process(n *node, page *Page) {
 	for _, l := range page.MeLinks {
 		if c, ok := Classify(l); ok {
 			child(c, ownerLink, "owner_link")
+		}
+	}
+	for _, h := range page.Hints {
+		if c, ok := Classify(h.URL); ok {
+			child(c, h.Factor, h.Method)
 		}
 	}
 	if n.Kind == KindWebsite {
@@ -514,6 +519,11 @@ func (w *walk) profile() *Profile {
 		}
 		p.Company = firstNonEmpty(p.Company, pg.Company)
 		p.Location = firstNonEmpty(p.Location, pg.Location)
+		for _, note := range pg.Notes {
+			if len(p.Notes) < maxNotes {
+				p.Notes = append(p.Notes, note)
+			}
+		}
 		for _, post := range pg.Posts {
 			if len(p.RecentPosts) < 10 && !hasPost(p.RecentPosts, post.Title) {
 				p.RecentPosts = append(p.RecentPosts, post) // HN lists a story once per comment

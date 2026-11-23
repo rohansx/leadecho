@@ -20,7 +20,7 @@ func (q *Queries) ListLeadsWithoutIdentity(ctx context.Context, workspaceID stri
 		WHERE NOT (l.metadata ? 'identity')
 		  AND coalesce((l.metadata->>'identity_attempt_at')::timestamptz, 'epoch') < now() - interval '7 days'
 		  AND l.stage::text NOT IN ('lost', 'converted')
-		  AND m.platform::text IN ('hackernews', 'reddit', 'devto', 'bluesky')
+		  AND m.platform::text IN ('hackernews', 'devto', 'bluesky')
 		  AND coalesce(m.author_username, '') <> ''
 		  AND m.relevance_score >= 6 -- Leads Ready, as the live path enriches
 		  AND ($2 = '' OR l.workspace_id::text = $2)

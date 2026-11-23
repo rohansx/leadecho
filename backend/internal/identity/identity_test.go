@@ -66,6 +66,9 @@ type fakeWeb struct {
 	requests []string
 	// redirectRoot: "/" redirects to "/home" (apex -> www, http -> https)
 	redirectRoot bool
+	hnPosts      string // Algolia JSON; "" = one Show HN title without a URL
+	devtoUser    string // dev.to user JSON ("" = 404)
+	devtoPosts   string // dev.to articles JSON
 }
 
 func (f *fakeWeb) start(t *testing.T) *Resolver {
@@ -76,7 +79,15 @@ func (f *fakeWeb) start(t *testing.T) *Resolver {
 		case strings.HasPrefix(r.URL.Path, "/hn/user/"):
 			fmt.Fprintf(w, `{"about":%q}`, f.hnAbout)
 		case strings.HasPrefix(r.URL.Path, "/hn/posts"):
-			fmt.Fprint(w, `{"hits":[{"title":"Show HN: my tool","objectID":"1"}]}`)
+			fmt.Fprint(w, firstNonEmpty(f.hnPosts, `{"hits":[{"title":"Show HN: my tool","objectID":"1"}]}`))
+		case strings.HasPrefix(r.URL.Path, "/devto/user"):
+			if f.devtoUser == "" {
+				http.NotFound(w, r)
+				return
+			}
+			fmt.Fprint(w, f.devtoUser)
+		case strings.HasPrefix(r.URL.Path, "/devto/posts"):
+			fmt.Fprint(w, firstNonEmpty(f.devtoPosts, "[]"))
 		case r.URL.Path == "/" && f.redirectRoot:
 			http.Redirect(w, r, "/home", http.StatusMovedPermanently)
 		case r.URL.Path == "/hn/broken":
@@ -107,6 +118,8 @@ func (f *fakeWeb) start(t *testing.T) *Resolver {
 	setURL(t, &hnUserURL, f.srv.URL+"/hn/user/%s.json")
 	setURL(t, &hnPostsURL, f.srv.URL+"/hn/posts?a=%s")
 	setURL(t, &githubAPI, f.srv.URL+"/gh")
+	setURL(t, &devtoUserURL, f.srv.URL+"/devto/user?u=%s")
+	setURL(t, &devtoPostsURL, f.srv.URL+"/devto/posts?u=%s")
 	r := New("", nil)
 	r.api, r.web = f.srv.Client(), f.srv.Client() // the SSRF guard refuses loopback
 	return r
@@ -281,5 +294,44 @@ func TestExtractLinksBareDomains(t *testing.T) {
 		if got[not] {
 			t.Errorf("%s must not be taken as a site", not)
 		}
+	}
+}
+
+func TestHackerNewsShowHNAndSelfDisclosure(t *testing.T) {
+	f := &fakeWeb{hnPosts: `{"hits":[
+		{"title":"Show HN: Tracefolio, audit trails for agents","url":"https://tracefolio.ai/","objectID":"10"},
+		{"story_title":"Ask HN: Who is hiring?","comment_text":"Disclosure: I&#x27;m the founder of Tracefolio. We built it after...","objectID":"11"},
+		{"story_title":"Postgres 19","comment_text":"Nice release, the planner work is great.","objectID":"12"}
+	]}`}
+	r := f.start(t)
+	p, _ := r.Resolve(context.Background(), Seed{Platform: "hackernews", Handle: "janed"})
+	if c := linkConf(p, "https://tracefolio.ai"); c < 0.5 || c >= Shown {
+		t.Errorf("their Show HN product is a candidate below Shown, conf %.2f", c)
+	}
+	if len(p.Notes) != 1 || !strings.Contains(p.Notes[0], "founder of Tracefolio") || !strings.Contains(p.Notes[0], "item?id=11") {
+		t.Errorf("self-disclosure note with its source expected, got %q", p.Notes)
+	}
+}
+
+func TestDevtoCrossPostPointsToTheirBlog(t *testing.T) {
+	f := &fakeWeb{
+		devtoUser: `{"name":"Jane Doe","summary":"writes about Go"}`,
+		devtoPosts: `[{"title":"Go tips","url":"https://dev.to/janed/go-tips","canonical_url":"https://janedoe.blog/go-tips","tag_list":["go"]},
+		              {"title":"Native post","url":"https://dev.to/janed/x","canonical_url":"https://dev.to/janed/x"}]`,
+	}
+	r := f.start(t)
+	p, _ := r.Resolve(context.Background(), Seed{Platform: "devto", Handle: "janed"})
+	if _, ok := p.Best(KindWebsite); !ok {
+		t.Fatalf("the original of a cross-post is where they publish: %+v", p.Links)
+	}
+	if linkConf(p, "https://janedoe.blog") == 0 {
+		t.Error("janedoe.blog expected")
+	}
+}
+
+func TestRedditIsNotLookedUp(t *testing.T) {
+	r := New("", nil)
+	if _, err := r.Resolve(context.Background(), Seed{Platform: "reddit", Handle: "someone"}); err != ErrUnsupported {
+		t.Fatalf("reddit must be unsupported, got %v", err)
 	}
 }
