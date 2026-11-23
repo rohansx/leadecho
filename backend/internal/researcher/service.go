@@ -266,7 +266,9 @@ func (s *Service) ensurePerson(ctx context.Context, workspaceID string, lead dat
 	if platform != "" && handle != "" {
 		if id, err := s.q.GetPersonIdentity(ctx, database.GetPersonIdentityParams{
 			WorkspaceID: workspaceID, Platform: platform, Handle: handle,
-		}); err == nil {
+		}); err == nil && id.Source == "mention_author" {
+			// Only a row made for a lead's author: a link the identity walk
+			// found (even a confident one) must not merge two people.
 			if p, err := s.q.GetPerson(ctx, database.GetPersonParams{ID: id.PersonID, WorkspaceID: workspaceID}); err == nil {
 				return p, nil
 			}

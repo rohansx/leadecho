@@ -538,7 +538,9 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
     refetchInterval: (query) => {
       const d = query.state.data;
       const done = d?.enriched && d.person?.metadata && "dossier" in d.person.metadata;
-      return done || query.state.dataUpdateCount > 40 ? false : 3000;
+      // Enriched but no profile after ~45 s: none is coming (cap reached or off).
+      const gaveUp = query.state.dataUpdateCount > (d?.enriched ? 15 : 40);
+      return done || gaveUp ? false : 3000;
     },
   });
 

@@ -44,3 +44,13 @@ func (q *Queries) ListPersonMentions(ctx context.Context, workspaceID, personID 
 	}
 	return out, rows.Err()
 }
+
+// SetPersonMetaKey sets one key of persons.metadata in place, so a background
+// writer cannot drop keys another writer added meanwhile.
+func (q *Queries) SetPersonMetaKey(ctx context.Context, workspaceID, personID, key string, value []byte) error {
+	_, err := q.db.Exec(ctx,
+		`UPDATE persons SET metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), ARRAY[$3::text], $4::jsonb), updated_at = now()
+		 WHERE id = $1 AND workspace_id = $2`,
+		personID, workspaceID, key, value)
+	return err
+}

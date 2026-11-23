@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"leadecho/internal/ai"
@@ -34,7 +35,12 @@ const (
 var (
 	dossierSlots = make(chan struct{}, 2)
 	dossierRuns  = &dayCounter{runs: map[string]int{}}
+	// dossierBusy: one build per person at a time (two leads by the same
+	// author are often enriched together).
+	dossierBusy sync.Map
 )
+
+const dossierQueueWait = 3 * time.Minute
 
 // SetDossierWriter enables dossiers; dailyCap is per workspace (0 = off).
 func (s *Service) SetDossierWriter(w DossierWriter, dailyCap int) {
@@ -50,20 +56,27 @@ func (s *Service) dossierAsync(ws, personID, platform, handle string) {
 	if s.dossier == nil || personID == "" {
 		return
 	}
+	if _, busy := dossierBusy.LoadOrStore(personID, struct{}{}); busy {
+		return // the running build reads the newest data when it starts its call
+	}
 	go func() {
+		defer dossierBusy.Delete(personID)
 		defer func() {
 			if r := recover(); r != nil {
 				s.logger.Error().Interface("panic", r).Str("person_id", personID).Msg("dossier: panicked")
 			}
 		}()
-		ctx, cancel := context.WithTimeout(context.Background(), dossierTimeout+30*time.Second)
-		defer cancel()
+		wait, cancelWait := context.WithTimeout(context.Background(), dossierQueueWait)
+		defer cancelWait()
 		select {
 		case dossierSlots <- struct{}{}:
 			defer func() { <-dossierSlots }()
-		case <-ctx.Done():
+		case <-wait.Done():
+			s.logger.Info().Str("person_id", personID).Msg("dossier: dropped, queue full")
 			return
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), dossierTimeout+15*time.Second)
+		defer cancel()
 		if err := s.buildDossier(ctx, ws, personID, platform, handle); err != nil {
 			s.logger.Debug().Err(err).Str("person_id", personID).Msg("dossier: not built")
 		}
@@ -107,15 +120,11 @@ func (s *Service) buildDossier(ctx context.Context, ws, personID, platform, hand
 		return err
 	}
 	d.InputHash = hash
-	fresh, err := s.q.GetPerson(ctx, database.GetPersonParams{ID: personID, WorkspaceID: ws}) // metadata may have moved on
+	raw, err := json.Marshal(d)
 	if err != nil {
-		return fmt.Errorf("get person: %w", err)
+		return err
 	}
-	_, err = s.q.UpdatePerson(ctx, database.UpdatePersonParams{
-		ID: personID, WorkspaceID: ws, Confidence: fresh.Confidence,
-		Metadata: mergeMeta(fresh.Metadata, "dossier", d),
-	})
-	return err
+	return s.q.SetPersonMetaKey(ctx, ws, personID, "dossier", raw) // only this key: other writers keep theirs
 }
 
 // dossierInput turns what is stored into the model's input. Only links at
