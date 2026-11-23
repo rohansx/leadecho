@@ -21,6 +21,7 @@ interface Enrichment {
 
 const statusTone: Record<string, string> = {
   verified: "text-green-600",
+  published: "text-green-600", // the person published it themselves
   invalid: "text-red-600",
 };
 
@@ -69,7 +70,11 @@ export function EnrichmentCard({ metadata }: { metadata?: Record<string, unknown
               {e.email_status && (
                 <span className={`ml-2 text-xs ${statusTone[e.email_status] ?? "text-muted-foreground"}`}>{e.email_status}</span>
               )}
-              {e.email_source && <span className="ml-2 text-xs text-muted-foreground">via {e.email_source}</span>}
+              {e.email_source && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {e.email_status === "published" ? "on their own page" : `via ${e.email_source}`}
+                </span>
+              )}
             </dd>
           </div>
         )}

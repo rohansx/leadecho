@@ -345,3 +345,28 @@ func TestParseSize(t *testing.T) {
 		}
 	}
 }
+
+// A Hacker News author whose identity walk found their LinkedIn and a
+// published email: treg gets a key it can match, and the published address
+// is neither re-found nor verified (two paid calls saved).
+func TestPipelinePublishedEmailSkipsFindAndVerify(t *testing.T) {
+	f, c := newFake(t, fullAnswers)
+	res, err := NewPipeline(c, zerolog.Nop()).Run(context.Background(), ws, Subject{
+		Platform: "hackernews", Handle: "janed", ProfileURL: "https://www.linkedin.com/in/janedoe",
+		Email: "jane@jane.dev", EmailSource: "https://jane.dev/about",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Email != "jane@jane.dev" || res.EmailStatus != EmailPublished || res.EmailSource != "https://jane.dev/about" {
+		t.Fatalf("email = %q status %q source %q", res.Email, res.EmailStatus, res.EmailSource)
+	}
+	for _, tool := range f.calls {
+		if tool == ToolEmailFind || tool == ToolEmailVerify {
+			t.Errorf("paid call %s for a published email", tool)
+		}
+	}
+	if res.Steps[ToolPerson] != StepHit {
+		t.Errorf("person lookup should run on the found LinkedIn, got %q", res.Steps[ToolPerson])
+	}
+}

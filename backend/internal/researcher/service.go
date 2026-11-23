@@ -16,6 +16,7 @@ import (
 
 	"leadecho/internal/database"
 	"leadecho/internal/enrich"
+	"leadecho/internal/identity"
 )
 
 var githubHandleRE = regexp.MustCompile(`(?i)github\.com/([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)`)
@@ -78,6 +79,12 @@ type Service struct {
 	// enrich: treg enrichment (nil = off) and CRM push after it.
 	enricher *enrich.Enricher
 	crm      CRMEmitter
+	// identity: tier a resolver and the tier b research agent (nil = off).
+	identity       *identity.Resolver
+	agent          PersonAgent
+	sandbox        SandboxFactory
+	agentCap       int
+	agentGlobalCap int
 }
 
 func NewService(q *database.Queries, logger zerolog.Logger) *Service {
@@ -170,12 +177,24 @@ func (s *Service) enrichLead(ctx context.Context, leadID, workspaceID string, pa
 		return fmt.Errorf("link lead to person: %w", err)
 	}
 
+	// identity tier a: the author's public profiles and what they link to.
+	prof := s.resolveIdentity(ctx, workspaceID, lead, person.ID, platform, handle, profileURL)
+
 	var gh *GitHubProfile
 	ghAuthor := handle
-	if platform == "linkedin" { // enrich: LinkedIn slugs are not GitHub logins
+	if platform == "linkedin" || prof != nil {
+		// LinkedIn slugs are not GitHub logins; and when the identity walk ran,
+		// it already checked whether the same-named GitHub account is theirs.
 		ghAuthor = ""
 	}
 	githubHandle := extractGitHubHandle(profileURL, mention.Content, ghAuthor)
+	if prof != nil {
+		// The walk confirmed one: use it. Otherwise only a GitHub URL in the
+		// profile or post counts (ghAuthor is off, so no same-name guess).
+		if l, ok := prof.Best(identity.KindGitHub); ok {
+			githubHandle = l.Handle
+		}
+	}
 	if githubHandle != "" {
 		if gh, err = s.enrichFromGitHub(ctx, workspaceID, person.ID, githubHandle); err != nil {
 			s.logger.Debug().Err(err).Str("handle", githubHandle).Msg("github enrichment skipped")
@@ -183,7 +202,16 @@ func (s *Service) enrichLead(ctx context.Context, leadID, workspaceID string, pa
 	}
 	var ent *enrich.Result
 	if paid {
-		ent = s.enrichWithTreg(ctx, workspaceID, lead, person.ID, platform, handle, profileURL)
+		if fresh, gerr := s.q.GetLead(ctx, database.GetLeadParams{ID: leadID, WorkspaceID: workspaceID}); gerr == nil {
+			lead = fresh // the identity walk may have filled contact fields
+		}
+		ent = s.enrichWithTreg(ctx, workspaceID, lead, person.ID, platform, handle, profileURL, prof)
+		s.researchAsync(workspaceID, lead.ID, person.ID, mention, platform, handle, profileURL, prof)
+	}
+	if gh == nil && prof != nil {
+		if site, ok := prof.Best(identity.KindWebsite); ok {
+			gh = &GitHubProfile{Blog: site.URL} // ICP: "has a website"
+		}
 	}
 	return s.updateICPFit(ctx, workspaceID, person.ID, mention, gh, ent)
 }

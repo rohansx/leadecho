@@ -74,3 +74,13 @@ func TestCallCachesResults(t *testing.T) {
 		t.Fatal("failed calls must not be cached")
 	}
 }
+
+func TestLookupsAreCachedLongerThanSearches(t *testing.T) {
+	c := &Client{cacheTTL: 4 * time.Hour}
+	if got := c.ttlFor("treg.people.enrich"); got != LookupCacheTTL {
+		t.Errorf("person lookup ttl = %v, want %v", got, LookupCacheTTL)
+	}
+	if got := c.ttlFor("treg.x.search.posts"); got != 4*time.Hour {
+		t.Errorf("search ttl = %v, want 4h", got)
+	}
+}

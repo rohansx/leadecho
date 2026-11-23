@@ -17,6 +17,7 @@ import (
 	"leadecho/internal/crmsync"
 	"leadecho/internal/database"
 	"leadecho/internal/enrich"
+	"leadecho/internal/identity"
 )
 
 // CRMEmitter is the slice of *crmsync.Dispatcher used after enrichment.
@@ -36,12 +37,13 @@ func (s *Service) SetCRM(c *crmsync.Dispatcher) {
 
 // enrichWithTreg runs the paid pipeline once per lead. Every failure is
 // logged and swallowed: the lead stays usable without enrichment.
-func (s *Service) enrichWithTreg(ctx context.Context, ws string, lead database.Lead, personID, platform, handle, profileURL string) *enrich.Result {
-	if !s.enricher.Enabled() || alreadyEnriched(lead.Metadata) {
+func (s *Service) enrichWithTreg(ctx context.Context, ws string, lead database.Lead, personID, platform, handle, profileURL string, prof *identity.Profile) *enrich.Result {
+	sub := withIdentity(enrichSubject(lead, platform, handle, profileURL), prof)
+	if !s.enricher.Enabled() || !needsEnrichment(lead.Metadata, sub) {
 		return nil
 	}
 	saved := false
-	res, err := s.enricher.EnrichThen(ctx, ws, enrichSubject(lead, platform, handle, profileURL), func(r *enrich.Result) error {
+	res, err := s.enricher.EnrichThen(ctx, ws, sub, func(r *enrich.Result) error {
 		// Save even if the run hit its deadline: the steps that finished are paid for.
 		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
@@ -127,15 +129,6 @@ func enrichSubject(lead database.Lead, platform, handle, profileURL string) enri
 		Name: lead.ContactName.String, Handle: handle, Platform: platform,
 		ProfileURL: profileURL, Company: lead.Company.String, Email: lead.ContactEmail.String,
 	}
-}
-
-func alreadyEnriched(meta []byte) bool {
-	var m map[string]json.RawMessage
-	if json.Unmarshal(meta, &m) != nil {
-		return false
-	}
-	_, ok := m["enrichment"]
-	return ok
 }
 
 // mergeMeta returns meta with key set to v (meta is not modified).
