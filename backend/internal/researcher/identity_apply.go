@@ -301,7 +301,7 @@ func (s *Service) researchAsync(ws, leadID, personID string, mention database.Me
 }
 
 func (s *Service) research(ctx context.Context, ws, leadID, personID string, mention database.Mention, platform, handle, profileURL string, prof *identity.Profile) error {
-	in := ai.PersonResearch{Platform: platform, Handle: handle, ProfileURL: profileURL, Name: prof.Name,
+	in := ai.PersonResearch{Platform: platform, Handle: handle, ProfileURL: profileURL, Name: prof.Name, Notes: prof.Notes,
 		Post: strings.TrimSpace(mention.Title.String + "\n" + mention.Content)}
 	for _, l := range prof.Links {
 		if l.Confidence >= 0.5 {

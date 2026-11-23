@@ -26,6 +26,19 @@ type Page struct {
 	Links    []string // explicit links (profile fields, <a href>)
 	MeLinks  []string // rel="me" links: the page owner says these are theirs
 	Posts    []Post
+	// Hints are links that are probably theirs but not proven (their own
+	// Show HN launch, the original of a cross-posted article).
+	Hints []Hint
+	// Notes are things they said about themselves ("I work at...", "founder
+	// here"): context for the research agent, never evidence.
+	Notes []string
+}
+
+// Hint is a link with how much it is worth on its own.
+type Hint struct {
+	URL    string
+	Method string
+	Factor float64
 }
 
 // Post is something the person wrote, used for "what they post about".
@@ -42,12 +55,11 @@ const maxBody = 1 << 20
 // API bases are vars so tests can point them at a local server.
 var (
 	hnUserURL     = "https://hacker-news.firebaseio.com/v0/user/%s.json"
-	hnPostsURL    = "https://hn.algolia.com/api/v1/search_by_date?tags=author_%s&hitsPerPage=12"
+	hnPostsURL    = "https://hn.algolia.com/api/v1/search_by_date?tags=author_%s&hitsPerPage=40"
 	devtoUserURL  = "https://dev.to/api/users/by_username?url=%s"
 	devtoPostsURL = "https://dev.to/api/articles?username=%s&per_page=10"
 	bskyURL       = "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=%s"
 	githubAPI     = "https://api.github.com"
-	redditBase    = "https://www.reddit.com"
 )
 
 const userAgent = "LeadEcho-Identity/1.0 (+https://leadecho.app)"
@@ -90,21 +102,42 @@ func (r *Resolver) hackerNews(ctx context.Context, handle string) (*Page, error)
 	p := &Page{URL: "https://news.ycombinator.com/user?id=" + url.QueryEscape(handle), Bio: clip(about, 600), Text: about}
 	var posts struct {
 		Hits []struct {
-			Title      string `json:"title"`
-			StoryTitle string `json:"story_title"`
-			ObjectID   string `json:"objectID"`
+			Title       string `json:"title"`
+			StoryTitle  string `json:"story_title"`
+			URL         string `json:"url"`
+			CommentText string `json:"comment_text"`
+			ObjectID    string `json:"objectID"`
 		} `json:"hits"`
 	}
 	if r.getJSON(ctx, fmt.Sprintf(hnPostsURL, url.QueryEscape(handle)), nil, &posts) == nil {
 		for _, h := range posts.Hits {
-			t := firstNonEmpty(h.Title, h.StoryTitle)
-			if t != "" {
-				p.Posts = append(p.Posts, Post{Title: clip(t, 200), URL: "https://news.ycombinator.com/item?id=" + h.ObjectID})
+			item := "https://news.ycombinator.com/item?id=" + h.ObjectID
+			if t := firstNonEmpty(h.Title, h.StoryTitle); t != "" && len(p.Posts) < 12 {
+				p.Posts = append(p.Posts, Post{Title: clip(t, 200), URL: item})
+			}
+			// Their own launch: the product is probably theirs (or their employer's).
+			if showHNRe.MatchString(h.Title) && h.URL != "" {
+				p.Hints = append(p.Hints, Hint{URL: h.URL, Method: "show_hn", Factor: showHNHint})
+			}
+			if c := htmlToText(h.CommentText); selfDisclosureRe.MatchString(c) && len(p.Notes) < maxNotes {
+				p.Notes = append(p.Notes, clip(c, 400)+" ("+item+")")
 			}
 		}
 	}
 	return p, nil
 }
+
+const (
+	showHNHint    = 0.7 // a candidate: shown as "possible", checked by the agent
+	canonicalHint = 0.9 // the original of an article they cross-posted: where they publish
+	maxNotes      = 6
+)
+
+var (
+	showHNRe = regexp.MustCompile(`(?i)^(show|launch) hn\b`)
+	// selfDisclosureRe finds comments where people say who they are.
+	selfDisclosureRe = regexp.MustCompile(`(?i)\b(i (work|worked) (at|for|on)|i'?m (the |a )?(co-?)?(founder|ceo|cto|author|maintainer|creator|lead)|i am (the |a )?(co-?)?(founder|ceo|cto|author|maintainer|creator|lead)|(co-?)?founder here|author here|creator here|maintainer here|disclaimer:|disclosure:|my (company|startup|employer|product|team)|i (built|wrote|made|run|started)|we (built|launched|make)|our (company|startup|product))\b`)
+)
 
 func (r *Resolver) devto(ctx context.Context, handle string) (*Page, error) {
 	var u struct {
@@ -130,12 +163,17 @@ func (r *Resolver) devto(ctx context.Context, handle string) (*Page, error) {
 		p.MeLinks = append(p.MeLinks, "https://github.com/"+u.GitHub)
 	}
 	var arts []struct {
-		Title string   `json:"title"`
-		URL   string   `json:"url"`
-		Tags  []string `json:"tag_list"`
+		Title     string   `json:"title"`
+		URL       string   `json:"url"`
+		Canonical string   `json:"canonical_url"`
+		Tags      []string `json:"tag_list"`
 	}
 	if r.getJSON(ctx, fmt.Sprintf(devtoPostsURL, url.QueryEscape(handle)), nil, &arts) == nil {
 		for _, a := range arts {
+			// A cross-post names its original: where they publish themselves.
+			if a.Canonical != "" && !strings.Contains(strings.ToLower(a.Canonical), "://dev.to/") {
+				p.Hints = append(p.Hints, Hint{URL: a.Canonical, Method: "canonical", Factor: canonicalHint})
+			}
 			title := a.Title
 			if len(a.Tags) > 0 {
 				title += " [" + strings.Join(a.Tags, ", ") + "]"
@@ -204,43 +242,6 @@ func (r *Resolver) github(ctx context.Context, handle string) (*Page, error) {
 	if r.getJSON(ctx, githubAPI+"/users/"+url.PathEscape(u.Login)+"/social_accounts", hdr, &social) == nil {
 		for _, s := range social {
 			p.MeLinks = append(p.MeLinks, s.URL)
-		}
-	}
-	return p, nil
-}
-
-// reddit reads the public profile. Reddit refuses most server IPs (403); the
-// research agent covers those leads.
-func (r *Resolver) reddit(ctx context.Context, handle string) (*Page, error) {
-	var about struct {
-		Data struct {
-			Subreddit struct {
-				Title       string `json:"title"`
-				Description string `json:"public_description"`
-			} `json:"subreddit"`
-		} `json:"data"`
-	}
-	if err := r.getJSON(ctx, redditBase+"/user/"+url.PathEscape(handle)+"/about.json", nil, &about); err != nil {
-		return nil, err
-	}
-	d := about.Data.Subreddit
-	p := &Page{URL: "https://www.reddit.com/user/" + handle, Bio: clip(d.Description, 600), Text: d.Title + "\n" + d.Description}
-	var sub struct {
-		Data struct {
-			Children []struct {
-				Data struct {
-					Title     string `json:"title"`
-					Subreddit string `json:"subreddit"`
-					Permalink string `json:"permalink"`
-				} `json:"data"`
-			} `json:"children"`
-		} `json:"data"`
-	}
-	if r.getJSON(ctx, redditBase+"/user/"+url.PathEscape(handle)+"/submitted.json?limit=10", nil, &sub) == nil {
-		for _, c := range sub.Data.Children {
-			if c.Data.Title != "" {
-				p.Posts = append(p.Posts, Post{Title: clip("r/"+c.Data.Subreddit+": "+c.Data.Title, 200), URL: "https://www.reddit.com" + c.Data.Permalink})
-			}
 		}
 	}
 	return p, nil
