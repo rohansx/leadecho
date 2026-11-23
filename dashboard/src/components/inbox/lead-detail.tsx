@@ -38,6 +38,7 @@ import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
+import { IdentityCard } from "./identity-card"; // identity
 import { LeadAssistant } from "./lead-assistant";
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 import { hiringText, leadAge } from "@/lib/lead-age";
@@ -569,6 +570,7 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
         {person.bio && <p className="text-sm mt-3 leading-relaxed text-foreground-soft">{person.bio}</p>}
       </div>
 
+      <IdentityCard metadata={person.metadata} />
       <EnrichmentCard metadata={person.metadata} />
 
       <div>
@@ -580,7 +582,9 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
             <div key={id.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
               <div>
                 <span className="capitalize font-medium">{id.platform}</span>
-                <span className="text-muted-foreground ml-2">@{id.handle}</span>
+                <span className="text-muted-foreground ml-2">
+                  {["website", "booking", "email"].includes(id.platform) ? id.handle : `@${id.handle}`}
+                </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>{Math.round(id.confidence * 100)}%</span>

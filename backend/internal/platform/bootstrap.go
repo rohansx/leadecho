@@ -24,6 +24,7 @@ import (
 	"leadecho/internal/enrich" // enrich feature
 	"leadecho/internal/events/publishers"
 	streamredis "leadecho/internal/events/redis"
+	"leadecho/internal/identity"
 	"leadecho/internal/knowledge"
 	"leadecho/internal/llm"
 	"leadecho/internal/metrics"
@@ -31,6 +32,7 @@ import (
 	"leadecho/internal/onboarding"
 	"leadecho/internal/reply"
 	"leadecho/internal/researcher"
+	"leadecho/internal/sandbox"
 	"leadecho/internal/streamworkers"
 	"leadecho/internal/treg" // treg feature
 	"leadecho/internal/workflow"
@@ -134,6 +136,20 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	enricher := enrich.New(tregClient, queries, cfg.EnrichDailyCap, cfg.TregCustomerDailyCapMicro, logger)
 	researcherSvc.SetEnricher(enricher)
 	researcherSvc.SetCRM(crm)
+	// identity: tier a (public profiles, cached for every workspace) and tier b
+	// (research agent in an E2B sandbox) find the key the paid lookup needs.
+	var identityCache identity.Cache
+	if c := treg.NewRedisCache(redis); c != nil {
+		identityCache = c
+	}
+	researcherSvc.SetIdentity(identity.New(cfg.GitHubToken, identityCache))
+	sandboxes := sandbox.New(cfg.E2BAPIKey, cfg.E2BTemplate)
+	researcherSvc.SetPersonAgent(llmRouter, func() researcher.SandboxSession {
+		if s := sandboxes.Open(); s != nil {
+			return s
+		}
+		return nil // no E2B key: web search and fetch only
+	}, cfg.IdentityAgentDailyCap)
 	mon.SetTrackedProfilesInterval(time.Duration(cfg.TrackedProfilesPollHours) * time.Hour)
 	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 

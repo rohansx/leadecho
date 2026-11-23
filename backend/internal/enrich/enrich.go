@@ -35,6 +35,9 @@ const (
 	StepSkipped = "skipped"
 )
 
+// EmailPublished is the status of an address the person published.
+const EmailPublished = "published"
+
 var (
 	ErrDisabled = errors.New("enrich: treg not configured")
 	ErrDailyCap = errors.New("enrich: workspace daily enrichment cap reached")
@@ -43,6 +46,9 @@ var (
 // Subject is what we know about a lead's author before enrichment.
 type Subject struct {
 	Name, Handle, Platform, ProfileURL, Company, Email string
+	// EmailSource is the page where the person published Email themselves
+	// (their site, profile). Such an address is not re-found or verified.
+	EmailSource string
 }
 
 // Result is stored as leads.metadata.enrichment and persons.metadata.enrichment.
@@ -136,12 +142,34 @@ func (p *Pipeline) Run(ctx context.Context, ws string, s Subject) (*Result, erro
 		step(ToolEmailFind, r.emailFindBody(s), r.applyEmail)
 	}
 	verify := map[string]any(nil)
-	if r.Email != "" {
+	switch {
+	case s.EmailSource != "" && strings.EqualFold(r.Email, s.Email):
+		// Published by the person: they asked to be written to there.
+		r.EmailStatus, r.EmailSource = EmailPublished, s.EmailSource
+	case r.Email != "":
 		verify = map[string]any{"email": r.Email, "resolve_catchall": false}
 	}
 	step(ToolEmailVerify, verify, r.applyVerify)
 	r.checkEmployer()
 	return r, nil
+}
+
+// PersonMatch is what a LinkedIn profile says about its owner.
+type PersonMatch struct {
+	Name, Company, Location string
+}
+
+// PersonLookup reads one LinkedIn profile (one treg call, cached for every
+// workspace). Used to confirm a profile the research agent found by search.
+func (p *Pipeline) PersonLookup(ctx context.Context, ws, linkedInURL string) (PersonMatch, error) {
+	if p.c == nil || !p.c.Enabled() {
+		return PersonMatch{}, ErrDisabled
+	}
+	out, _, err := p.call(ctx, ws, ToolPerson, map[string]any{"linkedin_url": linkedInURL})
+	if err != nil {
+		return PersonMatch{}, err
+	}
+	return PersonMatch{Name: str(out, "full_name"), Company: str(out, "company"), Location: str(out, "location")}, nil
 }
 
 // call runs one step; servedBy is the provider that answered (treg's
@@ -339,6 +367,15 @@ func New(c *treg.Client, counter Counter, dailyCap int, budgetMicro int64, logge
 }
 
 func (e *Enricher) Enabled() bool { return e != nil }
+
+// PersonLookup is Pipeline.PersonLookup. The research agent asks it at most
+// once per run, and the lead's enrichment then reuses it from cache.
+func (e *Enricher) PersonLookup(ctx context.Context, ws, linkedInURL string) (PersonMatch, error) {
+	if e == nil {
+		return PersonMatch{}, ErrDisabled
+	}
+	return e.pipeline.PersonLookup(ctx, ws, linkedInURL)
+}
 
 func (e *Enricher) Enrich(ctx context.Context, ws string, s Subject) (*Result, error) {
 	return e.EnrichThen(ctx, ws, s, nil)

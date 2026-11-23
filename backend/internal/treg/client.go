@@ -187,6 +187,22 @@ func (c *Client) SetCache(cache Cache, ttl time.Duration) {
 	}
 }
 
+// LookupCacheTTL is how long a person/company lookup is reused, by every
+// workspace: who someone is and where they work change over months, not hours.
+const LookupCacheTTL = 30 * 24 * time.Hour
+
+var lookupTools = map[string]bool{
+	"treg.people.enrich": true, "treg.companies.enrich": true, "treg.people.email.find": true,
+	"filtrat.people.email.verify": true, "treg.x.user.profile": true,
+}
+
+func (c *Client) ttlFor(tool string) time.Duration {
+	if lookupTools[tool] {
+		return max(c.cacheTTL, LookupCacheTTL)
+	}
+	return c.cacheTTL
+}
+
 func cacheKey(req Request) (string, bool) {
 	body, err := json.Marshal(req.Body) // map keys marshal sorted: stable
 	if err != nil {
@@ -213,7 +229,7 @@ func (c *Client) Call(ctx context.Context, req Request) (*Response, error) {
 	}
 	resp, err := c.meteredCall(ctx, req)
 	if err == nil && key != "" && resp != nil && resp.Status >= 200 && resp.Status < 300 {
-		c.cache.Set(ctx, key, resp.Body, c.cacheTTL)
+		c.cache.Set(ctx, key, resp.Body, c.ttlFor(req.Tool))
 	}
 	return resp, err
 }

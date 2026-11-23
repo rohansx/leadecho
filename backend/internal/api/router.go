@@ -364,6 +364,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				opsTreg = t
 			}
 			ops := handler.NewOpsHandler(queries, credits, opsTreg, handler.ParseOpsAdmins(cfg.OpsAdminEmails), logger)
+			if rs != nil {
+				ops.SetLeadEnricher(rs)
+			}
 			ops.SetLobby(lobby.New(cfg.LobbyURL, cfg.LobbySecretKey))
 			ops.SetKeycloak(kcadmin.New(cfg.OIDCIssuer, cfg.KeycloakAdminURL, cfg.OIDCClientID, cfg.OIDCClientSecret))
 			r.Route("/ops", func(r chi.Router) {
@@ -374,6 +377,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				r.Get("/audit", ops.Audit)
 				r.Post("/paid-data-paused", ops.SetPaidDataPaused)
 				r.Post("/improve-all", ops.ImproveAll)
+				r.Post("/identity-backfill", ops.IdentityBackfill)
 				r.Post("/workspaces/{id}/plan", ops.SetPlan)
 				r.Post("/workspaces/{id}/credits", ops.AdjustCredits)
 				r.Post("/workspaces/{id}/paid-data", ops.SetPaidData)

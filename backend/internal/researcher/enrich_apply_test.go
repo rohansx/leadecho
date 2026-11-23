@@ -52,18 +52,26 @@ func TestEnrichSubject(t *testing.T) {
 	}
 }
 
-func TestAlreadyEnriched(t *testing.T) {
+func TestNeedsEnrichment(t *testing.T) {
+	bare := `{"enrichment":{"steps":{"treg.people.enrich":"skipped"}}}`
+	found := `{"enrichment":{"full_name":"Jane","steps":{"treg.people.enrich":"hit"}}}`
+	handleOnly := enrich.Subject{Platform: "reddit", Handle: "jane"}
+	withKey := enrich.Subject{Platform: "reddit", Handle: "jane", ProfileURL: "https://www.linkedin.com/in/jane"}
 	cases := []struct {
-		meta string
-		want bool
+		name, meta string
+		sub        enrich.Subject
+		want       bool
 	}{
-		{`{}`, false},
-		{`{"enrichment":{"enriched_at":"2026-11-04T00:00:00Z"}}`, true},
-		{`not json`, false},
+		{"never enriched", `{}`, handleOnly, true},
+		{"unreadable metadata", `not json`, handleOnly, true},
+		{"enriched as a bare handle, still no key", bare, handleOnly, false},
+		{"enriched as a bare handle, now a LinkedIn key", bare, withKey, true},
+		{"enriched as a bare handle, now a published email", bare, enrich.Subject{Email: "j@jane.dev"}, true},
+		{"already found: never pay twice", found, withKey, false},
 	}
 	for _, c := range cases {
-		if got := alreadyEnriched([]byte(c.meta)); got != c.want {
-			t.Errorf("%s: got %v", c.meta, got)
+		if got := needsEnrichment([]byte(c.meta), c.sub); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
 	}
 }

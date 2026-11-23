@@ -39,6 +39,50 @@ type OpsHandler struct {
 	logger  zerolog.Logger
 	lobby   claimCreator // nil: LOBBY_SECRET_KEY not set
 	idp     tempIdP      // nil: no Keycloak; temp accounts use the ?legacy=1 password form
+	leads   leadEnricher // nil: identity backfill unavailable
+}
+
+// leadEnricher queues a lead's Person360 + identity + paid lookup.
+type leadEnricher interface {
+	EnrichLeadAsync(leadID, workspaceID string)
+}
+
+// SetLeadEnricher enables POST /ops/identity-backfill.
+func (h *OpsHandler) SetLeadEnricher(e leadEnricher) { h.leads = e }
+
+// IdentityBackfill resolves who is behind existing HN/Reddit/Dev.to/Bluesky
+// leads that predate the identity walk (newest first). Body: {"limit": n},
+// default 200, max 1000. Work is queued; enrichment is bounded by its own
+// concurrency and each workspace's daily caps. "workspace_id" limits it to
+// one workspace.
+func (h *OpsHandler) IdentityBackfill(w http.ResponseWriter, r *http.Request) {
+	if h.leads == nil {
+		writeError(w, http.StatusServiceUnavailable, "identity backfill is not configured")
+		return
+	}
+	var body struct {
+		Limit       int32  `json:"limit"`
+		WorkspaceID string `json:"workspace_id"`
+	}
+	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<10)).Decode(&body)
+	if body.WorkspaceID != "" && len(body.WorkspaceID) != 36 {
+		writeError(w, http.StatusBadRequest, "workspace_id must be a UUID")
+		return
+	}
+	if body.Limit <= 0 {
+		body.Limit = 200
+	}
+	body.Limit = min(body.Limit, 1000)
+	refs, err := h.q.ListLeadsWithoutIdentity(r.Context(), body.WorkspaceID, body.Limit)
+	if err != nil {
+		h.finish(w, r, "", "identity_backfill", nil, err)
+		return
+	}
+	for _, ref := range refs {
+		h.leads.EnrichLeadAsync(ref.ID, ref.WorkspaceID)
+	}
+	h.audit(r, body.WorkspaceID, "identity_backfill", map[string]any{"leads": len(refs)})
+	writeJSON(w, http.StatusOK, map[string]int{"queued": len(refs)})
 }
 
 func NewOpsHandler(q *database.Queries, credits *billing.Credits, treg TregBalance, admins map[string]bool, logger zerolog.Logger) *OpsHandler {
