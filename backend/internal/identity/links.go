@@ -4,6 +4,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 // Link kinds. A person's identity is a set of these, each with a confidence.
@@ -110,12 +112,22 @@ func ExtractLinks(text string) []Classified {
 	return out
 }
 
+// realDomain: the domain ends in a real public suffix (.com, .co.uk, .dev...),
+// not "cognizant.researcher" or "file.backup" picked out of prose.
+func realDomain(d string) bool {
+	d = strings.ToLower(strings.TrimSuffix(d, "."))
+	ps, icann := publicsuffix.PublicSuffix(d)
+	// A listed private suffix (github.io, netlify.app) has a dot; an unknown
+	// TLD comes back as its bare last label with icann false.
+	return ps != "" && ps != d && (icann || strings.Contains(ps, "."))
+}
+
 func classifyEmail(s string) (Classified, bool) {
 	s = strings.ToLower(strings.Trim(strings.TrimPrefix(strings.TrimSpace(s), "mailto:"), ".,;"))
 	if i := strings.IndexAny(s, "?#"); i >= 0 {
 		s = s[:i]
 	}
-	if !emailRe.MatchString(s) || strings.HasSuffix(s, ".png") || strings.HasSuffix(s, ".jpg") ||
+	if !emailRe.MatchString(s) || !realDomain(s[strings.LastIndex(s, "@")+1:]) || strings.HasSuffix(s, ".png") || strings.HasSuffix(s, ".jpg") ||
 		strings.Contains(s, "example.") || strings.HasPrefix(s, "noreply") || strings.HasPrefix(s, "no-reply") {
 		return Classified{}, false
 	}
@@ -214,6 +226,9 @@ func Classify(raw string) (Classified, bool) {
 	// A personal site: keep only the origin, so "/blog/post-1" and "/" are one site.
 	if u.Port() != "" { // rare on the web; keeps a non-default port reachable
 		return Classified{Kind: KindWebsite, URL: u.Scheme + "://" + strings.ToLower(u.Host)}, true
+	}
+	if !realDomain(host) {
+		return Classified{}, false // "localhost", "intranet", a made-up TLD
 	}
 	return Classified{Kind: KindWebsite, URL: "https://" + host}, true
 }

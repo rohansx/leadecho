@@ -54,3 +54,39 @@ func (q *Queries) FillLeadContact(ctx context.Context, workspaceID, leadID, name
 		leadID, workspaceID, name, email, company)
 	return err
 }
+
+// ListLeadsForPerson360 returns the newest open Leads Ready leads whose
+// author has no Person360 profile yet, or whose identity found a LinkedIn or
+// email that the paid lookup has not used. Skips leads tried in the last day.
+func (q *Queries) ListLeadsForPerson360(ctx context.Context, workspaceID string, limit int32) ([]LeadRef, error) {
+	rows, err := q.db.Query(ctx, `
+		SELECT l.id::text, l.workspace_id::text
+		FROM leads l
+		JOIN mentions m ON m.id = l.mention_id
+		LEFT JOIN persons p ON p.id = l.person_id
+		WHERE l.workspace_id::text = $2
+		  AND l.stage::text NOT IN ('lost', 'converted')
+		  AND m.relevance_score >= 6
+		  AND coalesce((l.metadata->>'person360_attempt_at')::timestamptz, 'epoch') < now() - interval '1 day'
+		  AND (
+		        p.id IS NULL OR NOT (p.metadata ? 'dossier')
+		     OR (NOT (l.metadata ? 'enrichment') AND EXISTS (
+		           SELECT 1 FROM jsonb_array_elements(l.metadata->'identity'->'links') x
+		           WHERE (x->>'confidence')::float >= 0.8 AND x->>'kind' IN ('linkedin', 'email')))
+		  )
+		ORDER BY l.created_at DESC
+		LIMIT $1`, limit, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LeadRef
+	for rows.Next() {
+		var r LeadRef
+		if err := rows.Scan(&r.ID, &r.WorkspaceID); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

@@ -21,7 +21,8 @@ const (
 	ScanRescore   = "rescore"   // score recent posts again with the current rules
 	ScanRescreen  = "rescreen"  // check recent company leads again and archive the ones that fail
 	ScanKeywords  = "keywords"  // the keyword judge: read what the keywords found, suggest changes
-	ScanIdentity  = "identity"  // find who is behind older HN/Reddit/Dev.to/Bluesky leads
+	ScanIdentity  = "identity"  // find who is behind older HN/Dev.to/Bluesky leads
+	ScanPerson360 = "person360" // write missing Person360 profiles, use found keys for the paid lookup
 
 	// ScanByOnboarding is who asked when a workspace finishes onboarding (the
 	// By of an operator's request is their email).
@@ -54,7 +55,7 @@ type ManualScan struct {
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords && kind != ScanIdentity {
+	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords && kind != ScanIdentity && kind != ScanPerson360 {
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -294,6 +295,8 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		note = m.runKeywordReview(ctx, ws, scan.By)
 	case ScanIdentity:
 		note = m.queueIdentityBackfill(ctx, ws)
+	case ScanPerson360:
+		note = m.queuePerson360Backfill(ctx, ws)
 	default:
 		kws, err := m.q.ListActiveKeywords(ctx, ws)
 		switch {
@@ -364,4 +367,29 @@ func (m *Monitor) queueIdentityBackfill(ctx context.Context, ws string) string {
 		return "every Leads Ready author here was already looked up"
 	}
 	return fmt.Sprintf("queued %d leads to find who wrote them; results appear on each lead within minutes", len(refs))
+}
+
+// queuePerson360Backfill re-runs enrichment for leads whose author has no
+// Person360 profile yet, or whose found LinkedIn/email was never looked up.
+// Enrichment writes the profile at its end; the paid lookup runs only for
+// leads that need it and have a key.
+func (m *Monitor) queuePerson360Backfill(ctx context.Context, ws string) string {
+	if m.enricher == nil {
+		return "lead enrichment is not set up on this server"
+	}
+	refs, err := m.q.ListLeadsForPerson360(ctx, ws, identityBackfillBatch)
+	if err != nil {
+		return "could not list the workspace's leads"
+	}
+	mark, _ := json.Marshal(map[string]any{"person360_attempt_at": time.Now().UTC()})
+	for _, ref := range refs {
+		if err := m.q.MergeLeadMetadata(ctx, ws, ref.ID, mark); err != nil {
+			return "could not mark the workspace's leads"
+		}
+		m.enricher.EnrichLeadAsync(ref.ID, ws)
+	}
+	if len(refs) == 0 {
+		return "every Leads Ready author here already has a profile"
+	}
+	return fmt.Sprintf("queued %d leads for their Person360 profile; profiles appear within a few minutes", len(refs))
 }
