@@ -539,12 +539,14 @@ func (w *walk) checkSiteLinks(links []Link, name string) []Link {
 			continue
 		}
 		if n.Method == "origin" || n.Confidence >= Shown {
-			tokens = append(tokens, strings.ToLower(n.Handle))
+			if t := handleToken(n.Handle); t != "" {
+				tokens = append(tokens, t)
+			}
 		}
 	}
 	out := make([]Link, len(links))
 	for i, l := range links {
-		if l.Method == "site_link" && !w.siteIsTheirs(l.Evidence) && !mentionsAny(l, tokens) {
+		if l.Method == "site_link" && !w.siteIsTheirs(l.Evidence) && !mentionsAny(l, tokens) && !ownerMailbox(l, l.Evidence) {
 			l.Confidence = min(l.Confidence, 0.7)
 		}
 		out[i] = l
@@ -561,27 +563,52 @@ func (w *walk) siteIsTheirs(evidence string) bool {
 	return n != nil && (n.Method == "owner_link" || n.Method == "links_back")
 }
 
+// nameTokens returns the part of a name that tells people apart: the
+// surname. A first name alone is shared by colleagues on the same team page.
 func nameTokens(name string) []string {
-	var out []string
-	for _, f := range strings.Fields(strings.ToLower(name)) {
-		if len([]rune(f)) >= 3 {
-			out = append(out, f)
-		}
+	f := strings.Fields(strings.ToLower(name))
+	if len(f) < 2 || len([]rune(f[len(f)-1])) < 3 {
+		return nil
 	}
-	return out
+	return []string{f[len(f)-1]}
 }
 
+// mentionsAny: the link's handle (or an email's local part) contains one of
+// the tokens. Usernames under 4 characters never count ("bob" is everyone).
 func mentionsAny(l Link, tokens []string) bool {
 	v := strings.ToLower(firstNonEmpty(l.Handle, l.URL))
 	if l.Kind == KindEmail {
 		v = strings.SplitN(v, "@", 2)[0]
 	}
 	for _, t := range tokens {
-		if t != "" && strings.Contains(v, t) {
+		if len([]rune(t)) >= 3 && strings.Contains(v, t) {
 			return true
 		}
 	}
 	return false
+}
+
+// handleToken returns a username usable as a name token ("" when too short).
+func handleToken(h string) string {
+	if h = strings.ToLower(h); len([]rune(h)) >= 4 {
+		return h
+	}
+	return ""
+}
+
+// ownerMailbox: jane@jane.dev found on jane.dev, or simon@simonwillison.net
+// on simonwillison.net: a mailbox named in the site's own domain is the
+// site owner's. bob@acme.com on acme.com is not ("bob" is not in "acme").
+func ownerMailbox(l Link, page string) bool {
+	if l.Kind != KindEmail {
+		return false
+	}
+	parts := strings.SplitN(strings.ToLower(l.Handle), "@", 2)
+	if len(parts) != 2 || len([]rune(parts[0])) < 3 {
+		return false
+	}
+	label := strings.SplitN(parts[1], ".", 2)[0]
+	return strings.Contains(label, parts[0]) && sameSite(parts[1], hostOf(page))
 }
 
 func hasPost(posts []Post, title string) bool {

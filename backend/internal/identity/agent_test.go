@@ -192,7 +192,34 @@ func TestMergeAgentEmployerSiteAndRoleMailboxes(t *testing.T) {
 	if _, ok := p.Best(KindLinkedIn); ok {
 		t.Error("a colleague's LinkedIn on the employer's team page is not theirs")
 	}
-	if p.Email() != "jane@acme.com" {
-		t.Errorf("only the address that names them counts, got %q (links %+v)", p.Email(), p.Links)
+	if p.Email() != "" {
+		// jane@acme.com names only a first name: on a team page that is not
+		// enough (the paid lookup can still find their work email).
+		t.Errorf("no address on the employer's page names them, got %q", p.Email())
+	}
+}
+
+func TestColleagueWithTheSameFirstNameIsNotThem(t *testing.T) {
+	base := &Profile{Name: "Jane Doe", Links: []Link{
+		{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=jd", Handle: "jd", Confidence: 1, Method: "origin"},
+		{Kind: KindWebsite, URL: "https://acme.com", Confidence: 0.92},
+	}}
+	f := &ai.PersonFindings{
+		Seen: map[string]string{"https://acme.com/team": "https://www.linkedin.com/in/jane-cooper jane.cooper@acme.com https://www.linkedin.com/in/jane-doe-1"},
+		Links: []ai.AgentLink{
+			{URL: "https://www.linkedin.com/in/jane-cooper", Evidence: "https://acme.com/team"},
+			{URL: "mailto:jane.cooper@acme.com", Evidence: "https://acme.com/team"},
+			{URL: "https://www.linkedin.com/in/jane-doe-1", Evidence: "https://acme.com/team"},
+		},
+	}
+	p := MergeAgent(base, f)
+	if c := linkConf(p, "https://www.linkedin.com/in/jane-cooper"); c >= Shown {
+		t.Errorf("same first name is not the same person, conf %.2f", c)
+	}
+	if p.Email() != "" {
+		t.Errorf("a colleague's email must not count, got %q", p.Email())
+	}
+	if _, ok := p.Best(KindLinkedIn); !ok {
+		t.Error("their surname in the slug should count (jane-doe-1)")
 	}
 }

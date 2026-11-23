@@ -232,6 +232,12 @@ func ResearchPerson(ctx context.Context, p Provider, in PersonResearch, tools Sa
 	}
 	f.Searches = searches
 	if err := parsePersonFindings(final, f); err != nil {
+		if wrapUp {
+			// Out of budget without a clean answer: keep what was read (it is
+			// still the evidence for nothing) and report no findings, rather
+			// than an error that throws the whole run away.
+			return f, u, nil
+		}
 		return nil, u, err
 	}
 	return f, u, nil

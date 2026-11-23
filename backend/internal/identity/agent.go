@@ -119,7 +119,10 @@ func newEvidence(p *Profile, f *ai.PersonFindings) *evidence {
 // personTokens are words that name this person: their username, the name
 // tier a found, and the agent's name once a profile page of theirs shows it.
 func (e *evidence) personTokens() []string {
-	tokens := append([]string{e.handle}, nameTokens(e.name)...)
+	tokens := nameTokens(e.name)
+	if t := handleToken(e.handle); t != "" {
+		tokens = append(tokens, t)
+	}
 	if n := strings.ToLower(strings.TrimSpace(e.claimedName)); n != "" {
 		for page, text := range e.text {
 			if c, ok := Classify("https://" + page); ok && c.Kind != KindWebsite && e.trusted[c.URL] && strings.Contains(text, n) {
@@ -138,7 +141,8 @@ func (e *evidence) personal(c Classified, page string) bool {
 	if !ok || pc.Kind != KindWebsite || e.ownHandle(pc) {
 		return true
 	}
-	return mentionsAny(Link{Kind: c.Kind, URL: c.URL, Handle: c.Handle}, e.personTokens())
+	l := Link{Kind: c.Kind, URL: c.URL, Handle: c.Handle}
+	return mentionsAny(l, e.personTokens()) || ownerMailbox(l, page)
 }
 
 // ownHandle: a profile under the author's username, or a site named after it.
