@@ -39,7 +39,7 @@ func (s *Service) SetCRM(c *crmsync.Dispatcher) {
 // logged and swallowed: the lead stays usable without enrichment.
 func (s *Service) enrichWithTreg(ctx context.Context, ws string, lead database.Lead, personID, platform, handle, profileURL string, prof *identity.Profile) *enrich.Result {
 	sub := withIdentity(enrichSubject(lead, platform, handle, profileURL), prof)
-	if !s.enricher.Enabled() || !needsEnrichment(lead.Metadata, sub) {
+	if !s.enricher.Enabled() || !needsEnrichment(lead.Metadata, sub) || !lookupable(sub) {
 		return nil
 	}
 	saved := false
