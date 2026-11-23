@@ -350,7 +350,14 @@ func (m *Monitor) queueIdentityBackfill(ctx context.Context, ws string) string {
 	if err != nil {
 		return "could not list the workspace's leads"
 	}
+	// Mark each lead before queueing it: a second request while this batch
+	// runs (up to an hour) or a lead that fails before its lookup is not
+	// queued again for a week.
+	mark, _ := json.Marshal(map[string]any{"identity_attempt_at": time.Now().UTC()})
 	for _, ref := range refs {
+		if err := m.q.MergeLeadMetadata(ctx, ws, ref.ID, mark); err != nil {
+			return "could not mark the workspace's leads"
+		}
 		m.enricher.EnrichLeadAsync(ref.ID, ws)
 	}
 	if len(refs) == 0 {
