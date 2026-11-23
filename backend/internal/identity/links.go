@@ -122,12 +122,16 @@ func realDomain(d string) bool {
 	return ps != "" && ps != d && (icann || strings.Contains(ps, "."))
 }
 
+// placeholderEmailRe: a pattern someone describes, not a mailbox
+// ("first@mydomain.com" meaning "my first name at").
+var placeholderEmailRe = regexp.MustCompile(`(?i)^(first|firstname|first\.last|firstlast|name|yourname|your\.?name|you|user|username|email|me|someone|foo|test)@`)
+
 func classifyEmail(s string) (Classified, bool) {
 	s = strings.ToLower(strings.Trim(strings.TrimPrefix(strings.TrimSpace(s), "mailto:"), ".,;"))
 	if i := strings.IndexAny(s, "?#"); i >= 0 {
 		s = s[:i]
 	}
-	if !emailRe.MatchString(s) || !realDomain(s[strings.LastIndex(s, "@")+1:]) || strings.HasSuffix(s, ".png") || strings.HasSuffix(s, ".jpg") ||
+	if !emailRe.MatchString(s) || !realDomain(s[strings.LastIndex(s, "@")+1:]) || placeholderEmailRe.MatchString(s) || strings.HasSuffix(s, ".png") || strings.HasSuffix(s, ".jpg") ||
 		strings.Contains(s, "example.") || strings.HasPrefix(s, "noreply") || strings.HasPrefix(s, "no-reply") {
 		return Classified{}, false
 	}
