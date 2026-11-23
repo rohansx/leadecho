@@ -114,3 +114,21 @@ func TestDayCounterGlobalCap(t *testing.T) {
 		t.Fatal("a refused run must not be counted")
 	}
 }
+
+func TestLookupableNeedsAKeyForForumAuthors(t *testing.T) {
+	for _, c := range []struct {
+		sub  enrich.Subject
+		want bool
+	}{
+		{enrich.Subject{Platform: "hackernews", Handle: "janed"}, false},
+		{enrich.Subject{Platform: "hackernews", Handle: "janed", Email: "jane@jane.dev"}, true},
+		{enrich.Subject{Platform: "devto", Handle: "janed", ProfileURL: "https://www.linkedin.com/in/jane"}, true},
+		{enrich.Subject{Platform: "bluesky", Handle: "jane.dev", ProfileURL: "https://bsky.app/profile/jane.dev"}, false},
+		{enrich.Subject{Platform: "linkedin", Handle: "jane"}, true},
+		{enrich.Subject{Platform: "twitter", Handle: "jane"}, true},
+	} {
+		if got := lookupable(c.sub); got != c.want {
+			t.Errorf("%+v: got %v, want %v", c.sub, got, c.want)
+		}
+	}
+}

@@ -203,6 +203,19 @@ func withIdentity(sub enrich.Subject, p *identity.Profile) enrich.Subject {
 	return sub
 }
 
+// lookupable: the paid lookup has something to match on. A forum author
+// with no LinkedIn URL or email would only skip every step and still use
+// one of the workspace's daily enrichments, which then blocks the authors
+// the research agent does find a key for. LinkedIn and X authors are
+// matched by their handle (X through its profile), so they always go.
+func lookupable(sub enrich.Subject) bool {
+	switch strings.ToLower(sub.Platform) {
+	case "hackernews", "devto", "bluesky", "reddit", "indiehackers", "lobsters":
+		return sub.Email != "" || strings.Contains(strings.ToLower(sub.ProfileURL), "linkedin.com/in/")
+	}
+	return true
+}
+
 // needsEnrichment: never enriched, or enriched as a bare handle (every paid
 // step skipped) and now there is a key to match on.
 func needsEnrichment(meta []byte, sub enrich.Subject) bool {
