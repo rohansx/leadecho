@@ -218,11 +218,12 @@ func Classify(raw string) (Classified, bool) {
 	return Classified{Kind: KindWebsite, URL: "https://" + host}, true
 }
 
+// mastodonPath: host/@name is a fediverse profile on any server (types.pl,
+// hachyderm.io...), never the server's "website". Big platforms that use the
+// same shape (medium.com/@x, tiktok.com/@x) are excluded as shared hosts.
 func mastodonPath(host, first string) bool {
-	return strings.HasPrefix(first, "@") && (strings.Contains(host, "mastodon") || mastodonHosts[host])
+	return len(first) > 1 && strings.HasPrefix(first, "@") && !notAPersonalSite[host]
 }
-
-var mastodonHosts = map[string]bool{"hachyderm.io": true, "fosstodon.org": true, "infosec.exchange": true, "mas.to": true, "mstdn.social": true, "techhub.social": true, "ruby.social": true, "sigmoid.social": true}
 
 func isAssetPath(p string) bool {
 	p = strings.ToLower(p)
