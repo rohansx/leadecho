@@ -118,7 +118,8 @@ export function LeadList({
   proposals?: HumanProposal[];
   isLoading: boolean;
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  /** tab: open the lead on that tab (clicking the author opens Person360). */
+  onSelect: (id: string, tab?: "person360") => void;
   queueFilter: string;
   onQueueChange: (queue: string) => void;
   queueCounts?: InboxQueueCountsResponse;
@@ -447,7 +448,9 @@ export function LeadList({
             return (
               <motion.button
                 key={m.id}
-                onClick={() => onSelect(m.id)}
+                onClick={(e) =>
+                  onSelect(m.id, (e.target as HTMLElement).closest("[data-open-person]") ? "person360" : undefined)
+                }
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.15 }}
@@ -483,7 +486,9 @@ export function LeadList({
                   </p>
                   {m.person ? (
                     <div className="mt-1 text-xs text-foreground truncate" title={m.person.bio}>
-                      <span className="font-medium">{m.person.name || m.author_username}</span>
+                      <span data-open-person title="Open Person360" className="font-medium hover:underline underline-offset-2">
+                        {m.person.name || m.author_username}
+                      </span>
                       {[m.person.title || m.person.bio, [m.person.company, m.person.employees && `(${m.person.employees})`].filter(Boolean).join(" ")]
                         .filter(Boolean)
                         .map((part, i) => (
@@ -493,7 +498,9 @@ export function LeadList({
                     </div>
                   ) : (
                     <div className="mt-1 text-xs text-muted-foreground truncate">
-                      @{m.author_username ?? "unknown"}
+                      <span data-open-person title="Open Person360" className="hover:underline underline-offset-2">
+                        @{m.author_username ?? "unknown"}
+                      </span>
                     </div>
                   )}
                   <div className="mt-1.5">

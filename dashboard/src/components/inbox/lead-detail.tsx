@@ -39,6 +39,7 @@ import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
 import { IdentityCard } from "./identity-card"; // identity
+import { DossierCard, PersonPosts } from "./dossier-card"; // person360 profile
 import { LeadAssistant } from "./lead-assistant";
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 import { hiringText, leadAge } from "@/lib/lead-age";
@@ -114,9 +115,11 @@ function LeadBody({ mention }: { mention: Mention }) {
 function OverviewTab({
   mention,
   onFeedback,
+  onOpenPerson,
 }: {
   mention: Mention;
   onFeedback: (status: "spam" | "archived", reason?: string) => void;
+  onOpenPerson: () => void;
 }) {
   const queryClient = useQueryClient();
   const [localDraft, setDraft] = useState<Awaited<ReturnType<typeof draftReply>> | null>(null);
@@ -239,7 +242,9 @@ function OverviewTab({
           <span>·</span>
           {mention.person ? (
             <span className="text-foreground">
-              <span className="font-medium">{mention.person.name || mention.author_username}</span>
+              <button type="button" onClick={onOpenPerson} title="Open Person360" className="font-medium cursor-pointer hover:underline underline-offset-2">
+                {mention.person.name || mention.author_username}
+              </button>
               {[mention.person.title || mention.person.bio, [mention.person.company, mention.person.employees && `(${mention.person.employees} employees)`].filter(Boolean).join(" ")]
                 .filter(Boolean)
                 .map((part, i) => (
@@ -247,7 +252,9 @@ function OverviewTab({
                 ))}
             </span>
           ) : (
-            <span>@{mention.author_username ?? "unknown"}</span>
+            <button type="button" onClick={onOpenPerson} title="Open Person360" className="cursor-pointer hover:underline underline-offset-2">
+              @{mention.author_username ?? "unknown"}
+            </button>
           )}
           <a
             href={mention.url}
@@ -526,7 +533,13 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: [QUERY_KEYS.person360, mentionId],
     queryFn: () => getMentionPerson360(mentionId),
-    refetchInterval: (query) => (query.state.data?.enriched ? false : 3000),
+    // Keep checking until the person is enriched and their profile written
+    // (it follows enrichment by a minute or so); give up after ~2 minutes.
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      const done = d?.enriched && d.person?.metadata && "dossier" in d.person.metadata;
+      return done || query.state.dataUpdateCount > 40 ? false : 3000;
+    },
   });
 
   if (isLoading) {
@@ -570,8 +583,10 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
         {person.bio && <p className="text-sm mt-3 leading-relaxed text-foreground-soft">{person.bio}</p>}
       </div>
 
+      <DossierCard metadata={person.metadata} posts={data.posts ?? []} />
       <IdentityCard metadata={person.metadata} />
       <EnrichmentCard metadata={person.metadata} />
+      <PersonPosts posts={data.posts ?? []} current={mentionId} />
 
       <div>
         <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
@@ -762,6 +777,8 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   );
 }
 
+export type DetailTab = "overview" | "person360" | "thread";
+
 export function LeadDetail({
   mention,
   onPrev,
@@ -772,6 +789,8 @@ export function LeadDetail({
   archiving,
   onFeedback,
   feedbackPending,
+  tab = "overview",
+  onTabChange,
 }: {
   mention: Mention | null;
   onPrev: () => void;
@@ -782,8 +801,11 @@ export function LeadDetail({
   archiving: boolean;
   onFeedback: (status: "spam" | "archived", reason?: string) => void;
   feedbackPending: boolean;
+  /** The open tab; kept in the URL (?tab=) so a username can link to Person360. */
+  tab?: DetailTab;
+  onTabChange: (tab: DetailTab) => void;
 }) {
-  const [tab, setTab] = useState<"overview" | "person360" | "thread">("overview");
+  const setTab = onTabChange;
 
   if (!mention) {
     return (
@@ -862,7 +884,7 @@ export function LeadDetail({
             transition={{ duration: 0.15 }}
           >
             {tab === "overview" ? (
-              <OverviewTab mention={mention} onFeedback={onFeedback} />
+              <OverviewTab mention={mention} onFeedback={onFeedback} onOpenPerson={() => setTab("person360")} />
             ) : tab === "person360" ? (
               <Person360Tab mentionId={mention.id} />
             ) : (

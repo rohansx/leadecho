@@ -82,9 +82,11 @@ type Service struct {
 	// identity: tier a resolver and the tier b research agent (nil = off).
 	identity       *identity.Resolver
 	agent          PersonAgent
+	dossier        DossierWriter
 	sandbox        SandboxFactory
 	agentCap       int
 	agentGlobalCap int
+	dossierCap     int
 }
 
 func NewService(q *database.Queries, logger zerolog.Logger) *Service {
@@ -213,7 +215,9 @@ func (s *Service) enrichLead(ctx context.Context, leadID, workspaceID string, pa
 			gh = &GitHubProfile{Blog: site.URL} // ICP: "has a website"
 		}
 	}
-	return s.updateICPFit(ctx, workspaceID, person.ID, mention, gh, ent)
+	err = s.updateICPFit(ctx, workspaceID, person.ID, mention, gh, ent)
+	s.dossierAsync(workspaceID, person.ID, platform, handle)
+	return err
 }
 
 func (s *Service) updateICPFit(ctx context.Context, workspaceID, personID string, mention database.Mention, gh *GitHubProfile, ent *enrich.Result) error {
@@ -254,6 +258,18 @@ func (s *Service) ensurePerson(ctx context.Context, workspaceID string, lead dat
 		})
 		if err == nil {
 			return p, nil
+		}
+	}
+
+	// One person per author: a second post by the same handle adds to the
+	// profile the first one started.
+	if platform != "" && handle != "" {
+		if id, err := s.q.GetPersonIdentity(ctx, database.GetPersonIdentityParams{
+			WorkspaceID: workspaceID, Platform: platform, Handle: handle,
+		}); err == nil {
+			if p, err := s.q.GetPerson(ctx, database.GetPersonParams{ID: id.PersonID, WorkspaceID: workspaceID}); err == nil {
+				return p, nil
+			}
 		}
 	}
 
@@ -337,6 +353,8 @@ type Person360View struct {
 	Person     *PersonView    `json:"person,omitempty"`
 	Identities []IdentityView `json:"identities"`
 	Enriched   bool           `json:"enriched"`
+	// Posts are every post of theirs that is a lead in this workspace.
+	Posts []database.PersonMention `json:"posts"`
 }
 
 // PersonView / IdentityView shadow the jsonb []byte Metadata column so it
@@ -397,10 +415,15 @@ func (s *Service) GetPerson360ByMention(ctx context.Context, workspaceID, mentio
 	for _, id := range identities {
 		views = append(views, IdentityView{PersonIdentity: id, Metadata: rawJSON(id.Metadata)})
 	}
+	posts, err := s.q.ListPersonMentions(ctx, workspaceID, person.ID, 25)
+	if err != nil {
+		return nil, err
+	}
 	return &Person360View{
 		Person:     &PersonView{Person: person, Metadata: rawJSON(person.Metadata)},
 		Identities: views,
 		Enriched:   true,
+		Posts:      posts,
 	}, nil
 }
 

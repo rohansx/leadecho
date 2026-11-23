@@ -150,6 +150,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 		}
 		return nil // no E2B key: web search and fetch only
 	}, cfg.IdentityAgentDailyCap, cfg.IdentityAgentGlobalCap)
+	researcherSvc.SetDossierWriter(llmRouter, cfg.PersonDossierDailyCap) // Person360 profiles
 	mon.SetTrackedProfilesInterval(time.Duration(cfg.TrackedProfilesPollHours) * time.Hour)
 	mon.AddExampleSource(onboarding.CalibrationSource{Store: queries}) // onboarding samples -> scorer few-shot
 
