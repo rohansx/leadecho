@@ -46,13 +46,26 @@ var bookingHosts = map[string]bool{
 var notAPersonalSite = map[string]bool{
 	"news.ycombinator.com": true, "reddit.com": true, "old.reddit.com": true,
 	"google.com": true, "medium.com": true, "substack.com": true, "t.co": true,
-	"bit.ly": true, "linktr.ee": false, "amazon.com": true, "apple.com": true,
+	"bit.ly": true, "amazon.com": true, "apple.com": true,
 	"wikipedia.org": true, "en.wikipedia.org": true, "docs.google.com": true,
 	"stackoverflow.com": true, "facebook.com": true, "instagram.com": true,
 	"tiktok.com": true, "discord.gg": true, "discord.com": true, "producthunt.com": true,
 	"npmjs.com": true, "pypi.org": true, "crates.io": true, "gist.github.com": true,
 	"keybase.io": true, "orcid.org": true, "patreon.com": true, "ko-fi.com": true,
 	"buymeacoffee.com": true, "paypal.me": true, "web.archive.org": true,
+	// Shared hosts where the path names the user (t.me/jane, paragraph.com/@jane):
+	// the host is nobody's personal site, and its pages link to the service's
+	// own accounts (Telegram's X account), not the person's.
+	"t.me": true, "telegram.me": true, "telegram.org": true, "wa.me": true, "linktr.ee": true,
+	"bio.link": true, "beacons.ai": true, "paragraph.com": true, "paragraph.xyz": true,
+	"mirror.xyz": true, "hashnode.com": true, "gumroad.com": true, "notion.so": true,
+	"threads.net": true, "drive.google.com": true,
+	"dropbox.com": true, "youtu.be": true, "about.me": true, "carrd.co": true,
+	"read.cv": true, "polywork.com": true, "peerlist.io": true, "huggingface.co": true,
+	"kaggle.com": true, "gitlab.com": true, "codepen.io": true, "replit.com": true,
+	"behance.net": true, "dribbble.com": true, "itch.io": true, "twitch.tv": true,
+	"spotify.com": true, "open.spotify.com": true, "apps.apple.com": true, "play.google.com": true,
+	"chrome.google.com": true, "chromewebstore.google.com": true, "vercel.com": true, "netlify.com": true,
 }
 
 // Classified is a link sorted into a kind, with the handle when the kind has one.
