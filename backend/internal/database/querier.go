@@ -358,6 +358,10 @@ type Querier interface {
 	// ─── Embedding & Scoring ──────────────────────────────
 	UpdateMentionEmbedding(ctx context.Context, arg UpdateMentionEmbeddingParams) error
 	UpdateMentionIntent(ctx context.Context, arg UpdateMentionIntentParams) (Mention, error)
+	// A new verdict replaces the scoring metadata but keeps what the reply
+	// drafter and the re-screen wrote there (the new metadata wins if it sets
+	// them), and stamps when it was scored (scored_at: the leads re-score skips
+	// posts scored after its request).
 	UpdateMentionScoring(ctx context.Context, arg UpdateMentionScoringParams) (Mention, error)
 	UpdateMentionStatus(ctx context.Context, arg UpdateMentionStatusParams) (Mention, error)
 	UpdateMentionStatusWithMetadata(ctx context.Context, arg UpdateMentionStatusWithMetadataParams) (Mention, error)

@@ -1155,7 +1155,12 @@ UPDATE mentions
 SET intent = $1,
     conversion_probability = $2,
     relevance_score = $3,
-    scoring_metadata = $4,
+    scoring_metadata = jsonb_strip_nulls(jsonb_build_object(
+            'needs_escalation', mentions.scoring_metadata->'needs_escalation',
+            'escalation_reason', mentions.scoring_metadata->'escalation_reason',
+            'rescreen', mentions.scoring_metadata->'rescreen'))
+        || COALESCE($4::jsonb, '{}'::jsonb)
+        || jsonb_build_object('scored_at', now()),
     awareness_level = $5
 WHERE id = $6 AND workspace_id = $7
 RETURNING id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash
@@ -1171,6 +1176,10 @@ type UpdateMentionScoringParams struct {
 	WorkspaceID           string         `json:"workspace_id"`
 }
 
+// A new verdict replaces the scoring metadata but keeps what the reply
+// drafter and the re-screen wrote there (the new metadata wins if it sets
+// them), and stamps when it was scored (scored_at: the leads re-score skips
+// posts scored after its request).
 func (q *Queries) UpdateMentionScoring(ctx context.Context, arg UpdateMentionScoringParams) (Mention, error) {
 	row := q.db.QueryRow(ctx, updateMentionScoring,
 		arg.Intent,

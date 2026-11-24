@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"leadecho/internal/keywordjudge"
@@ -65,4 +66,44 @@ func (m *Monitor) rescore(ctx context.Context, ws string) (done int, finished bo
 		m.logger.Info().Str("workspace_id", ws).Int("done", done).Msg("rescore: batch scored")
 	}
 	return done, false
+}
+
+// rescoreLeads scores the workspace's shown post leads again with today's
+// classifier (ScanRescoreLeads), a batch at a time, until none is left that
+// was scored before requestedAt or ctx ends. Every post tried is stamped
+// (scored_at), refused and failed ones included, so a request that was cut
+// short carries on where it stopped and a second one finds nothing. It
+// returns the operator's note.
+func (m *Monitor) rescoreLeads(ctx context.Context, ws string, requestedAt time.Time) string {
+	ctx = withForcedScan(ctx, ScanRescoreLeads) // the manual run sets it already; tests may not
+	done, seen := 0, map[string]bool{}
+	for ctx.Err() == nil {
+		rows, err := m.q.ListLeadsToRescore(ctx, ws, requestedAt, rescoreBatch)
+		if err != nil {
+			m.logger.Error().Err(err).Str("workspace_id", ws).Msg("rescore leads: list posts")
+			return fmt.Sprintf("it stopped after %d leads: could not list the rest", done)
+		}
+		if len(rows) == 0 {
+			if done == 0 {
+				return "no shown lead was scored before this request"
+			}
+			return fmt.Sprintf("scored %d leads again", done)
+		}
+		alerts := make([]mentionAlert, 0, len(rows))
+		for _, r := range rows {
+			if seen[r.ID] {
+				// Tried in this run and still listed: its stamp was not written
+				// (a database error). Stop rather than pay for it again.
+				m.logger.Warn().Str("workspace_id", ws).Str("mention_id", r.ID).Msg("rescore leads: a post was not stamped, stopping")
+				return fmt.Sprintf("it stopped after %d leads: a post could not be marked as scored; ask again to carry on", done)
+			}
+			seen[r.ID] = true
+			alerts = append(alerts, mentionAlert{ID: r.ID, WorkspaceID: ws, Platform: r.Platform, Keyword: r.Keyword,
+				Title: r.Title, URL: r.URL, Author: r.Author, Content: r.Content})
+		}
+		m.batchScoreMentions(ctx, ws, alerts)
+		done += len(rows)
+		m.logger.Info().Str("workspace_id", ws).Int("done", done).Msg("rescore leads: batch scored")
+	}
+	return fmt.Sprintf("it stopped after %d leads with more to go; ask again to carry on", done)
 }

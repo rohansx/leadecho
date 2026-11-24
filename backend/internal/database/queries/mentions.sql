@@ -100,11 +100,20 @@ SET content_embedding = @content_embedding
 WHERE id = @id;
 
 -- name: UpdateMentionScoring :one
+-- A new verdict replaces the scoring metadata but keeps what the reply
+-- drafter and the re-screen wrote there (the new metadata wins if it sets
+-- them), and stamps when it was scored (scored_at: the leads re-score skips
+-- posts scored after its request).
 UPDATE mentions
 SET intent = @intent,
     conversion_probability = @conversion_probability,
     relevance_score = @relevance_score,
-    scoring_metadata = @scoring_metadata,
+    scoring_metadata = jsonb_strip_nulls(jsonb_build_object(
+            'needs_escalation', mentions.scoring_metadata->'needs_escalation',
+            'escalation_reason', mentions.scoring_metadata->'escalation_reason',
+            'rescreen', mentions.scoring_metadata->'rescreen'))
+        || COALESCE(sqlc.narg(scoring_metadata)::jsonb, '{}'::jsonb)
+        || jsonb_build_object('scored_at', now()),
     awareness_level = @awareness_level
 WHERE id = @id AND workspace_id = @workspace_id
 RETURNING *;

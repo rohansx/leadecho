@@ -24,6 +24,11 @@ const (
 	ScanIdentity  = "identity"  // find who is behind older HN/Dev.to/Bluesky leads
 	ScanPerson360 = "person360" // write missing Person360 profiles, use found keys for the paid lookup
 
+	// ScanRescoreLeads scores the posts shown as leads again with today's
+	// classifier: verdicts only (no new leads rows, drafts, workflows or
+	// emails) and no credits taken.
+	ScanRescoreLeads = "rescore_leads"
+
 	// ScanByOnboarding is who asked when a workspace finishes onboarding (the
 	// By of an operator's request is their email).
 	ScanByOnboarding = "onboarding"
@@ -55,7 +60,9 @@ type ManualScan struct {
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords && kind != ScanIdentity && kind != ScanPerson360 {
+	switch kind {
+	case ScanPosts, ScanHiring, ScanProspects, ScanRescore, ScanRescoreLeads, ScanRescreen, ScanKeywords, ScanIdentity, ScanPerson360:
+	default:
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -273,6 +280,17 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		case done == 0:
 			note = "no recent post was scored under older rules"
 		}
+	case ScanRescoreLeads:
+		if m.llmRouter == nil {
+			note = "no AI provider is set up on this server"
+			return
+		}
+		if _, taken := m.scanning.LoadOrStore(ws, struct{}{}); taken {
+			busy = true
+			return
+		}
+		defer m.scanning.Delete(ws)
+		note = m.rescoreLeads(ctx, ws, scan.RequestedAt)
 	case ScanRescreen:
 		if m.hiringPlanner == nil {
 			note = "no AI provider is set up on this server"
