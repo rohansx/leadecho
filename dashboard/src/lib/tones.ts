@@ -104,3 +104,14 @@ export function scoreBand(score: number | null | undefined): ScoreBand {
   if (score >= 4) return { label: "Worth watching", tone: TONE.amber };
   return { label: "Low fit", tone: TONE.neutral };
 }
+
+// What is still open for the author (scoring_metadata.open_need). "none" and
+// absent (posts scored before the field existed) show nothing.
+const OPEN_NEED: Record<string, ScoreBand> = {
+  asking: { label: "Asking for a tool", tone: TONE.emerald },
+  evaluating: { label: "Evaluating options", tone: TONE.violet },
+  switching: { label: "Switching away", tone: TONE.blue },
+  unsolved_pain: { label: "Unsolved pain", tone: TONE.rose },
+};
+
+export const openNeedTone = (need: unknown): ScoreBand | null => typeof need === "string" && Object.hasOwn(OPEN_NEED, need) ? OPEN_NEED[need] : null;
