@@ -6,11 +6,15 @@ AND created_at >= NOW() - INTERVAL '30 days'
 GROUP BY DATE(created_at)
 ORDER BY day;
 
+-- Analytics' 30-day counts match the Inbox list a row links to: by when the
+-- post was written, without spam or archived posts.
+
 -- name: MentionsPerPlatform :many
 SELECT platform, COUNT(*)::int as count
 FROM mentions
 WHERE workspace_id = @workspace_id
-AND created_at >= NOW() - INTERVAL '30 days'
+AND COALESCE(platform_created_at, created_at) >= NOW() - INTERVAL '30 days'
+AND status NOT IN ('spam', 'archived')
 GROUP BY platform;
 
 -- name: MentionsPerIntent :many
@@ -18,7 +22,8 @@ SELECT intent, COUNT(*)::int as count
 FROM mentions
 WHERE workspace_id = @workspace_id
 AND intent IS NOT NULL
-AND created_at >= NOW() - INTERVAL '30 days'
+AND COALESCE(platform_created_at, created_at) >= NOW() - INTERVAL '30 days'
+AND status NOT IN ('spam', 'archived')
 GROUP BY intent;
 
 -- name: TopKeywords :many
@@ -26,7 +31,8 @@ SELECT k.term, COUNT(m.id)::int as mention_count
 FROM keywords k
 LEFT JOIN mentions m ON (m.keyword_id = k.id OR k.term = ANY(m.keyword_matches))
 AND m.workspace_id = k.workspace_id
-AND m.created_at >= NOW() - INTERVAL '30 days'
+AND COALESCE(m.platform_created_at, m.created_at) >= NOW() - INTERVAL '30 days'
+AND m.status NOT IN ('spam', 'archived')
 WHERE k.workspace_id = @workspace_id
 GROUP BY k.id, k.term
 ORDER BY mention_count DESC
@@ -47,7 +53,9 @@ GROUP BY status;
 
 -- name: CountMentions30d :one
 SELECT COUNT(*)::int as count FROM mentions
-WHERE workspace_id = @workspace_id AND created_at >= NOW() - INTERVAL '30 days';
+WHERE workspace_id = @workspace_id
+AND COALESCE(platform_created_at, created_at) >= NOW() - INTERVAL '30 days'
+AND status NOT IN ('spam', 'archived');
 
 -- name: CountNewMentions :one
 SELECT COUNT(*)::int as count FROM mentions

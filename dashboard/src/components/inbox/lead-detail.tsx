@@ -237,7 +237,7 @@ function OverviewTab({
 
   return (
     <div className="space-y-5">
-      <article className="rounded-xl border border-border bg-card p-5">
+      <article className="glass-card rounded-xl p-5">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
           <span className={`rounded-full px-2 py-0.5 font-medium capitalize ${platformTone(mention.platform)}`}>{mention.platform}</span>
           {mention.person ? (
@@ -359,7 +359,7 @@ function OverviewTab({
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <div className="glass-card rounded-xl p-4 space-y-3">
               {draft.status === "queued" && !draft.reply ? (
                 <>
                   <div className="text-sm font-medium mb-1">Draft queued</div>
@@ -564,7 +564,7 @@ function Person360Tab({ mentionId }: { mentionId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="glass-card rounded-xl p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h4 className="font-medium">{person.display_name ?? "Unknown"}</h4>
@@ -639,7 +639,7 @@ function ThreadTab({ mentionId }: { mentionId: string }) {
   return (
     <div className="space-y-3">
       {replies.map((r: Reply) => (
-        <div key={r.id} className="rounded-xl border border-border bg-card p-4">
+        <div key={r.id} className="glass-card rounded-xl p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
             <span className="rounded-full bg-muted px-2 py-0.5 capitalize">{r.status}</span>
             {r.template_style && <span>{r.template_style.replace(/_/g, " ")}</span>}
@@ -659,7 +659,7 @@ function SegmentFitPanel({ mention }: { mention: Mention }) {
   const fit = parseSegmentFit(mention.platform_metadata);
   if (!fit) return null;
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Why this company</h5>
       <p className="text-sm leading-relaxed">
         <span className="font-medium">Fits your segment “{fit.segment}”</span>
@@ -675,7 +675,7 @@ function FundingPanel({ mention }: { mention: Mention }) {
   const round = parseFunding(mention.platform_metadata);
   if (!round) return null;
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Funding</h5>
       <p className="text-sm leading-relaxed">
         <span className="font-medium">{round.label}</span>
@@ -697,7 +697,7 @@ function ResearchPanel({ mention }: { mention: Mention }) {
   const research = parseResearch(mention.platform_metadata);
   if (!research) return null;
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">About the company</h5>
       {research.whatTheyDo && <p className="text-sm leading-relaxed">{research.whatTheyDo}</p>}
       {research.whyNow && (
@@ -742,7 +742,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   const band = scoreBand(mention.relevance_score);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="glass-card rounded-xl p-5">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h5 className="text-xs font-medium uppercase tracking-wide text-primary-ink">Why this is here</h5>
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${band.tone}`}>

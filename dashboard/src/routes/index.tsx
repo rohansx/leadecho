@@ -8,6 +8,7 @@ import { PricingSection } from "@/components/marketing/pricing-and-comparison";
 import { TerminalInstall } from "@/components/marketing/terminal-install";
 import { FaqSection } from "@/components/marketing/faq";
 import { FinalCta, MarketingFooter } from "@/components/marketing/closing";
+import { FeedbackWidget } from "@/components/feedback-widget";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -17,6 +18,9 @@ function LandingPage() {
   return (
     <div className="mkt relative isolate min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="mkt-aura" aria-hidden="true" />
+      {/* Lobby only shows its button to invited reporters (signed-in testers and
+          claimed prospects); for everyone else the config call says no and nothing renders. */}
+      <FeedbackWidget />
       <MarketingNav />
       <main>
         <Hero />

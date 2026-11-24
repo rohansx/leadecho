@@ -117,7 +117,7 @@ export function DossierCard({ metadata, posts }: { metadata?: Record<string, unk
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+    <div className="glass-card rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Profile</h5>
         {d.generated_at && (

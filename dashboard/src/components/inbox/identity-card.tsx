@@ -142,7 +142,7 @@ export function IdentityCard({ metadata }: { metadata?: Record<string, unknown> 
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+    <div className="glass-card rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Who they are</h5>
         <span className="text-[11px] text-muted-foreground">{p.tier === "b" ? "researched" : "from public profiles"}</span>

@@ -43,6 +43,13 @@ export const Route = createFileRoute("/_dashboard/analytics")({
 const INBOX_30D = { queue: "all", posted: "30d" } as const;
 const rowLink = "-mx-2 block rounded-md px-2 py-1 transition-colors hover:bg-accent";
 
+// The backend's score bands (ScoringPrecisionByBand); all three always show.
+const PRECISION_BANDS = [
+  { key: "leads_ready", label: "Leads", hint: "score 6+", bar: "bg-rose-500" },
+  { key: "worth_watching", label: "Worth watching", hint: "4–6", bar: "bg-amber-500" },
+  { key: "filtered", label: "Filtered", hint: "below 4", bar: "bg-foreground/40" },
+] as const;
+
 function AnalyticsPage() {
   const queryClient = useQueryClient();
   const { data: overview } = useQuery({
@@ -146,31 +153,38 @@ function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {!(precision ?? []).length && (
-              <Text as="p" className="text-sm text-muted-foreground">
-                Mark spam / not-a-lead in Inbox to calibrate this chart.
+            <Text as="p" className="text-xs text-muted-foreground">
+              How often you rejected (spam / not a fit) what the scorer put in each band. Lower is better for Leads.
+            </Text>
+            {PRECISION_BANDS.map(({ key, label, hint, bar }) => {
+              const band = (precision ?? []).find((b) => b.score_band === key);
+              const rejected = band ? band.spam_count + band.archived_count : 0;
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>
+                      {label} <span className="text-[11px] text-muted-foreground">{hint}</span>
+                    </span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {band ? `${rejected}/${band.total} rejected · ${Math.round(band.reject_rate * 100)}%` : "no posts"}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min((band?.reject_rate ?? 0) * 100, 100)}%` }} />
+                  </div>
+                  {band && (
+                    <Text as="p" className="text-[11px] text-muted-foreground">
+                      replied {band.replied_count} · spam {band.spam_count} · archived {band.archived_count}
+                    </Text>
+                  )}
+                </div>
+              );
+            })}
+            {!(precision ?? []).some((b) => b.spam_count + b.archived_count > 0) && (
+              <Text as="p" className="text-xs text-muted-foreground">
+                Nothing rejected yet: mark spam or "Not a fit" in the Inbox and this shows where the scorer is wrong.
               </Text>
             )}
-            {(precision ?? []).map((band) => (
-              <div key={band.score_band} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="capitalize">{band.score_band.replace(/_/g, " ")}</span>
-                  <span className="text-muted-foreground">
-                    {band.spam_count + band.archived_count}/{band.total} rejected ·{" "}
-                    {Math.round(band.reject_rate * 100)}%
-                  </span>
-                </div>
-                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-foreground/70 rounded-full"
-                    style={{ width: `${Math.min(band.reject_rate * 100, 100)}%` }}
-                  />
-                </div>
-                <Text as="p" className="text-[11px] text-muted-foreground">
-                  replied {band.replied_count} · spam {band.spam_count} · archived {band.archived_count}
-                </Text>
-              </div>
-            ))}
           </CardContent>
         </Card>
 

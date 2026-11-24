@@ -53,7 +53,7 @@ export function EnrichmentCard({ metadata }: { metadata?: Record<string, unknown
     );
   }
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+    <div className="glass-card rounded-xl p-4 space-y-2">
       <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Enrichment</h5>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         {shown.map(([k, v]) => (
