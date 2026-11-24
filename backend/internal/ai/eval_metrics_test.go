@@ -96,8 +96,8 @@ func evalCostUSD(model string, u Usage) float64 {
 // "full" is the prompt production sends. "story" is "full" plus storyRule in
 // the base prompt; "v1" is the prompt before the open-need change
 // (v1System); "v2card" is "full" with a specific ask and reasoning
-// (cardSystem).
-var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story", "v1", "v2card"}
+// (cardSystem); "nofit" is "full" without fitRule.
+var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story", "v1", "v2card", "nofit"}
 
 // storyRule is a candidate base-prompt hard rule aimed at the dominant false
 // positive: a first-hand story scored as a buyer's complaint. It lives here,
@@ -123,6 +123,7 @@ func storyBasePrompt() (string, error) {
 // with no budget, scores 5 at most) was tried with it on the train split and
 // left out: no false positive remained, but it hid six gold leads (price
 // shoppers, bring-your-own-key requests, "free" asks with a real angle).
+// The narrower fitRule in classify.go replaced it.
 const cardAsk = `- "ask": what the author needs, as one plain sentence in their terms (max 30 words), specific enough to answer without opening the post: the job to be done plus the one constraint that matters to them (the tool they use now, their scale, platform, price or deadline), e.g. "Meeting transcription for one person at about 10 pounds a month that copes with a Scottish accent" or "To tell which candidates use AI during a live interview, for a team hiring two backend engineers". Say only what the post says. When the author voices a frustration or objection and asks for nothing, state it as theirs ("Take-home tests get done by AI and tell us nothing") instead of inventing a request ("A way to ..."). Write it whoever the author is: a buyer, or someone on the other side of the problem (for a hiring product, a candidate saying what went wrong in how they were assessed), because both say what the market wants. Use "" when no need is voiced: news and reports of what some company does, jokes, asking for moral support, opinion with no need behind it, a need that has nothing to do with the product's problem, and someone promoting or building their own tool`
 
 const cardReasoning = `- "reasoning": two short sentences for the person who will reply. First, who the author is in the post's own terms (role, setting, scale: "solo founder of a real-estate SaaS with a few paying users"; "unknown" things are left out, not guessed). Second, why THE PRODUCT answers what is open for them, or what rules the post out (nothing open, not a buyer, wants it free, wrong platform, a different kind of tool). Plain statements: no "though", "however" or "may", and do not describe THE PRODUCT`
@@ -149,12 +150,12 @@ const v1Band = `- 6-7.5: the author speaks as a buyer about their own team or co
 `
 
 // v1System is the classifier prompt before the open-need change: no
-// open_need or why_now field, no open-need rule, and v1Band. The model then
+// open_need or why_now field, no open-need rule, no fit rule, and v1Band. The model then
 // returns no open_need, so the verdict falls back to score and intent tag,
 // as production decided it then. Kept so the change can be measured again.
 func v1System(p Provider, sc ScoringContext) ([]chatMessage, error) {
 	msgs := classifySystem(p, sc)
-	for _, part := range []string{openNeedFields, openNeedRule} {
+	for _, part := range []string{openNeedFields, openNeedRule, fitRule} {
 		if !strings.Contains(msgs[0].Content, part) {
 			return nil, fmt.Errorf("v1 variant: open-need part not found in the base prompt")
 		}
@@ -187,6 +188,9 @@ func classifyVariant(ctx context.Context, p Provider, title, content, platform s
 		msgs, err = v1System(p, sc)
 	case "v2card":
 		msgs, err = cardSystem(p, sc)
+	case "nofit":
+		msgs = classifySystem(p, sc)
+		msgs[0].Content = strings.Replace(msgs[0].Content, fitRule, "", 1)
 	default:
 		return ClassifyIntent(ctx, p, title, content, platform, sc)
 	}
@@ -221,7 +225,7 @@ func storySystem(p Provider, sc ScoringContext, base string) []chatMessage {
 func ablate(sc ScoringContext, variant string) (ScoringContext, error) {
 	var out ScoringContext
 	switch variant {
-	case "", "full", "story", "v1", "v2card":
+	case "", "full", "story", "v1", "v2card", "nofit":
 		return sc, nil
 	case "rules":
 		out.Rules = sc.Rules
@@ -302,6 +306,7 @@ func TestAblate(t *testing.T) {
 		"story":   sc,
 		"v1":      sc,
 		"v2card":  sc,
+		"nofit":   sc,
 	}
 	for _, v := range promptVariants {
 		got, err := ablate(sc, v)
@@ -340,7 +345,7 @@ func TestV1System(t *testing.T) {
 			t.Fatal(err)
 		}
 		all := fmt.Sprint(got)
-		for _, gone := range []string{"open_need", "why_now", "unsolved today"} {
+		for _, gone := range []string{"open_need", "why_now", "unsolved today", "- Fit:"} {
 			if strings.Contains(all, gone) {
 				t.Fatalf("%s: v1 prompt still has %q", name, gone)
 			}
@@ -354,6 +359,18 @@ func TestV1System(t *testing.T) {
 	// With no product there is no score band to swap.
 	if got, err := v1System(Provider{Name: "anthropic"}, ScoringContext{}); err != nil || strings.Contains(fmt.Sprint(got), "open_need") {
 		t.Fatalf("no product: %v", err)
+	}
+}
+
+// "nofit" is the production prompt without fitRule: the baseline the fit
+// rule was measured against.
+func TestNoFitVariant(t *testing.T) {
+	p, msgs := fakeChat(t, `{"intent_tags":[],"relevance_score":1,"reasoning":"r"}`)
+	if _, err := classifyVariant(context.Background(), p, "t", "c", "reddit", ScoringContext{Product: "p"}, "nofit"); err != nil {
+		t.Fatal(err)
+	}
+	if body := fmt.Sprint(*msgs); strings.Contains(body, "- Fit:") || !strings.Contains(body, "When open_need is") {
+		t.Fatalf("nofit prompt: fit rule kept or open-need rule lost")
 	}
 }
 

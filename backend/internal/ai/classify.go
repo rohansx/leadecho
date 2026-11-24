@@ -59,6 +59,14 @@ const openNeedFields = `- "open_need": what in this post is still open for the a
 const openNeedRule = `- When open_need is "none" the post is not a lead, however exact the topic and the author: do not tag buying_intent, seeking_alternative or recommendation_request, and keep relevance_score at 5.5 or below. This holds over the score bands and the workspace rules below.
 `
 
+// fitRule keeps out a request THE PRODUCT cannot meet by a hard constraint
+// the post states (student or no budget, free only, local-only, open-source
+// only, wrong platform). It is narrow on purpose: price shoppers, pricing
+// questions and bring-your-own-key requests stay leads; a broader "the
+// product does not answer the ask" rule hid such leads on the eval set.
+const fitRule = `- Fit: if the author states a requirement THE PRODUCT cannot meet by its nature, keep relevance_score at 5 or below and do not tag buying_intent, seeking_alternative or recommendation_request. Only these count: they are a student or say they have no budget or will only use something free; it must run fully locally or self-hosted and THE PRODUCT is a hosted service; it must be open source and THE PRODUCT is paid and closed; it needs a platform, operating system, device or region THE PRODUCT does not support. This rule does not cover price shopping (comparing paid options, asking about pricing or discounts, finding a plan too dear), wanting to use their own API key or subscription, a requirement you only infer, or a constraint THE PRODUCT exists to meet (a free or student request about censorship, or being blocked from paying, when that is THE PRODUCT's point). It only lowers scores, never raises them.
+`
+
 const classifyBasePrompt = `You are an intent classifier for social media mentions. Analyze the post and classify it.
 
 Return ONLY valid JSON (no markdown, no code fences) with these fields:
@@ -91,7 +99,7 @@ Tag definitions:
 Hard rules:
 - Announcements, launches ("Show HN", "Launch HN", "Introducing", "I built", release notes), thought-leadership, opinion essays, tutorials and "how we did X" posts must NEVER be tagged buying_intent or seeking_alternative, even if they mention competitors or say "alternative to". The author is selling or teaching, not shopping. Tag launches "promotional" and essays "content_opportunity".
 - Only tag buying_intent / seeking_alternative / recommendation_request when the AUTHOR is the one looking.
-` + openNeedRule + `
+` + openNeedRule + fitRule + `
 Post type: "thought_leadership" is advice, predictions or opinion addressed to an audience in which the author reports nothing from their own work. A post in which the author reports what happened in their own work (what they tried, what failed, who slipped through, what it cost) is "discussion", however polished or essay-like it reads, even when most of it is the opinion they drew from that experience, and even when it ends with advice or a question to the audience. "proof_point" is someone on the buying side presenting, as a success, the way they already solved the problem for themselves (their own process or tool, with nothing left that does not work): they are not a prospect, but still write the "ask" their solution answers.
 
 Author role: judge the PERSON who wrote the post, not the topic.
