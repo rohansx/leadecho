@@ -128,7 +128,7 @@ function ThreadCard({ t }: { t: Thread }) {
         )}
       </div>
       <figcaption className="border-t border-border px-5 py-3 text-[13px] text-muted-foreground">
-        Sample thread. LeadEcho reads all {t.read} replies and flags the one person looking to buy.
+        Sample thread. LeadEcho reads all {t.read} replies and flags the one that looks like someone ready to buy.
       </figcaption>
     </figure>
   );

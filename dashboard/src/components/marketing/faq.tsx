@@ -5,7 +5,7 @@ import { Reveal } from "./fx";
 const faqs = [
   {
     q: "How is this different from keyword alerts?",
-    a: "Keyword alerts match strings and fire on everything. LeadEcho matches meaning, scores intent, tells you who is asking, and tracks which replies convert. You'd rather see 5 real buyers than wade through 50 false positives.",
+    a: "Keyword alerts match strings and fire on everything. LeadEcho matches meaning, scores intent, explains each score, tells you who is asking when they can be identified, and can track clicks and signups from your replies. The aim is a short list worth reading, not every post that mentions a word.",
   },
   {
     q: "Do you post replies automatically?",
@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: "What does intent scoring cost to run?",
-    a: "With default settings, most self-hosted workspaces spend $2–8 a month on AI. The cheap first pass removes about 95% of posts before any expensive model runs.",
+    a: "It depends on how many posts your keywords bring in and which models you choose. Free keyword and noise checks run first, then a cheap model drops spam, so the expensive scoring model only reads the posts that pass both.",
   },
 ];
 
