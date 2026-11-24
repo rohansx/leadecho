@@ -34,6 +34,14 @@ export const INTENT_TYPES = [
 ] as const;
 export type IntentType = (typeof INTENT_TYPES)[number];
 
+export const INTENT_LABELS: Record<string, string> = {
+  buy_signal: "Buy signal",
+  complaint: "Complaint",
+  recommendation_ask: "Recommendation",
+  comparison: "Comparison",
+  general: "General",
+};
+
 // scoring: 13-tag intent taxonomy + sentiment (mirrors backend ai.IntentTags)
 export const INTENT_TAGS = [
   "buying_intent",

@@ -19,7 +19,7 @@ export function PaidPlatformsNote() {
   return (
     <p className="text-xs text-muted-foreground">
       X, Reddit and LinkedIn are searched with paid data and come with Starter and Pro.{" "}
-      <Link to="/settings" className="font-medium text-foreground underline underline-offset-2">
+      <Link to="/settings" search={{ tab: "billing" }} className="font-medium text-foreground underline underline-offset-2">
         Upgrade
       </Link>
     </p>

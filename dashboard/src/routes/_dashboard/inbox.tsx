@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 import { setupPollMs } from "@/lib/setup-status";
+import { isPostedRange, postedSince } from "@/lib/posted-range";
 import type { InboxQueueCountsResponse } from "@/lib/types";
 
 const PAGE_SIZE = 30;
@@ -34,6 +35,8 @@ interface InboxSearch {
   status?: string;
   tag?: string; // scoring
   sentiment?: string; // scoring
+  intent?: string; // set by Analytics' "Mentions by intent" links
+  posted?: string; // "24h" | "7d" | "30d" | "90d"
   id?: string;
   loosened?: string; // onboarding: set when first value fell back below high fit
 }
@@ -54,6 +57,8 @@ export const Route = createFileRoute("/_dashboard/inbox")({
     status: typeof search.status === "string" ? search.status : undefined,
     tag: typeof search.tag === "string" ? search.tag : undefined,
     sentiment: typeof search.sentiment === "string" ? search.sentiment : undefined,
+    intent: typeof search.intent === "string" ? search.intent : undefined,
+    posted: isPostedRange(search.posted) ? search.posted : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
     loosened: typeof search.loosened === "string" ? search.loosened : undefined, // onboarding
   }),
@@ -62,7 +67,7 @@ export const Route = createFileRoute("/_dashboard/inbox")({
 
 function InboxPage() {
   const search = Route.useSearch();
-  const { q = "", platform = "", status = "", tag = "", sentiment = "", id } = search;
+  const { q = "", platform = "", status = "", tag = "", sentiment = "", intent = "", posted = "", id } = search;
   const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
 
@@ -141,6 +146,8 @@ function InboxPage() {
       isBrowseView ? q : "",
       isBrowseView ? tag : "",
       isBrowseView ? sentiment : "",
+      isBrowseView ? intent : "",
+      isBrowseView ? posted : "",
     ],
     queryFn: ({ pageParam }) =>
       listMentions({
@@ -151,6 +158,8 @@ function InboxPage() {
         search: isBrowseView && q ? q : undefined,
         tag: isBrowseView && tag ? tag : undefined,
         sentiment: isBrowseView && sentiment ? sentiment : undefined,
+        intent: isBrowseView && intent ? intent : undefined,
+        since: isBrowseView ? postedSince(posted) : undefined,
         limit: PAGE_SIZE,
         offset: pageParam,
       }),
@@ -175,7 +184,7 @@ function InboxPage() {
   });
 
   const { data: platformCounts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, status, q, tag, sentiment],
+    queryKey: [QUERY_KEYS.mentionPlatformCounts, queue, status, q, tag, sentiment, intent, posted],
     queryFn: () =>
       mentionPlatformCounts({
         queue,
@@ -183,6 +192,8 @@ function InboxPage() {
         search: q || undefined,
         tag: tag || undefined,
         sentiment: sentiment || undefined,
+        intent: intent || undefined,
+        since: postedSince(posted),
       }),
     enabled: isBrowseView,
   });
@@ -286,6 +297,8 @@ function InboxPage() {
       status: undefined,
       tag: undefined,
       sentiment: undefined,
+      intent: undefined,
+      posted: browse ? posted || undefined : undefined,
       q: browse ? q : undefined,
     });
   };
@@ -325,6 +338,10 @@ function InboxPage() {
         onTagChange={(t) => setSearch({ tag: t || undefined })}
         sentimentFilter={sentiment}
         onSentimentChange={(s) => setSearch({ sentiment: s || undefined })}
+        intentFilter={intent}
+        onClearIntent={() => setSearch({ intent: undefined })}
+        postedFilter={posted}
+        onPostedChange={(r) => setSearch({ posted: r || undefined })}
         search={q}
         onSearchChange={(v) => setSearch({ q: v || undefined })}
         onRefresh={handleRefresh}

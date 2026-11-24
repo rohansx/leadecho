@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { sendMentionFeedback } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import type { Mention } from "@/lib/types";
+import { tagTone } from "@/lib/tones";
 
 // scoring: intent tag chips, sentiment marker and 👍/👎 scorer feedback.
 
-// Tags are labels, not states: one neutral chip for all of them.
-const neutralTone = "text-muted-foreground border-border";
+// Coloured by what the tag means for a seller (see tagTone); noise stays neutral.
 
 const sentimentTone: Record<string, string> = {
   positive: "text-green-600 dark:text-green-400",
@@ -36,7 +36,7 @@ export function TagChips({ tags, sentiment, max = 3 }: TagChipsProps) {
       {shown.map((t) => (
         <span
           key={t}
-          className={`px-1.5 py-0.5 rounded-md border text-[10px] font-medium ${neutralTone}`}
+          className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${tagTone(t)}`}
         >
           {tagLabel(t)}
         </span>

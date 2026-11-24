@@ -3,7 +3,29 @@ package database
 import (
 	"strings"
 	"testing"
+	"time"
 )
+
+// A date range filters on when the post was written (falling back to when it
+// was stored), and an unset end leaves that side open.
+func TestListMentionsComposedParams_buildWhere_dateRange(t *testing.T) {
+	since := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	until := since.Add(48 * time.Hour)
+	where, args := (ListMentionsComposedParams{WorkspaceID: "ws-1", Queue: "all", Since: since, Until: until}).buildWhere()
+	for _, want := range []string{"COALESCE(platform_created_at, created_at) >= $2", "COALESCE(platform_created_at, created_at) < $3"} {
+		if !strings.Contains(where, want) {
+			t.Fatalf("where missing %q: %s", want, where)
+		}
+	}
+	if len(args) != 3 || args[1] != since || args[2] != until {
+		t.Fatalf("args = %v", args)
+	}
+
+	where, args = (ListMentionsComposedParams{WorkspaceID: "ws-1", Since: since}).buildWhere()
+	if strings.Contains(where, " < $") || len(args) != 2 {
+		t.Fatalf("open-ended range: where=%s args=%v", where, args)
+	}
+}
 
 func TestListMentionsComposedParams_buildWhere_queueAutoFlowing(t *testing.T) {
 	where, args := (ListMentionsComposedParams{

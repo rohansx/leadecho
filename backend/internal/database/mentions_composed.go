@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 // ListMentionsComposedParams carries every inbox filter so they can be combined
@@ -22,8 +23,12 @@ type ListMentionsComposedParams struct {
 	Search         string
 	Tag            string // scoring: one of the 13 intent tags
 	Sentiment      string // scoring: positive|neutral|negative
-	Lim            int32
-	Off            int32
+	// Since / Until bound when the post was written (stored time when the
+	// platform gives none); zero = open on that side. Until is exclusive.
+	Since time.Time
+	Until time.Time
+	Lim   int32
+	Off   int32
 }
 
 // buildWhere returns the composed WHERE clause and its positional args. The tier
@@ -121,6 +126,12 @@ func (p ListMentionsComposedParams) buildWhere() (string, []any) {
 	}
 	if p.Sentiment != "" {
 		add("sentiment = $%d", p.Sentiment)
+	}
+	if !p.Since.IsZero() {
+		add("COALESCE(platform_created_at, created_at) >= $%d", p.Since)
+	}
+	if !p.Until.IsZero() {
+		add("COALESCE(platform_created_at, created_at) < $%d", p.Until)
 	}
 	return strings.Join(clauses, " AND "), args
 }

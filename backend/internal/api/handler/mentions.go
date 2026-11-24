@@ -448,6 +448,11 @@ func (h *MentionHandler) PlatformCounts(w http.ResponseWriter, r *http.Request) 
 		Intent:   r.URL.Query().Get("intent"),
 		Search:   r.URL.Query().Get("search"),
 	}
+	var rangeErr string
+	if params.Since, params.Until, rangeErr = parseDateRange(r.URL.Query().Get("since"), r.URL.Query().Get("until")); rangeErr != "" {
+		writeError(w, http.StatusBadRequest, rangeErr)
+		return
+	}
 	if params.Queue != "" && !validMentionQueues[params.Queue] {
 		writeError(w, http.StatusBadRequest, "invalid queue")
 		return
