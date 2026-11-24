@@ -400,6 +400,14 @@ export function updateReplyStatus(id: string, status: string) {
   });
 }
 
+/** The customer posted the reply themselves; postedURL is their comment's link (optional). */
+export function markReplyPosted(id: string, postedURL?: string) {
+  return request<Reply>(`/replies/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "posted", posted_url: postedURL || undefined }),
+  });
+}
+
 export function approveReply(
   id: string,
   opts?: { destination_url?: string; append_short_url?: boolean },
@@ -506,6 +514,36 @@ export function replyAttribution() {
     utm_clicks: number;
     utm_signups: number;
   }>("/analytics/reply-attribution");
+}
+
+export interface PayoffTotal {
+  key: string;
+  replies: number;
+  clicks: number;
+  signups: number;
+}
+
+export interface ReplyPayoffRow {
+  reply_id: string;
+  mention_id: string;
+  platform: string;
+  title: string;
+  thread_url: string;
+  keyword: string;
+  posted_at: string | null;
+  posted_url: string;
+  clicks: number;
+  signups: number;
+}
+
+/** "Replies that paid off": posted replies with their clicks and sign-ups (90 days). */
+export function replyPayoff() {
+  return request<{
+    totals: PayoffTotal;
+    replies: ReplyPayoffRow[];
+    by_platform: PayoffTotal[];
+    by_keyword: PayoffTotal[];
+  }>("/analytics/reply-payoff");
 }
 
 export function recordUTMConversion(

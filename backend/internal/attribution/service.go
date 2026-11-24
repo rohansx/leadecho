@@ -3,8 +3,10 @@ package attribution
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
@@ -26,6 +28,9 @@ func NewService(q *database.Queries, logger zerolog.Logger, crm *crmsync.Dispatc
 		logger: logger.With().Str("component", "attribution").Logger(),
 	}
 }
+
+// ErrDuplicateConversion: this event_id was already recorded on the link.
+var ErrDuplicateConversion = errors.New("conversion already recorded")
 
 type ConversionRequest struct {
 	UTMCode      string
@@ -51,35 +56,48 @@ func (s *Service) RecordConversion(ctx context.Context, workspaceID string, req 
 		return database.UtmLink{}, fmt.Errorf("utm link not found")
 	}
 
-	var updated database.UtmLink
-	if req.EventType == "click" {
-		if err := s.q.IncrementUTMClicks(ctx, req.UTMCode); err != nil {
-			return database.UtmLink{}, err
-		}
-		updated = link
-	} else {
-		updated, err = s.q.RecordUTMConversion(ctx, database.RecordUTMConversionParams{
-			Code:         req.UTMCode,
-			RevenueCents: req.RevenueCents,
-		})
-		if err != nil {
-			return database.UtmLink{}, err
+	meta := []byte("{}")
+	if len(req.Metadata) > 0 {
+		if meta, err = json.Marshal(req.Metadata); err != nil {
+			return database.UtmLink{}, fmt.Errorf("invalid metadata")
 		}
 	}
 
-	meta, _ := json.Marshal(req.Metadata)
-	if meta == nil {
-		meta = []byte("{}")
-	}
-	_, _ = s.q.CreateUTMEvent(ctx, database.CreateUTMEventParams{
-		UtmLinkID:    link.ID,
-		EventType:    req.EventType,
-		Referrer:     pgtype.Text{},
-		UserAgent:    pgtype.Text{},
-		IpHash:       pgtype.Text{},
-		RevenueCents: pgtype.Int4{Int32: req.RevenueCents, Valid: req.RevenueCents > 0},
-		Metadata:     meta,
+	// The event row and the counter move together: a duplicate event_id (unique
+	// index utm_events_link_event_id_unique) rolls the counter back too.
+	updated := link
+	err = s.q.InTx(ctx, func(q *database.Queries) error {
+		if _, err := q.CreateUTMEvent(ctx, database.CreateUTMEventParams{
+			UtmLinkID:    link.ID,
+			EventType:    req.EventType,
+			Referrer:     pgtype.Text{},
+			UserAgent:    pgtype.Text{},
+			IpHash:       pgtype.Text{},
+			RevenueCents: pgtype.Int4{Int32: req.RevenueCents, Valid: req.RevenueCents > 0},
+			Metadata:     meta,
+		}); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return ErrDuplicateConversion
+			}
+			return fmt.Errorf("record utm event: %w", err)
+		}
+		if req.EventType == "click" {
+			return q.IncrementUTMClicks(ctx, req.UTMCode)
+		}
+		var err error
+		updated, err = q.RecordUTMConversion(ctx, database.RecordUTMConversionParams{
+			Code:         req.UTMCode,
+			RevenueCents: req.RevenueCents,
+		})
+		return err
 	})
+	if err != nil {
+		if !errors.Is(err, ErrDuplicateConversion) {
+			s.logger.Error().Err(err).Str("utm_code", req.UTMCode).Msg("record conversion")
+		}
+		return database.UtmLink{}, err
+	}
 
 	s.advanceLeadFromUTM(ctx, workspaceID, link, req.EventType, req.RevenueCents)
 	return updated, nil

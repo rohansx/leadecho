@@ -1132,7 +1132,7 @@ type UtmLink struct {
 	UtmContent     pgtype.Text `json:"utm_content"`
 	ClickCount     int32       `json:"click_count"`
 	SignupCount    int32       `json:"signup_count"`
-	RevenueCents   int32       `json:"revenue_cents"`
+	RevenueCents   int64       `json:"revenue_cents"` // BIGINT since 00046 (hand-edited; sqlc not installed)
 	CreatedAt      time.Time   `json:"created_at"`
 }
 

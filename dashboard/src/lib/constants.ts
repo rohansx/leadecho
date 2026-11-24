@@ -102,6 +102,7 @@ export const QUERY_KEYS = {
   person360: "person360",
   scoringPrecision: "scoringPrecision",
   replyAttribution: "replyAttribution",
+  replyPayoff: "replyPayoff",
   responseProfiles: "responseProfiles", // voice
 } as const;
 

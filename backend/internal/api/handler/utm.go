@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -128,6 +129,12 @@ func (h *UTMHandler) RedirectUTM(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Link unfurlers and crawlers (Reddit, Slack, Discord, Twitter previews)
+	// fetch the link the moment the comment is posted: still redirected, not a click.
+	if isBotUserAgent(r.UserAgent()) {
+		http.Redirect(w, r, buildUTMDestination(link), http.StatusFound)
+		return
+	}
 	_ = h.q.IncrementUTMClicks(r.Context(), code)
 	_, _ = h.q.CreateUTMEvent(r.Context(), database.CreateUTMEventParams{
 		UtmLinkID:    link.ID,
@@ -184,6 +191,28 @@ func (h *UTMHandler) RecordConversion(w http.ResponseWriter, r *http.Request) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// botUAMarkers are lowercase substrings of preview/crawler user agents.
+var botUAMarkers = []string{
+	"bot", "crawler", "spider", "preview", "facebookexternalhit", "embedly",
+	"slack", "discord", "whatsapp", "telegram", "skypeuripreview", "curl", "wget",
+	"python-requests", "go-http-client", "headless",
+}
+
+// isBotUserAgent: an empty UA or a known unfurler/crawler is not a person clicking.
+// ponytail: substring list; a spoofed browser UA still counts (no IP dedupe yet).
+func isBotUserAgent(ua string) bool {
+	ua = strings.ToLower(strings.TrimSpace(ua))
+	if ua == "" {
+		return true
+	}
+	for _, m := range botUAMarkers {
+		if strings.Contains(ua, m) {
+			return true
+		}
+	}
+	return false
+}
 
 const codeChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 

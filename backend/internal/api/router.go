@@ -20,6 +20,7 @@ import (
 	"leadecho/internal/automation" // automations (P2 #17)
 	"leadecho/internal/billing"
 	"leadecho/internal/browser"
+	"leadecho/internal/clientip"
 	"leadecho/internal/competitors"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
@@ -68,9 +69,17 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	utmPublic := handler.NewUTMHandler(queries, attrib)
 	r.Get("/r/{code}", utmPublic.RedirectUTM)
 
-	// Public conversion webhook (secret auth in body)
-	convHook := handler.NewConversionWebhookHandler(queries, attrib)
-	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
+	// Public conversion webhook (secret auth in body), capped per IP and per workspace.
+	convIPQuota := middleware.NewQuota(60, time.Minute)
+	convWSQuota := middleware.NewQuota(120, time.Minute)
+	if redis != nil {
+		shared := auth.NewRedisCounter(redis)
+		convIPQuota.Shared(shared, "conv_hook_ip")
+		convWSQuota.Shared(shared, "conv_hook_ws")
+	}
+	convHook := handler.NewConversionWebhookHandler(queries, attrib, convWSQuota)
+	r.With(middleware.KeyedQuota(convIPQuota, func(r *http.Request) string { return clientip.From(r, cfg.TrustedProxyHops) },
+		"too many requests, try again shortly")).Post("/api/v1/hooks/conversion", convHook.RecordConversion)
 
 	// billing: credits + Dodo Payments. The webhook is public; its signature is the auth.
 	credits := billing.New(queries, cfg.CreditsEnforced())
@@ -110,6 +119,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 		r.Handle("/api/mcp", mcpServer) // same server via the dashboard's existing /api/ proxy
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/mentions", publicAPI.Mentions)
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/leads", publicAPI.Leads)
+		// Sign-ups from the customer's server, tied to a reply via utm_content / utm_code.
+		r.With(middleware.RequireScope(apikey.ScopeWrite)).Post("/api/public/v1/conversions", convHook.RecordConversionAPI)
 	})
 	// end mcp
 
@@ -234,6 +245,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/analytics/scoring-precision", analytics.ScoringPrecision)
 			r.Get("/analytics/reply-attribution", analytics.ReplyAttribution)
 			r.Get("/analytics/reply-style-attribution", analytics.ReplyStyleAttribution)
+			r.Get("/analytics/reply-payoff", analytics.ReplyPayoff)
 
 			// Human proposals (Discovery queue)
 			proposals := handler.NewProposalHandler(queries)
