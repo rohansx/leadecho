@@ -30,17 +30,17 @@ func TestFeatureUseDB(t *testing.T) {
 	}
 	defer pool.Exec(ctx, "DELETE FROM workspaces WHERE id = $1", ws.ID) //nolint:errcheck
 
-	if at, err := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand); err != nil || !at.IsZero() {
-		t.Fatalf("never used: got %v, %v", at, err)
+	if at, created, err := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand); err != nil || !at.IsZero() || time.Since(created) > time.Minute {
+		t.Fatalf("never used: got %v (created %v), %v", at, created, err)
 	}
 	if err := q.MarkFeatureUsed(ctx, ws.ID, FeatureDemand); err != nil {
 		t.Fatal(err)
 	}
-	first, err := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand)
+	first, _, err := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand)
 	if err != nil || time.Since(first) > time.Minute {
 		t.Fatalf("after mark: got %v, %v", first, err)
 	}
-	if other, _ := q.FeatureLastUsed(ctx, ws.ID, FeatureCompetitors); !other.IsZero() {
+	if other, _, _ := q.FeatureLastUsed(ctx, ws.ID, FeatureCompetitors); !other.IsZero() {
 		t.Fatal("marking demand must not mark competitors")
 	}
 	// Within the hour a second mark writes nothing.
@@ -48,14 +48,14 @@ func TestFeatureUseDB(t *testing.T) {
 	if err := q.MarkFeatureUsed(ctx, ws.ID, FeatureDemand); err != nil {
 		t.Fatal(err)
 	}
-	if again, _ := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand); !again.Equal(first) {
+	if again, _, _ := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand); !again.Equal(first) {
 		t.Fatalf("second mark within the hour rewrote the time: %v -> %v", first, again)
 	}
 	// Other settings keys survive.
 	if ok, err := q.ClaimSettingsRun(ctx, ws.ID, "demand", time.Hour); err != nil || !ok {
 		t.Fatalf("claim: %v %v", ok, err)
 	}
-	if at, _ := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand); !at.Equal(first) {
+	if at, _, _ := q.FeatureLastUsed(ctx, ws.ID, FeatureDemand); !at.Equal(first) {
 		t.Fatal("another settings key wiped feature_use")
 	}
 }

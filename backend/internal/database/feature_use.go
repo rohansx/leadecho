@@ -26,14 +26,18 @@ WHERE id = $1
 	return err
 }
 
-// FeatureLastUsed returns when a feature was last used; zero when never.
-func (q *Queries) FeatureLastUsed(ctx context.Context, workspaceID, feature string) (time.Time, error) {
+// FeatureLastUsed returns when a feature was last used (zero when never) and
+// when the workspace was created.
+func (q *Queries) FeatureLastUsed(ctx context.Context, workspaceID, feature string) (lastUsed, created time.Time, err error) {
 	var at *time.Time
-	err := q.db.QueryRow(ctx,
-		`SELECT (settings->'feature_use'->>$2::text)::timestamptz FROM workspaces WHERE id = $1`,
-		workspaceID, feature).Scan(&at)
-	if err != nil || at == nil {
-		return time.Time{}, err
+	err = q.db.QueryRow(ctx,
+		`SELECT (settings->'feature_use'->>$2::text)::timestamptz, created_at FROM workspaces WHERE id = $1`,
+		workspaceID, feature).Scan(&at, &created)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
 	}
-	return *at, nil
+	if at != nil {
+		lastUsed = *at
+	}
+	return lastUsed, created, nil
 }

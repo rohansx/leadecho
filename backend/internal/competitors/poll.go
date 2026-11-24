@@ -29,6 +29,12 @@ const (
 	summaryWindow     = 90 * 24 * time.Hour
 )
 
+// setupCandidates bounds how many waiting workspaces one poll looks at to
+// find setupPerPoll active ones; idle ones are skipped, not set up.
+// ponytail: the list is random, so past this many idle workspaces an active
+// one may wait a few polls; filter in SQL if that ever matters.
+const setupCandidates = 100
+
 // Poll runs one round: set up workspaces that have no competitors yet, check
 // the sources that are due, turn new items into moves, send alerts.
 //
@@ -42,23 +48,39 @@ func (s *Service) Poll(ctx context.Context) {
 	s.sendAlerts(ctx)
 }
 
-func (s *Service) active(ctx context.Context, ws string) bool {
-	return s.Active == nil || s.Active(ctx, ws)
+// activeLookup returns s.Active answered once per workspace, so one poll
+// looks a workspace up once however many of its sources are due.
+func (s *Service) activeLookup() func(ctx context.Context, ws string) bool {
+	seen := map[string]bool{}
+	return func(ctx context.Context, ws string) bool {
+		if s.Active == nil {
+			return true
+		}
+		if v, ok := seen[ws]; ok {
+			return v
+		}
+		v := s.Active(ctx, ws)
+		seen[ws] = v
+		return v
+	}
 }
 
 func (s *Service) setupPending(ctx context.Context) {
-	wss, err := s.Q.ListWorkspacesNeedingCompetitorSetup(ctx, setupPerPoll)
+	wss, err := s.Q.ListWorkspacesNeedingCompetitorSetup(ctx, setupCandidates)
 	if err != nil {
 		s.Logger.Error().Err(err).Msg("competitors: list workspaces to set up")
 		return
 	}
+	active := s.activeLookup()
+	handled := 0
 	for _, ws := range wss {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || handled >= setupPerPoll {
 			return
 		}
-		if !s.active(ctx, ws) {
+		if !active(ctx, ws) {
 			continue // set up when someone opens the page
 		}
+		handled++
 		created, unresolved, err := s.Setup(ctx, ws)
 		if err != nil {
 			s.Logger.Error().Err(err).Str("workspace_id", ws).Msg("competitors: setup")
@@ -76,11 +98,12 @@ func (s *Service) checkDue(ctx context.Context) {
 		s.Logger.Error().Err(err).Msg("competitors: list due sources")
 		return
 	}
+	active := s.activeLookup()
 	for _, src := range due {
 		if ctx.Err() != nil {
 			return
 		}
-		if !s.active(ctx, src.WorkspaceID) {
+		if !active(ctx, src.WorkspaceID) {
 			// Not fetched, not paid for. Marked checked so it leaves the
 			// due list and cannot crowd out watched workspaces' sources.
 			if err := s.Q.TouchCompetitorSource(ctx, src.ID); err != nil {
