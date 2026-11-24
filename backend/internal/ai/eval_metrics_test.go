@@ -93,8 +93,9 @@ func evalCostUSD(model string, u Usage) float64 {
 
 // promptVariants are the cumulative prompt ablations EVAL_VARIANT picks:
 // each adds one part of the per-workspace prompt to the one before it.
-// "story" is "full" plus storyRule in the base prompt.
-var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story"}
+// "story" is "full" plus storyRule in the base prompt; "need" is "full" with
+// the open-need field, rule and score band (see needSystem).
+var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story", "need"}
 
 // storyRule is a candidate base-prompt hard rule aimed at the dominant false
 // positive: a first-hand story scored as a buyer's complaint. It lives here,
@@ -112,27 +113,94 @@ func storyBasePrompt() (string, error) {
 	return strings.Replace(classifyBasePrompt, storyAnchor, storyAnchor+storyRule+"\n", 1), nil
 }
 
+// The "need" variant is the candidate fix from the gold-label diagnosis: the
+// classifier says what is still open for the author (open_need) and why it
+// is timely (why_now), a hard rule keeps a post with nothing open under the
+// lead line, and the 6-7.5 score band asks for an unsolved problem instead of
+// any first-hand account. Like storyRule it stays here until the eval says it
+// earns its place in classify.go.
+const needAnchor = `- "matches_skips": boolean`
+
+const needFields = `- "open_need": what in this post is still open for the author (their own need, or their team's or client's), one of:
+  "asking": asks for a tool, vendor, service or recommendation, or asks how others handle a job they have to do themselves
+  "evaluating": weighs named options, is trialling one, or asks a question about a named product before choosing or paying for it
+  "switching": says they are leaving, or want to leave, a tool or vendor they use
+  "unsolved_pain": states a problem of their own as current and unsolved: it is still costing them, what they tried does not fully work, or the tool that worked for them is gone; with or without a question
+  "none": nothing is open. A story, retrospective or progress update; a past incident told to make a point; a workaround, process or tool the author already uses and presents as their answer; an opinion, prediction, critique or advice; a passing gripe from a user who is otherwise staying; a warning or vent with no sign of wanting something else; a question put to the audience out of curiosity or to start a discussion that says nothing of the author's own situation; a wish stated hypothetically ("I'd want ..."); text cut off or too short to show a need
+  Judge only what the text says: a post about the right problem by the right kind of person is still "none" when nothing is open
+- "why_now": when open_need is not "none", the fact in the post that makes it timely, in under 20 words and in the post's own numbers or words (a deadline, a trial ending, an incident, what it costs, what they just tried); otherwise ""
+`
+
+const needRule = `- When open_need is "none" the post is not a lead, however exact the topic and the author: do not tag buying_intent, seeking_alternative or recommendation_request, and keep relevance_score at 5.5 or below. This holds over the score bands and the workspace rules below.`
+
+const needBand = `- 6-7.5: the author speaks as a buyer about their own team or company and states the exact problem THE PRODUCT solves as unsolved today (open_need "unsolved_pain"), with no request for a tool: what they tried does not fully work, they cannot do or cannot trust the thing THE PRODUCT does, or the tool that worked for them is gone. A buyer who says they are doing this work right now and names what is failing belongs here even when part of the post is opinion. Score 7 or 7.5, not 6, when the post gives a number for the problem or says what it costs them (how many, how often, how long). Tag it pain_point, with post_type "discussion". Not here, 5.5 at most: the same problem told as something already handled, or only observed (open_need "none").
+`
+
+// needExtra is what the "need" variant returns on top of ClassifyResult.
+type needExtra struct {
+	OpenNeed string `json:"open_need"`
+	WhyNow   string `json:"why_now"`
+}
+
+// needSystem is classifySystem with the open-need field and rule in the base
+// prompt and needBand in place of the product part's 6-7.5 band.
+func needSystem(p Provider, sc ScoringContext) ([]chatMessage, error) {
+	if !strings.Contains(classifyBasePrompt, needAnchor) || !strings.Contains(classifyBasePrompt, storyAnchor) {
+		return nil, fmt.Errorf("need variant: anchor not found in classifyBasePrompt")
+	}
+	base := strings.Replace(classifyBasePrompt, needAnchor, needFields+needAnchor, 1)
+	base = strings.Replace(base, storyAnchor, storyAnchor+needRule+"\n", 1)
+	msgs := storySystem(p, sc, base)
+	if sc.Product == "" {
+		return msgs, nil
+	}
+	const from, to = "- 6-7.5:", "- 4-5.5:"
+	for i := range msgs {
+		c := msgs[i].Content
+		a, b := strings.Index(c, from), strings.Index(c, to)
+		if a >= 0 && b > a {
+			msgs[i].Content = c[:a] + needBand + c[b:]
+			return msgs, nil
+		}
+	}
+	return nil, fmt.Errorf("need variant: 6-7.5 band not found in productFitRules")
+}
+
 // classifyVariant is ClassifyIntent, except that "story" swaps in
-// storyBasePrompt. The tail mirrors ClassifyIntent; TestStorySystem pins it.
-func classifyVariant(ctx context.Context, p Provider, title, content, platform string, sc ScoringContext, variant string) (*ClassifyResult, error) {
-	if variant != "story" {
-		return ClassifyIntent(ctx, p, title, content, platform, sc)
+// storyBasePrompt and "need" needSystem. The tail mirrors ClassifyIntent;
+// TestStorySystem pins it. needExtra is empty unless variant is "need".
+func classifyVariant(ctx context.Context, p Provider, title, content, platform string, sc ScoringContext, variant string) (*ClassifyResult, needExtra, error) {
+	var extra needExtra
+	var msgs []chatMessage
+	switch variant {
+	case "story":
+		base, err := storyBasePrompt()
+		if err != nil {
+			return nil, extra, err
+		}
+		msgs = storySystem(p, sc, base)
+	case "need":
+		var err error
+		if msgs, err = needSystem(p, sc); err != nil {
+			return nil, extra, err
+		}
+	default:
+		cr, err := ClassifyIntent(ctx, p, title, content, platform, sc)
+		return cr, extra, err
 	}
-	base, err := storyBasePrompt()
-	if err != nil {
-		return nil, err
-	}
-	msgs := append(storySystem(p, sc, base), chatMessage{Role: "user", Content: fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)})
+	msgs = append(msgs, chatMessage{Role: "user", Content: fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)})
 	result, err := callChat(ctx, p, msgs, 0.1)
 	if err != nil {
-		return nil, err
+		return nil, extra, err
 	}
+	raw := []byte(stripCodeFences(result))
 	var cr ClassifyResult
-	if err := json.Unmarshal([]byte(stripCodeFences(result)), &cr); err != nil {
-		return nil, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
+	if err := json.Unmarshal(raw, &cr); err != nil {
+		return nil, extra, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
 	}
+	_ = json.Unmarshal(raw, &extra) // same bytes just parsed
 	cr = NormalizeClassifyResult(cr, title)
-	return &cr, nil
+	return &cr, extra, nil
 }
 
 // storySystem is classifySystem with base in place of classifyBasePrompt.
@@ -150,7 +218,7 @@ func storySystem(p Provider, sc ScoringContext, base string) []chatMessage {
 func ablate(sc ScoringContext, variant string) (ScoringContext, error) {
 	var out ScoringContext
 	switch variant {
-	case "", "full", "story":
+	case "", "full", "story", "need":
 		return sc, nil
 	case "rules":
 		out.Rules = sc.Rules
@@ -229,6 +297,7 @@ func TestAblate(t *testing.T) {
 		"rules":   {Product: "p", Buyers: "b", LooksFor: "l", Skips: "s", Rules: []string{"r"}},
 		"full":    sc,
 		"story":   sc,
+		"need":    sc,
 	}
 	for _, v := range promptVariants {
 		got, err := ablate(sc, v)
@@ -255,6 +324,25 @@ func TestStorySystem(t *testing.T) {
 		got := storySystem(p, sc, base)
 		if !strings.Contains(got[0].Content, storyAnchor+storyRule) || !strings.Contains(fmt.Sprint(got), "WHO BUYS") {
 			t.Fatalf("%s: story rule or listener part missing", name)
+		}
+	}
+}
+
+func TestNeedSystem(t *testing.T) {
+	sc := ScoringContext{Product: "p", Buyers: "b", Rules: []string{"r"}}
+	for _, name := range []string{"anthropic", "openai"} {
+		got, err := needSystem(Provider{Name: name}, sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		all := fmt.Sprint(got)
+		for _, want := range []string{needFields + needAnchor, storyAnchor + needRule, needBand + "- 4-5.5:", "WHO BUYS", "- 8-10:"} {
+			if !strings.Contains(all, want) {
+				t.Fatalf("%s: need prompt lacks %q", name, want[:40])
+			}
+		}
+		if strings.Contains(all, "describing the workaround they built") {
+			t.Fatalf("%s: the old 6-7.5 band is still in the prompt", name)
 		}
 	}
 }
@@ -335,10 +423,21 @@ type evalCase struct {
 // the workspace already labelled is not scored with its own answer. It keeps
 // only the examples production would send (the first MaxScoringExamples), so
 // a dropped example leaves its slot empty instead of letting a 7th in.
-// Posts match the way formatExamples renders them (whitespace collapsed).
+// Posts match the way formatExamples renders them (whitespace collapsed), or
+// on the start of title and body joined.
 func withoutCase(sc ScoringContext, c evalCase) ScoringContext {
+	// Review examples are stored with an empty title and "title body" as the
+	// content, so the fields rarely line up with the case's: compare the start
+	// of the joined text too.
+	joined := func(title, content string) string {
+		return strings.TrimSuffix(truncate(title+" "+content, 300), "…")
+	}
 	same := func(e ScoringExample) bool {
-		return truncate(e.Title, 150) == truncate(c.Title, 150) && truncate(e.Content, 400) == truncate(c.Content, 400)
+		if truncate(e.Title, 150) == truncate(c.Title, 150) && truncate(e.Content, 400) == truncate(c.Content, 400) {
+			return true
+		}
+		a, b := joined(e.Title, e.Content), joined(c.Title, c.Content)
+		return len(a) >= 40 && len(b) >= 40 && (strings.HasPrefix(a, b) || strings.HasPrefix(b, a))
 	}
 	in := sc.Examples
 	if len(in) > MaxScoringExamples {
@@ -439,6 +538,13 @@ func TestWithoutCase(t *testing.T) {
 	}
 	if len(sc.Examples) != MaxScoringExamples+2 || sc.Examples[2].Title != "t2" {
 		t.Fatal("input context was changed")
+	}
+
+	// A review example keeps the post as "title body" under an empty title.
+	post := "How do you take meeting notes when you run every call yourself"
+	merged := ScoringContext{Examples: []ScoringExample{{Content: post + " " + post + " and more of the body", Label: "up"}, all[0]}}
+	if got := withoutCase(merged, evalCase{Title: post, Content: post + " and more of the body"}); titles(got.Examples) != "t0" {
+		t.Fatalf("merged-title example not dropped: %d left", len(got.Examples))
 	}
 
 	// No match: production's first six, unchanged.

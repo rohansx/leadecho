@@ -14,9 +14,9 @@
 // gold_label_live_test.go). EVAL_SOURCES (e.g.
 // agent_blind,human) keeps only those label sources. EVAL_SAMPLE=N scores a
 // fixed sample of about N cases stratified by workspace and label;
-// EVAL_VARIANT (base, product, buyers, looks, rules, full, story) cuts the
-// workspace prompt down for an ablation, or adds the candidate storyRule (see
-// ablate, classifyVariant). The report is written next to the set as
+// EVAL_VARIANT (base, product, buyers, looks, rules, full, story, need) cuts
+// the workspace prompt down for an ablation, or adds a candidate change:
+// storyRule, or the open-need field and gate (see ablate, classifyVariant). The report is written next to the set as
 // report-<model>[-<variant>]-<time>.json.
 package ai
 
@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,9 +43,19 @@ type evalResult struct {
 	PostType  string  `json:"post_type"`
 	Role      string  `json:"author_role"`
 	Reasoning string  `json:"reasoning"`
-	Err       string  `json:"error,omitempty"`
-	CostUSD   float64 `json:"cost_usd"`
-	Tokens    Usage   `json:"tokens"`
+	// For error analysis: the lead card text and what gated the verdict.
+	Ask       string   `json:"ask"`
+	Tags      []string `json:"intent_tags"`
+	Skips     bool     `json:"matches_skips"`
+	Awareness string   `json:"awareness_level"`
+	// "need" variant only: what the classifier said is open, why now, and
+	// its verdict before the open-need gate (Got is after it).
+	OpenNeed string  `json:"open_need,omitempty"`
+	WhyNow   string  `json:"why_now,omitempty"`
+	Ungated  bool    `json:"ungated_lead,omitempty"`
+	Err      string  `json:"error,omitempty"`
+	CostUSD  float64 `json:"cost_usd"`
+	Tokens   Usage   `json:"tokens"`
 }
 
 func TestFeedbackEval(t *testing.T) {
@@ -86,6 +97,19 @@ func TestFeedbackEval(t *testing.T) {
 		cases = picked
 	}
 	variant := os.Getenv("EVAL_VARIANT")
+	// EVAL_RULES_FILE: candidate learned-rule edits per workspace, kept next to
+	// the set (they name customers' products): {"ws_08": {"drop": ["text a rule
+	// to remove contains"], "add": ["new rule"]}}.
+	ruleEdits := map[string]struct{ Drop, Add []string }{}
+	if f := os.Getenv("EVAL_RULES_FILE"); f != "" {
+		raw, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &ruleEdits); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
 	t.Logf("model %s variant %q cases %d cap $%.2f", model, variant, len(cases), maxUSD)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Minute)
@@ -113,6 +137,18 @@ func TestFeedbackEval(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if ed, ok := ruleEdits[c.Workspace]; ok {
+			var rules []string
+			for _, r := range sc.Rules {
+				if !slices.ContainsFunc(ed.Drop, func(d string) bool { return strings.Contains(r, d) }) {
+					rules = append(rules, r)
+				}
+			}
+			if rules = append(rules, ed.Add...); len(rules) > MaxScoringRules {
+				t.Fatalf("%s: %d rules after edits, the prompt keeps %d", c.Workspace, len(rules), MaxScoringRules)
+			}
+			sc.Rules = rules
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func() {
@@ -120,9 +156,10 @@ func TestFeedbackEval(t *testing.T) {
 			var u Usage
 			p := Provider{Name: "anthropic", APIKey: key, Model: model, UsageSink: &u}
 			var cr *ClassifyResult
+			var extra needExtra
 			var err error
 			for attempt := 0; attempt < 3; attempt++ { // transient network errors (DNS EAI_AGAIN); u sums every attempt
-				if cr, err = classifyVariant(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c), variant); err == nil {
+				if cr, extra, err = classifyVariant(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c), variant); err == nil {
 					break
 				}
 				time.Sleep(time.Duration(attempt+1) * 3 * time.Second)
@@ -132,6 +169,11 @@ func TestFeedbackEval(t *testing.T) {
 				r.Err = err.Error()
 			} else {
 				r.Got, r.Score, r.Intent, r.PostType, r.Role, r.Reasoning = isLead(cr), cr.RelevanceScore, cr.Intent, cr.PostType, cr.AuthorRole, cr.Reasoning
+				r.Ask, r.Tags, r.Skips, r.Awareness = cr.Ask, cr.IntentTags, cr.MatchesSkips, cr.AwarenessLevel
+				r.OpenNeed, r.WhyNow, r.Ungated = extra.OpenNeed, extra.WhyNow, r.Got
+				if variant == "need" && extra.OpenNeed == "none" { // the gate: nothing open, not a lead
+					r.Got = false
+				}
 			}
 			mu.Lock()
 			spent += r.CostUSD
