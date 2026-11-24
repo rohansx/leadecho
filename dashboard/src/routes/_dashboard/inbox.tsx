@@ -1,16 +1,19 @@
 import { CreditsBanner } from "@/components/billing/credits-banner";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { ChevronLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronLeft, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail, type DetailTab } from "@/components/inbox/lead-detail";
+import { leadScope } from "@/components/inbox/intent-tags";
+import { voteKey, type Vote } from "@/lib/lead-vote";
 import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
 import {
   getMention,
   listMentions,
   listProposals,
+  sendMentionFeedback,
   mentionPlatformCounts,
   mentionQueueCounts,
   proposalCounts,
@@ -211,9 +214,15 @@ function InboxPage() {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.scoringPrecision] });
   };
 
+  // Errors from actions that already moved on to the next lead (archive, spam, y / n).
+  const [inboxError, setInboxError] = useState<string | null>(null);
+  const failed = (what: string) => (err: Error) =>
+    setInboxError(`Couldn't ${what} (${err.message || "network error"}).`);
+
   const archiveMutation = useMutation({
     mutationFn: (mentionId: string) => updateMentionStatus(mentionId, "archived"),
     onSuccess: invalidateInbox,
+    onError: failed("archive that lead"),
   });
 
   const feedbackMutation = useMutation({
@@ -227,6 +236,7 @@ function InboxPage() {
       reason?: string;
     }) => updateMentionStatus(mentionId, nextStatus, reason),
     onSuccess: invalidateInbox,
+    onError: (err, { status: nextStatus }) => failed(nextStatus === "spam" ? "mark that lead as spam" : "archive that lead")(err),
   });
 
   const proposalMutation = useMutation({
@@ -280,6 +290,45 @@ function InboxPage() {
     feedbackMutation.mutate({ mentionId: selected.id, status: nextStatus, reason });
   };
 
+  // Vote "Not a lead" with a reason, then archive with it: one sequence, so
+  // leaving the lead mid-flight neither skips the archive nor moves you on.
+  const notAFitMutation = useMutation({
+    scope: leadScope(selected?.id),
+    mutationFn: async ({ mentionId, note }: { mentionId: string; note: string }) => {
+      await sendMentionFeedback(mentionId, "down", note);
+      await updateMentionStatus(mentionId, "archived", note);
+    },
+    onSuccess: (_, { mentionId }) => {
+      if (selected?.id === mentionId) advanceSelection();
+      invalidateInbox();
+    },
+    onError: invalidateInbox, // the vote may have landed without the archive
+  });
+
+  // y = Lead, n = Not a lead on the open lead, then on to the next one. A
+  // failed vote reopens its lead and says so.
+  const keyVote = useMutation({
+    scope: leadScope(selected?.id),
+    mutationFn: ({ id: mentionId, label }: { id: string; label: Vote }) => sendMentionFeedback(mentionId, label),
+    onSuccess: invalidateInbox,
+    onError: (err, { id: mentionId }) => {
+      setInboxError(`Couldn't save your vote (${err.message || "network error"}). That lead is open again.`);
+      setSearch({ id: mentionId });
+    },
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const label = voteKey(e, document.querySelector('[aria-modal="true"]') != null);
+      if (!label || !selected) return;
+      e.preventDefault();
+      setInboxError(null);
+      keyVote.mutate({ id: selected.id, label });
+      advanceSelection();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }); // ponytail: re-subscribes each render so the handler never sees a stale selection
+
   const handleRefresh = () => {
     if (isProposalsView) {
       void refetchProposals();
@@ -307,7 +356,23 @@ function InboxPage() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
+    <div className="relative flex h-[calc(100dvh-var(--header-height))] min-h-0 overflow-hidden">
+      {inboxError && (
+        <div
+          role="alert"
+          className="absolute bottom-3 left-3 z-30 flex max-w-[calc(100%-1.5rem)] items-start gap-2 rounded-lg border border-destructive/30 bg-card px-3 py-2 text-xs text-destructive shadow-lg md:max-w-sm"
+        >
+          <span className="min-w-0 flex-1">{inboxError}</span>
+          <button
+            type="button"
+            onClick={() => setInboxError(null)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/40 cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
       {search.loosened && <LoosenedBanner /> /* onboarding */}
       <CreditsBanner /* billing */ />
       {/* Phones: one pane at a time, the list, or the open post with a way back. */}
@@ -385,6 +450,7 @@ function InboxPage() {
           archiving={archiveMutation.isPending}
           onFeedback={handleFeedback}
           feedbackPending={feedbackMutation.isPending}
+          notAFit={notAFitMutation}
           tab={(search.tab as DetailTab | undefined) ?? "overview"}
           onTabChange={(t) => setSearch({ tab: t === "overview" ? undefined : t })}
         />
