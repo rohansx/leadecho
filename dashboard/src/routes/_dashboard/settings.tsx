@@ -649,7 +649,8 @@ function AccountCard() {
 
 function SettingsPage() {
   const { data: billing } = useQuery({ queryKey: BILLING_QUERY, queryFn: getBilling, staleTime: 60_000 });
-  const hosted = !!billing?.enforced;
+  // Until billing loads, treat the instance as hosted so the AI tab never flashes.
+  const hosted = !billing || !!billing.enforced;
   // Hosted AI is paid for with credits; bring-your-own-keys is a self-host setting.
   const tabs = TABS.filter((t) => t.key !== "ai" || !hosted);
   const requested = Route.useSearch().tab;
@@ -682,7 +683,8 @@ function SettingsPage() {
         ))}
       </nav>
 
-      <ErrorBoundary>
+      {/* keyed by tab: a card that crashes takes down only its own tab */}
+      <ErrorBoundary key={tab}>
         {tab === "account" && <AccountCard />}
         {tab === "billing" && <BillingCard />}
         {tab === "replies" && <DraftsCard />}

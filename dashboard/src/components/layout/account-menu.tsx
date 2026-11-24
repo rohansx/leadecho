@@ -19,11 +19,18 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+      if (e instanceof KeyboardEvent) {
+        if (e.key !== "Escape") return;
+        setOpen(false);
+        trigger.current?.focus(); // back to the button that opened it
+      } else if (!ref.current?.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", close);
@@ -41,19 +48,19 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div ref={ref} className="relative border-t border-border p-2.5">
       {open && (
-        <div role="menu" className="absolute inset-x-2.5 bottom-full mb-1 rounded-lg border border-border bg-card p-1 shadow-lg">
-          <Link to="/settings" search={{ tab: "account" }} onClick={go} role="menuitem" className={itemClass}>
+        <div id="account-menu" className="absolute inset-x-2.5 bottom-full mb-1 rounded-lg border border-border bg-card p-1 shadow-lg">
+          <Link to="/settings" search={{ tab: "account" }} onClick={go} className={itemClass}>
             <UserRound className="h-4 w-4" /> Account
           </Link>
-          <Link to="/settings" onClick={go} role="menuitem" className={itemClass}>
+          <Link to="/settings" onClick={go} className={itemClass}>
             <Settings className="h-4 w-4" /> Settings
           </Link>
-          <button type="button" role="menuitem" onClick={toggleTheme} className={itemClass}>
+          <button type="button" onClick={toggleTheme} className={itemClass}>
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </button>
           <div className="my-1 h-px bg-border" />
-          <button type="button" role="menuitem" onClick={() => void logout()} className={itemClass}>
+          <button type="button" onClick={() => void logout()} className={itemClass}>
             <LogOut className="h-4 w-4" /> Log out
           </button>
         </div>
@@ -61,8 +68,9 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
+        ref={trigger}
         aria-expanded={open}
+        aria-controls="account-menu"
         className={cn("flex w-full cursor-pointer items-center gap-2.5 rounded-md p-1.5 text-left hover:bg-accent", open && "bg-accent")}
       >
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-medium text-primary-ink">

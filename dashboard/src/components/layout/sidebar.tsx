@@ -77,9 +77,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const leadsReady = queueCounts?.queues.find((q) => q.queue === INBOX_QUEUES.ACTION_REQUIRED)?.count ?? 0;
   // ops: only the operator's allowlisted emails get a 200 here.
   const { data: isOps } = useQuery({ queryKey: ["ops", "me"], queryFn: opsMe, retry: false, staleTime: 5 * 60_000 });
-  const [moreOpen, setMoreOpen] = useState(false);
-  // On one of its pages, "More" stays open so the current page is visible.
-  const showMore = moreOpen || moreItems.some((i) => pathname.startsWith(i.to));
+  // null = not toggled yet: open on one of its pages so the current page shows.
+  const [moreOpen, setMoreOpen] = useState<boolean | null>(null);
+  const showMore = moreOpen ?? moreItems.some((i) => pathname.startsWith(i.to));
 
   return (
     <>
@@ -125,7 +125,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <div>
           <button
             type="button"
-            onClick={() => setMoreOpen((v) => !v)}
+            onClick={() => setMoreOpen(!showMore)}
             aria-expanded={showMore}
             className="flex w-full cursor-pointer items-center gap-1 px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80 hover:text-foreground"
           >

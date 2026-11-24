@@ -44,7 +44,7 @@ export function Header({ onMenu }: HeaderProps) {
         <button
           type="button"
           onClick={() => navigate({ to: "/inbox", search: { queue: INBOX_QUEUES.ACTION_REQUIRED } })}
-          aria-label={`${newCount} leads waiting`}
+          aria-label={newCount ? `${newCount} leads waiting` : "No leads waiting"}
           title="Leads waiting for you"
           className="relative flex size-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
