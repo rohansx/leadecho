@@ -76,3 +76,14 @@ func TestMatchSearchRanksEmptyResultsClearNothing(t *testing.T) {
 		}
 	}
 }
+
+func TestSerpURLsKeepsGoogleOrder(t *testing.T) {
+	body := []byte(`{"output":{"results":[{"position":1,"url":"https://www.reddit.com/r/SaaS/comments/1ped6bv/x/"},{"position":2,"url":""},{"position":3,"url":"https://leadsrover.io/blog"}]}}`)
+	got := serpURLs(body)
+	if len(got) != 2 || got[0] != "https://www.reddit.com/r/SaaS/comments/1ped6bv/x/" || got[1] != "https://leadsrover.io/blog" {
+		t.Errorf("got %v", got)
+	}
+	if serpURLs([]byte("not json")) != nil {
+		t.Error("a bad body is no results")
+	}
+}

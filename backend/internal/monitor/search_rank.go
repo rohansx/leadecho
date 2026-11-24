@@ -9,15 +9,16 @@ import (
 	"time"
 
 	"leadecho/internal/database"
+	"leadecho/internal/treg"
 )
 
 // Threads that rank in web search: a Reddit, Hacker News or Dev.to thread
 // that shows up in web search for a buyer's keyword keeps sending readers for
 // months, so a reply there is worth more. Once a week per workspace, each
 // active keyword that found an open Leads Ready thread is searched once on
-// Exa (no page contents, about $0.005 a search) and the threads found in the
-// results get platform_metadata.search_rank. Exa's order is its own, not
-// Google's: the app says "web search", never "Google".
+// Google (treg's routed google.serp.organic, about $0.0004 a search, paid by
+// the platform through the overhead client) and the threads found in the
+// results get platform_metadata.search_rank.
 
 const (
 	searchRankInterval   = 7 * 24 * time.Hour
@@ -35,9 +36,17 @@ type SearchRank struct {
 	CheckedAt time.Time `json:"checked_at"`
 }
 
-// watchSearchRank checks due workspaces every hour. Off without EXA_API_KEY.
+// SetSearchRankTreg sets the client the Google searches go through: the
+// platform's own (billing.OverheadMeter), not a workspace's paid data.
+func (m *Monitor) SetSearchRankTreg(c *treg.Client) { m.serp = c }
+
+// tregSERPTool: Google organic results, routed to the cheapest provider that
+// answers (real result URLs, unlike some providers' google.com/goto links).
+const tregSERPTool = "treg.google.serp.organic"
+
+// watchSearchRank checks due workspaces every hour. Off without treg.
 func (m *Monitor) watchSearchRank(ctx context.Context) {
-	if m.exaAPIKey == "" {
+	if m.serp == nil || !m.serp.Enabled() {
 		return
 	}
 	t := time.NewTicker(searchRankPoll)
@@ -84,16 +93,12 @@ func (m *Monitor) checkSearchRank(ctx context.Context, ws string, now time.Time)
 	}
 	results := map[string][]string{}
 	for _, q := range searchRankQueries(threads, searchRankMaxQueries) {
-		hits, err := exaSearch(ctx, exaSearchURL, m.exaAPIKey, exaSearchRequest{Query: q, Type: "auto", NumResults: searchRankResults})
+		resp, err := m.serp.Call(ctx, treg.Request{WorkspaceID: ws, Tool: tregSERPTool, Body: map[string]any{"q": q, "num": searchRankResults}})
 		if err != nil {
 			m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("search rank: search")
 			continue // not searched: ranks stored for q stay as they are
 		}
-		urls := make([]string, 0, len(hits))
-		for _, h := range hits {
-			urls = append(urls, exaResultLink(h))
-		}
-		results[q] = urls
+		results[q] = serpURLs(resp.Body)
 	}
 	flagged := 0
 	for id, rank := range matchSearchRanks(threads, results, now) {
@@ -207,4 +212,26 @@ func threadKey(raw string) string {
 		return ""
 	}
 	return strings.TrimPrefix(host, "www.") + "/" + strings.ToLower(path)
+}
+
+// serpURLs reads the organic result URLs, in Google's order, from a
+// treg.google.serp.organic answer ({"output":{"results":[{"url",...}]}}).
+func serpURLs(body []byte) []string {
+	var v struct {
+		Output struct {
+			Results []struct {
+				URL string `json:"url"`
+			} `json:"results"`
+		} `json:"output"`
+	}
+	if json.Unmarshal(body, &v) != nil {
+		return nil
+	}
+	out := make([]string, 0, len(v.Output.Results))
+	for _, r := range v.Output.Results {
+		if r.URL != "" {
+			out = append(out, r.URL)
+		}
+	}
+	return out
 }
