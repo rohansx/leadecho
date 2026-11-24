@@ -541,3 +541,30 @@ func TestPeopleGoByWhenThePostWasWrittenDB(t *testing.T) {
 		t.Fatalf("count must match the list: %+v %v", v.Competitors, err)
 	}
 }
+
+func TestIdleWorkspaceIsNotFetchedButLeavesTheDueListDB(t *testing.T) {
+	pool, q, ws := testDB(t)
+	ctx := context.Background()
+	posts := &postsQueue{rounds: [][]Item{{{Key: "1", Body: "a post", At: time.Now()}}}}
+	active := false
+	svc := &Service{Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: &fakeModel{}, Posts: posts, Logger: zerolog.Nop(),
+		Active: func(_ context.Context, w string) bool { return w != ws || active }}
+	c, _ := q.CreateCompetitor(ctx, database.CreateCompetitorParams{WorkspaceID: ws, Name: "Acme", Website: "https://acme.com"})
+	q.CreateCompetitorSource(ctx, database.CreateCompetitorSourceParams{CompetitorID: c.ID, WorkspaceID: ws, Kind: KindX, Url: "https://x.com/acme"})
+
+	svc.checkDue(ctx)
+	if len(posts.rounds) != 1 {
+		t.Fatal("an idle workspace's paid source was fetched")
+	}
+	srcs, _ := q.ListCompetitorSources(ctx, ws)
+	if len(srcs) != 1 || !srcs[0].LastCheckedAt.Valid {
+		t.Fatalf("an idle source must be marked checked so it leaves the due list: %+v", srcs)
+	}
+
+	active = true // someone opened the page
+	makeDue(t, pool, ws)
+	svc.checkDue(ctx)
+	if len(posts.rounds) != 0 {
+		t.Fatal("a watched workspace's source was not fetched")
+	}
+}

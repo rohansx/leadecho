@@ -71,6 +71,9 @@ type Service struct {
 	Limit   func(ctx context.Context, ws string) int                  // nil: DefaultLimit
 	Locked  func(ctx context.Context, ws string) bool                 // nil: paid data is available
 	Alert   func(ctx context.Context, ws, competitor string, m Alert) // nil: no alerts
+	// Active reports whether the poll still watches a workspace (someone
+	// opened the page lately). nil: every workspace is watched.
+	Active func(ctx context.Context, ws string) bool
 	// Tx runs fn in one database transaction. nil: fn runs on Q, unprotected
 	// (tests only; NewService always sets it).
 	Tx func(ctx context.Context, fn func(q database.Querier) error) error

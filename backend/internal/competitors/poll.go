@@ -42,6 +42,10 @@ func (s *Service) Poll(ctx context.Context) {
 	s.sendAlerts(ctx)
 }
 
+func (s *Service) active(ctx context.Context, ws string) bool {
+	return s.Active == nil || s.Active(ctx, ws)
+}
+
 func (s *Service) setupPending(ctx context.Context) {
 	wss, err := s.Q.ListWorkspacesNeedingCompetitorSetup(ctx, setupPerPoll)
 	if err != nil {
@@ -51,6 +55,9 @@ func (s *Service) setupPending(ctx context.Context) {
 	for _, ws := range wss {
 		if ctx.Err() != nil {
 			return
+		}
+		if !s.active(ctx, ws) {
+			continue // set up when someone opens the page
 		}
 		created, unresolved, err := s.Setup(ctx, ws)
 		if err != nil {
@@ -72,6 +79,14 @@ func (s *Service) checkDue(ctx context.Context) {
 	for _, src := range due {
 		if ctx.Err() != nil {
 			return
+		}
+		if !s.active(ctx, src.WorkspaceID) {
+			// Not fetched, not paid for. Marked checked so it leaves the
+			// due list and cannot crowd out watched workspaces' sources.
+			if err := s.Q.TouchCompetitorSource(ctx, src.ID); err != nil {
+				s.Logger.Warn().Err(err).Str("source_id", src.ID).Msg("competitors: skip idle source")
+			}
+			continue
 		}
 		if err := s.CheckSource(ctx, src); err != nil {
 			s.Logger.Warn().Err(err).Str("source_id", src.ID).Str("kind", src.Kind).Str("url", src.Url).Msg("competitors: check source")

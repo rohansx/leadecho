@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"leadecho/internal/database"
 	"leadecho/internal/demand"
 )
 
@@ -49,6 +50,9 @@ func (s *Shared) runDemand(ctx context.Context, svc *demand.Service) {
 			continue
 		}
 		seen[ws] = true
+		if !s.featureInUse(ctx, ws, database.FeatureDemand) {
+			continue // nobody opened Demand lately; grouping waits until someone does
+		}
 		if due, err := svc.Due(ctx, ws); err != nil || !due {
 			if err != nil {
 				s.Logger.Warn().Err(err).Str("workspace_id", ws).Msg("demand: check waiting asks")

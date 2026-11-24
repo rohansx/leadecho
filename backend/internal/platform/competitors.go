@@ -7,6 +7,7 @@ import (
 
 	"leadecho/internal/billing"
 	"leadecho/internal/competitors"
+	"leadecho/internal/database"
 )
 
 // CompetitorPollInterval is how often the competitor watcher looks for work.
@@ -27,6 +28,9 @@ func (s *Shared) StartCompetitors(ctx context.Context) {
 		return
 	}
 	svc := competitors.NewService(s.DB, s.Queries, s.LLMRouter, s.Monitor, billing.New(s.Queries, s.Config.CreditsEnforced()), s.Config.ExaAPIKey, s.Logger)
+	svc.Active = func(ctx context.Context, ws string) bool {
+		return s.featureInUse(ctx, ws, database.FeatureCompetitors)
+	}
 	go func() {
 		t := time.NewTicker(CompetitorPollInterval)
 		defer t.Stop()
