@@ -179,6 +179,9 @@ func clipText(s string, n int) string {
 
 // ResearchCompany runs the web research on Claude with the server-side web
 // search tool. Anthropic only: other providers have no such tool.
+// CompanyResearchModel runs company research (web search + a short brief).
+const CompanyResearchModel = "claude-sonnet-5-5"
+
 func ResearchCompany(ctx context.Context, p Provider, in CompanyResearch) (_ *ResearchBrief, u Usage, _ error) {
 	if p.Name != "anthropic" {
 		// "temporarily" lets the router move on to its next target, which may be Claude.

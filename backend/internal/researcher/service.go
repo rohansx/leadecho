@@ -1,6 +1,7 @@
 package researcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -421,6 +423,7 @@ func (s *Service) GetPerson360ByMention(ctx context.Context, workspaceID, mentio
 	if err != nil {
 		return nil, err
 	}
+	s.dossierOnView(workspaceID, person, lead)
 	return &Person360View{
 		Person:     &PersonView{Person: person, Metadata: rawJSON(person.Metadata)},
 		Identities: views,
@@ -493,4 +496,29 @@ func parseUUID(s string) pgtype.UUID {
 	}
 	u.Valid = true
 	return u
+}
+
+// dossierViewRetry: how soon a viewed person without a profile is asked for
+// again (the tab polls; a build that keeps failing must not be retried on
+// every poll).
+const dossierViewRetry = 10 * time.Minute
+
+var dossierViewed sync.Map // person ID -> time.Time of the last request
+
+// dossierOnView starts a profile for a person someone is looking at who has
+// none yet (leads from before profiles existed, or whose build was dropped).
+func (s *Service) dossierOnView(ws string, person database.Person, lead database.Lead) {
+	if s.dossier == nil || bytes.Contains(person.Metadata, []byte(`"dossier"`)) {
+		return
+	}
+	now := time.Now()
+	if last, ok := dossierViewed.Load(person.ID); ok && now.Sub(last.(time.Time)) < dossierViewRetry {
+		return
+	}
+	dossierViewed.Store(person.ID, now)
+	platform := ""
+	if lead.Platform.Valid {
+		platform = string(lead.Platform.PlatformType)
+	}
+	s.dossierAsync(ws, person.ID, platform, lead.Username.String)
 }

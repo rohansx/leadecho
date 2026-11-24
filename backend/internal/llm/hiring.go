@@ -64,18 +64,21 @@ func (r *Router) ResearchCompany(ctx context.Context, workspaceID string, in ai.
 	var out *ai.ResearchBrief
 	var ran bool
 	var ranErr error
-	err := r.withChatProvider(ctx, workspaceID, TaskCompanyResearch, func(p ai.Provider) error {
+	// Sonnet 5.5, whatever the strong tier is: reading search results and
+	// writing a short brief doesn't need Opus, and the results are most of
+	// the input (about half the cost on Sonnet).
+	err := r.withChatProviderModel(ctx, workspaceID, TaskCompanyResearch, ai.CompanyResearchModel, func(p ai.Provider) (ai.Usage, error) {
 		if ran {
 			// One paid run per lead: a fallback target must not repeat
 			// several searches because the first run failed.
-			return ranErr
+			return ai.Usage{}, ranErr
 		}
-		res, _, err := ai.ResearchCompany(ctx, p, in)
+		res, u, err := ai.ResearchCompany(ctx, p, in)
 		if p.Name == "anthropic" {
 			ran, ranErr = true, err
 		}
 		out = res
-		return err
+		return u, err
 	})
 	return out, err
 }
