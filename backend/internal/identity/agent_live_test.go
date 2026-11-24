@@ -54,7 +54,7 @@ func TestLiveAgent(t *testing.T) {
 		if sess != nil {
 			tools = sess
 		}
-		f, u, err := ai.ResearchPerson(ctx, p, ai.PersonResearch{Platform: s.Platform, Handle: s.Handle, ProfileURL: s.ProfileURL, Name: prof.Name, Known: known, Notes: prof.Notes}, tools)
+		f, u, err := ai.ResearchPerson(ctx, p, ai.PersonResearch{Platform: s.Platform, Handle: s.Handle, ProfileURL: s.ProfileURL, Name: prof.Name, Known: known, Notes: prof.Notes, Deep: os.Getenv("IDENTITY_DEEP") != "" && prof.Identified()}, tools)
 		sess.Close()
 		cancel()
 		if err != nil {

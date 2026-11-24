@@ -160,6 +160,9 @@ func dossierInput(platform, handle string, prof *identity.Profile, ent *enrich.R
 		for _, p := range prof.RecentPosts {
 			fmt.Fprintf(&b, "Recent post elsewhere: %s\n", p.Title)
 		}
+		for _, w := range prof.Works {
+			fmt.Fprintf(&b, "Their %s: %s (%s)\n", firstNonEmpty(w.Kind, "work"), w.Title, firstNonEmpty(w.Date, "undated"))
+		}
 		in.Identity = b.String()
 	}
 	if ent != nil && ent.Found() {

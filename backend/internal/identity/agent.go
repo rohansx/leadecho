@@ -2,6 +2,7 @@ package identity
 
 import (
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,6 +69,7 @@ func MergeAgent(p *Profile, f *ai.PersonFindings) *Profile {
 				Confidence: conf, Evidence: al.Evidence, Method: "agent_candidate"})
 		}
 	}
+	out.Works = mergeWorks(p.Works, ev.works(f))
 	out.Name = firstNonEmpty(p.Name, f.Name)
 	out.Role = firstNonEmpty(f.Role, p.Role)
 	out.Company = firstNonEmpty(p.Company, f.Company)
@@ -327,4 +329,84 @@ func query(u *url.URL) string {
 		return ""
 	}
 	return "?" + u.RawQuery
+}
+
+const maxWorks = 20
+
+// works keeps the published works that are provably theirs: on their own
+// site or under a verified profile, under their verified username on a
+// shared platform (dev.to/<them>/..., medium.com/@<them>/...), or on a page
+// the agent read that names them in full (a talk or podcast page).
+func (e *evidence) works(f *ai.PersonFindings) []Work {
+	handles := e.trustedHandles()
+	fullName := strings.ToLower(strings.Join(strings.Fields(firstNonEmpty(e.name, e.verifiedName())), " "))
+	var out []Work
+	for _, w := range f.Works {
+		u, err := url.Parse(w.URL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			continue
+		}
+		path := strings.ToLower(u.Path)
+		ok := e.theirs(w.URL)
+		for _, h := range handles {
+			ok = ok || strings.HasPrefix(path, "/"+h+"/") || strings.HasPrefix(path, "/@"+h+"/") ||
+				strings.HasPrefix(strings.ToLower(u.Hostname()), h+".")
+		}
+		if !ok && strings.Contains(fullName, " ") {
+			ok = strings.Contains(e.text[normalize(w.URL)], fullName)
+		}
+		if ok {
+			out = append(out, Work{Kind: w.Kind, Title: w.Title, URL: w.URL, Date: w.Date, Evidence: w.Evidence})
+		}
+	}
+	return out
+}
+
+// trustedHandles are their usernames on verified profiles (4+ characters:
+// short ones match too many paths).
+func (e *evidence) trustedHandles() []string {
+	seen := map[string]bool{}
+	var out []string
+	for u := range e.trusted {
+		if c, ok := Classify(u); ok && c.Kind != KindWebsite && c.Kind != KindEmail && c.Kind != KindBooking {
+			h := strings.ToLower(strings.SplitN(c.Handle, "@", 2)[0])
+			if len(h) >= 4 && !seen[h] {
+				seen[h] = true
+				out = append(out, h)
+			}
+		}
+	}
+	return out
+}
+
+// verifiedName is the agent's name once a profile page of theirs shows it.
+func (e *evidence) verifiedName() string {
+	n := strings.ToLower(strings.TrimSpace(e.claimedName))
+	if n == "" {
+		return ""
+	}
+	for page, text := range e.text {
+		if c, ok := Classify("https://" + page); ok && c.Kind != KindWebsite && e.trusted[c.URL] && strings.Contains(text, n) {
+			return e.claimedName
+		}
+	}
+	return ""
+}
+
+// mergeWorks adds new works after the ones already known, without
+// duplicates, most recent first within the new batch, capped.
+func mergeWorks(old, add []Work) []Work {
+	out := append([]Work(nil), old...)
+	seen := map[string]bool{}
+	for _, w := range out {
+		seen[normalize(w.URL)] = true
+	}
+	sort.SliceStable(add, func(i, j int) bool { return add[i].Date > add[j].Date })
+	for _, w := range add {
+		if k := normalize(w.URL); !seen[k] && len(out) < maxWorks {
+			seen[k] = true
+			out = append(out, w)
+		}
+	}
+	return out
 }

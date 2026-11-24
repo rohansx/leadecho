@@ -16,6 +16,25 @@ interface IdentityPost {
   url?: string;
 }
 
+interface IdentityWork {
+  kind: string;
+  title: string;
+  url: string;
+  date?: string;
+}
+
+const WORK_LABEL: Record<string, string> = {
+  blog: "Post",
+  article: "Article",
+  talk: "Talk",
+  podcast: "Podcast",
+  video: "Video",
+  repo: "Repo",
+  newsletter: "Newsletter",
+  paper: "Paper",
+  project: "Project",
+};
+
 interface IdentityProfile {
   name?: string;
   role?: string;
@@ -24,6 +43,7 @@ interface IdentityProfile {
   topics?: string[];
   links?: IdentityLink[];
   recent_posts?: IdentityPost[];
+  works?: IdentityWork[];
   tier?: string;
 }
 
@@ -156,6 +176,29 @@ export function IdentityCard({ metadata }: { metadata?: Record<string, unknown> 
             ))}
           </div>
         </details>
+      )}
+      {p.works && p.works.length > 0 && (
+        <div>
+          <h6 className="text-xs font-medium text-muted-foreground mb-1">Their work</h6>
+          <ul className="space-y-1">
+            {p.works.slice(0, 12).map((w) => {
+              const href = safeHref(w.url);
+              return (
+                <li key={w.url} className="flex items-baseline gap-2 text-sm min-w-0">
+                  <span className="shrink-0 text-xs text-muted-foreground w-16">{WORK_LABEL[w.kind] ?? "Work"}</span>
+                  {href ? (
+                    <a href={href} target="_blank" rel="noreferrer noopener" className="truncate hover:underline underline-offset-2">
+                      {w.title}
+                    </a>
+                  ) : (
+                    <span className="truncate">{w.title}</span>
+                  )}
+                  {w.date && <span className="shrink-0 text-xs text-muted-foreground">{w.date}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
       {p.recent_posts && p.recent_posts.length > 0 && (
         <details className="text-sm">

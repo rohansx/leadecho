@@ -237,6 +237,13 @@ func agentDue(p *identity.Profile) bool {
 	return p != nil && p.Tier != "b" && !p.Complete()
 }
 
+// deepDue: we know who they are (a real name and a verified link) and their
+// public footprint (every profile, their posts, talks, projects) was never
+// mapped. One deep run per person.
+func deepDue(p *identity.Profile) bool {
+	return p.Identified() && p.DeepAt.IsZero()
+}
+
 type dayCounter struct {
 	mu   sync.Mutex
 	day  string
@@ -288,7 +295,7 @@ var inflightAuthors sync.Map
 // researchAsync runs tier b in the background, then the paid lookup again
 // with whatever new key it found.
 func (s *Service) researchAsync(ws, leadID, personID string, mention database.Mention, platform, handle, profileURL string, prof *identity.Profile) {
-	if s.agent == nil || !agentDue(prof) {
+	if s.agent == nil || (!agentDue(prof) && !deepDue(prof)) {
 		return
 	}
 	author := strings.ToLower(platform + ":" + handle)
@@ -321,7 +328,7 @@ func (s *Service) researchAsync(ws, leadID, personID string, mention database.Me
 }
 
 func (s *Service) research(ctx context.Context, ws, leadID, personID string, mention database.Mention, platform, handle, profileURL string, prof *identity.Profile) error {
-	in := ai.PersonResearch{Platform: platform, Handle: handle, ProfileURL: profileURL, Name: prof.Name, Notes: prof.Notes,
+	in := ai.PersonResearch{Platform: platform, Handle: handle, ProfileURL: profileURL, Name: prof.Name, Notes: prof.Notes, Deep: deepDue(prof),
 		Post: strings.TrimSpace(mention.Title.String + "\n" + mention.Content)}
 	for _, l := range prof.Links {
 		if l.Confidence >= 0.5 {
@@ -339,6 +346,9 @@ func (s *Service) research(ctx context.Context, ws, leadID, personID string, men
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	next := identity.MergeAgent(prof, found) // tier "b" even on failure: one attempt per author
+	if in.Deep {
+		next.DeepAt = time.Now().UTC() // one deep run per person, even if it found little
+	}
 	next = s.confirmLinkedIn(saveCtx, ws, next)
 	s.identity.Store(saveCtx, identity.Seed{Platform: platform, Handle: handle}, next)
 	if serr := s.saveIdentity(saveCtx, ws, leadID, personID, next); serr != nil {

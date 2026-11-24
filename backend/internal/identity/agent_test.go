@@ -223,3 +223,56 @@ func TestColleagueWithTheSameFirstNameIsNotThem(t *testing.T) {
 		t.Error("their surname in the slug should count (jane-doe-1)")
 	}
 }
+
+func TestWorksKeepOnlyWhatIsProvablyTheirs(t *testing.T) {
+	base := &Profile{Name: "Glen Baker", Links: []Link{
+		{Kind: KindHackerNews, URL: "https://news.ycombinator.com/user?id=iepathos", Handle: "iepathos", Confidence: 1, Method: "origin"},
+		{Kind: KindWebsite, URL: "https://entropicdrift.com", Confidence: 0.9},
+		{Kind: KindGitHub, URL: "https://github.com/iepathos", Handle: "iepathos", Confidence: 0.9},
+	}}
+	f := &ai.PersonFindings{
+		Seen: map[string]string{
+			"https://confs.example/2026/speakers": "Talk: Paying down tech debt, by Glen Baker",
+			"https://news.example/rust-tools":     "A roundup mentioning Debtmap, made by some developer",
+		},
+		Works: []ai.Work{
+			{Kind: "blog", Title: "Debt is a design smell", URL: "https://entropicdrift.com/posts/debt", Date: "2026-10"}, // their site
+			{Kind: "repo", Title: "debtmap", URL: "https://github.com/iepathos/debtmap", Date: ""},                        // their repo
+			{Kind: "article", Title: "Rust tips", URL: "https://dev.to/iepathos/rust-tips", Date: "2026-08"},              // their username path
+			{Kind: "talk", Title: "Paying down tech debt", URL: "https://confs.example/2026/speakers", Date: "2026-05"},   // page names them
+			{Kind: "article", Title: "Rust tool roundup", URL: "https://news.example/rust-tools", Date: "2026-09"},        // about their work, not by them
+			{Kind: "repo", Title: "someone else's fork", URL: "https://github.com/otherdev/debtmap", Date: ""},            // not theirs
+			{Kind: "blog", Title: "bad", URL: "javascript:alert(1)", Date: ""},                                            // not a link
+		},
+	}
+	p := MergeAgent(base, f)
+	got := map[string]bool{}
+	for _, w := range p.Works {
+		got[w.URL] = true
+	}
+	for _, want := range []string{"https://entropicdrift.com/posts/debt", "https://github.com/iepathos/debtmap",
+		"https://dev.to/iepathos/rust-tips", "https://confs.example/2026/speakers"} {
+		if !got[want] {
+			t.Errorf("missing their work %s", want)
+		}
+	}
+	for _, not := range []string{"https://news.example/rust-tools", "https://github.com/otherdev/debtmap", "javascript:alert(1)"} {
+		if got[not] {
+			t.Errorf("%s is not provably theirs", not)
+		}
+	}
+	if p.Works[0].Date != "2026-10" && p.Works[0].URL != "https://entropicdrift.com/posts/debt" {
+		t.Errorf("most recent first, got %+v", p.Works[0])
+	}
+}
+
+func TestMergeWorksKeepsOldAndDedupes(t *testing.T) {
+	old := []Work{{Title: "a", URL: "https://jane.dev/a"}}
+	got := mergeWorks(old, []Work{{Title: "a again", URL: "https://jane.dev/a/"}, {Title: "b", URL: "https://jane.dev/b"}})
+	if len(got) != 2 || got[0].Title != "a" || got[1].Title != "b" {
+		t.Fatalf("got %+v", got)
+	}
+	if len(old) != 1 {
+		t.Fatal("must not modify its input")
+	}
+}
