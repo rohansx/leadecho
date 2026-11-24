@@ -16,6 +16,14 @@ const plans = [
     cta: "Start free",
   },
   {
+    name: "Solo",
+    for: "For founders finding their first customers",
+    price: 19,
+    features: ["1,500 credits a month", "5 active keywords", "Hacker News, Dev.to, Bluesky", "AI scoring and reply drafts", "Slack, Discord and email alerts"],
+    locked: ["X, Reddit and LinkedIn"],
+    cta: "Choose Solo",
+  },
+  {
     name: "Starter",
     for: "For solo founders",
     price: 49,
@@ -61,7 +69,7 @@ export function PricingSection() {
         </p>
       </Reveal>
 
-      <div className="mt-14 grid gap-4 md:grid-cols-3">
+      <div className="mt-14 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {plans.map((p, i) => (
           <Reveal
             key={p.name}

@@ -76,10 +76,10 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	credits := billing.New(queries, cfg.CreditsEnforced())
 	dodo := billing.NewDodo(billing.DodoConfig{
 		APIKey: cfg.DodoAPIKey, BaseURL: cfg.DodoBaseURL(), ReturnURL: strings.TrimRight(cfg.FrontendURL, "/") + "/settings?tab=billing",
-		Products: billing.Products{Starter: cfg.DodoProductStarter, Pro: cfg.DodoProductPro, Topup: cfg.DodoProductTopup},
+		Products: billing.Products{Solo: cfg.DodoProductSolo, Starter: cfg.DodoProductStarter, Pro: cfg.DodoProductPro, Topup: cfg.DodoProductTopup},
 	})
 	billingH := handler.NewBillingHandler(queries, credits,
-		dodo, billing.NewService(queries, credits, billing.Products{Starter: cfg.DodoProductStarter, Pro: cfg.DodoProductPro, Topup: cfg.DodoProductTopup}),
+		dodo, billing.NewService(queries, credits, billing.Products{Solo: cfg.DodoProductSolo, Starter: cfg.DodoProductStarter, Pro: cfg.DodoProductPro, Topup: cfg.DodoProductTopup}),
 		cfg.DodoWebhookSecret, logger)
 	r.Post("/api/v1/webhooks/dodo", billingH.Webhook)
 

@@ -16,6 +16,7 @@ import {
   setProspectDaily,
   startCheckout,
   type BillingState,
+  type CheckoutItem,
   type Plan,
 } from "@/lib/billing-api";
 
@@ -42,6 +43,7 @@ function PlanTile({ plan, current, canBuy, busy, prospecting, onChoose }: PlanTi
       <ul className="space-y-1 text-[13px] text-muted-foreground">
         <li>{plan.monthly_credits.toLocaleString()} credits / month</li>
         <li>{plan.keyword_limit} active keywords</li>
+        <li>{plan.paid_data ? "Adds X, Reddit and LinkedIn" : "Hacker News, Dev.to, Bluesky"}</li>
         {prospecting && <li>Daily prospecting: buyers with confirmed emails</li>}
       </ul>
       {current ? (
@@ -179,22 +181,22 @@ export function BillingCard() {
 
             <div className="space-y-2">
               <Text as="p" className="text-sm font-medium">Plans</Text>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {data.plans.map((p) => (
                   <PlanTile
                     key={p.id}
                     plan={p}
                     current={p.id === data.plan}
-                    canBuy={data.can_checkout}
+                    canBuy={(data.checkout_items ?? []).includes(p.id as CheckoutItem)}
                     busy={busyItem === p.id}
                     prospecting={p.id === data.prospect_daily_plan}
-                    onChoose={() => checkout.mutate(p.id as "starter" | "pro")}
+                    onChoose={() => checkout.mutate(p.id as CheckoutItem)}
                   />
                 ))}
               </div>
             </div>
 
-            <ProspectDailyRow data={data} onUpgrade={() => checkout.mutate(data.prospect_daily_plan as "pro")} />
+            <ProspectDailyRow data={data} onUpgrade={() => checkout.mutate(data.prospect_daily_plan as CheckoutItem)} />
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
               <div>

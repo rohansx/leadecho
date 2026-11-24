@@ -133,6 +133,7 @@ type Config struct {
 	DodoAPIKey         string `env:"DODO_API_KEY,default="`
 	DodoWebhookSecret  string `env:"DODO_WEBHOOK_SECRET,default="`
 	DodoEnvironment    string `env:"DODO_ENVIRONMENT,default=test_mode"` // test_mode | live_mode
+	DodoProductSolo    string `env:"DODO_PRODUCT_SOLO,default="`         // empty: Solo checkout hidden
 	DodoProductStarter string `env:"DODO_PRODUCT_STARTER,default="`
 	DodoProductPro     string `env:"DODO_PRODUCT_PRO,default="`
 	DodoProductTopup   string `env:"DODO_PRODUCT_TOPUP,default="`

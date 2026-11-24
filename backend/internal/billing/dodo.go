@@ -43,7 +43,16 @@ func NewDodo(cfg DodoConfig) *Dodo {
 	return &Dodo{cfg: cfg, http: &http.Client{Timeout: 20 * time.Second}}
 }
 
-// CheckoutRequest: Item is "starter", "pro" or "topup".
+// CheckoutItems lists what the app may sell.
+var CheckoutItems = []string{"solo", "starter", "pro", "topup"}
+
+// Sells reports whether checkout can sell item: billing is configured and the
+// item has a Dodo product (Solo stays hidden until DODO_PRODUCT_SOLO is set).
+func (d *Dodo) Sells(item string) bool {
+	return d != nil && d.cfg.Products.ForItem(item) != ""
+}
+
+// CheckoutRequest: Item is one of CheckoutItems.
 type CheckoutRequest struct {
 	Item        string
 	WorkspaceID string
@@ -54,7 +63,7 @@ type CheckoutRequest struct {
 // Checkout creates a hosted checkout session and returns its URL. The
 // workspace id rides in metadata so the webhooks can credit the right workspace.
 func (d *Dodo) Checkout(ctx context.Context, r CheckoutRequest) (string, error) {
-	product := map[string]string{"starter": d.cfg.Products.Starter, "pro": d.cfg.Products.Pro, "topup": d.cfg.Products.Topup}[r.Item]
+	product := d.cfg.Products.ForItem(r.Item)
 	if product == "" {
 		return "", fmt.Errorf("dodo: no product configured for %q", r.Item)
 	}

@@ -216,12 +216,12 @@ func (h *OpsHandler) SetPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	plan, found := billing.PlanByID(body.Plan)
 	if !found {
-		writeError(w, http.StatusBadRequest, `plan must be "free", "starter" or "pro"`)
+		writeError(w, http.StatusBadRequest, `plan must be "free", "solo", "starter" or "pro"`)
 		return
 	}
-	source, paid := "comp", true
+	source, paid := "comp", plan.PaidData
 	if plan.PriceCents == 0 {
-		source, paid = "free", false
+		source = "free"
 	}
 	ctx := r.Context()
 	detail := map[string]any{"plan": plan.ID, "source": source, "paid_data": paid}
