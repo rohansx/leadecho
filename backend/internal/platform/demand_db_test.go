@@ -37,6 +37,9 @@ func (s *askStore) RecentAsks(_ context.Context, ws string) ([]demand.Ask, error
 func (s *askStore) Product(context.Context, string) (demand.Product, error) {
 	return demand.Product{}, nil
 }
+func (s *askStore) AskSignals(context.Context, string, []string) (map[string]demand.Signal, error) {
+	return nil, nil
+}
 func (s *askStore) CreateDraft(context.Context, string, string, string) error { return nil }
 
 // DB-backed: runs only when LEADECHO_TEST_DATABASE_URL points at a migrated database.

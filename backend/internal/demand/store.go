@@ -98,7 +98,20 @@ func (d DBStore) Product(ctx context.Context, ws string) (Product, error) {
 	if err != nil {
 		return Product{}, err
 	}
-	return Product{Name: bp.Product, Overview: bp.Overview, Features: bp.Features}, nil
+	return Product{Name: bp.Product, Overview: bp.Overview, Features: bp.Features,
+		Positioning: bp.Positioning, Audience: bp.TargetAudience, Competitors: bp.Competitors}, nil
+}
+
+func (d DBStore) AskSignals(ctx context.Context, ws string, mentionIDs []string) (map[string]Signal, error) {
+	rows, err := d.Q.ListAskSignals(ctx, ws, mentionIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]Signal, len(rows))
+	for _, r := range rows {
+		out[r.MentionID] = Signal{Intent: r.Intent, Score: r.Score, Stage: r.Stage, Budget: budgetLine(r.Content)}
+	}
+	return out, nil
 }
 
 func (d DBStore) CreateDraft(ctx context.Context, ws, mentionID, text string) error {

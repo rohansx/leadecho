@@ -143,6 +143,8 @@ type State struct {
 	// Seen holds mention ids that were considered and left out of every
 	// theme (not a need, or no room), so they are not sent to the model again.
 	Seen []string `json:"seen,omitempty"`
+	// Improvements are the product changes suggested from the themes.
+	Improvements *Improvements `json:"improvements,omitempty"`
 }
 
 // WithSeen returns the state with every given ask that is in no theme
@@ -210,6 +212,9 @@ func (s State) Unassigned(asks []Ask) []Ask {
 type Product struct {
 	Name, Overview string
 	Features       []string
+	// Read only by the improvement suggestions.
+	Positioning, Audience string
+	Competitors           []string
 }
 
 const systemPrompt = `You group what people are asking for in a product's market into themes, so the product team can see demand.
@@ -341,7 +346,7 @@ func ParseAssignment(raw string, themes []Theme, nAsks int) ([]Assignment, error
 // rules takes the coverage the assignment gives it. Afterwards one author
 // carries one role across every theme.
 func Apply(s State, asks []Ask, as []Assignment, now time.Time) State {
-	out := State{LastRun: s.LastRun, Seen: append([]string(nil), s.Seen...), Themes: make([]Theme, len(s.Themes))}
+	out := State{LastRun: s.LastRun, Seen: append([]string(nil), s.Seen...), Themes: make([]Theme, len(s.Themes)), Improvements: s.Improvements}
 	index := map[string]int{}
 	taken := map[string]bool{}
 	for i, t := range s.Themes {

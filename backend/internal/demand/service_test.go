@@ -17,6 +17,7 @@ type fakeStore struct {
 	state    State
 	asks     []Ask
 	product  Product
+	signals  map[string]Signal
 	saved    int
 	drafts   map[string]string
 	draftErr error
@@ -35,6 +36,9 @@ func (f *fakeStore) UpdateState(_ context.Context, _ string, fn func(State) (Sta
 }
 func (f *fakeStore) RecentAsks(context.Context, string) ([]Ask, error) { return f.asks, nil }
 func (f *fakeStore) Product(context.Context, string) (Product, error)  { return f.product, nil }
+func (f *fakeStore) AskSignals(context.Context, string, []string) (map[string]Signal, error) {
+	return f.signals, nil
+}
 func (f *fakeStore) CreateDraft(_ context.Context, _, mentionID, text string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
