@@ -35,7 +35,7 @@ import {
   updateMentionStatus,
 } from "@/lib/api";
 import { API_BASE_URL, INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
-import { intentTone, platformTone, scoreBand } from "@/lib/tones";
+import { intentTone, openNeedTone, platformTone, scoreBand } from "@/lib/tones";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
@@ -740,6 +740,8 @@ function SignalsPanel({ mention }: { mention: Mention }) {
     | undefined;
   const reasoning = typeof mention.scoring_metadata?.reasoning === "string" ? mention.scoring_metadata.reasoning : null;
   const band = scoreBand(mention.relevance_score);
+  const need = openNeedTone(mention.scoring_metadata?.open_need);
+  const whyNow = typeof mention.scoring_metadata?.why_now === "string" ? mention.scoring_metadata.why_now : null;
 
   return (
     <div className="glass-card rounded-xl p-5">
@@ -751,6 +753,17 @@ function SignalsPanel({ mention }: { mention: Mention }) {
         </span>
       </div>
       {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{signalText(mention, reasoning)}</p>}
+      {(need || whyNow) && (
+        <div className="mb-3 flex flex-wrap items-baseline gap-2 text-sm">
+          {need && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${need.tone}`}>{need.label}</span>}
+          {whyNow && (
+            <span className="text-foreground-soft">
+              <span className="text-muted-foreground">Why now: </span>
+              {whyNow}
+            </span>
+          )}
+        </div>
+      )}
       <SignalRow
         label="Platform"
         value={<span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${platformTone(mention.platform)}`}>{mention.platform}</span>}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreBand, tagTone } from "./tones.ts";
+import { openNeedTone, scoreBand, tagTone } from "./tones.ts";
 
 test("scoreBand follows the backend tiers: 6+ is a lead, 4+ worth watching", () => {
   assert.equal(scoreBand(9.2).label, "Strong fit");
@@ -16,4 +16,12 @@ test("scoreBand follows the backend tiers: 6+ is a lead, 4+ worth watching", () 
 test("tagTone colours buying signals apart from noise", () => {
   assert.notEqual(tagTone("buying_intent"), tagTone("promotional"));
   assert.equal(tagTone("promotional"), tagTone("not_a_known_tag"));
+});
+
+test("openNeedTone labels open needs and hides none or absent", () => {
+  assert.equal(openNeedTone("asking")?.label, "Asking for a tool");
+  assert.equal(openNeedTone("unsolved_pain")?.label, "Unsolved pain");
+  assert.equal(openNeedTone("none"), null);
+  assert.equal(openNeedTone(undefined), null);
+  assert.equal(openNeedTone("toString"), null);
 });
