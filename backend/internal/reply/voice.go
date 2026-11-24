@@ -212,13 +212,10 @@ func LinkedReply(text, destinationURL, short string) string {
 // appends the link when the reply names the product. A reply that never
 // mentions the product is left alone — a bare link there reads as spam.
 func WithTrackingLink(text, destinationURL, short string) (string, bool) {
-	u, err := url.Parse(destinationURL)
-	if err != nil || u.Hostname() == "" {
+	host, hostRE := destinationHostRE(destinationURL)
+	if hostRE == nil {
 		return text, false
 	}
-	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
-
-	hostRE := regexp.MustCompile(`(?i)\b(?:https?://)?(?:www\.)?` + regexp.QuoteMeta(host) + `\b(?:/[^\s)\]>]*[^\s)\]>.,!?;:])?/?`)
 	if hostRE.MatchString(text) {
 		return hostRE.ReplaceAllLiteralString(text, short), true
 	}
@@ -230,4 +227,29 @@ func WithTrackingLink(text, destinationURL, short string) (string, bool) {
 		return strings.TrimRight(text, "\n") + "\n\n" + short, true
 	}
 	return text, false
+}
+
+// destinationHostRE matches a URL (or bare host) pointing at the destination's
+// host; nil when the destination has no host.
+func destinationHostRE(destinationURL string) (string, *regexp.Regexp) {
+	u, err := url.Parse(destinationURL)
+	if err != nil || u.Hostname() == "" {
+		return "", nil
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	return host, regexp.MustCompile(`(?i)\b(?:https?://)?(?:www\.)?` + regexp.QuoteMeta(host) + `\b(?:/[^\s)\]>]*[^\s)\]>.,!?;:])?/?`)
+}
+
+// wantsTrackedLink: with links in public replies on, every draft gets one;
+// off, only a draft that already links to the customer's site has that link
+// swapped for the tracked one (it is posted either way, so count its clicks).
+func wantsTrackedLink(text, destinationURL string, linksOn bool) bool {
+	if destinationURL == "" {
+		return false
+	}
+	if linksOn {
+		return true
+	}
+	_, re := destinationHostRE(destinationURL)
+	return re != nil && re.MatchString(text)
 }

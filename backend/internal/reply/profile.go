@@ -97,13 +97,12 @@ func shortCode() string {
 // draft. A failure keeps the unlinked draft — the link is a bonus, not a gate.
 // Only for a workspace that switched links in public replies on (draft
 // settings): a short link under a helpful comment reads as spam, and gets
-// the customer's account flagged, so the default is none.
+// the customer's account flagged, so the default is none. A draft that links
+// to the customer's site anyway gets that link swapped for a tracked one.
 func (d *Drafter) attachTrackingLink(ctx context.Context, r database.Reply, v Voice) database.Reply {
-	if v.BrandPlug == "none" || !d.q.GetDraftSettings(ctx, r.WorkspaceID).PublicReplyLinks {
-		return r
-	}
+	linksOn := v.BrandPlug != "none" && d.q.GetDraftSettings(ctx, r.WorkspaceID).PublicReplyLinks
 	dest := d.destinationFor(ctx, r.WorkspaceID, v)
-	if dest == "" {
+	if !wantsTrackedLink(r.Content, dest, linksOn) {
 		return r
 	}
 	for attempt := 0; attempt < 5; attempt++ {

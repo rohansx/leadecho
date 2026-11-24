@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -196,6 +197,7 @@ func (h *ReplyHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		Status         string `json:"status"`
 		DestinationURL string `json:"destination_url"`
 		AppendShortURL *bool  `json:"append_short_url"`
+		PostedURL      string `json:"posted_url"` // the customer's posted comment, optional
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -206,7 +208,23 @@ func (h *ReplyHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	case "approved":
 		appendShort := body.AppendShortURL == nil || *body.AppendShortURL
 		h.approve(w, r, wsID, id, body.DestinationURL, appendShort)
-	case "draft", "posted", "failed":
+	case "posted":
+		postedURL := strings.TrimSpace(body.PostedURL)
+		if postedURL != "" && (len(postedURL) > 2048 || !isHTTPURL(postedURL)) {
+			writeError(w, http.StatusBadRequest, "posted_url must be an http(s) URL")
+			return
+		}
+		rp, err := h.q.MarkReplyPostedURL(r.Context(), id, wsID, postedURL)
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "reply not found")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to mark reply posted")
+			return
+		}
+		writeJSON(w, http.StatusOK, h.replyToResponse(r.Context(), rp))
+	case "draft", "failed":
 		rp, err := h.q.UpdateReplyStatus(r.Context(), database.UpdateReplyStatusParams{
 			ID:          id,
 			WorkspaceID: wsID,

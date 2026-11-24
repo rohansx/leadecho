@@ -38,6 +38,7 @@ import { API_BASE_URL, INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
 import { intentTone, platformTone, scoreBand } from "@/lib/tones";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
+import { MarkPosted } from "@/components/inbox/mark-posted";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
 import { IdentityCard } from "./identity-card"; // identity
 import { DossierCard, PersonPosts } from "./dossier-card"; // person360 profile
@@ -515,6 +516,16 @@ function OverviewTab({
                           Copy tracked link
                         </button>
                       )}
+                      <MarkPosted
+                        reply={draft.reply}
+                        onPosted={(reply) => setDraft((prev) => (prev ? { ...prev, reply } : prev))}
+                      />
+                    </div>
+                  )}
+
+                  {draft.reply.status === "posted" && (
+                    <div className="rounded-lg border border-border px-3 py-2 text-xs text-foreground-soft">
+                      Marked posted. Clicks and sign-ups show under Analytics → Replies that paid off.
                     </div>
                   )}
                 </>

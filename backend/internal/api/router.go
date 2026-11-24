@@ -110,6 +110,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 		r.Handle("/api/mcp", mcpServer) // same server via the dashboard's existing /api/ proxy
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/mentions", publicAPI.Mentions)
 		r.With(middleware.RequireScope(apikey.ScopeRead)).Get("/api/public/v1/leads", publicAPI.Leads)
+		// Sign-ups from the customer's server, tied to a reply via utm_content / utm_code.
+		r.With(middleware.RequireScope(apikey.ScopeWrite)).Post("/api/public/v1/conversions", convHook.RecordConversionAPI)
 	})
 	// end mcp
 
@@ -234,6 +236,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/analytics/scoring-precision", analytics.ScoringPrecision)
 			r.Get("/analytics/reply-attribution", analytics.ReplyAttribution)
 			r.Get("/analytics/reply-style-attribution", analytics.ReplyStyleAttribution)
+			r.Get("/analytics/reply-payoff", analytics.ReplyPayoff)
 
 			// Human proposals (Discovery queue)
 			proposals := handler.NewProposalHandler(queries)

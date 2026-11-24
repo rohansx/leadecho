@@ -19,6 +19,7 @@ import {
   replyAttribution,
 } from "@/lib/api";
 import { INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
+import { ReplyPayoffCard } from "@/components/analytics/reply-payoff-card";
 import {
   TrendingUp,
   MessageSquare,
@@ -305,6 +306,8 @@ function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ReplyPayoffCard />
 
       {/* UTM Tracking Links */}
       <Card id="utm-links">
