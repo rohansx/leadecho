@@ -11,6 +11,7 @@ import { hiringText } from "@/lib/lead-age";
 import { PlatformLogo } from "@/components/ui/platform-logo";
 import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { SearchRankBadge } from "./search-rank-badge";
 import type { SetupStatus } from "@/lib/setup-status";
 
 const actionLabel: Record<string, string> = {
@@ -508,6 +509,7 @@ export function LeadList({
                         {INTENT_LABELS[m.intent] ?? m.intent.replace(/_/g, " ")}
                       </span>
                     )}
+                    <SearchRankBadge meta={m.platform_metadata} />
                     <span className="ml-auto shrink-0">
                       {timeAgo(m.platform_created_at ?? m.created_at)}
                     </span>

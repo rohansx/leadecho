@@ -133,6 +133,7 @@ func (m *Monitor) Run(ctx context.Context, interval time.Duration) {
 
 	go m.watchManualScans(ctx)    // ops: "scan now" requests
 	go m.watchKeywordReviews(ctx) // Pro: the keyword judge, weekly
+	go m.watchSearchRank(ctx)     // lead threads that rank in web search, weekly
 
 	// Run immediately on start
 	m.tick(ctx)
