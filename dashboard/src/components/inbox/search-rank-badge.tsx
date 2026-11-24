@@ -1,6 +1,6 @@
 // A lead thread that shows up in web search for one of the workspace's
 // keywords (platform_metadata.search_rank, set weekly by the monitor). The
-// results come from Exa, so the label says "web search", never "Google".
+// results are Google organic results (US, first page).
 
 interface SearchRank {
   query: string;
@@ -17,10 +17,10 @@ export function SearchRankBadge({ meta }: { meta: Record<string, unknown> | null
   if (!rank) return null;
   return (
     <span
-      title={`Shows up in web search for '${rank.query}' (#${rank.position})`}
+      title={`Ranks #${rank.position} on Google for '${rank.query}'`}
       className="rounded-full border border-border px-1.5 py-px text-[10px] font-medium text-foreground-soft"
     >
-      Ranks in search
+      Ranks on Google
     </span>
   );
 }

@@ -43,6 +43,7 @@ type Monitor struct {
 	llmRouter         llm.MentionScorer        // workspace-aware LLM/embedding router
 	scrapling         *browser.ScraplingClient // Scrapling website-reading sidecar (nil if not configured)
 	exaAPIKey         string                   // Exa web-search API key (empty disables the exa source)
+	serp              *treg.Client             // Google searches for search_rank (platform-paid); nil = off
 	eventPublisher    *publishers.Publisher
 	enricher          LeadEnricher
 	streamsEnabled    bool

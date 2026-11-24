@@ -167,6 +167,7 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	if overheadTreg.Enabled() {
 		overheadTreg.SetMeter(billing.OverheadMeter{Credits: credits})
 	}
+	mon.SetSearchRankTreg(overheadTreg) // threads that rank on Google: ~$0.008 per workspace per week
 	replyDrafter.SetSubredditRules(subrules.New(monitor.SubredditRulesFetcher(monitor.DefaultPublicSources(), overheadTreg), treg.NewRedisCache(redis)))
 	workflowEngine := workflow.NewEngine(queries, logger)
 	workflowEngine.SetDrafter(func(ctx context.Context, wsID, mentionID string) error {
