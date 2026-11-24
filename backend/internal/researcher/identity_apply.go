@@ -367,6 +367,11 @@ func (s *Service) research(ctx context.Context, ws, leadID, personID string, men
 	if serr := s.saveIdentity(saveCtx, ws, leadID, personID, next); serr != nil {
 		return nil, fmt.Errorf("save: %w", serr)
 	}
+	if !forumAuthor(platform) { // forum authors: public data only
+		if fresh, gerr := s.q.GetLead(saveCtx, database.GetLeadParams{ID: leadID, WorkspaceID: ws}); gerr == nil {
+			s.enrichWithTreg(saveCtx, ws, fresh, personID, platform, handle, profileURL, next)
+		}
+	}
 	s.dossierAsync(ws, personID, platform, handle) // with what the agent found
 	return next, err
 }

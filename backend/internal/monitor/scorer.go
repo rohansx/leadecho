@@ -444,8 +444,6 @@ func scoreStage1Rules(title, content string) bool {
 	return true
 }
 
-// operatorRescore: an operator's re-score of posts already scored, which the
-// customer is not charged for.
 // rescoringLead: an operator re-score of a post that is already a lead.
 func (m *Monitor) rescoringLead(ctx context.Context, ws, mentionID string) bool {
 	if !operatorRescore(ctx) {
@@ -455,6 +453,8 @@ func (m *Monitor) rescoringLead(ctx context.Context, ws, mentionID string) bool 
 	return err == nil
 }
 
+// operatorRescore: an operator's re-score of posts already scored, which the
+// customer is not charged for.
 func operatorRescore(ctx context.Context) bool {
 	k := forcedScan(ctx)
 	return k == ScanRescore || k == ScanRescoreLeads

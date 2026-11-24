@@ -2,6 +2,7 @@ package keywordjudge
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -33,9 +34,11 @@ type action struct {
 }
 
 // plan picks the suggestions that may be applied now. leads is the lead
-// count per keyword ID in the review window; allowed are the platforms the
-// workspace may use; room is how many keywords may still be added.
-func plan(st Stored, kws []database.ListKeywordsRow, leads map[string]int, allowed []string, room int, now time.Time) []action {
+// count per keyword ID and platform in the review window; allowed are the
+// platforms the workspace may use; room is how many keywords may still be
+// added. st.Decisions must hold every decision already made (the customer's
+// and the judge's), so a dismissed or undone change is never made again.
+func plan(st Stored, kws []database.ListKeywordsRow, leads map[string]map[string]int, allowed []string, room int, now time.Time) []action {
 	byTerm := map[string]*database.ListKeywordsRow{}
 	active := 0
 	for i := range kws {
@@ -54,13 +57,14 @@ func plan(st Stored, kws []database.ListKeywordsRow, leads map[string]int, allow
 		switch s.Kind {
 		case "pause":
 			// Never a keyword that found a lead in the window, whatever the judge says.
-			if judged && leads[kw.ID] == 0 && active > MinActive {
+			if judged && total(leads[kw.ID]) == 0 && active > MinActive {
 				active--
 				out = append(out, action{suggestionID: s.ID, kind: "pause", kw: kw})
 			}
 		case "platforms":
 			ps := onlyAllowed(s.Platforms, allowed)
-			if judged && len(ps) > 0 && !sameSet(ps, kw.Platforms) {
+			// Never drop a platform that found a lead.
+			if judged && len(ps) > 0 && !sameSet(ps, kw.Platforms) && keepsLeads(ps, leads[kw.ID]) {
 				out = append(out, action{suggestionID: s.ID, kind: "platforms", kw: kw, platforms: ps})
 			}
 		case "add":
@@ -73,6 +77,23 @@ func plan(st Stored, kws []database.ListKeywordsRow, leads map[string]int, allow
 		}
 	}
 	return out
+}
+
+func total(byPlatform map[string]int) int {
+	n := 0
+	for _, v := range byPlatform {
+		n += v
+	}
+	return n
+}
+
+func keepsLeads(ps []string, byPlatform map[string]int) bool {
+	for p, n := range byPlatform {
+		if n > 0 && !slices.Contains(ps, p) {
+			return false
+		}
+	}
+	return true
 }
 
 func onlyAllowed(ps, allowed []string) []string {
@@ -109,9 +130,20 @@ func Apply(ctx context.Context, q *database.Queries, wsID string, st *Stored, ke
 	if err != nil {
 		return "", fmt.Errorf("keyword yield: %w", err)
 	}
-	leads := map[string]int{}
+	leads := map[string]map[string]int{}
 	for _, y := range yield {
-		leads[y.KeywordID] += y.Leads
+		if leads[y.KeywordID] == nil {
+			leads[y.KeywordID] = map[string]int{}
+		}
+		leads[y.KeywordID][y.Platform] += y.Leads
+	}
+	// The decisions as stored: the review just saved kept every earlier one.
+	cur := *st
+	if raw, err := q.GetKeywordReview(ctx, wsID); err == nil && len(raw) > 0 {
+		var saved Stored
+		if json.Unmarshal(raw, &saved) == nil && saved.Decisions != nil {
+			cur.Decisions = saved.Decisions
+		}
 	}
 	active := 0
 	for _, k := range kws {
@@ -128,12 +160,16 @@ func Apply(ctx context.Context, q *database.Queries, wsID string, st *Stored, ke
 		room = keywordLimit - active
 	}
 	var paused, moved, added int
-	for _, a := range plan(*st, kws, leads, Platforms(paidLocked), room, now) {
+	var firstErr error
+	for _, a := range plan(cur, kws, leads, Platforms(paidLocked), room, now) {
 		if err := applyOne(ctx, q, wsID, profileID, a); err != nil {
-			return "", fmt.Errorf("%s %q: %w", a.kind, a.term+termOf(a.kw), err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s %q: %w", a.kind, a.term+termOf(a.kw), err)
+			}
+			continue // the others still go
 		}
-		if _, err := q.SetKeywordReviewDecision(ctx, wsID, a.suggestionID, DecisionAuto); err != nil {
-			return "", fmt.Errorf("record decision: %w", err)
+		if _, err := q.SetKeywordReviewDecision(ctx, wsID, a.suggestionID, DecisionAuto); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("record decision: %w", err)
 		}
 		switch a.kind {
 		case "pause":
@@ -144,7 +180,7 @@ func Apply(ctx context.Context, q *database.Queries, wsID string, st *Stored, ke
 			added++
 		}
 	}
-	return fmt.Sprintf("judge applied: %d paused, %d moved, %d added", paused, moved, added), nil
+	return fmt.Sprintf("judge applied: %d paused, %d moved, %d added", paused, moved, added), firstErr
 }
 
 func termOf(k *database.ListKeywordsRow) string {

@@ -56,11 +56,13 @@ func (m *Monitor) runKeywordReview(ctx context.Context, ws, by string) string {
 		return KeywordReviewFailed
 	}
 	note := topUp + fmt.Sprintf("reviewed %d posts and %d leads from the last %d days: %d suggestions", st.Posts, st.Leads, st.Days, len(st.Suggestions))
-	if applied, err := keywordjudge.Apply(ctx, m.q, ws, st, m.keywordLimit(ctx, ws), m.credits.PaidPlatformsLocked(ctx, ws), now); err != nil {
-		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review: apply")
-		note += "; applying the review failed part way"
-	} else {
+	applied, err := keywordjudge.Apply(ctx, m.q, ws, st, m.keywordLimit(ctx, ws), m.credits.PaidPlatformsLocked(ctx, ws), now)
+	if applied != "" {
 		note += "; " + applied
+	}
+	if err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review: apply")
+		note += "; some changes could not be applied"
 	}
 	lr, err := keywordjudge.LoadRules(ctx, m.q, ws)
 	if err != nil || lr.LastTest == nil || !lr.LastTest.At.Equal(now) {

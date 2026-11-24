@@ -31,9 +31,10 @@ func TestPlanAppliesOnlyWhatTheRulesAllow(t *testing.T) {
 		{ID: "a3", Kind: "add", Term: "no room left", Platforms: []string{"reddit"}}, // over the limit
 		{ID: "done", Kind: "pause", Term: "b"},                                       // customer decided
 		{ID: "k", Kind: "keep", Term: "a"},
+		{ID: "m3", Kind: "platforms", Term: "had a lead", Platforms: []string{"devto"}}, // would drop the lead's platform
 	}}
 	got := map[string]action{}
-	for _, a := range plan(st, kws, map[string]int{"3": 1}, []string{"reddit", "devto"}, 1, now) {
+	for _, a := range plan(st, kws, map[string]map[string]int{"3": {"reddit": 1}, "4": {"reddit": 2}}, []string{"reddit", "devto"}, 1, now) {
 		got[a.suggestionID] = a
 	}
 	want := []string{"p1", "m1", "a1"}
