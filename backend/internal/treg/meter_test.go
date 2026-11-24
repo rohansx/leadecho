@@ -82,4 +82,23 @@ func TestCallMetersCredits(t *testing.T) {
 			t.Fatalf("treg was called %d times without credits", hits.Load())
 		}
 	})
+	t.Run("paused account: no credit taken", func(t *testing.T) {
+		var hits atomic.Int32
+		c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			hits.Add(1)
+			w.WriteHeader(http.StatusPaymentRequired)
+			_, _ = w.Write([]byte(`{"detail":{"error":"insufficient_balance"}}`))
+		})
+		m := &fakeMeter{}
+		c.SetMeter(m)
+		if _, err := c.Call(context.Background(), Request{WorkspaceID: meterWS, Tool: "treg.x.search.posts"}); !errors.Is(err, ErrInsufficientBalance) {
+			t.Fatalf("err = %v, want insufficient balance", err)
+		}
+		if _, err := c.Call(context.Background(), Request{WorkspaceID: meterWS, Tool: "treg.x.search.posts"}); !errors.Is(err, ErrPaused) {
+			t.Fatalf("err = %v, want paused", err)
+		}
+		if m.spent != 1 || m.refunded != 1 || hits.Load() != 1 {
+			t.Fatalf("spent=%d refunded=%d hits=%d, want 1/1/1: the paused call must not touch credits or treg", m.spent, m.refunded, hits.Load())
+		}
+	})
 }

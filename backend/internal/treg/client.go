@@ -257,12 +257,19 @@ func (c *Client) isCapped(ws, tool string) bool {
 	return false
 }
 
+// paused reports whether an account-level refusal (balance, platform cap)
+// has paused every call.
+func (c *Client) paused() bool { return time.Now().UnixNano() < c.pausedUntil.Load() }
+
 func (c *Client) meteredCall(ctx context.Context, req Request) (*Response, error) {
 	if c == nil || c.meter == nil {
 		return c.call(ctx, req)
 	}
 	if c.isCapped(req.WorkspaceID, req.Tool) { // before the meter: no credit taken and refunded per refused call
 		return nil, ErrCustomerDailyCap
+	}
+	if c.paused() { // likewise: an empty account balance pauses every call
+		return nil, ErrPaused
 	}
 	if err := c.meter.Spend(ctx, req.WorkspaceID, 1, "search"); err != nil {
 		return nil, err
@@ -287,7 +294,7 @@ func (c *Client) call(ctx context.Context, req Request) (*Response, error) {
 	if req.Method != "" && req.Method != http.MethodPost && req.Method != http.MethodGet {
 		return nil, fmt.Errorf("treg: unsupported method %q", req.Method)
 	}
-	if time.Now().UnixNano() < c.pausedUntil.Load() {
+	if c.paused() {
 		return nil, ErrPaused
 	}
 	if c.isCapped(req.WorkspaceID, req.Tool) {

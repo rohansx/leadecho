@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 	"leadecho/internal/treg"
 )
@@ -62,9 +64,9 @@ func TestCrawlTregFallbackSignals(t *testing.T) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(tc.body))
 			})
-			for _, crawl := range []func(context.Context, string, database.ListActiveKeywordsRow) ([]mentionAlert, bool){m.crawlTwitterTreg, m.crawlLinkedInTreg} {
-				alerts, ok := crawl(context.Background(), tregTestWS, kw)
-				if ok != tc.wantOK || len(alerts) != 0 {
+			for _, crawl := range []func(context.Context, string, database.ListActiveKeywordsRow) ([]mentionAlert, error){m.crawlTwitterTreg, m.crawlLinkedInTreg} {
+				alerts, err := crawl(context.Background(), tregTestWS, kw)
+				if ok := err == nil; ok != tc.wantOK || len(alerts) != 0 {
 					t.Fatalf("ok=%v alerts=%d, want ok=%v", ok, len(alerts), tc.wantOK)
 				}
 			}
@@ -72,9 +74,94 @@ func TestCrawlTregFallbackSignals(t *testing.T) {
 	}
 }
 
+// Only a search treg refused for now (our balance, a cap) stays due. A provider
+// error is stamped as before (the provider may have been paid), and Reddit
+// always counts as scanned: its public fallback ran instead.
+func TestCrawlKeywordReportsFailedPaidPlatforms(t *testing.T) {
+	kw := cursorKW
+	kw.Platforms = []string{"twitter", "linkedin", "reddit"} // no subreddits: the public fallback returns at once
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+		want   []string
+	}{
+		{"balance empty", 402, `{"detail":{"error":"insufficient_balance"}}`, []string{"twitter", "linkedin"}},
+		{"workspace cap", 429, `{"detail":{"error":"tag_spend_cap_reached"}}`, []string{"twitter", "linkedin"}},
+		{"provider 4xx", 400, `{}`, nil},
+		{"provider 429", 429, `{}`, nil},
+		{"provider 5xx", 502, `{"error":"route_failed"}`, nil},
+		{"answered", 200, `{"output":{"posts":[]}}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := tregMonitor(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			})
+			_, failed := m.crawlKeyword(context.Background(), tregTestWS, kw)
+			if !slices.Equal(failed, tc.want) {
+				t.Fatalf("failed=%q, want %q", failed, tc.want)
+			}
+		})
+	}
+}
+
+func TestRetryLater(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want bool
+	}{
+		{treg.ErrInsufficientBalance, true},
+		{treg.ErrPlatformDailyCap, true},
+		{treg.ErrPaused, true},
+		{treg.ErrCustomerDailyCap, true},
+		{&treg.APIError{Status: 400, Code: "http_400"}, false},
+		{&treg.APIError{Status: 502, Code: "route_failed"}, false},
+		{context.DeadlineExceeded, false},
+		{billing.ErrPaidDataPaused, false},
+		{billing.ErrNoCredits, false},
+		{ErrTregOff, false},
+		{nil, false},
+	} {
+		if got := retryLater(tc.err); got != tc.want {
+			t.Errorf("retryLater(%v) = %v, want %v", tc.err, got, tc.want)
+		}
+	}
+}
+
+// A refused platform is not stamped and waits retryGap; the others are
+// stamped; a later success clears the wait.
+func TestRecordScansRetryGap(t *testing.T) {
+	m := &Monitor{logger: zerolog.Nop()} // no DB: the stamp itself is skipped
+	kw := cursorKW
+	kw.Platforms = []string{"twitter", "linkedin", "hackernews"}
+	m.recordScans(context.Background(), tregTestWS, kw, []string{"twitter"})
+
+	due := m.withoutRetryWait(tregTestWS, []database.ListActiveKeywordsRow{kw})
+	if len(due) != 1 || !slices.Equal(due[0].Platforms, []string{"linkedin", "hackernews"}) {
+		t.Fatalf("due=%+v, want twitter held back for retryGap", due)
+	}
+	if !slices.Equal(kw.Platforms, []string{"twitter", "linkedin", "hackernews"}) {
+		t.Fatalf("input mutated: %q", kw.Platforms)
+	}
+	until, ok := m.scanRetry.Load(retryKey(tregTestWS, kw.ID, "twitter"))
+	if !ok || time.Until(until.(time.Time)) < retryGap-time.Minute {
+		t.Fatalf("retry wait = %v, want about %v", until, retryGap)
+	}
+
+	m.scanRetry.Store(retryKey(tregTestWS, kw.ID, "twitter"), time.Now().Add(-time.Second)) // gap over
+	if due := m.withoutRetryWait(tregTestWS, []database.ListActiveKeywordsRow{kw}); len(due[0].Platforms) != 3 {
+		t.Fatalf("after the gap twitter must be due again: %+v", due)
+	}
+	m.recordScans(context.Background(), tregTestWS, kw, nil)
+	if _, held := m.scanRetry.Load(retryKey(tregTestWS, kw.ID, "twitter")); held {
+		t.Fatal("a successful scan must clear the retry wait")
+	}
+}
+
 func TestCrawlTregDisabled(t *testing.T) {
 	m := &Monitor{logger: zerolog.Nop()}
-	if _, ok := m.crawlTwitterTreg(context.Background(), tregTestWS, database.ListActiveKeywordsRow{Term: "x"}); ok {
+	if _, err := m.crawlTwitterTreg(context.Background(), tregTestWS, database.ListActiveKeywordsRow{Term: "x"}); err == nil {
 		t.Fatal("disabled treg must report ok=false")
 	}
 }
@@ -113,7 +200,7 @@ func TestCrawlTwitterTregAsksOnlyForNewerPosts(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ { // full search, then two polls with nothing new
-		if _, ok := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); !ok {
+		if _, err := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); err != nil {
 			t.Fatalf("poll %d: ok=false", i)
 		}
 	}
@@ -127,7 +214,7 @@ func TestCrawlTwitterTregAsksOnlyForNewerPosts(t *testing.T) {
 
 	// A treg-side refusal (cap, block, billing) keeps the cursor.
 	status, tregRefusal = 403, true
-	if _, ok := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); ok {
+	if _, err := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); err == nil {
 		t.Fatal("refused poll must report ok=false")
 	}
 	status, tregRefusal = 200, false
@@ -138,7 +225,7 @@ func TestCrawlTwitterTregAsksOnlyForNewerPosts(t *testing.T) {
 
 	// A provider rejecting the cursor query drops the cursor: the next poll is a plain search.
 	status = 400
-	if _, ok := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); ok {
+	if _, err := m.crawlTwitterTreg(ctx, tregTestWS, cursorKW); err == nil {
 		t.Fatal("failed poll must report ok=false")
 	}
 	status = 200
@@ -178,7 +265,7 @@ func TestCrawlLinkedInTregPollWindow(t *testing.T) {
 
 	// A failed call doesn't count as a poll: the next tick tries again.
 	status = 400
-	if _, ok := m.crawlLinkedInTreg(ctx, tregTestWS, cursorKW); ok {
+	if _, err := m.crawlLinkedInTreg(ctx, tregTestWS, cursorKW); err == nil {
 		t.Fatal("failed poll must report ok=false")
 	}
 	if _, polled := state[key]; polled {
@@ -189,7 +276,7 @@ func TestCrawlLinkedInTregPollWindow(t *testing.T) {
 
 	// First poll searches the week; a second one right after makes no call.
 	for i := 0; i < 2; i++ {
-		if _, ok := m.crawlLinkedInTreg(ctx, tregTestWS, cursorKW); !ok {
+		if _, err := m.crawlLinkedInTreg(ctx, tregTestWS, cursorKW); err != nil {
 			t.Fatalf("poll %d: ok=false", i)
 		}
 	}
