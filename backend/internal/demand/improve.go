@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"leadecho/internal/ai"
@@ -57,10 +58,15 @@ type Improvement struct {
 // Improvements is stored at settings.demand.improvements.
 type Improvements struct {
 	Items       []Improvement `json:"items"`
-	GeneratedAt time.Time     `json:"generated_at"`
+	GeneratedAt time.Time     `json:"generated_at,omitzero"` // zero until a run succeeded
 	// InputHash is the hash of the prompt the items were made from: the same
 	// input is never sent twice.
 	InputHash string `json:"input_hash"`
+	// AttemptedAt is the last model call, whatever its outcome.
+	AttemptedAt time.Time `json:"attempted_at,omitzero"`
+	// FailedHash is the input of the last call that failed, at FailedAt.
+	FailedHash string    `json:"failed_hash,omitempty"`
+	FailedAt   time.Time `json:"failed_at,omitzero"`
 }
 
 // Signal is what the workspace knows about the post behind an ask.
@@ -289,18 +295,49 @@ func inputHash(system, user string) string {
 	return hex.EncodeToString(h[:])
 }
 
+const (
+	// RefreshImproveCooldown: from the refresh button, at most one model call
+	// per workspace in this long. The daily run passes 0.
+	RefreshImproveCooldown = 10 * time.Minute
+	// failedRetryAfter: an input whose call failed is not sent again sooner.
+	failedRetryAfter = 6 * time.Hour
+)
+
+// improving holds the workspaces with an Improve under way in this process.
+// ponytail: per process; several API replicas could each run one at once,
+// which the cooldown and failure memory keep cheap.
+var improving sync.Map
+
 // Improve works out the product changes the themes point to and stores them.
 // It calls the model only when the input differs from the one the stored
-// suggestions were made from, and reports whether it did. With no theme
-// several people raised it does nothing.
-func (s *Service) Improve(ctx context.Context, ws string, now time.Time) (bool, error) {
+// suggestions were made from, the same input did not fail in the last
+// failedRetryAfter, no other Improve for the workspace is under way, and
+// (with cooldown > 0) no call was made within cooldown. It reports whether
+// the model was called. When no theme qualifies, old suggestions are cleared.
+func (s *Service) Improve(ctx context.Context, ws string, now time.Time, cooldown time.Duration) (bool, error) {
+	if _, busy := improving.LoadOrStore(ws, struct{}{}); busy {
+		return false, nil
+	}
+	defer improving.Delete(ws)
 	state, err := s.Store.LoadState(ctx, ws)
 	if err != nil {
 		return false, fmt.Errorf("load demand: %w", err)
 	}
+	prev := state.Improvements
+	if prev != nil && cooldown > 0 && now.Sub(prev.AttemptedAt) < cooldown {
+		return false, nil
+	}
 	themes := improveInput(state)
 	if len(themes) == 0 {
-		return false, nil
+		if prev == nil || len(prev.Items) == 0 {
+			return false, nil
+		}
+		_, err := s.Store.UpdateState(ctx, ws, func(cur State) (State, error) {
+			next := cur
+			next.Improvements = nil
+			return next, nil
+		})
+		return false, err
 	}
 	var ids []string
 	for _, t := range themes {
@@ -318,20 +355,35 @@ func (s *Service) Improve(ctx context.Context, ws string, now time.Time) (bool, 
 	}
 	system, user := BuildImprovePrompt(product, themes, sig)
 	hash := inputHash(system, user)
-	if state.Improvements != nil && state.Improvements.InputHash == hash {
+	if prev != nil && (prev.InputHash == hash || (prev.FailedHash == hash && now.Sub(prev.FailedAt) < failedRetryAfter)) {
 		return false, nil
 	}
 	raw, err := s.Model.Chat(ctx, ws, []ai.ChatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}})
-	if err != nil {
-		return false, fmt.Errorf("suggest improvements: %w", err)
+	var items []Improvement
+	if err == nil {
+		items, err = ParseImprovements(raw, themes, user)
+	} else {
+		err = fmt.Errorf("suggest improvements: %w", err)
 	}
-	items, err := ParseImprovements(raw, themes, user)
 	if err != nil {
-		return false, err
+		// Remember the failure so the same input is not paid for again soon.
+		if _, serr := s.Store.UpdateState(ctx, ws, func(cur State) (State, error) {
+			next := cur
+			imp := Improvements{}
+			if cur.Improvements != nil {
+				imp = *cur.Improvements
+			}
+			imp.FailedHash, imp.FailedAt, imp.AttemptedAt = hash, now, now
+			next.Improvements = &imp
+			return next, nil
+		}); serr != nil {
+			s.Logger.Warn().Err(serr).Str("workspace_id", ws).Msg("demand: save improvements failure")
+		}
+		return true, err
 	}
 	if _, err := s.Store.UpdateState(ctx, ws, func(cur State) (State, error) {
 		next := cur
-		next.Improvements = &Improvements{Items: items, GeneratedAt: now, InputHash: hash}
+		next.Improvements = &Improvements{Items: items, GeneratedAt: now, AttemptedAt: now, InputHash: hash}
 		return next, nil
 	}); err != nil {
 		return false, fmt.Errorf("save improvements: %w", err)

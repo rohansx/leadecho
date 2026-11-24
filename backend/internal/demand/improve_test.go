@@ -69,14 +69,14 @@ func TestImproveOnlyWhenInputChanged(t *testing.T) {
 	svc := &Service{Store: store, Model: model}
 	now := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC)
 
-	if ran, err := svc.Improve(context.Background(), "ws", now); err != nil || !ran {
+	if ran, err := svc.Improve(context.Background(), "ws", now, 0); err != nil || !ran {
 		t.Fatalf("first run: ran=%v err=%v", ran, err)
 	}
 	imp := store.state.Improvements
 	if imp == nil || len(imp.Items) != 1 || imp.InputHash == "" || !imp.GeneratedAt.Equal(now) {
 		t.Fatalf("stored = %+v", imp)
 	}
-	if ran, _ := svc.Improve(context.Background(), "ws", now); ran || len(model.seen) != 1 {
+	if ran, _ := svc.Improve(context.Background(), "ws", now, 0); ran || len(model.seen) != 1 {
 		t.Fatalf("same input: ran=%v calls=%d, want no second call", ran, len(model.seen))
 	}
 
@@ -86,14 +86,76 @@ func TestImproveOnlyWhenInputChanged(t *testing.T) {
 		t.Fatal("Apply dropped the improvements")
 	}
 	store.state = s
-	if ran, _ := svc.Improve(context.Background(), "ws", now); !ran || len(model.seen) != 2 {
+	if ran, _ := svc.Improve(context.Background(), "ws", now, 0); !ran || len(model.seen) != 2 {
 		t.Fatalf("changed input: ran=%v calls=%d, want a second call", ran, len(model.seen))
 	}
 
 	// Nothing several people raised: no call at all.
 	empty := &fakeModel{replies: []string{reply}}
-	if ran, err := (&Service{Store: &fakeStore{}, Model: empty}).Improve(context.Background(), "ws", now); ran || err != nil || len(empty.seen) != 0 {
+	if ran, err := (&Service{Store: &fakeStore{}, Model: empty}).Improve(context.Background(), "ws", now, 0); ran || err != nil || len(empty.seen) != 0 {
 		t.Fatalf("no themes: ran=%v err=%v calls=%d", ran, err, len(empty.seen))
+	}
+}
+
+func TestImproveOneAtATimeAndCooldown(t *testing.T) {
+	reply := `{"improvements":[{"title":"Show subreddit rules","change":"Show the rules.","kind":"feature","evidence":["m-a"]}]}`
+	store := &fakeStore{state: improveState()}
+	svc := &Service{Store: store}
+	now := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC)
+	var nested bool
+	model := &fakeModel{replies: []string{reply}}
+	// A second Improve for the workspace while the first is in the model call.
+	model.onChat = func() {
+		model.onChat = nil
+		nested, _ = svc.Improve(context.Background(), "ws-guard", now, 0)
+	}
+	svc.Model = model
+	if ran, err := svc.Improve(context.Background(), "ws-guard", now, 0); !ran || err != nil {
+		t.Fatalf("first: ran=%v err=%v", ran, err)
+	}
+	if nested || len(model.seen) != 1 {
+		t.Fatalf("concurrent Improve called the model: nested=%v calls=%d", nested, len(model.seen))
+	}
+
+	// The input changes, but the refresh path is inside its cooldown.
+	store.state.Themes[0].Asks = append(store.state.Themes[0].Asks, Ask{MentionID: "m-new", Quote: "rules please"})
+	if ran, _ := svc.Improve(context.Background(), "ws-guard", now.Add(time.Minute), RefreshImproveCooldown); ran {
+		t.Fatal("refresh inside the cooldown called the model")
+	}
+	if ran, _ := svc.Improve(context.Background(), "ws-guard", now.Add(RefreshImproveCooldown+time.Minute), RefreshImproveCooldown); !ran {
+		t.Fatal("refresh after the cooldown did not call the model")
+	}
+}
+
+func TestImproveRemembersFailures(t *testing.T) {
+	store := &fakeStore{state: improveState()}
+	model := &fakeModel{replies: []string{"not json"}}
+	svc := &Service{Store: store, Model: model}
+	now := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC)
+
+	if _, err := svc.Improve(context.Background(), "ws", now, 0); err == nil {
+		t.Fatal("want the parse error")
+	}
+	imp := store.state.Improvements
+	if imp == nil || imp.FailedHash == "" || !imp.FailedAt.Equal(now) || !imp.GeneratedAt.IsZero() {
+		t.Fatalf("failure not recorded: %+v", imp)
+	}
+	if ran, err := svc.Improve(context.Background(), "ws", now.Add(time.Hour), 0); ran || err != nil || len(model.seen) != 1 {
+		t.Fatalf("same failed input retried: ran=%v err=%v calls=%d", ran, err, len(model.seen))
+	}
+	if ran, _ := svc.Improve(context.Background(), "ws", now.Add(failedRetryAfter+time.Minute), 0); !ran || len(model.seen) != 2 {
+		t.Fatalf("not retried after %v: ran=%v calls=%d", failedRetryAfter, ran, len(model.seen))
+	}
+}
+
+func TestImproveClearsWhenNoThemeQualifies(t *testing.T) {
+	store := &fakeStore{state: State{Improvements: &Improvements{Items: []Improvement{{Title: "old"}}, InputHash: "h"}}}
+	model := &fakeModel{replies: []string{"{}"}}
+	if ran, err := (&Service{Store: store, Model: model}).Improve(context.Background(), "ws", time.Now(), 0); ran || err != nil {
+		t.Fatalf("ran=%v err=%v", ran, err)
+	}
+	if store.state.Improvements != nil || len(model.seen) != 0 {
+		t.Fatalf("stale suggestions kept (%+v) or model called (%d)", store.state.Improvements, len(model.seen))
 	}
 }
 

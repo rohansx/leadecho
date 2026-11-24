@@ -74,7 +74,7 @@ func (s *Shared) runDemand(ctx context.Context, svc *demand.Service) {
 			s.Logger.Info().Int("asks", placed).Str("workspace_id", ws).Msg("demand: themes updated")
 		}
 		// The suggestions follow the themes; a run with the same input is skipped.
-		if _, err := svc.Improve(rctx, ws, time.Now().UTC()); err != nil {
+		if _, err := svc.Improve(rctx, ws, time.Now().UTC(), 0); err != nil {
 			s.Logger.Warn().Err(err).Str("workspace_id", ws).Msg("demand: improvements failed")
 		}
 		cancel()

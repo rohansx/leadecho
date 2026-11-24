@@ -243,14 +243,16 @@ function ImprovementCard({ item, rank, themeTitles }: { item: DemandImprovement;
 
 function Improvements({ d, onSuggest, suggesting }: { d: DemandResponse; onSuggest: () => void; suggesting: boolean }) {
   const items = d.improvements?.items ?? [];
+  // Unset until a run succeeded (a failed run is remembered, not shown).
+  const made = d.improvements?.generated_at;
   const themeTitles = new Map(d.themes.map((t) => [t.id, t.title]));
   return (
     <section className="space-y-3" aria-label="How to improve your product">
       <div>
         <Text as="h3" className="font-medium">How to improve your product</Text>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {d.improvements
-            ? `Changes the themes below point to, most valuable first, each with the posts behind it. Worked out ${daysAgo(d.improvements.generated_at)}; updated when the themes change.`
+          {made
+            ? `Changes the themes below point to, most valuable first, each with the posts behind it. Worked out ${daysAgo(made)}; updated when the themes change.`
             : "Changes the themes below point to, with the posts behind each one."}
         </p>
       </div>
@@ -267,11 +269,11 @@ function Improvements({ d, onSuggest, suggesting }: { d: DemandResponse; onSugge
           ) : (
             <>
               <p>
-                {d.improvements
+                {made
                   ? "No change is backed clearly enough by what people asked yet. This is looked at again when the themes change."
                   : "Not worked out yet. Suggestions are made after the daily grouping run."}
               </p>
-              {!d.improvements && (
+              {!made && (
                 <Button size="sm" variant="outline" className="mt-3" onClick={onSuggest}>
                   Suggest changes now
                 </Button>

@@ -69,7 +69,8 @@ export interface DemandImprovement {
 
 export interface DemandImprovements {
   items: DemandImprovement[];
-  generated_at: string;
+  /** Unset until a run succeeded. */
+  generated_at?: string;
 }
 
 export type CoverageTone = "good" | "warn" | "gap" | "muted";

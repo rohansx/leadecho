@@ -81,7 +81,7 @@ func (h *DemandHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), improveTimeout)
 		defer cancel()
-		if _, err := h.svc.Improve(ctx, ws, time.Now().UTC()); err != nil {
+		if _, err := h.svc.Improve(ctx, ws, time.Now().UTC(), demand.RefreshImproveCooldown); err != nil {
 			h.logger.Warn().Err(err).Str("workspace_id", ws).Msg("demand: improvements")
 		}
 	}()
