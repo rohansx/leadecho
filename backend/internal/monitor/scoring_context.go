@@ -123,6 +123,7 @@ func withBrand(sc ai.ScoringContext, bp database.BrandProfile) ai.ScoringContext
 		sc.Product = brand
 	}
 	sc.Buyers = strings.TrimSpace(bp.TargetAudience)
+	sc.Archetype = bp.Archetype
 	return sc
 }
 

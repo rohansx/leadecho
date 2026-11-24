@@ -471,6 +471,7 @@ type BrandProfile struct {
 	SourceUrl        string    `json:"source_url"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	Archetype        string    `json:"archetype"`
 }
 
 type ChatMessage struct {

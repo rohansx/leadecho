@@ -138,6 +138,9 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 		cr.RelevanceScore = min(cr.RelevanceScore, MaxNoNeedScore)
 		cr.WhyNow = ""
 	}
+	if cr.OpenNeed == "" || cr.OpenNeed == "none" {
+		cr.Facts = nil // facts are for posts with something open (unknown counts as nothing)
+	}
 
 	pt := strings.ToLower(strings.TrimSpace(cr.PostType))
 	announcement := pt == "announcement" || LooksLikeAnnouncement(title)

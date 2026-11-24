@@ -1,4 +1,5 @@
 import type { Mention, ProductAnalysis } from "@/lib/types";
+import type { Archetype } from "@/lib/lead-facts";
 
 export type Goal = "find_buyers" | "competitor_switchers" | "brand_mentions" | "content_ideas";
 
@@ -46,6 +47,7 @@ export interface BrandProfile {
   features: string[];
   target_audience: string;
   source_url: string;
+  archetype?: Archetype;
   updated_at?: string;
 }
 

@@ -19,7 +19,8 @@
 // (storyRule, the lead card), or goes back to the prompt before the open-need
 // change, "v1" (see ablate, classifyVariant). EVAL_RULES_FILE and
 // EVAL_EXAMPLES_FILE swap in candidate learned rules and few-shot examples
-// per workspace, and EVAL_TAG names the run. The report is written next to
+// per workspace, EVAL_ARCHETYPES_FILE sets each workspace's archetype (lead
+// facts), and EVAL_TAG names the run. The report is written next to
 // the set as report-<model>[-<variant>][-<tag>]-<time>.json.
 package ai
 
@@ -55,6 +56,7 @@ type evalResult struct {
 	// (empty under the "v1" prompt, which does not ask).
 	OpenNeed string  `json:"open_need,omitempty"`
 	WhyNow   string  `json:"why_now,omitempty"`
+	Facts    []Fact  `json:"facts,omitempty"`
 	Err      string  `json:"error,omitempty"`
 	CostUSD  float64 `json:"cost_usd"`
 	Tokens   Usage   `json:"tokens"`
@@ -112,6 +114,18 @@ func TestFeedbackEval(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 	}
+	// EVAL_ARCHETYPES_FILE: the product archetype per workspace, which turns
+	// on lead facts: {"ws_01": "devtool"}.
+	archetypes := map[string]string{}
+	if f := os.Getenv("EVAL_ARCHETYPES_FILE"); f != "" {
+		raw, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &archetypes); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
 	// EVAL_EXAMPLES_FILE: candidate few-shot examples per workspace, in place
 	// of the ones in contexts.json: {"ws_08": [{"Title": ..., "Label": "up"}]}.
 	exampleSets := map[string][]ScoringExample{}
@@ -163,6 +177,9 @@ func TestFeedbackEval(t *testing.T) {
 			}
 			sc.Rules = rules
 		}
+		if a, ok := archetypes[c.Workspace]; ok {
+			sc.Archetype = a
+		}
 		if ex, ok := exampleSets[c.Workspace]; ok {
 			sc.Examples = ex
 		}
@@ -186,7 +203,7 @@ func TestFeedbackEval(t *testing.T) {
 			} else {
 				r.Got, r.Score, r.Intent, r.PostType, r.Role, r.Reasoning = isLead(cr), cr.RelevanceScore, cr.Intent, cr.PostType, cr.AuthorRole, cr.Reasoning
 				r.Ask, r.Tags, r.Skips, r.Awareness = cr.Ask, cr.IntentTags, cr.MatchesSkips, cr.AwarenessLevel
-				r.OpenNeed, r.WhyNow = cr.OpenNeed, cr.WhyNow
+				r.OpenNeed, r.WhyNow, r.Facts = cr.OpenNeed, cr.WhyNow, cr.Facts
 			}
 			mu.Lock()
 			spent += r.CostUSD

@@ -6,10 +6,12 @@ SELECT * FROM brand_profiles WHERE workspace_id = @workspace_id;
 -- name: UpsertBrandProfile :one
 INSERT INTO brand_profiles (
     workspace_id, overview, product, positioning, customer_segments,
-    competitors, pain_points, keywords, features, target_audience, source_url
+    competitors, pain_points, keywords, features, target_audience, source_url,
+    archetype
 ) VALUES (
     @workspace_id, @overview, @product, @positioning, @customer_segments,
-    @competitors, @pain_points, @keywords, @features, @target_audience, @source_url
+    @competitors, @pain_points, @keywords, @features, @target_audience, @source_url,
+    COALESCE(sqlc.narg(archetype)::text, sqlc.narg(suggested_archetype)::text, '')
 )
 ON CONFLICT (workspace_id) DO UPDATE SET
     overview = EXCLUDED.overview,
@@ -21,7 +23,10 @@ ON CONFLICT (workspace_id) DO UPDATE SET
     keywords = EXCLUDED.keywords,
     features = EXCLUDED.features,
     target_audience = EXCLUDED.target_audience,
-    source_url = EXCLUDED.source_url
+    source_url = EXCLUDED.source_url,
+    -- archetype: an explicit value wins; NULL keeps the stored one, and a
+    -- suggested one (from a product analysis) only fills an empty one.
+    archetype = COALESCE(sqlc.narg(archetype)::text, NULLIF(brand_profiles.archetype, ''), sqlc.narg(suggested_archetype)::text, brand_profiles.archetype)
 RETURNING *;
 
 -- ─── Listener builder ─────────────────────────────────

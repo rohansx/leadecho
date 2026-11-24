@@ -46,6 +46,7 @@ import { LeadAssistant } from "./lead-assistant";
 import { SubredditRulesBox } from "./subreddit-rules"; // ban-safe
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 import { hiringText, leadAge } from "@/lib/lead-age";
+import { leadFacts } from "@/lib/lead-facts";
 
 // Why the customer says a lead is wrong; stored with the archived mention.
 const NOT_A_FIT_REASONS = ["Wrong company", "Not a buyer", "Too old", "Other"];
@@ -817,6 +818,9 @@ function SignalsPanel({ mention }: { mention: Mention }) {
           ) : null
         }
       />
+      {leadFacts(mention.scoring_metadata).map((f) => (
+        <SignalRow key={f.name} label={f.name} value={f.value} />
+      ))}
       {feedback?.label && (
         <SignalRow
           label="Feedback"

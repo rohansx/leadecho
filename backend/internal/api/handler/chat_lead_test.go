@@ -78,7 +78,7 @@ func TestLeadContextHiringSignal(t *testing.T) {
 			Title:            pgtype.Text{String: "Vista Higher Learning is hiring: Sr Full stack Software Engineer", Valid: true},
 			Content:          "Vista Higher Learning posted a job this week.",
 			PlatformMetadata: []byte(`{"signal":"hiring","company":"Vista Higher Learning","job_title":"Sr Full stack Software Engineer","confirmed":true}`),
-			ScoringMetadata:  []byte(`{"reasoning":"Company posted a matching job this week.","author_role":"buyer"}`),
+			ScoringMetadata:  []byte(`{"reasoning":"Company posted a matching job this week.","author_role":"buyer","facts":[{"name":"Hiring volume","value":"12 engineers this quarter"}]}`),
 			RelevanceScore:   pgtype.Float4{Float32: 7.5, Valid: true},
 		},
 		lead:     &database.Lead{Metadata: enrich, ContactEmail: pgtype.Text{String: "m@vhl.example", Valid: true}, Stage: database.LeadStageProspect},
@@ -94,6 +94,7 @@ func TestLeadContextHiringSignal(t *testing.T) {
 		"hiring signal", "Vista Higher Learning", "Sr Full stack Software Engineer", "Marty Frenzel", "VP of Engineering",
 		"vistahigherlearning.com", "210", "yes (verified)", "Hi Marty", "Utkrusht", "CTOs at companies under 5,000 employees",
 		"Startup CTOs: no time for interview loops", "Northwind Payments", "web_search", "company_open_jobs",
+		"Post says (Hiring volume): 12 engineers this quarter",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("lead context is missing %q", want)

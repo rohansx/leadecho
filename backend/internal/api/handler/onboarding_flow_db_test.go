@@ -163,6 +163,34 @@ func TestOnboardingFlowDB(t *testing.T) {
 		}
 	})
 
+	t.Run("archetype: explicit sets, omitted keeps, analysis never overrides", func(t *testing.T) {
+		archetype := func() string {
+			bp, err := q.GetBrandProfile(ctx, ws.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return bp.Archetype
+		}
+		if code, body := call("PUT", "/brand-profile", map[string]any{"product": "Acme", "archetype": "devtool"}); code != 200 || !strings.Contains(body, `"archetype":"devtool"`) {
+			t.Fatalf("set: %d %s", code, body)
+		}
+		if code, _ := call("PUT", "/brand-profile", map[string]any{"product": "Acme", "competitors": []string{"HubSpot"}}); code != 200 || archetype() != "devtool" {
+			t.Fatalf("PUT without archetype wiped it: %d %q", code, archetype())
+		}
+		if code, _ := call("POST", "/onboarding/analyze", map[string]string{"url": site.URL}); code != 200 || archetype() != "devtool" {
+			t.Fatalf("re-analysis replaced the archetype: %d %q", code, archetype())
+		}
+		if code, _ := call("PUT", "/brand-profile", map[string]any{"product": "Acme", "archetype": "agency"}); code != 400 {
+			t.Fatalf("unknown archetype: want 400, got %d", code)
+		}
+		if code, _ := call("PUT", "/brand-profile", map[string]any{"product": "Acme", "archetype": ""}); code != 200 || archetype() != "" {
+			t.Fatalf("explicit empty should clear: %d %q", code, archetype())
+		}
+		if code, _ := call("PUT", "/brand-profile", map[string]any{"product": "Acme", "competitors": []string{"HubSpot"}, "archetype": "b2b_saas"}); code != 200 {
+			t.Fatalf("reset: %d", code)
+		}
+	})
+
 	t.Run("build listeners streams proposals", func(t *testing.T) {
 		if code, _ := call("POST", "/onboarding/listeners/build", map[string]any{"goals": []string{"nope"}}); code != 400 {
 			t.Fatalf("bad goal: %d", code)
@@ -234,6 +262,9 @@ func TestOnboardingFlowDB(t *testing.T) {
 		bp, _ := q.GetBrandProfile(ctx, ws.ID)
 		if len(bp.Competitors) != 2 {
 			t.Fatalf("competitors not persisted: %v", bp.Competitors)
+		}
+		if bp.Archetype != "b2b_saas" {
+			t.Fatalf("complete without an archetype wiped it: %q", bp.Archetype)
 		}
 		scanner.mu.Lock()
 		lb := scanner.lookback

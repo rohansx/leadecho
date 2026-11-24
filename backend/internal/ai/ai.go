@@ -46,6 +46,9 @@ type ClassifyResult struct {
 	OpenNeed string `json:"open_need,omitempty"`
 	// WhyNow is the fact in the post that makes the need timely ("" if none).
 	WhyNow string `json:"why_now,omitempty"`
+	// Facts are what the post states about its author, for the workspace's
+	// archetype (see facts.go); none when nothing is open for the author.
+	Facts []Fact `json:"facts,omitempty"`
 }
 
 // ProductAnalysis holds the output from analyzing a product URL.
@@ -66,6 +69,9 @@ type ProductAnalysis struct {
 	CustomerSegments []CustomerSegment `json:"customer_segments,omitempty"`
 	PainPointDetails []PainPointDetail `json:"pain_point_details,omitempty"`
 	KeywordGroups    KeywordGroups     `json:"keyword_groups"`
+	// Archetype is the kind of product (see facts.go); it picks the lead
+	// facts read from posts. Normalized to "" when unknown.
+	Archetype string `json:"archetype,omitempty"`
 }
 
 // flexString accepts either a JSON string or a JSON array of strings (joined with ", "),
@@ -413,6 +419,7 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
    "country": the ISO 3166-1 alpha-2 code of the segment's main market, "" when it is global}
 - "pain_point_details": array of objects {"problem": short problem, "explanation": one sentence}, one per pain point
 - "keyword_groups": object with arrays "brand" (product/company names), "product" (product + feature phrases), "category" (category phrases like "crm for agencies"), "problem" (problem phrases people post)
+- "archetype": the kind of product, one of: "devtool" (bought by engineers: databases, infrastructure, developer or AI-agent tooling, security for software), "hiring" (recruiting, interviewing or candidate assessment), "b2b_saas" (other software sold to teams at companies), "vertical_smb" (software for one kind of small business or practice, such as accountants, clinics or trades), "prosumer" (an app or API individuals buy for themselves: creators, freelancers, personal productivity)
 
 Be thorough with pain_points — think about what problems potential customers would post about on Reddit/HN. Focus on real frustrations, not marketing language.`
 
@@ -431,6 +438,7 @@ Be thorough with pain_points — think about what problems potential customers w
 		return nil, fmt.Errorf("parse product analysis: %w (raw: %s)", err, result)
 	}
 	pa.SuggestedPlatforms = defaultPlatforms(pa.SuggestedPlatforms)
+	pa.Archetype = NormalizeArchetype(pa.Archetype)
 	return &pa, nil
 }
 

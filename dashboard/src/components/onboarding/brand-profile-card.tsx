@@ -3,6 +3,7 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ArchetypeSelect } from "./archetype-select";
 import { ChipList } from "./chip-list";
 import type { BrandProfile, KeywordGroups } from "./types";
 
@@ -57,6 +58,9 @@ export function BrandProfileCard({ profile, onChange }: BrandProfileCardProps) {
             <Input value={profile.positioning} onChange={(e) => set({ positioning: e.target.value })} placeholder="How you differ from alternatives" />
             <Label>Features</Label>
             <ChipList items={profile.features} onChange={(features) => set({ features })} placeholder="Add feature..." />
+            <Label>Product type</Label>
+            <ArchetypeSelect value={profile.archetype} onChange={(archetype) => set({ archetype })} />
+            <p className="text-xs text-muted-foreground">Picks the facts each lead shows, taken only from what the post says.</p>
           </>
         )}
         {tab === "Customers" && <SegmentsEditor profile={profile} onChange={onChange} />}
