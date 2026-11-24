@@ -22,10 +22,7 @@ func TestBuyerShapesEval(t *testing.T) {
 	if key == "" {
 		t.Skip("ANTHROPIC_API_KEY not set")
 	}
-	model := os.Getenv("EVAL_MODEL")
-	if model == "" {
-		model = "claude-opus-5-5"
-	}
+	model := envOr("EVAL_MODEL", classifyEvalModel)
 	doc := loadBuyerShapes(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()

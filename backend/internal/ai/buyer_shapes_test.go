@@ -35,6 +35,11 @@ func loadBuyerShapes(t *testing.T) buyerShapes {
 	return doc
 }
 
+// classifyEvalModel is the model production classifies on: llm routes
+// TaskClassify to the strong tier, which on Anthropic (the only chat key in
+// prod) is strongDefaultModel["anthropic"]. Live evals default to it.
+const classifyEvalModel = "claude-opus-5-5"
+
 // isLead mirrors monitor.qualifiesAsLead: 6 or more with a buying-type intent.
 func isLead(cr *ClassifyResult) bool {
 	switch cr.Intent {
