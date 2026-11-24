@@ -4,6 +4,7 @@ import { Moon, Sun, Bell, Menu } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
 import { mentionQueueCounts } from "@/lib/api";
 import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
+import { GlobalSearch } from "./global-search";
 
 interface HeaderProps {
   /** Phones: opens the navigation drawer. */
@@ -32,6 +33,9 @@ export function Header({ onMenu }: HeaderProps) {
       >
         <Menu className="h-5 w-5" />
       </button>
+      <div className="flex min-w-0 flex-1 justify-center md:justify-start">
+        <GlobalSearch />
+      </div>
       <div className="ml-auto flex items-center gap-1">
         <button
           type="button"

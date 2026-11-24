@@ -1,4 +1,5 @@
 import type {
+  SearchResult,
   Mention,
   Lead,
   Keyword,
@@ -1067,3 +1068,6 @@ export async function previewDigest(kind: "daily" | "weekly"): Promise<string> {
   if (!res.ok) throw new Error(`Preview failed (${res.status})`);
   return res.text();
 }
+
+/** Global search across the workspace's people and posts (2-100 characters). */
+export const globalSearch = (q: string) => request<SearchResult>(`/search?q=${encodeURIComponent(q)}`);

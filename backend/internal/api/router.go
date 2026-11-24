@@ -150,6 +150,8 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Get("/mentions/platform-counts", mentions.PlatformCounts)
 			r.Get("/mentions/{id}", mentions.Get)
 			r.Get("/mentions/{id}/person360", mentions.Person360)
+			// Global search (people + posts) for the dashboard's search bar.
+			r.Get("/search", handler.NewSearchHandler(queries).Search)
 			r.Patch("/mentions/{id}/status", mentions.UpdateStatus)
 			// scoring: 👍/👎 feedback → few-shot examples
 			r.Post("/mentions/{id}/feedback", mentions.Feedback)
