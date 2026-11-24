@@ -147,7 +147,7 @@ export function FeatureRows() {
       <Row
         figure={<Sieve play intensity={0.7} label="Stacked sieves sorting what passes through" />}
         eyebrow="Filters"
-        title="Thousands of posts in. Only buyers out."
+        title="Thousands of posts in. Likely buyers out."
         body="Four passes drop spam, match posts to the problems you described by meaning, and score buying intent. Cheap models go first, so the expensive ones only read the posts worth reading."
       >
         <Funnel />
@@ -158,7 +158,7 @@ export function FeatureRows() {
         figure={<Hub play intensity={0.7} label="A hub linking several sources together" />}
         eyebrow="Researches"
         title="Know who is asking before you answer."
-        body="Each lead is linked to a GitHub profile and a company, then scored against your ideal customer, so you can tell a founder with a budget from someone just curious."
+        body="When the author can be identified, LeadEcho looks up their public profiles and company, then scores them against your ideal customer, so you can tell a founder with a budget from someone just curious."
       >
         <Profile />
         <p className="mt-4 text-[13px] text-muted-foreground">Sample data.</p>
@@ -175,8 +175,8 @@ export function FeatureRows() {
         flip
         figure={<Plot play intensity={0.7} label="A bar chart whose bars lift under the pointer" />}
         eyebrow="Attributes"
-        title="See which replies turn into customers."
-        body="Every reply carries its own link. Signups and revenue flow back to the post, the community and the reply style that earned them, or on to HubSpot and Attio."
+        title="Track what your replies bring in."
+        body="Every reply can carry its own tracked link. Track clicks and signups from your replies back to the post, the community and the reply style, or send them on to HubSpot and Attio."
       >
         <Results />
         <p className="mt-4 text-[13px] text-muted-foreground">Sample data.</p>
