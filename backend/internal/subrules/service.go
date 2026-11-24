@@ -16,14 +16,15 @@ type Cache interface {
 	Set(ctx context.Context, key string, val []byte, ttl time.Duration)
 }
 
-// FetchFunc reads a subreddit's rules from Reddit
-// (monitor.PublicSources.SubredditRules).
-type FetchFunc func(ctx context.Context, sub string) (Raw, error)
+// FetchFunc reads a subreddit's rules from Reddit. wsID is the workspace a
+// paid fallback (treg) is billed to; the result is shared by every workspace.
+// (monitor.SubredditRulesFetcher).
+type FetchFunc func(ctx context.Context, wsID, sub string) (Raw, error)
 
 const (
 	cacheTTL     = 7 * 24 * time.Hour
-	failTTL      = 6 * time.Hour // Reddit refused: try again later, not on every view
-	fetchTimeout = 8 * time.Second
+	failTTL      = 6 * time.Hour    // Reddit refused: try again later, not on every view
+	fetchTimeout = 25 * time.Second // a treg page scrape runs a real browser
 	cacheVersion = "subrules:v1:"
 )
 
@@ -45,7 +46,7 @@ var subRe = regexp.MustCompile(`^[A-Za-z0-9_]{2,21}$`)
 
 // Get returns the subreddit's summary, or nil for a nil Service or an
 // invalid name. A Reddit failure gives an Unavailable summary, never an error.
-func (s *Service) Get(ctx context.Context, sub string) *Summary {
+func (s *Service) Get(ctx context.Context, wsID, sub string) *Summary {
 	sub = strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(sub), "/"), "r/")
 	if s == nil || s.fetch == nil || !subRe.MatchString(sub) {
 		return nil
@@ -61,7 +62,7 @@ func (s *Service) Get(ctx context.Context, sub string) *Summary {
 	}
 	fctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
-	raw, err := s.fetch(fctx, sub)
+	raw, err := s.fetch(fctx, wsID, sub)
 	c := cached{OK: err == nil, Raw: raw}
 	if s.cache != nil && ctx.Err() == nil {
 		ttl := cacheTTL

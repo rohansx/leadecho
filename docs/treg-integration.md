@@ -56,6 +56,7 @@ Response headers we read:
 | X keyword search | `treg.x.search.posts` (routed: anyapi -> tikhub -> justoneapi, cheapest first) | $0.00075 per hit, misses free | `{"q": "<term>"}` | `{output:{posts:[…provider-native rows…]}, raw, _treg:{served_by, tried, charged_micro}}`; miss = `output.posts == []` |
 | LinkedIn post keyword search | `anyapi.linkedin.search.posts` | $0.002 per success (misses free) | `{"query": "<term>", "datePosted": "last-week"}` | provider body verbatim (text, link, publish date per row) |
 | Reddit comments | **not via treg**: Reddit public JSON `/r/<sub>/comments.json` (free) | $0 | -- | standard Reddit listing |
+| Subreddit rules (ban-safe replies) | `crawl4ai.web.scrape` on `old.reddit.com/r/<sub>/about/rules` (page carries the sidebar); used when Reddit OAuth is not configured or fails. No treg Reddit tool returns rules (`anyapi.reddit.subreddit_details` has only a one-line description). Cached 7 days per subreddit, failures 6h | $0.00025 per page, blocked pages free | `{"url": "...", "format": "md"}` | `{markdown}` or `{output:{markdown}}` |
 
 Paying less for repeat polls (`internal/monitor/treg_sources.go`, state in Redis, off without it):
 

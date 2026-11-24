@@ -158,8 +158,9 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	replyDrafter := reply.NewDrafter(queries, llmRouter, scrapling, knowledgeSvc)
 	replyDrafter.SetCredits(credits)
 	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
-	// ban-safe: subreddit rules through the crawler's Reddit path, cached in Redis.
-	replyDrafter.SetSubredditRules(subrules.New(monitor.DefaultPublicSources().SubredditRules, treg.NewRedisCache(redis)))
+	// ban-safe: subreddit rules the way posts are read (Reddit API, else treg),
+	// cached in Redis for a week per subreddit.
+	replyDrafter.SetSubredditRules(subrules.New(monitor.SubredditRulesFetcher(monitor.DefaultPublicSources(), tregClient), treg.NewRedisCache(redis)))
 	workflowEngine := workflow.NewEngine(queries, logger)
 	workflowEngine.SetDrafter(func(ctx context.Context, wsID, mentionID string) error {
 		_, err := replyDrafter.DraftForMention(ctx, wsID, mentionID)

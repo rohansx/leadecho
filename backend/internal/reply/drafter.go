@@ -63,7 +63,7 @@ func RulesFor(ctx context.Context, s *subrules.Service, m database.Mention) *sub
 	if s == nil || m.Platform != string(database.PlatformTypeReddit) {
 		return nil
 	}
-	return s.Get(ctx, subrules.SubredditOf(m.Url, m.PlatformMetadata))
+	return s.Get(ctx, m.WorkspaceID, subrules.SubredditOf(m.Url, m.PlatformMetadata))
 }
 
 // SetCredits charges each draft (billing.CostDraft), refunded if drafting fails.

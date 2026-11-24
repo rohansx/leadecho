@@ -2,11 +2,90 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+
+	"github.com/rs/zerolog"
+
+	"leadecho/internal/subrules"
+	"leadecho/internal/treg"
 )
+
+// A scraped old.reddit rules page, as crawl4ai.web.scrape answers it.
+const oldRedditRulesMD = `# [r/SaaS](https://old.reddit.com/r/SaaS)
+* [advertise](https://www.reddit.com/advertising)
+1. **No self-promotion or advertising.** Posts promoting your product will be removed.
+2. **Be helpful.** Answer the question that was asked.
+Share your product in the [Weekly Feedback Thread](https://old.reddit.com/r/SaaS/x) every Monday.
+Accounts must be 30 days old with 50 karma to post.`
+
+func TestSubredditRulesFetcherTreg(t *testing.T) {
+	var calls atomic.Int32
+	var body map[string]string
+	var path string
+	tregSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		path = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		b, _ := json.Marshal(map[string]any{"output": map[string]string{"markdown": oldRedditRulesMD}})
+		_, _ = w.Write(b)
+	}))
+	defer tregSrv.Close()
+	blocked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }))
+	defer blocked.Close()
+	tc := treg.New(treg.Config{Token: "tok", BaseURL: tregSrv.URL}, nil, zerolog.Nop())
+
+	// Production: no Reddit OAuth, treg on: straight to treg, Reddit not touched.
+	var redditHits atomic.Int32
+	reddit := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		redditHits.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer reddit.Close()
+	fetch := SubredditRulesFetcher(&PublicSources{Client: reddit.Client(), RedditBase: reddit.URL}, tc)
+	raw, err := fetch(context.Background(), tregTestWS, "SaaS")
+	if err != nil || redditHits.Load() != 0 {
+		t.Fatalf("err=%v redditHits=%d", err, redditHits.Load())
+	}
+	if path != "/call/"+tregPageTool || body["url"] != "https://old.reddit.com/r/SaaS/about/rules" || body["format"] != "md" {
+		t.Fatalf("treg request: path=%q body=%v", path, body)
+	}
+	s := subrules.Summarize("SaaS", raw)
+	if s.SelfPromo != subrules.PromoLimited || s.PromoThread != "Weekly Feedback Thread" || s.MinKarma != 50 || s.MinAccountAge != "30 days" {
+		t.Fatalf("summary from scraped page: %+v", s)
+	}
+	if len(s.Quotes) == 0 || s.Quotes[0] != "No self-promotion or advertising. Posts promoting your product will be removed." {
+		t.Fatalf("quotes = %q", s.Quotes)
+	}
+
+	// Reddit OAuth configured but refused: falls back to treg.
+	oauth := &PublicSources{Client: blocked.Client(), RedditBase: blocked.URL,
+		RedditOAuth: NewRedditOAuth("cid", "secret", "ua", blocked.URL, blocked.URL)}
+	before := calls.Load()
+	if _, err := SubredditRulesFetcher(oauth, tc)(context.Background(), tregTestWS, "SaaS"); err != nil || calls.Load() != before+1 {
+		t.Fatalf("fallback: err=%v treg calls=%d", err, calls.Load()-before)
+	}
+
+	// No treg: the public path's error stands.
+	if _, err := SubredditRulesFetcher(&PublicSources{Client: blocked.Client(), RedditBase: blocked.URL}, nil)(context.Background(), tregTestWS, "SaaS"); err == nil {
+		t.Fatal("blocked Reddit without treg must fail")
+	}
+}
+
+func TestTregSubredditRulesEmptyPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"markdown":""}`))
+	}))
+	defer srv.Close()
+	tc := treg.New(treg.Config{Token: "tok", BaseURL: srv.URL}, nil, zerolog.Nop())
+	if _, err := tregSubredditRules(context.Background(), tc, tregTestWS, "SaaS"); err == nil {
+		t.Fatal("an empty page must be an error, so it gets the short failure cache")
+	}
+}
 
 func TestSubredditRules(t *testing.T) {
 	rulesJSON := `{"rules":[{"short_name":"No self-promotion","description":"No ads."}],"site_rules":["Spam"]}`

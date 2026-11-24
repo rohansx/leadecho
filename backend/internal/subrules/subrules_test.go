@@ -182,7 +182,7 @@ func TestServiceGet(t *testing.T) {
 	cache := &memCache{m: map[string][]byte{}, ttl: map[string]time.Duration{}}
 	calls := 0
 	fail := false
-	svc := New(func(_ context.Context, sub string) (Raw, error) {
+	svc := New(func(_ context.Context, _, sub string) (Raw, error) {
 		calls++
 		if fail {
 			return Raw{}, errors.New("403")
@@ -191,27 +191,27 @@ func TestServiceGet(t *testing.T) {
 	}, cache)
 	ctx := context.Background()
 
-	if svc.Get(ctx, "bad name!") != nil || (*Service)(nil).Get(ctx, "SaaS") != nil {
+	if svc.Get(ctx, "ws", "bad name!") != nil || (*Service)(nil).Get(ctx, "ws", "SaaS") != nil {
 		t.Fatal("invalid name or nil service must give nil")
 	}
-	s := svc.Get(ctx, "r/SaaS")
+	s := svc.Get(ctx, "ws", "r/SaaS")
 	if s == nil || s.SelfPromo != PromoBanned || s.Subreddit != "SaaS" {
 		t.Fatalf("got %+v", s)
 	}
-	svc.Get(ctx, "saas") // cached, case-insensitive
+	svc.Get(ctx, "ws", "saas") // cached, case-insensitive
 	if calls != 1 || cache.ttl["subrules:v1:saas"] != cacheTTL {
 		t.Fatalf("calls = %d, ttl = %v", calls, cache.ttl)
 	}
 
 	fail = true
-	s = svc.Get(ctx, "startups")
+	s = svc.Get(ctx, "ws", "startups")
 	if s == nil || s.Available || s.SelfPromo != PromoUnknown {
 		t.Fatalf("failed fetch should be unavailable, got %+v", s)
 	}
 	if cache.ttl["subrules:v1:startups"] != failTTL {
 		t.Fatalf("failure ttl = %v", cache.ttl["subrules:v1:startups"])
 	}
-	svc.Get(ctx, "startups")
+	svc.Get(ctx, "ws", "startups")
 	if calls != 2 {
 		t.Fatalf("a cached failure must not refetch, calls = %d", calls)
 	}
