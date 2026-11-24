@@ -2,11 +2,14 @@ package ai
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -86,6 +89,201 @@ func evalCostUSD(model string, u Usage) float64 {
 	p := evalPrices[model]
 	in := float64(u.PromptTokens) + 0.1*float64(u.CacheReadTokens) + 1.25*float64(u.CacheWriteTokens)
 	return (in*p[0] + float64(u.CompletionTokens)*p[1]) / 1e6
+}
+
+// promptVariants are the cumulative prompt ablations EVAL_VARIANT picks:
+// each adds one part of the per-workspace prompt to the one before it.
+// "story" is "full" plus storyRule in the base prompt.
+var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story"}
+
+// storyRule is a candidate base-prompt hard rule aimed at the dominant false
+// positive: a first-hand story scored as a buyer's complaint. It lives here,
+// not in classify.go, until the eval says it earns its place.
+const storyRule = `- An author telling their own story is not shopping. A build-in-public or progress update, an opinion or hot take (a recruiter's or manager's view of the market included), venting about a product or vendor they use or used, or a technical comment or answer, with no ask for a tool, a vendor or help with the problem, is not buying intent and its author is not a buyer: set author_role "non_buyer" and keep relevance_score at 4 or below. When the author also asks for a tool, a vendor, or how others solve it, score the ask as usual.`
+
+// storyAnchor is the hard rule storyRule is inserted after.
+const storyAnchor = "- Only tag buying_intent / seeking_alternative / recommendation_request when the AUTHOR is the one looking.\n"
+
+// storyBasePrompt is classifyBasePrompt with storyRule added to the hard rules.
+func storyBasePrompt() (string, error) {
+	if !strings.Contains(classifyBasePrompt, storyAnchor) {
+		return "", fmt.Errorf("story variant: anchor rule not found in classifyBasePrompt")
+	}
+	return strings.Replace(classifyBasePrompt, storyAnchor, storyAnchor+storyRule+"\n", 1), nil
+}
+
+// classifyVariant is ClassifyIntent, except that "story" swaps in
+// storyBasePrompt. The tail mirrors ClassifyIntent; TestStorySystem pins it.
+func classifyVariant(ctx context.Context, p Provider, title, content, platform string, sc ScoringContext, variant string) (*ClassifyResult, error) {
+	if variant != "story" {
+		return ClassifyIntent(ctx, p, title, content, platform, sc)
+	}
+	base, err := storyBasePrompt()
+	if err != nil {
+		return nil, err
+	}
+	msgs := append(storySystem(p, sc, base), chatMessage{Role: "user", Content: fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)})
+	result, err := callChat(ctx, p, msgs, 0.1)
+	if err != nil {
+		return nil, err
+	}
+	var cr ClassifyResult
+	if err := json.Unmarshal([]byte(stripCodeFences(result)), &cr); err != nil {
+		return nil, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
+	}
+	cr = NormalizeClassifyResult(cr, title)
+	return &cr, nil
+}
+
+// storySystem is classifySystem with base in place of classifyBasePrompt.
+func storySystem(p Provider, sc ScoringContext, base string) []chatMessage {
+	msgs := classifySystem(p, sc)
+	for i := range msgs {
+		msgs[i].Content = strings.Replace(msgs[i].Content, classifyBasePrompt, base, 1)
+	}
+	return msgs
+}
+
+// ablate keeps only the parts of sc that variant includes. "full" (or "")
+// is sc unchanged, as production sends it; "story" too (its change is in
+// the base prompt, see classifyVariant).
+func ablate(sc ScoringContext, variant string) (ScoringContext, error) {
+	var out ScoringContext
+	switch variant {
+	case "", "full", "story":
+		return sc, nil
+	case "rules":
+		out.Rules = sc.Rules
+		fallthrough
+	case "looks":
+		out.LooksFor, out.Skips = sc.LooksFor, sc.Skips
+		fallthrough
+	case "buyers":
+		out.Buyers = sc.Buyers
+		fallthrough
+	case "product":
+		out.Product = sc.Product
+		fallthrough
+	case "base":
+		return out, nil
+	}
+	return out, fmt.Errorf("unknown variant %q (want one of %v)", variant, promptVariants)
+}
+
+// stratifiedSample picks about n of the items, the same ones on every run:
+// each stratum gets its proportional share (largest remainder), and within
+// a stratum items are taken in FNV order of their id. Returns indices in
+// input order.
+func stratifiedSample(ids, strata []string, n int) []int {
+	if n <= 0 || n >= len(ids) {
+		all := make([]int, len(ids))
+		for i := range all {
+			all[i] = i
+		}
+		return all
+	}
+	by := map[string][]int{}
+	var keys []string
+	for i, s := range strata {
+		if by[s] == nil {
+			keys = append(keys, s)
+		}
+		by[s] = append(by[s], i)
+	}
+	sort.Strings(keys)
+	take := map[string]int{}
+	type rem struct {
+		k string
+		r float64
+	}
+	var rems []rem
+	left := n
+	for _, k := range keys {
+		exact := float64(len(by[k])) * float64(n) / float64(len(ids))
+		take[k] = int(exact)
+		left -= take[k]
+		rems = append(rems, rem{k, exact - float64(take[k])})
+	}
+	sort.SliceStable(rems, func(i, j int) bool { return rems[i].r > rems[j].r })
+	for i := 0; i < left; i++ {
+		take[rems[i].k]++
+	}
+	hash := func(s string) uint32 { h := fnv.New32a(); h.Write([]byte(s)); return h.Sum32() }
+	var out []int
+	for _, k := range keys {
+		idx := by[k]
+		sort.Slice(idx, func(i, j int) bool { return hash(ids[idx[i]]) < hash(ids[idx[j]]) })
+		out = append(out, idx[:take[k]]...)
+	}
+	sort.Ints(out)
+	return out
+}
+
+func TestAblate(t *testing.T) {
+	sc := ScoringContext{Product: "p", Buyers: "b", LooksFor: "l", Skips: "s", Rules: []string{"r"}, Examples: []ScoringExample{{Title: "e"}}}
+	want := map[string]ScoringContext{
+		"base":    {},
+		"product": {Product: "p"},
+		"buyers":  {Product: "p", Buyers: "b"},
+		"looks":   {Product: "p", Buyers: "b", LooksFor: "l", Skips: "s"},
+		"rules":   {Product: "p", Buyers: "b", LooksFor: "l", Skips: "s", Rules: []string{"r"}},
+		"full":    sc,
+		"story":   sc,
+	}
+	for _, v := range promptVariants {
+		got, err := ablate(sc, v)
+		if err != nil || buildClassifyPrompt(got) != buildClassifyPrompt(want[v]) {
+			t.Errorf("%s: got %+v err %v", v, got, err)
+		}
+	}
+	if _, err := ablate(sc, "nope"); err == nil {
+		t.Error("unknown variant should error")
+	}
+}
+
+func TestStorySystem(t *testing.T) {
+	sc := ScoringContext{Product: "p", Buyers: "b", Rules: []string{"r"}}
+	for _, name := range []string{"anthropic", "openai"} {
+		p := Provider{Name: name}
+		if got, want := storySystem(p, sc, classifyBasePrompt), classifySystem(p, sc); fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("%s: with the production base, storySystem must equal classifySystem", name)
+		}
+		base, err := storyBasePrompt()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := storySystem(p, sc, base)
+		if !strings.Contains(got[0].Content, storyAnchor+storyRule) || !strings.Contains(fmt.Sprint(got), "WHO BUYS") {
+			t.Fatalf("%s: story rule or listener part missing", name)
+		}
+	}
+}
+
+func TestStratifiedSample(t *testing.T) {
+	var ids, strata []string
+	for i := 0; i < 100; i++ {
+		ids = append(ids, fmt.Sprint("c", i))
+		strata = append(strata, map[bool]string{true: "a", false: "b"}[i < 70]) // 70 a, 30 b
+	}
+	got := stratifiedSample(ids, strata, 10)
+	if len(got) != 10 {
+		t.Fatalf("len %d", len(got))
+	}
+	a := 0
+	for _, i := range got {
+		if strata[i] == "a" {
+			a++
+		}
+	}
+	if a != 7 {
+		t.Fatalf("stratum a got %d of 10, want 7", a)
+	}
+	if again := stratifiedSample(ids, strata, 10); fmt.Sprint(again) != fmt.Sprint(got) {
+		t.Fatalf("not deterministic: %v vs %v", again, got)
+	}
+	if len(stratifiedSample(ids, strata, 0)) != 100 {
+		t.Fatal("n=0 should keep everything")
+	}
 }
 
 func TestEvalMetrics(t *testing.T) {

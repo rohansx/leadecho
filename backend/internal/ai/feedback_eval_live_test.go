@@ -9,8 +9,13 @@
 //	  go test -tags live -run TestFeedbackEval -v -timeout 60m ./internal/ai/
 //
 // EVAL_MODEL overrides the model, EVAL_MAX_USD the spend cap (default 8),
-// EVAL_LIMIT runs only the first N cases. The report is written next to the
-// set as report-<model>-<time>.json.
+// EVAL_LIMIT runs only the first N cases. EVAL_SOURCES (e.g.
+// agent_blind,human) keeps only those label sources. EVAL_SAMPLE=N scores a
+// fixed sample of about N cases stratified by workspace and label;
+// EVAL_VARIANT (base, product, buyers, looks, rules, full, story) cuts the
+// workspace prompt down for an ablation, or adds the candidate storyRule (see
+// ablate, classifyVariant). The report is written next to the set as
+// report-<model>[-<variant>]-<time>.json.
 package ai
 
 import (
@@ -21,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -50,9 +56,35 @@ func TestFeedbackEval(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases, contexts := loadEvalSet(t, dir)
+	if src := os.Getenv("EVAL_SOURCES"); src != "" {
+		keep := map[string]bool{}
+		for _, s := range strings.Split(src, ",") {
+			keep[strings.TrimSpace(s)] = true
+		}
+		var kept []evalCase
+		for _, c := range cases {
+			if keep[c.Source] {
+				kept = append(kept, c)
+			}
+		}
+		cases = kept
+	}
 	if n, _ := strconv.Atoi(os.Getenv("EVAL_LIMIT")); n > 0 && n < len(cases) {
 		cases = cases[:n]
 	}
+	if n, _ := strconv.Atoi(os.Getenv("EVAL_SAMPLE")); n > 0 {
+		var ids, strata []string
+		for _, c := range cases {
+			ids, strata = append(ids, c.ID), append(strata, c.Workspace+"/"+c.Label)
+		}
+		var picked []evalCase
+		for _, i := range stratifiedSample(ids, strata, n) {
+			picked = append(picked, cases[i])
+		}
+		cases = picked
+	}
+	variant := os.Getenv("EVAL_VARIANT")
+	t.Logf("model %s variant %q cases %d cap $%.2f", model, variant, len(cases), maxUSD)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Minute)
 	defer cancel()
@@ -75,13 +107,24 @@ func TestFeedbackEval(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: no context %q", c.ID, c.Context)
 		}
+		sc, err := ablate(sc, variant)
+		if err != nil {
+			t.Fatal(err)
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func() {
 			defer func() { <-sem; wg.Done() }()
 			var u Usage
 			p := Provider{Name: "anthropic", APIKey: key, Model: model, UsageSink: &u}
-			cr, err := ClassifyIntent(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c))
+			var cr *ClassifyResult
+			var err error
+			for attempt := 0; attempt < 3; attempt++ { // transient network errors (DNS EAI_AGAIN); u sums every attempt
+				if cr, err = classifyVariant(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c), variant); err == nil {
+					break
+				}
+				time.Sleep(time.Duration(attempt+1) * 3 * time.Second)
+			}
 			r := &evalResult{evalCase: c, Tokens: u, CostUSD: evalCostUSD(model, u)}
 			if err != nil {
 				r.Err = err.Error()
@@ -97,7 +140,7 @@ func TestFeedbackEval(t *testing.T) {
 	wg.Wait()
 
 	report := summarise(results)
-	report["model"], report["dir"], report["ran_at"] = model, dir, time.Now().UTC().Format(time.RFC3339)
+	report["model"], report["variant"], report["dir"], report["ran_at"] = model, variant, dir, time.Now().UTC().Format(time.RFC3339)
 	for _, r := range results {
 		if r != nil && (r.Got != (r.Label == "lead") || r.Err != "") {
 			t.Logf("MISS %-10s %-7s want=%-8s score=%.1f intent=%-18s type=%-18s src=%s %q: %s%s",
@@ -111,7 +154,11 @@ func TestFeedbackEval(t *testing.T) {
 	}
 	t.Logf("overall      %-16s %s", "all", fmtMetrics(report["overall"].(*evalMetrics)))
 
-	out := filepath.Join(dir, fmt.Sprintf("report-%s-%s.json", model, time.Now().UTC().Format("20060102T150405Z")))
+	name := model
+	if variant != "" {
+		name += "-" + variant
+	}
+	out := filepath.Join(dir, fmt.Sprintf("report-%s-%s.json", name, time.Now().UTC().Format("20060102T150405Z")))
 	raw, _ := json.MarshalIndent(report, "", " ")
 	if err := os.WriteFile(out, raw, 0o600); err != nil {
 		t.Fatal(err)
