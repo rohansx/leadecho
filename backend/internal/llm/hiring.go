@@ -53,14 +53,18 @@ func (r *Router) FitProspects(ctx context.Context, workspaceID string, in ai.Pro
 	return out, err
 }
 
-// ResearchCompany searches the web for a confirmed lead's company. Routed
-// like reply drafting (the strong tier); it needs Claude's web search tool,
-// so targets on other providers are skipped.
+// TaskCompanyResearch is the company web research for hiring leads (strong
+// tier, like reply drafting). Its own usage line: its web search results are
+// most of its input, and they used to be counted as reply drafting.
+const TaskCompanyResearch Task = "company_research"
+
+// ResearchCompany searches the web for a confirmed lead's company. It needs
+// Claude's web search tool, so targets on other providers are skipped.
 func (r *Router) ResearchCompany(ctx context.Context, workspaceID string, in ai.CompanyResearch) (*ai.ResearchBrief, error) {
 	var out *ai.ResearchBrief
 	var ran bool
 	var ranErr error
-	err := r.withChatProvider(ctx, workspaceID, TaskDraftReply, func(p ai.Provider) error {
+	err := r.withChatProvider(ctx, workspaceID, TaskCompanyResearch, func(p ai.Provider) error {
 		if ran {
 			// One paid run per lead: a fallback target must not repeat
 			// several searches because the first run failed.

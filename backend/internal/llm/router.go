@@ -136,14 +136,15 @@ func DefaultConfig() Config {
 			TierEmbedding: {Provider: "voyage", Model: "voyage-4-large"},
 		},
 		Routing: map[string]string{
-			string(TaskFilter):         TierCheap,
-			string(TaskClassify):       TierStrong,
-			string(TaskPreFilterReply): TierCheap,
-			string(TaskDraftReply):     TierStrong,
-			string(TaskAnalyzeProduct): TierStrong,
-			string(TaskEmbedMentions):  TierEmbedding,
-			string(TaskEmbedProfiles):  TierEmbedding,
-			string(TaskEmbedDocuments): TierEmbedding,
+			string(TaskFilter):          TierCheap,
+			string(TaskClassify):        TierStrong,
+			string(TaskPreFilterReply):  TierCheap,
+			string(TaskDraftReply):      TierStrong,
+			string(TaskAnalyzeProduct):  TierStrong,
+			string(TaskCompanyResearch): TierStrong,
+			string(TaskEmbedMentions):   TierEmbedding,
+			string(TaskEmbedProfiles):   TierEmbedding,
+			string(TaskEmbedDocuments):  TierEmbedding,
 		},
 		Fallbacks: map[string][]ModelTarget{
 			TierCheap:     {},
@@ -669,6 +670,7 @@ func (r *Router) recordUsageTokens(ctx context.Context, workspaceID string, task
 	if err := r.q.CreateLLMUsageEvent(ctx, database.CreateLLMUsageEventParams{
 		WorkspaceID: workspaceID, Task: string(task), Provider: provider, Model: model, Status: status,
 		PromptTokens: u.PromptTokens, CompletionTokens: u.CompletionTokens, TotalTokens: u.TotalTokens,
+		CacheReadTokens: u.CacheReadTokens, CacheWriteTokens: u.CacheWriteTokens,
 		EstimatedCostUSD: estimateCostUSD(model, u), LatencyMs: int32(latency.Milliseconds()), ErrorMessage: errText,
 		FallbackFrom: fallbackFrom, KeySource: source,
 	}); err != nil {
