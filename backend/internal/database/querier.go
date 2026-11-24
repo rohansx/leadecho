@@ -293,6 +293,8 @@ type Querier interface {
 	MarkTrackedProfilePolled(ctx context.Context, arg MarkTrackedProfilePolledParams) error
 	MentionsPerDay(ctx context.Context, workspaceID string) ([]MentionsPerDayRow, error)
 	MentionsPerIntent(ctx context.Context, workspaceID string) ([]MentionsPerIntentRow, error)
+	// Analytics' 30-day counts match the Inbox list a row links to: by when the
+	// post was written, without spam or archived posts.
 	MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error)
 	OpsListWorkspaces(ctx context.Context) ([]OpsListWorkspacesRow, error)
 	OpsSetPaidData(ctx context.Context, arg OpsSetPaidDataParams) error

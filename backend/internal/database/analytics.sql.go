@@ -69,7 +69,9 @@ func (q *Queries) CountConvertedLeads(ctx context.Context, workspaceID string) (
 
 const countMentions30d = `-- name: CountMentions30d :one
 SELECT COUNT(*)::int as count FROM mentions
-WHERE workspace_id = $1 AND created_at >= NOW() - INTERVAL '30 days'
+WHERE workspace_id = $1
+AND COALESCE(platform_created_at, created_at) >= NOW() - INTERVAL '30 days'
+AND status NOT IN ('spam', 'archived')
 `
 
 func (q *Queries) CountMentions30d(ctx context.Context, workspaceID string) (int32, error) {
@@ -155,7 +157,8 @@ SELECT intent, COUNT(*)::int as count
 FROM mentions
 WHERE workspace_id = $1
 AND intent IS NOT NULL
-AND created_at >= NOW() - INTERVAL '30 days'
+AND COALESCE(platform_created_at, created_at) >= NOW() - INTERVAL '30 days'
+AND status NOT IN ('spam', 'archived')
 GROUP BY intent
 `
 
@@ -185,10 +188,12 @@ func (q *Queries) MentionsPerIntent(ctx context.Context, workspaceID string) ([]
 }
 
 const mentionsPerPlatform = `-- name: MentionsPerPlatform :many
+
 SELECT platform, COUNT(*)::int as count
 FROM mentions
 WHERE workspace_id = $1
-AND created_at >= NOW() - INTERVAL '30 days'
+AND COALESCE(platform_created_at, created_at) >= NOW() - INTERVAL '30 days'
+AND status NOT IN ('spam', 'archived')
 GROUP BY platform
 `
 
@@ -197,6 +202,8 @@ type MentionsPerPlatformRow struct {
 	Count    int32  `json:"count"`
 }
 
+// Analytics' 30-day counts match the Inbox list a row links to: by when the
+// post was written, without spam or archived posts.
 func (q *Queries) MentionsPerPlatform(ctx context.Context, workspaceID string) ([]MentionsPerPlatformRow, error) {
 	rows, err := q.db.Query(ctx, mentionsPerPlatform, workspaceID)
 	if err != nil {
@@ -339,7 +346,8 @@ SELECT k.term, COUNT(m.id)::int as mention_count
 FROM keywords k
 LEFT JOIN mentions m ON (m.keyword_id = k.id OR k.term = ANY(m.keyword_matches))
 AND m.workspace_id = k.workspace_id
-AND m.created_at >= NOW() - INTERVAL '30 days'
+AND COALESCE(m.platform_created_at, m.created_at) >= NOW() - INTERVAL '30 days'
+AND m.status NOT IN ('spam', 'archived')
 WHERE k.workspace_id = $1
 GROUP BY k.id, k.term
 ORDER BY mention_count DESC

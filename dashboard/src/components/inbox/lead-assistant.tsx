@@ -186,7 +186,7 @@ export function LeadAssistant({ mention }: { mention: Mention }) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4" aria-label="Ask about this lead">
+    <section className="glass-card rounded-xl p-4" aria-label="Ask about this lead">
       <div className="mb-3 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-muted-foreground" />
         <h4 className="text-sm font-medium">Ask about this lead</h4>
