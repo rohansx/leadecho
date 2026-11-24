@@ -9,7 +9,9 @@
 //	  go test -tags live -run TestFeedbackEval -v -timeout 60m ./internal/ai/
 //
 // EVAL_MODEL overrides the model, EVAL_MAX_USD the spend cap (default 8),
-// EVAL_LIMIT runs only the first N cases. EVAL_SOURCES (e.g.
+// EVAL_LIMIT runs only the first N cases. EVAL_CASES names the case file
+// (default cases.jsonl; gold_test.jsonl scores against the gold labels, see
+// gold_label_live_test.go). EVAL_SOURCES (e.g.
 // agent_blind,human) keeps only those label sources. EVAL_SAMPLE=N scores a
 // fixed sample of about N cases stratified by workspace and label;
 // EVAL_VARIANT (base, product, buyers, looks, rules, full, story) cuts the

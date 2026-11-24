@@ -364,7 +364,11 @@ func loadEvalSet(t *testing.T, dir string) ([]evalCase, map[string]ScoringContex
 	if err := json.Unmarshal(raw, &contexts); err != nil {
 		t.Fatalf("contexts.json: %v", err)
 	}
-	f, err := os.Open(filepath.Join(dir, "cases.jsonl"))
+	name := os.Getenv("EVAL_CASES") // e.g. gold_test.jsonl
+	if name == "" {
+		name = "cases.jsonl"
+	}
+	f, err := os.Open(filepath.Join(dir, name))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +382,7 @@ func loadEvalSet(t *testing.T, dir string) ([]evalCase, map[string]ScoringContex
 		}
 		var c evalCase
 		if err := json.Unmarshal(sc.Bytes(), &c); err != nil {
-			t.Fatalf("cases.jsonl line %d: %v", len(cases)+1, err)
+			t.Fatalf("%s line %d: %v", name, len(cases)+1, err)
 		}
 		if c.Label != "lead" && c.Label != "not_lead" {
 			t.Fatalf("%s: label %q", c.ID, c.Label)
