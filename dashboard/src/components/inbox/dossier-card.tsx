@@ -97,7 +97,7 @@ export function DossierCard({ metadata, posts }: { metadata?: Record<string, unk
   if (!d) {
     return (
       <div className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-        The profile is written once we know who they are; it appears here within a minute or two.
+        Writing their profile from what they posted and what we found about them. It appears here within a minute or two.
       </div>
     );
   }
