@@ -42,8 +42,12 @@ func TestSearchRankQueriesDB(t *testing.T) {
 			t.Fatal("a workspace with no lead threads is never due")
 		}
 	}
-	if err := q.MarkSearchRankChecked(ctx, ws.ID, time.Now()); err != nil {
-		t.Fatal(err)
+	// The claim is atomic: the first caller wins, a second within the week loses.
+	if won, err := q.ClaimSettingsRun(ctx, ws.ID, SearchRankKey, 7*24*time.Hour); err != nil || !won {
+		t.Fatalf("first claim = %v %v", won, err)
+	}
+	if won, err := q.ClaimSettingsRun(ctx, ws.ID, SearchRankKey, 7*24*time.Hour); err != nil || won {
+		t.Fatalf("second claim = %v %v, want lost", won, err)
 	}
 	// A mention that does not exist is not an error, set or cleared.
 	if err := q.SetMentionSearchRank(ctx, ws.ID, ws.ID, []byte(`{"query":"q","position":1}`)); err != nil {

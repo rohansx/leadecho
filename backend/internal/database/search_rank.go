@@ -52,12 +52,13 @@ func (q *Queries) ListSearchRankThreads(ctx context.Context, workspaceID string,
 }
 
 // ListWorkspacesDueSearchRank returns workspaces with open lead threads whose
-// last search-rank check is older than before (or never ran).
+// last search-rank check is older than before (or never ran). Only a
+// candidate list: claim each with ClaimSettingsRun before searching.
 func (q *Queries) ListWorkspacesDueSearchRank(ctx context.Context, before time.Time, limit int) ([]string, error) {
 	rows, err := q.db.Query(ctx, `
 		SELECT w.id::text FROM workspaces w
 		WHERE NOT w.scanning_paused
-		  AND coalesce((w.settings->>'search_rank_checked_at')::timestamptz, 'epoch') < $1
+		  AND coalesce((w.settings->'`+SearchRankKey+`'->>'last_run')::timestamptz, 'epoch') < $1
 		  AND EXISTS (SELECT 1 `+searchRankThreadsSQL+` AND l.workspace_id = w.id
 		              AND `+leadScoreSQL("m.", "m.workspace_id")+`)
 		ORDER BY w.id
@@ -77,14 +78,10 @@ func (q *Queries) ListWorkspacesDueSearchRank(ctx context.Context, before time.T
 	return out, rows.Err()
 }
 
-// MarkSearchRankChecked records when the workspace's threads were last checked.
-func (q *Queries) MarkSearchRankChecked(ctx context.Context, workspaceID string, at time.Time) error {
-	_, err := q.db.Exec(ctx, `
-		UPDATE workspaces
-		SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), ARRAY['search_rank_checked_at'], to_jsonb($2::text), true)
-		WHERE id = $1`, workspaceID, at.UTC().Format(time.RFC3339))
-	return err
-}
+// SearchRankKey is the workspaces.settings key whose last_run is claimed
+// with ClaimSettingsRun before a check, so one instance searches a
+// workspace per interval.
+const SearchRankKey = "search_rank"
 
 // SetMentionSearchRank stores raw as platform_metadata.search_rank, or
 // removes the key when raw is nil.

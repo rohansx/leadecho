@@ -67,3 +67,12 @@ func TestMatchSearchRanks(t *testing.T) {
 		t.Fatal("m4: nothing to change")
 	}
 }
+
+func TestMatchSearchRanksEmptyResultsClearNothing(t *testing.T) {
+	threads := []database.SearchRankThread{{MentionID: "m1", URL: "https://news.ycombinator.com/item?id=7", RankQuery: "crm"}}
+	for _, empty := range [][]string{nil, {}} {
+		if got := matchSearchRanks(threads, map[string][]string{"crm": empty}, time.Now()); len(got) != 0 {
+			t.Fatalf("an empty result list must not clear ranks, got %+v", got)
+		}
+	}
+}

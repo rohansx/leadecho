@@ -59,9 +59,15 @@ func (m *Monitor) checkDueSearchRanks(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, ws := range ids {
-		// Marked first: a check that fails waits a week too, so the cap holds.
-		if err := m.q.MarkSearchRankChecked(ctx, ws, now); err != nil {
-			m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("search rank: mark")
+		// Claimed first, atomically: another instance that listed the same
+		// workspace loses the claim, and a check that fails waits a week too,
+		// so the cap holds.
+		won, err := m.q.ClaimSettingsRun(ctx, ws, database.SearchRankKey, searchRankInterval)
+		if err != nil {
+			m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("search rank: claim")
+			continue
+		}
+		if !won {
 			continue
 		}
 		if m.credits.ScanAllowed(ctx, ws) {
@@ -128,6 +134,7 @@ func searchRankQueries(threads []database.SearchRankThread, max int) []string {
 // matchSearchRanks returns the changes to store, by mention id: the best
 // (lowest) position a thread holds across the searched queries, or nil to
 // clear a stored rank whose query was searched again and no longer finds it.
+// A search that returned no results says nothing, so it clears nothing.
 // Threads with nothing to change are left out.
 func matchSearchRanks(threads []database.SearchRankThread, results map[string][]string, now time.Time) map[string]*SearchRank {
 	queries := make([]string, 0, len(results))
@@ -151,7 +158,7 @@ func matchSearchRanks(threads []database.SearchRankThread, results map[string][]
 	for _, t := range threads {
 		if r, ok := best[threadKey(t.URL)]; ok {
 			out[t.MentionID] = r
-		} else if _, searched := results[t.RankQuery]; t.RankQuery != "" && searched {
+		} else if t.RankQuery != "" && len(results[t.RankQuery]) > 0 {
 			out[t.MentionID] = nil
 		}
 	}
