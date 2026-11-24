@@ -9,8 +9,18 @@
 //	  go test -tags live -run TestFeedbackEval -v -timeout 60m ./internal/ai/
 //
 // EVAL_MODEL overrides the model, EVAL_MAX_USD the spend cap (default 8),
-// EVAL_LIMIT runs only the first N cases. The report is written next to the
-// set as report-<model>-<time>.json.
+// EVAL_LIMIT runs only the first N cases. EVAL_CASES names the case file
+// (default cases.jsonl; gold_test.jsonl scores against the gold labels, see
+// gold_label_live_test.go). EVAL_SOURCES (e.g.
+// agent_blind,human) keeps only those label sources. EVAL_SAMPLE=N scores a
+// fixed sample of about N cases stratified by workspace and label;
+// EVAL_VARIANT (base, product, buyers, looks, rules, full, story, v1, v2card)
+// cuts the workspace prompt down for an ablation, swaps in a candidate change
+// (storyRule, the lead card), or goes back to the prompt before the open-need
+// change, "v1" (see ablate, classifyVariant). EVAL_RULES_FILE and
+// EVAL_EXAMPLES_FILE swap in candidate learned rules and few-shot examples
+// per workspace, and EVAL_TAG names the run. The report is written next to
+// the set as report-<model>[-<variant>][-<tag>]-<time>.json.
 package ai
 
 import (
@@ -19,8 +29,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -34,9 +46,18 @@ type evalResult struct {
 	PostType  string  `json:"post_type"`
 	Role      string  `json:"author_role"`
 	Reasoning string  `json:"reasoning"`
-	Err       string  `json:"error,omitempty"`
-	CostUSD   float64 `json:"cost_usd"`
-	Tokens    Usage   `json:"tokens"`
+	// For error analysis: the lead card text and what gated the verdict.
+	Ask       string   `json:"ask"`
+	Tags      []string `json:"intent_tags"`
+	Skips     bool     `json:"matches_skips"`
+	Awareness string   `json:"awareness_level"`
+	// What the classifier said is still open for the author, and why now
+	// (empty under the "v1" prompt, which does not ask).
+	OpenNeed string  `json:"open_need,omitempty"`
+	WhyNow   string  `json:"why_now,omitempty"`
+	Err      string  `json:"error,omitempty"`
+	CostUSD  float64 `json:"cost_usd"`
+	Tokens   Usage   `json:"tokens"`
 }
 
 func TestFeedbackEval(t *testing.T) {
@@ -50,9 +71,60 @@ func TestFeedbackEval(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases, contexts := loadEvalSet(t, dir)
+	if src := os.Getenv("EVAL_SOURCES"); src != "" {
+		keep := map[string]bool{}
+		for _, s := range strings.Split(src, ",") {
+			keep[strings.TrimSpace(s)] = true
+		}
+		var kept []evalCase
+		for _, c := range cases {
+			if keep[c.Source] {
+				kept = append(kept, c)
+			}
+		}
+		cases = kept
+	}
 	if n, _ := strconv.Atoi(os.Getenv("EVAL_LIMIT")); n > 0 && n < len(cases) {
 		cases = cases[:n]
 	}
+	if n, _ := strconv.Atoi(os.Getenv("EVAL_SAMPLE")); n > 0 {
+		var ids, strata []string
+		for _, c := range cases {
+			ids, strata = append(ids, c.ID), append(strata, c.Workspace+"/"+c.Label)
+		}
+		var picked []evalCase
+		for _, i := range stratifiedSample(ids, strata, n) {
+			picked = append(picked, cases[i])
+		}
+		cases = picked
+	}
+	variant := os.Getenv("EVAL_VARIANT")
+	// EVAL_RULES_FILE: candidate learned-rule edits per workspace, kept next to
+	// the set (they name customers' products): {"ws_08": {"drop": ["text a rule
+	// to remove contains"], "add": ["new rule"]}}.
+	ruleEdits := map[string]struct{ Drop, Add []string }{}
+	if f := os.Getenv("EVAL_RULES_FILE"); f != "" {
+		raw, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &ruleEdits); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
+	// EVAL_EXAMPLES_FILE: candidate few-shot examples per workspace, in place
+	// of the ones in contexts.json: {"ws_08": [{"Title": ..., "Label": "up"}]}.
+	exampleSets := map[string][]ScoringExample{}
+	if f := os.Getenv("EVAL_EXAMPLES_FILE"); f != "" {
+		raw, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &exampleSets); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
+	t.Logf("model %s variant %q cases %d cap $%.2f", model, variant, len(cases), maxUSD)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Minute)
 	defer cancel()
@@ -75,18 +147,46 @@ func TestFeedbackEval(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: no context %q", c.ID, c.Context)
 		}
+		sc, err := ablate(sc, variant)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ed, ok := ruleEdits[c.Workspace]; ok {
+			var rules []string
+			for _, r := range sc.Rules {
+				if !slices.ContainsFunc(ed.Drop, func(d string) bool { return strings.Contains(r, d) }) {
+					rules = append(rules, r)
+				}
+			}
+			if rules = append(rules, ed.Add...); len(rules) > MaxScoringRules {
+				t.Fatalf("%s: %d rules after edits, the prompt keeps %d", c.Workspace, len(rules), MaxScoringRules)
+			}
+			sc.Rules = rules
+		}
+		if ex, ok := exampleSets[c.Workspace]; ok {
+			sc.Examples = ex
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func() {
 			defer func() { <-sem; wg.Done() }()
 			var u Usage
 			p := Provider{Name: "anthropic", APIKey: key, Model: model, UsageSink: &u}
-			cr, err := ClassifyIntent(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c))
+			var cr *ClassifyResult
+			var err error
+			for attempt := 0; attempt < 3; attempt++ { // transient network errors (DNS EAI_AGAIN); u sums every attempt
+				if cr, err = classifyVariant(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c), variant); err == nil {
+					break
+				}
+				time.Sleep(time.Duration(attempt+1) * 3 * time.Second)
+			}
 			r := &evalResult{evalCase: c, Tokens: u, CostUSD: evalCostUSD(model, u)}
 			if err != nil {
 				r.Err = err.Error()
 			} else {
 				r.Got, r.Score, r.Intent, r.PostType, r.Role, r.Reasoning = isLead(cr), cr.RelevanceScore, cr.Intent, cr.PostType, cr.AuthorRole, cr.Reasoning
+				r.Ask, r.Tags, r.Skips, r.Awareness = cr.Ask, cr.IntentTags, cr.MatchesSkips, cr.AwarenessLevel
+				r.OpenNeed, r.WhyNow = cr.OpenNeed, cr.WhyNow
 			}
 			mu.Lock()
 			spent += r.CostUSD
@@ -97,7 +197,7 @@ func TestFeedbackEval(t *testing.T) {
 	wg.Wait()
 
 	report := summarise(results)
-	report["model"], report["dir"], report["ran_at"] = model, dir, time.Now().UTC().Format(time.RFC3339)
+	report["model"], report["variant"], report["dir"], report["ran_at"] = model, variant, dir, time.Now().UTC().Format(time.RFC3339)
 	for _, r := range results {
 		if r != nil && (r.Got != (r.Label == "lead") || r.Err != "") {
 			t.Logf("MISS %-10s %-7s want=%-8s score=%.1f intent=%-18s type=%-18s src=%s %q: %s%s",
@@ -111,7 +211,16 @@ func TestFeedbackEval(t *testing.T) {
 	}
 	t.Logf("overall      %-16s %s", "all", fmtMetrics(report["overall"].(*evalMetrics)))
 
-	out := filepath.Join(dir, fmt.Sprintf("report-%s-%s.json", model, time.Now().UTC().Format("20060102T150405Z")))
+	name := model
+	if variant != "" {
+		name += "-" + variant
+	}
+	if tag := os.Getenv("EVAL_TAG"); tag != "" { // e.g. the rules and examples files used
+		name += "-" + tag
+		report["tag"] = tag
+	}
+	report["cases_file"], report["rules_file"], report["examples_file"] = envOr("EVAL_CASES", "cases.jsonl"), os.Getenv("EVAL_RULES_FILE"), os.Getenv("EVAL_EXAMPLES_FILE")
+	out := filepath.Join(dir, fmt.Sprintf("report-%s-%s.json", name, time.Now().UTC().Format("20060102T150405Z")))
 	raw, _ := json.MarshalIndent(report, "", " ")
 	if err := os.WriteFile(out, raw, 0o600); err != nil {
 		t.Fatal(err)

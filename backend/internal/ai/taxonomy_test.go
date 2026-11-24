@@ -196,11 +196,45 @@ func TestNormalizeProofPointIsNotALeadButKeepsItsAsk(t *testing.T) {
 func TestClassifyPromptCoversFirstHandBuyerAccounts(t *testing.T) {
 	p := buildClassifyPrompt(ScoringContext{Product: "- Acme: CRM"})
 	for _, want := range []string{
-		`"proof_point"`, "reports what happened in their own work", "The form does not matter",
+		`"proof_point"`, "reports what happened in their own work", "as unsolved today",
 		"Doing that work first-hand is enough", "credits no article, talk or other company",
 	} {
 		if !strings.Contains(p, want) {
 			t.Errorf("classifier prompt is missing %q", want)
 		}
+	}
+}
+
+func TestNormalizeOpenNeed(t *testing.T) {
+	for _, c := range []struct {
+		name       string
+		in         ClassifyResult
+		wantScore  float64
+		wantIntent string
+		wantNeed   string
+	}{
+		{"no open_need (older prompt, other provider): unchanged", ClassifyResult{IntentTags: []string{"pain_point"}, RelevanceScore: 7, AuthorRole: "buyer"}, 7, "complaint", ""},
+		{"unknown value is not said", ClassifyResult{IntentTags: []string{"pain_point"}, RelevanceScore: 7, AuthorRole: "buyer", OpenNeed: "maybe"}, 7, "complaint", ""},
+		{"nothing open: under every lead line, lead tags dropped", ClassifyResult{IntentTags: []string{"buying_intent", "competitor_complaint"}, RelevanceScore: 8, AuthorRole: "buyer", OpenNeed: " None "}, MaxNoNeedScore, "complaint", "none"},
+		{"nothing open, already low: score kept", ClassifyResult{IntentTags: []string{"content_opportunity"}, RelevanceScore: 3, OpenNeed: "none"}, 3, "general", "none"},
+		{"evaluating with no buying tag becomes a comparison", ClassifyResult{IntentTags: []string{"competitor_mention", "feature_request"}, RelevanceScore: 6.5, AuthorRole: "buyer", OpenNeed: "evaluating"}, 6.5, "comparison", "evaluating"},
+		{"asking with no tags", ClassifyResult{RelevanceScore: 7, AuthorRole: "buyer", OpenNeed: "asking"}, 7, "recommendation_ask", "asking"},
+		{"switching", ClassifyResult{IntentTags: []string{"brand_mention"}, RelevanceScore: 7, AuthorRole: "unknown", OpenNeed: "switching"}, 7, "buy_signal", "switching"},
+		{"unsolved pain", ClassifyResult{IntentTags: []string{"content_opportunity"}, RelevanceScore: 6, AuthorRole: "buyer", OpenNeed: "unsolved-pain"}, 6, "complaint", "unsolved_pain"},
+		{"the model's own buying tag is kept", ClassifyResult{IntentTags: []string{"buying_intent"}, RelevanceScore: 9, AuthorRole: "buyer", OpenNeed: "evaluating"}, 9, "buy_signal", "evaluating"},
+		{"a non-buyer with an open need is still capped", ClassifyResult{RelevanceScore: 8, AuthorRole: "non_buyer", OpenNeed: "asking"}, maxNonBuyerScore, "general", "asking"},
+		{"a skipped post stays general", ClassifyResult{RelevanceScore: 8, AuthorRole: "buyer", OpenNeed: "asking", MatchesSkips: true}, 2, "general", "asking"},
+	} {
+		got := NormalizeClassifyResult(c.in, "a question")
+		if got.RelevanceScore != c.wantScore || got.Intent != c.wantIntent || got.OpenNeed != c.wantNeed {
+			t.Errorf("%s: score %v intent %q open_need %q, want %v %q %q", c.name, got.RelevanceScore, got.Intent, got.OpenNeed, c.wantScore, c.wantIntent, c.wantNeed)
+		}
+	}
+	// why_now is one line, and empty when nothing is open.
+	if got := NormalizeClassifyResult(ClassifyResult{OpenNeed: "asking", WhyNow: " trial ends\n Friday "}, "t"); got.WhyNow != "trial ends Friday" {
+		t.Errorf("why_now = %q", got.WhyNow)
+	}
+	if got := NormalizeClassifyResult(ClassifyResult{OpenNeed: "none", WhyNow: "n/a"}, "t"); got.WhyNow != "" {
+		t.Errorf("why_now with nothing open = %q", got.WhyNow)
 	}
 }

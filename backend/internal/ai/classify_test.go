@@ -96,3 +96,45 @@ func TestFormatExamplesTruncatesAndCaps(t *testing.T) {
 		t.Fatalf("examples not truncated: %d bytes", len(out))
 	}
 }
+
+// The classifier asks what is still open for the author, and the answer
+// decides the verdict; a reply without the field parses as before.
+func TestClassifyIntentOpenNeed(t *testing.T) {
+	base := buildClassifyPrompt(ScoringContext{Product: "- Acme: CRM"})
+	for _, want := range []string{`"open_need"`, `"why_now"`, `When open_need is "none" the post is not a lead`, `(open_need "unsolved_pain")`, "- 4-5.5:"} {
+		if !strings.Contains(base, want) {
+			t.Errorf("classifier prompt lacks %q", want)
+		}
+	}
+	if !strings.HasPrefix(base, classifyBasePrompt) || strings.Contains(classifyBasePrompt, "Acme") {
+		t.Error("the shared base prompt must come first and unchanged, so its cache is reused across workspaces")
+	}
+
+	story := `{"intent_tags":["pain_point"],"post_type":"discussion","author_role":"buyer","relevance_score":7,"open_need":"none","why_now":"","ask":"","reasoning":"r"}`
+	p, _ := fakeChat(t, story)
+	got, err := ClassifyIntent(context.Background(), p, "what we learned", "we fixed it with a checklist", "reddit", ScoringContext{Product: "- Acme: CRM"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.OpenNeed != "none" || got.RelevanceScore != MaxNoNeedScore {
+		t.Errorf("a story with nothing open: open_need %q score %v", got.OpenNeed, got.RelevanceScore)
+	}
+
+	eval := `{"intent_tags":["competitor_mention"],"post_type":"question","author_role":"buyer","relevance_score":6.5,"open_need":"evaluating","why_now":"trial ends Friday","ask":"a","reasoning":"r"}`
+	p, _ = fakeChat(t, eval)
+	if got, err = ClassifyIntent(context.Background(), p, "does P handle X?", "body", "reddit", ScoringContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Intent != "comparison" || got.WhyNow != "trial ends Friday" {
+		t.Errorf("an open evaluation: intent %q why_now %q", got.Intent, got.WhyNow)
+	}
+
+	old := `{"intent_tags":["pain_point"],"post_type":"discussion","author_role":"buyer","relevance_score":7,"ask":"a","reasoning":"r"}`
+	p, _ = fakeChat(t, old)
+	if got, err = ClassifyIntent(context.Background(), p, "t", "body", "reddit", ScoringContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if got.OpenNeed != "" || got.RelevanceScore != 7 || got.Intent != "complaint" {
+		t.Errorf("a reply without open_need must score as before: %+v", got)
+	}
+}

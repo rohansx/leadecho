@@ -20,7 +20,10 @@ const (
 	// 3: a buyer's first-hand account of the problem counts as a lead whatever
 	// its form; a buyer's success story is a proof point (low score, ask kept).
 	// 4: a buyer's own current struggle is not "partly solves" (6+).
-	ScoringRubric = 4
+	// 5: the classifier says what is still open for the author (open_need);
+	// a first-hand account with nothing open is no longer a lead, and an open
+	// need counts whatever intent tag the post got.
+	ScoringRubric = 5
 
 	rescoreWindow = 30 * 24 * time.Hour
 	rescoreBatch  = 100

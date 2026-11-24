@@ -41,6 +41,8 @@ func loadBuyerShapes(t *testing.T) buyerShapes {
 const classifyEvalModel = "claude-opus-5-5"
 
 // isLead mirrors monitor.qualifiesAsLead: 6 or more with a buying-type intent.
+// NormalizeClassifyResult has already put the open need into both: nothing
+// open is capped under the line, something open carries a buying-type tag.
 func isLead(cr *ClassifyResult) bool {
 	switch cr.Intent {
 	case "buy_signal", "recommendation_ask", "complaint", "comparison":
