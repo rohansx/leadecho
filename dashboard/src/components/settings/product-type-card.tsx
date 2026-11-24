@@ -13,7 +13,9 @@ function ProductTypeForm({ profile }: { profile: BrandProfile }) {
   const queryClient = useQueryClient();
   const [archetype, setArchetype] = useState(profile.archetype ?? "");
   const save = useMutation({
-    mutationFn: () => saveBrandProfile({ ...profile, archetype }),
+    // PUT replaces the whole profile: build it from a fresh read, not the
+    // cached one, so only the archetype changes.
+    mutationFn: async () => saveBrandProfile({ ...(await getBrandProfile()), archetype }),
     onSuccess: (next) => queryClient.setQueryData(QUERY_KEY, next),
   });
   return (

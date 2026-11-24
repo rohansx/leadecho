@@ -137,7 +137,9 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 		tags = dropLeadTags(tags)
 		cr.RelevanceScore = min(cr.RelevanceScore, MaxNoNeedScore)
 		cr.WhyNow = ""
-		cr.Facts = nil // facts are for leads
+	}
+	if cr.OpenNeed == "" || cr.OpenNeed == "none" {
+		cr.Facts = nil // facts are for posts with something open (unknown counts as nothing)
 	}
 
 	pt := strings.ToLower(strings.TrimSpace(cr.PostType))

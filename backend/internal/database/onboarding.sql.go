@@ -152,7 +152,7 @@ INSERT INTO brand_profiles (
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10, $11,
-    $12
+    COALESCE($12::text, $13::text, '')
 )
 ON CONFLICT (workspace_id) DO UPDATE SET
     overview = EXCLUDED.overview,
@@ -165,23 +165,26 @@ ON CONFLICT (workspace_id) DO UPDATE SET
     features = EXCLUDED.features,
     target_audience = EXCLUDED.target_audience,
     source_url = EXCLUDED.source_url,
-    archetype = EXCLUDED.archetype
+    -- archetype: an explicit value wins; NULL keeps the stored one, and a
+    -- suggested one (from a product analysis) only fills an empty one.
+    archetype = COALESCE($12::text, NULLIF(brand_profiles.archetype, ''), $13::text, brand_profiles.archetype)
 RETURNING workspace_id, overview, product, positioning, customer_segments, competitors, pain_points, keywords, features, target_audience, source_url, created_at, updated_at, archetype
 `
 
 type UpsertBrandProfileParams struct {
-	WorkspaceID      string   `json:"workspace_id"`
-	Overview         string   `json:"overview"`
-	Product          string   `json:"product"`
-	Positioning      string   `json:"positioning"`
-	CustomerSegments []byte   `json:"customer_segments"`
-	Competitors      []string `json:"competitors"`
-	PainPoints       []byte   `json:"pain_points"`
-	Keywords         []byte   `json:"keywords"`
-	Features         []string `json:"features"`
-	TargetAudience   string   `json:"target_audience"`
-	SourceUrl        string   `json:"source_url"`
-	Archetype        string   `json:"archetype"`
+	WorkspaceID        string      `json:"workspace_id"`
+	Overview           string      `json:"overview"`
+	Product            string      `json:"product"`
+	Positioning        string      `json:"positioning"`
+	CustomerSegments   []byte      `json:"customer_segments"`
+	Competitors        []string    `json:"competitors"`
+	PainPoints         []byte      `json:"pain_points"`
+	Keywords           []byte      `json:"keywords"`
+	Features           []string    `json:"features"`
+	TargetAudience     string      `json:"target_audience"`
+	SourceUrl          string      `json:"source_url"`
+	Archetype          pgtype.Text `json:"archetype"`
+	SuggestedArchetype pgtype.Text `json:"suggested_archetype"`
 }
 
 func (q *Queries) UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error) {
@@ -198,6 +201,7 @@ func (q *Queries) UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfile
 		arg.TargetAudience,
 		arg.SourceUrl,
 		arg.Archetype,
+		arg.SuggestedArchetype,
 	)
 	var i BrandProfile
 	err := row.Scan(

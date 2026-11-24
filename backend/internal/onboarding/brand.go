@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"leadecho/internal/ai"
 	"leadecho/internal/database"
 )
@@ -34,9 +36,13 @@ type BrandProfile struct {
 	Features         []string             `json:"features"`
 	TargetAudience   string               `json:"target_audience"`
 	SourceURL        string               `json:"source_url"`
-	// Archetype picks the lead facts read from posts (ai.Archetypes; "" = none).
-	Archetype string     `json:"archetype"`
+	// Archetype picks the lead facts read from posts (ai.Archetypes; "" =
+	// none). Omitted (nil) keeps the stored value; "" clears it.
+	Archetype *string    `json:"archetype,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	// suggestedArchetype comes from a product analysis: it only fills a
+	// workspace that has none, never replaces the customer's choice.
+	suggestedArchetype string
 }
 
 // FromAnalysis builds a brand profile from a product analysis, deriving the
@@ -44,17 +50,17 @@ type BrandProfile struct {
 // older flat fields when the model did not return them.
 func FromAnalysis(pa *ai.ProductAnalysis, sourceURL string) BrandProfile {
 	bp := BrandProfile{
-		Overview:         pa.Description,
-		Product:          pa.ProductName,
-		Positioning:      pa.Positioning,
-		CustomerSegments: pa.CustomerSegments,
-		Competitors:      cleanList(pa.Competitors, maxListLen),
-		PainPoints:       pa.PainPointDetails,
-		Keywords:         pa.KeywordGroups,
-		Features:         pa.Features,
-		TargetAudience:   string(pa.TargetAudience),
-		SourceURL:        sourceURL,
-		Archetype:        ai.NormalizeArchetype(pa.Archetype),
+		Overview:           pa.Description,
+		Product:            pa.ProductName,
+		Positioning:        pa.Positioning,
+		CustomerSegments:   pa.CustomerSegments,
+		Competitors:        cleanList(pa.Competitors, maxListLen),
+		PainPoints:         pa.PainPointDetails,
+		Keywords:           pa.KeywordGroups,
+		Features:           pa.Features,
+		TargetAudience:     string(pa.TargetAudience),
+		SourceURL:          sourceURL,
+		suggestedArchetype: ai.NormalizeArchetype(pa.Archetype),
 	}
 	if len(bp.CustomerSegments) == 0 {
 		for _, name := range cleanList(strings.Split(bp.TargetAudience, ","), 5) {
@@ -121,10 +127,14 @@ func (bp BrandProfile) Normalized() (BrandProfile, error) {
 	if out.SourceURL != "" && !isHTTPURL(out.SourceURL) {
 		return out, errors.New("source_url must be an http(s) URL")
 	}
-	out.Archetype = ai.NormalizeArchetype(bp.Archetype)
-	if out.Archetype == "" && strings.TrimSpace(bp.Archetype) != "" {
-		return out, errors.New("archetype must be one of: " + strings.Join(ai.Archetypes, ", "))
+	if bp.Archetype != nil {
+		a := ai.NormalizeArchetype(*bp.Archetype)
+		if a == "" && strings.TrimSpace(*bp.Archetype) != "" {
+			return out, errors.New("archetype must be one of: " + strings.Join(ai.Archetypes, ", "))
+		}
+		out.Archetype = &a
 	}
+	out.suggestedArchetype = ai.NormalizeArchetype(bp.suggestedArchetype)
 	out.Overview = capLen(strings.TrimSpace(bp.Overview), maxTextLen)
 	out.Positioning = capLen(strings.TrimSpace(bp.Positioning), maxTextLen)
 	out.TargetAudience = capLen(strings.TrimSpace(bp.TargetAudience), maxTextLen)
@@ -189,19 +199,35 @@ func omitEmpty(s []string) []string {
 // Params converts to the upsert parameters (nil slices become empty).
 func (bp BrandProfile) Params(workspaceID string) database.UpsertBrandProfileParams {
 	return database.UpsertBrandProfileParams{
-		WorkspaceID:      workspaceID,
-		Overview:         bp.Overview,
-		Product:          bp.Product,
-		Positioning:      bp.Positioning,
-		CustomerSegments: mustJSON(nonNil(bp.CustomerSegments)),
-		Competitors:      nonNil(bp.Competitors),
-		PainPoints:       mustJSON(nonNil(bp.PainPoints)),
-		Keywords:         mustJSON(bp.Keywords),
-		Features:         nonNil(bp.Features),
-		TargetAudience:   bp.TargetAudience,
-		SourceUrl:        bp.SourceURL,
-		Archetype:        bp.Archetype,
+		WorkspaceID:        workspaceID,
+		Overview:           bp.Overview,
+		Product:            bp.Product,
+		Positioning:        bp.Positioning,
+		CustomerSegments:   mustJSON(nonNil(bp.CustomerSegments)),
+		Competitors:        nonNil(bp.Competitors),
+		PainPoints:         mustJSON(nonNil(bp.PainPoints)),
+		Keywords:           mustJSON(bp.Keywords),
+		Features:           nonNil(bp.Features),
+		TargetAudience:     bp.TargetAudience,
+		SourceUrl:          bp.SourceURL,
+		Archetype:          optText(bp.Archetype),
+		SuggestedArchetype: optText(nonEmpty(bp.suggestedArchetype)),
 	}
+}
+
+// optText is NULL for nil, which the upsert reads as "keep the stored value".
+func optText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
+}
+
+func nonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // FromRow converts a stored row to the API shape.
@@ -214,7 +240,7 @@ func FromRow(r database.BrandProfile) BrandProfile {
 		Features:       r.Features,
 		TargetAudience: r.TargetAudience,
 		SourceURL:      r.SourceUrl,
-		Archetype:      r.Archetype,
+		Archetype:      &r.Archetype,
 	}
 	if !r.UpdatedAt.IsZero() {
 		t := r.UpdatedAt

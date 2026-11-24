@@ -92,4 +92,13 @@ func TestClassifyFactsPrompt(t *testing.T) {
 	if len(got.Facts) != 0 {
 		t.Errorf("facts on a post with nothing open: %+v", got.Facts)
 	}
+
+	noNeed := `{"author_role":"buyer","relevance_score":7,"open_need":"maybe","facts":[{"name":"Current stack/tool","value":"Postgres"}]}`
+	p, _ = fakeChat(t, noNeed)
+	if got, err = ClassifyIntent(context.Background(), p, "backups", "Postgres", "reddit", ScoringContext{Archetype: "devtool"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Facts) != 0 {
+		t.Errorf("facts with an unrecognised open_need: %+v", got.Facts)
+	}
 }

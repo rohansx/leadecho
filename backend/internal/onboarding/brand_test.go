@@ -140,16 +140,29 @@ func has(list []string, s string) bool {
 }
 
 func TestNormalizedArchetype(t *testing.T) {
-	if bp, err := (BrandProfile{Product: "P", Archetype: " DevTool "}).Normalized(); err != nil || bp.Archetype != "devtool" {
-		t.Errorf("archetype %q, err %v", bp.Archetype, err)
+	str := func(s string) *string { return &s }
+	if bp, err := (BrandProfile{Product: "P", Archetype: str(" DevTool ")}).Normalized(); err != nil || *bp.Archetype != "devtool" {
+		t.Errorf("archetype %v, err %v", bp.Archetype, err)
 	}
-	if _, err := (BrandProfile{Product: "P", Archetype: "agency"}).Normalized(); err == nil {
+	if _, err := (BrandProfile{Product: "P", Archetype: str("agency")}).Normalized(); err == nil {
 		t.Error("an unknown archetype must be rejected")
 	}
-	if bp := FromAnalysis(&ai.ProductAnalysis{ProductName: "P", Archetype: "agency"}, ""); bp.Archetype != "" {
-		t.Errorf("an unknown analysed archetype is dropped, got %q", bp.Archetype)
+	// Omitted: NULL, which the upsert reads as "keep the stored value".
+	if p := (BrandProfile{Product: "P"}).Params("ws"); p.Archetype.Valid || p.SuggestedArchetype.Valid {
+		t.Errorf("omitted archetype must be NULL: %+v %+v", p.Archetype, p.SuggestedArchetype)
 	}
-	if p := (BrandProfile{Archetype: "hiring"}).Params("ws"); p.Archetype != "hiring" || FromRow(database.BrandProfile{Archetype: "hiring"}).Archetype != "hiring" {
-		t.Error("archetype not carried to/from the row")
+	if p := (BrandProfile{Archetype: str("")}).Params("ws"); !p.Archetype.Valid || p.Archetype.String != "" {
+		t.Error("explicit empty archetype must clear")
+	}
+	// An analysis only suggests: it fills an empty archetype, never replaces one.
+	bp, _ := FromAnalysis(&ai.ProductAnalysis{ProductName: "P", Archetype: "hiring"}, "").Normalized()
+	if p := bp.Params("ws"); p.Archetype.Valid || p.SuggestedArchetype.String != "hiring" {
+		t.Errorf("analysis archetype must be a suggestion: %+v %+v", p.Archetype, p.SuggestedArchetype)
+	}
+	if p := FromAnalysis(&ai.ProductAnalysis{ProductName: "P", Archetype: "agency"}, "").Params("ws"); p.Archetype.Valid || p.SuggestedArchetype.Valid {
+		t.Error("an unknown analysed archetype is dropped")
+	}
+	if got := FromRow(database.BrandProfile{Archetype: "hiring"}).Archetype; got == nil || *got != "hiring" {
+		t.Error("archetype not read from the row")
 	}
 }

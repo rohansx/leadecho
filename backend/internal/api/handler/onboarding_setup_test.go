@@ -246,3 +246,12 @@ func TestSearchProgress(t *testing.T) {
 		t.Fatalf("free plan: %d %d %d %d %v", searches, searched, paid, paidSearched, next)
 	}
 }
+
+// The legacy flat complete request carries no archetype: it must not wipe
+// the stored one (NULL keeps it in the upsert).
+func TestLegacyCompleteKeepsArchetype(t *testing.T) {
+	p := completeRequest{ProductName: "Acme", Description: "CRM"}.brandProfile().Params("ws")
+	if p.Archetype.Valid {
+		t.Errorf("legacy complete would overwrite the archetype: %+v", p.Archetype)
+	}
+}

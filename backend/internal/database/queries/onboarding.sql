@@ -11,7 +11,7 @@ INSERT INTO brand_profiles (
 ) VALUES (
     @workspace_id, @overview, @product, @positioning, @customer_segments,
     @competitors, @pain_points, @keywords, @features, @target_audience, @source_url,
-    @archetype
+    COALESCE(sqlc.narg(archetype)::text, sqlc.narg(suggested_archetype)::text, '')
 )
 ON CONFLICT (workspace_id) DO UPDATE SET
     overview = EXCLUDED.overview,
@@ -24,7 +24,9 @@ ON CONFLICT (workspace_id) DO UPDATE SET
     features = EXCLUDED.features,
     target_audience = EXCLUDED.target_audience,
     source_url = EXCLUDED.source_url,
-    archetype = EXCLUDED.archetype
+    -- archetype: an explicit value wins; NULL keeps the stored one, and a
+    -- suggested one (from a product analysis) only fills an empty one.
+    archetype = COALESCE(sqlc.narg(archetype)::text, NULLIF(brand_profiles.archetype, ''), sqlc.narg(suggested_archetype)::text, brand_profiles.archetype)
 RETURNING *;
 
 -- ─── Listener builder ─────────────────────────────────
