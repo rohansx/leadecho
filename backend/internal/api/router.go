@@ -410,14 +410,14 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				demandH := handler.NewDemandHandler(&demand.Service{
 					Store: demand.DBStore{Q: queries}, Model: llmRouter, Credits: credits, Logger: logger,
 				}, logger)
-				r.Get("/demand", demandH.Get)
+				r.With(middleware.FeatureUse(queries, database.FeatureDemand, logger)).Get("/demand", demandH.Get)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/demand/refresh", demandH.Refresh)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/demand/themes/{id}/ship", demandH.Ship)
 			}
 			// competitor watch: the competitors LeadEcho found, their sources and moves
 			if llmRouter != nil {
 				compH := handler.NewCompetitorsHandler(competitors.NewService(db, queries, llmRouter, mon, credits, cfg.ExaAPIKey, logger), logger)
-				r.Get("/competitors", compH.List)
+				r.With(middleware.FeatureUse(queries, database.FeatureCompetitors, logger)).Get("/competitors", compH.List)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/competitors", compH.Create)
 				r.With(middleware.WorkspaceQuota(llmQuota)).Post("/competitors/setup", compH.Setup)
 				r.Patch("/competitors/{id}", compH.Update)

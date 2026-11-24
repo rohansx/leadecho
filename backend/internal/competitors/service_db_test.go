@@ -541,3 +541,64 @@ func TestPeopleGoByWhenThePostWasWrittenDB(t *testing.T) {
 		t.Fatalf("count must match the list: %+v %v", v.Competitors, err)
 	}
 }
+
+func TestIdleWorkspaceIsNotFetchedButLeavesTheDueListDB(t *testing.T) {
+	pool, q, ws := testDB(t)
+	ctx := context.Background()
+	posts := &postsQueue{rounds: [][]Item{{{Key: "1", Body: "a post", At: time.Now()}}}}
+	active, lookups := false, 0
+	svc := &Service{Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: &fakeModel{}, Posts: posts, Logger: zerolog.Nop(),
+		Active: func(_ context.Context, w string) bool {
+			if w == ws {
+				lookups++
+			}
+			return w != ws || active
+		}}
+	c, _ := q.CreateCompetitor(ctx, database.CreateCompetitorParams{WorkspaceID: ws, Name: "Acme", Website: "https://acme.com"})
+	q.CreateCompetitorSource(ctx, database.CreateCompetitorSourceParams{CompetitorID: c.ID, WorkspaceID: ws, Kind: KindX, Url: "https://x.com/acme"})
+	q.CreateCompetitorSource(ctx, database.CreateCompetitorSourceParams{CompetitorID: c.ID, WorkspaceID: ws, Kind: KindPricing, Url: "https://acme.com/pricing"})
+
+	svc.checkDue(ctx)
+	if len(posts.rounds) != 1 {
+		t.Fatal("an idle workspace's paid source was fetched")
+	}
+	if lookups != 1 {
+		t.Fatalf("one poll must look a workspace up once, not per source: %d lookups", lookups)
+	}
+	srcs, _ := q.ListCompetitorSources(ctx, ws)
+	if len(srcs) != 2 || !srcs[0].LastCheckedAt.Valid || !srcs[1].LastCheckedAt.Valid {
+		t.Fatalf("an idle source must be marked checked so it leaves the due list: %+v", srcs)
+	}
+
+	active = true // someone opened the page
+	makeDue(t, pool, ws)
+	svc.checkDue(ctx)
+	if len(posts.rounds) != 0 {
+		t.Fatal("a watched workspace's source was not fetched")
+	}
+}
+
+func TestIdleWorkspacesDoNotCrowdOutSetupDB(t *testing.T) {
+	_, q, ws := testDB(t)
+	ctx := context.Background()
+	brand(t, q, ws, "Acme HR")
+	var idle []string
+	for i := 0; i < 4*setupPerPoll; i++ {
+		_, _, w := testDB(t)
+		brand(t, q, w, "Acme HR")
+		idle = append(idle, w)
+	}
+	svc := &Service{Q: q, Fetch: (&site{pages: map[string]string{}}).fetch, Model: &fakeModel{}, Logger: zerolog.Nop(),
+		Search: func(context.Context, string) ([]monitor.ExaWebResult, error) { return nil, nil },
+		Active: func(_ context.Context, w string) bool { return w == ws }}
+
+	svc.setupPending(ctx)
+	if _, err := q.GetCompetitorSetup(ctx, ws); err != nil {
+		t.Fatalf("the active workspace was not set up: %v", err)
+	}
+	for _, w := range idle {
+		if _, err := q.GetCompetitorSetup(ctx, w); err == nil {
+			t.Fatalf("idle workspace %s was set up", w)
+		}
+	}
+}
