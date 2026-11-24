@@ -308,3 +308,29 @@ export interface HumanProposal {
   created_at: string;
   updated_at: string;
 }
+
+/** Global search (header): people and posts in the workspace. */
+export interface SearchPerson {
+  person_id: string;
+  name: string;
+  headline: string;
+  company: string;
+  handles: string;
+  /** Their newest post that is a lead: where their Person360 opens. */
+  mention_id: string;
+}
+
+export interface SearchPost {
+  mention_id: string;
+  platform: string;
+  title: string;
+  excerpt: string;
+  author: string;
+  score: number;
+  posted_at: string;
+}
+
+export interface SearchResult {
+  people: SearchPerson[];
+  posts: SearchPost[];
+}
