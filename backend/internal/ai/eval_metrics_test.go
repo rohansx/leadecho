@@ -93,9 +93,11 @@ func evalCostUSD(model string, u Usage) float64 {
 
 // promptVariants are the cumulative prompt ablations EVAL_VARIANT picks:
 // each adds one part of the per-workspace prompt to the one before it.
-// "story" is "full" plus storyRule in the base prompt; "need" is "full" with
-// the open-need field, rule and score band (see needSystem).
-var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story", "need"}
+// "full" is the prompt production sends. "story" is "full" plus storyRule in
+// the base prompt; "v1" is the prompt before the open-need change
+// (v1System); "v2card" is "full" with a specific ask and reasoning
+// (cardSystem).
+var promptVariants = []string{"base", "product", "buyers", "looks", "rules", "full", "story", "v1", "v2card"}
 
 // storyRule is a candidate base-prompt hard rule aimed at the dominant false
 // positive: a first-hand story scored as a buyer's complaint. It lives here,
@@ -113,94 +115,95 @@ func storyBasePrompt() (string, error) {
 	return strings.Replace(classifyBasePrompt, storyAnchor, storyAnchor+storyRule+"\n", 1), nil
 }
 
-// The "need" variant is the candidate fix from the gold-label diagnosis: the
-// classifier says what is still open for the author (open_need) and why it
-// is timely (why_now), a hard rule keeps a post with nothing open under the
-// lead line, and the 6-7.5 score band asks for an unsolved problem instead of
-// any first-hand account. Like storyRule it stays here until the eval says it
-// earns its place in classify.go.
-const needAnchor = `- "matches_skips": boolean`
+// The "v2card" variant: ask and reasoning are written for the person who
+// will reply (signal spec section 4: who, ask, why now, fit). Measured only
+// together with candidate rules and examples (EVAL_RULES_FILE,
+// EVAL_EXAMPLES_FILE), where it did not change precision or recall.
+// A base-prompt fit rule (an ask the product does not answer, or an author
+// with no budget, scores 5 at most) was tried with it on the train split and
+// left out: no false positive remained, but it hid six gold leads (price
+// shoppers, bring-your-own-key requests, "free" asks with a real angle).
+const cardAsk = `- "ask": what the author needs, as one plain sentence in their terms (max 30 words), specific enough to answer without opening the post: the job to be done plus the one constraint that matters to them (the tool they use now, their scale, platform, price or deadline), e.g. "Meeting transcription for one person at about 10 pounds a month that copes with a Scottish accent" or "To tell which candidates use AI during a live interview, for a team hiring two backend engineers". Say only what the post says. When the author voices a frustration or objection and asks for nothing, state it as theirs ("Take-home tests get done by AI and tell us nothing") instead of inventing a request ("A way to ..."). Write it whoever the author is: a buyer, or someone on the other side of the problem (for a hiring product, a candidate saying what went wrong in how they were assessed), because both say what the market wants. Use "" when no need is voiced: news and reports of what some company does, jokes, asking for moral support, opinion with no need behind it, a need that has nothing to do with the product's problem, and someone promoting or building their own tool`
 
-const needFields = `- "open_need": what in this post is still open for the author (their own need, or their team's or client's), one of:
-  "asking": asks for a tool, vendor, service or recommendation, or asks how others handle a job they have to do themselves
-  "evaluating": weighs named options, is trialling one, or asks a question about a named product before choosing or paying for it
-  "switching": says they are leaving, or want to leave, a tool or vendor they use
-  "unsolved_pain": states a problem of their own as current and unsolved: it is still costing them, what they tried does not fully work, or the tool that worked for them is gone; with or without a question
-  "none": nothing is open. A story, retrospective or progress update; a past incident told to make a point; a workaround, process or tool the author already uses and presents as their answer; an opinion, prediction, critique or advice; a passing gripe from a user who is otherwise staying; a warning or vent with no sign of wanting something else; a question put to the audience out of curiosity or to start a discussion that says nothing of the author's own situation; a wish stated hypothetically ("I'd want ..."); text cut off or too short to show a need
-  Judge only what the text says: a post about the right problem by the right kind of person is still "none" when nothing is open
-- "why_now": when open_need is not "none", the fact in the post that makes it timely, in under 20 words and in the post's own numbers or words (a deadline, a trial ending, an incident, what it costs, what they just tried); otherwise ""
-`
+const cardReasoning = `- "reasoning": two short sentences for the person who will reply. First, who the author is in the post's own terms (role, setting, scale: "solo founder of a real-estate SaaS with a few paying users"; "unknown" things are left out, not guessed). Second, why THE PRODUCT answers what is open for them, or what rules the post out (nothing open, not a buyer, wants it free, wrong platform, a different kind of tool). Plain statements: no "though", "however" or "may", and do not describe THE PRODUCT`
 
-const needRule = `- When open_need is "none" the post is not a lead, however exact the topic and the author: do not tag buying_intent, seeking_alternative or recommendation_request, and keep relevance_score at 5.5 or below. This holds over the score bands and the workspace rules below.`
-
-const needBand = `- 6-7.5: the author speaks as a buyer about their own team or company and states the exact problem THE PRODUCT solves as unsolved today (open_need "unsolved_pain"), with no request for a tool: what they tried does not fully work, they cannot do or cannot trust the thing THE PRODUCT does, or the tool that worked for them is gone. A buyer who says they are doing this work right now and names what is failing belongs here even when part of the post is opinion. Score 7 or 7.5, not 6, when the post gives a number for the problem or says what it costs them (how many, how often, how long). Tag it pain_point, with post_type "discussion". Not here, 5.5 at most: the same problem told as something already handled, or only observed (open_need "none").
-`
-
-// needExtra is what the "need" variant returns on top of ClassifyResult.
-type needExtra struct {
-	OpenNeed string `json:"open_need"`
-	WhyNow   string `json:"why_now"`
+// cardSystem is classifySystem with cardAsk and cardReasoning in place of
+// the ask and reasoning fields.
+func cardSystem(p Provider, sc ScoringContext) ([]chatMessage, error) {
+	msgs := classifySystem(p, sc)
+	c := msgs[0].Content // the base prompt comes first for every provider
+	for _, r := range [][2]string{{`- "ask": `, cardAsk}, {`- "reasoning": `, cardReasoning}} {
+		a := strings.Index(c, r[0])
+		if a < 0 {
+			return nil, fmt.Errorf("v2card variant: field %q not found in the base prompt", r[0])
+		}
+		c = c[:a] + r[1] + c[a+strings.Index(c[a:], "\n"):]
+	}
+	msgs[0].Content = c
+	return msgs, nil
 }
 
-// needSystem is classifySystem with the open-need field and rule in the base
-// prompt and needBand in place of the product part's 6-7.5 band.
-func needSystem(p Provider, sc ScoringContext) ([]chatMessage, error) {
-	if !strings.Contains(classifyBasePrompt, needAnchor) || !strings.Contains(classifyBasePrompt, storyAnchor) {
-		return nil, fmt.Errorf("need variant: anchor not found in classifyBasePrompt")
+// v1Band is the 6-7.5 score band before the open-need change (scoring rubric
+// 4), which made any first-hand account by a buyer a lead.
+const v1Band = `- 6-7.5: the author speaks as a buyer about their own team or company and describes the exact problem THE PRODUCT solves, with no request for a tool. This includes describing the workaround they built for it ("we added a step to our process because ..."), and saying they cannot do or cannot trust the thing THE PRODUCT does ("I can't tell whether ...") even when they add their own idea for a fix: they have the problem and say so in public, so they are worth writing to. The form does not matter: an essay or opinion post counts when the author reports from their own work what does not work today (the method they dropped, the people it let through or kept out, the time it cost), and so does one that ends by asking the audience what they think. A buyer who says they are doing this work right now (hiring for a role, going through candidates this month) and names what they find lacking belongs here even when most of the post is then opinion. Score 7 or 7.5, not 6, when the post gives a number for the problem or says what it costs them (how many, how often, how long). Tag it pain_point, with post_type "discussion".
+`
+
+// v1System is the classifier prompt before the open-need change: no
+// open_need or why_now field, no open-need rule, and v1Band. The model then
+// returns no open_need, so the verdict falls back to score and intent tag,
+// as production decided it then. Kept so the change can be measured again.
+func v1System(p Provider, sc ScoringContext) ([]chatMessage, error) {
+	msgs := classifySystem(p, sc)
+	for _, part := range []string{openNeedFields, openNeedRule} {
+		if !strings.Contains(msgs[0].Content, part) {
+			return nil, fmt.Errorf("v1 variant: open-need part not found in the base prompt")
+		}
+		msgs[0].Content = strings.Replace(msgs[0].Content, part, "", 1)
 	}
-	base := strings.Replace(classifyBasePrompt, needAnchor, needFields+needAnchor, 1)
-	base = strings.Replace(base, storyAnchor, storyAnchor+needRule+"\n", 1)
-	msgs := storySystem(p, sc, base)
 	if sc.Product == "" {
 		return msgs, nil
 	}
-	const from, to = "- 6-7.5:", "- 4-5.5:"
-	for i := range msgs {
-		c := msgs[i].Content
-		a, b := strings.Index(c, from), strings.Index(c, to)
-		if a >= 0 && b > a {
-			msgs[i].Content = c[:a] + needBand + c[b:]
-			return msgs, nil
-		}
+	last := &msgs[len(msgs)-1].Content
+	if !strings.Contains(*last, unsolvedPainBand) {
+		return nil, fmt.Errorf("v1 variant: 6-7.5 band not found in productFitRules")
 	}
-	return nil, fmt.Errorf("need variant: 6-7.5 band not found in productFitRules")
+	*last = strings.Replace(*last, unsolvedPainBand, v1Band, 1)
+	return msgs, nil
 }
 
-// classifyVariant is ClassifyIntent, except that "story" swaps in
-// storyBasePrompt and "need" needSystem. The tail mirrors ClassifyIntent;
-// TestStorySystem pins it. needExtra is empty unless variant is "need".
-func classifyVariant(ctx context.Context, p Provider, title, content, platform string, sc ScoringContext, variant string) (*ClassifyResult, needExtra, error) {
-	var extra needExtra
+// classifyVariant is ClassifyIntent with the variant's system prompt: "story"
+// swaps in storyBasePrompt, "v1" v1System and "v2card" cardSystem. The tail
+// mirrors ClassifyIntent; TestStorySystem pins it.
+func classifyVariant(ctx context.Context, p Provider, title, content, platform string, sc ScoringContext, variant string) (*ClassifyResult, error) {
 	var msgs []chatMessage
+	var err error
 	switch variant {
 	case "story":
-		base, err := storyBasePrompt()
-		if err != nil {
-			return nil, extra, err
+		var base string
+		if base, err = storyBasePrompt(); err == nil {
+			msgs = storySystem(p, sc, base)
 		}
-		msgs = storySystem(p, sc, base)
-	case "need":
-		var err error
-		if msgs, err = needSystem(p, sc); err != nil {
-			return nil, extra, err
-		}
+	case "v1":
+		msgs, err = v1System(p, sc)
+	case "v2card":
+		msgs, err = cardSystem(p, sc)
 	default:
-		cr, err := ClassifyIntent(ctx, p, title, content, platform, sc)
-		return cr, extra, err
+		return ClassifyIntent(ctx, p, title, content, platform, sc)
+	}
+	if err != nil {
+		return nil, err
 	}
 	msgs = append(msgs, chatMessage{Role: "user", Content: fmt.Sprintf("Platform: %s\nTitle: %s\nContent: %s", platform, title, content)})
 	result, err := callChat(ctx, p, msgs, 0.1)
 	if err != nil {
-		return nil, extra, err
+		return nil, err
 	}
-	raw := []byte(stripCodeFences(result))
 	var cr ClassifyResult
-	if err := json.Unmarshal(raw, &cr); err != nil {
-		return nil, extra, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
+	if err := json.Unmarshal([]byte(stripCodeFences(result)), &cr); err != nil {
+		return nil, fmt.Errorf("parse classification result: %w (raw: %s)", err, result)
 	}
-	_ = json.Unmarshal(raw, &extra) // same bytes just parsed
 	cr = NormalizeClassifyResult(cr, title)
-	return &cr, extra, nil
+	return &cr, nil
 }
 
 // storySystem is classifySystem with base in place of classifyBasePrompt.
@@ -218,7 +221,7 @@ func storySystem(p Provider, sc ScoringContext, base string) []chatMessage {
 func ablate(sc ScoringContext, variant string) (ScoringContext, error) {
 	var out ScoringContext
 	switch variant {
-	case "", "full", "story", "need":
+	case "", "full", "story", "v1", "v2card":
 		return sc, nil
 	case "rules":
 		out.Rules = sc.Rules
@@ -297,7 +300,8 @@ func TestAblate(t *testing.T) {
 		"rules":   {Product: "p", Buyers: "b", LooksFor: "l", Skips: "s", Rules: []string{"r"}},
 		"full":    sc,
 		"story":   sc,
-		"need":    sc,
+		"v1":      sc,
+		"v2card":  sc,
 	}
 	for _, v := range promptVariants {
 		got, err := ablate(sc, v)
@@ -328,21 +332,46 @@ func TestStorySystem(t *testing.T) {
 	}
 }
 
-func TestNeedSystem(t *testing.T) {
+func TestV1System(t *testing.T) {
 	sc := ScoringContext{Product: "p", Buyers: "b", Rules: []string{"r"}}
 	for _, name := range []string{"anthropic", "openai"} {
-		got, err := needSystem(Provider{Name: name}, sc)
+		got, err := v1System(Provider{Name: name}, sc)
 		if err != nil {
 			t.Fatal(err)
 		}
 		all := fmt.Sprint(got)
-		for _, want := range []string{needFields + needAnchor, storyAnchor + needRule, needBand + "- 4-5.5:", "WHO BUYS", "- 8-10:"} {
-			if !strings.Contains(all, want) {
-				t.Fatalf("%s: need prompt lacks %q", name, want[:40])
+		for _, gone := range []string{"open_need", "why_now", "unsolved today"} {
+			if strings.Contains(all, gone) {
+				t.Fatalf("%s: v1 prompt still has %q", name, gone)
 			}
 		}
-		if strings.Contains(all, "describing the workaround they built") {
-			t.Fatalf("%s: the old 6-7.5 band is still in the prompt", name)
+		for _, want := range []string{"- \"ask\": ", "- \"matches_skips\": boolean", storyAnchor + "\nPost type:", v1Band + "- 4-5.5:", "WHO BUYS", "- 8-10:"} {
+			if !strings.Contains(all, want) {
+				t.Fatalf("%s: v1 prompt lacks %q", name, want)
+			}
+		}
+	}
+	// With no product there is no score band to swap.
+	if got, err := v1System(Provider{Name: "anthropic"}, ScoringContext{}); err != nil || strings.Contains(fmt.Sprint(got), "open_need") {
+		t.Fatalf("no product: %v", err)
+	}
+}
+
+func TestCardSystem(t *testing.T) {
+	sc := ScoringContext{Product: "p", Buyers: "b", Rules: []string{"r"}}
+	for _, name := range []string{"anthropic", "openai"} {
+		got, err := cardSystem(Provider{Name: name}, sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		all := fmt.Sprint(got)
+		for _, want := range []string{cardAsk + "\n" + openNeedFields, cardReasoning + "\n- \"awareness_level\"", openNeedRule, unsolvedPainBand, "WHO BUYS"} {
+			if !strings.Contains(all, want) {
+				t.Fatalf("%s: v2card prompt lacks %q", name, want[:40])
+			}
+		}
+		if strings.Contains(all, "brief one-sentence explanation") || strings.Count(all, `- "ask": `) != 1 {
+			t.Fatalf("%s: the old ask or reasoning field is still in the prompt", name)
 		}
 	}
 }

@@ -14,10 +14,13 @@
 // gold_label_live_test.go). EVAL_SOURCES (e.g.
 // agent_blind,human) keeps only those label sources. EVAL_SAMPLE=N scores a
 // fixed sample of about N cases stratified by workspace and label;
-// EVAL_VARIANT (base, product, buyers, looks, rules, full, story, need) cuts
-// the workspace prompt down for an ablation, or adds a candidate change:
-// storyRule, or the open-need field and gate (see ablate, classifyVariant). The report is written next to the set as
-// report-<model>[-<variant>]-<time>.json.
+// EVAL_VARIANT (base, product, buyers, looks, rules, full, story, v1, v2card)
+// cuts the workspace prompt down for an ablation, swaps in a candidate change
+// (storyRule, the lead card), or goes back to the prompt before the open-need
+// change, "v1" (see ablate, classifyVariant). EVAL_RULES_FILE and
+// EVAL_EXAMPLES_FILE swap in candidate learned rules and few-shot examples
+// per workspace, and EVAL_TAG names the run. The report is written next to
+// the set as report-<model>[-<variant>][-<tag>]-<time>.json.
 package ai
 
 import (
@@ -48,11 +51,10 @@ type evalResult struct {
 	Tags      []string `json:"intent_tags"`
 	Skips     bool     `json:"matches_skips"`
 	Awareness string   `json:"awareness_level"`
-	// "need" variant only: what the classifier said is open, why now, and
-	// its verdict before the open-need gate (Got is after it).
+	// What the classifier said is still open for the author, and why now
+	// (empty under the "v1" prompt, which does not ask).
 	OpenNeed string  `json:"open_need,omitempty"`
 	WhyNow   string  `json:"why_now,omitempty"`
-	Ungated  bool    `json:"ungated_lead,omitempty"`
 	Err      string  `json:"error,omitempty"`
 	CostUSD  float64 `json:"cost_usd"`
 	Tokens   Usage   `json:"tokens"`
@@ -110,6 +112,18 @@ func TestFeedbackEval(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 	}
+	// EVAL_EXAMPLES_FILE: candidate few-shot examples per workspace, in place
+	// of the ones in contexts.json: {"ws_08": [{"Title": ..., "Label": "up"}]}.
+	exampleSets := map[string][]ScoringExample{}
+	if f := os.Getenv("EVAL_EXAMPLES_FILE"); f != "" {
+		raw, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &exampleSets); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
 	t.Logf("model %s variant %q cases %d cap $%.2f", model, variant, len(cases), maxUSD)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Minute)
@@ -149,6 +163,9 @@ func TestFeedbackEval(t *testing.T) {
 			}
 			sc.Rules = rules
 		}
+		if ex, ok := exampleSets[c.Workspace]; ok {
+			sc.Examples = ex
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func() {
@@ -156,10 +173,9 @@ func TestFeedbackEval(t *testing.T) {
 			var u Usage
 			p := Provider{Name: "anthropic", APIKey: key, Model: model, UsageSink: &u}
 			var cr *ClassifyResult
-			var extra needExtra
 			var err error
 			for attempt := 0; attempt < 3; attempt++ { // transient network errors (DNS EAI_AGAIN); u sums every attempt
-				if cr, extra, err = classifyVariant(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c), variant); err == nil {
+				if cr, err = classifyVariant(ctx, p, c.Title, c.Content, c.Platform, withoutCase(sc, c), variant); err == nil {
 					break
 				}
 				time.Sleep(time.Duration(attempt+1) * 3 * time.Second)
@@ -170,10 +186,7 @@ func TestFeedbackEval(t *testing.T) {
 			} else {
 				r.Got, r.Score, r.Intent, r.PostType, r.Role, r.Reasoning = isLead(cr), cr.RelevanceScore, cr.Intent, cr.PostType, cr.AuthorRole, cr.Reasoning
 				r.Ask, r.Tags, r.Skips, r.Awareness = cr.Ask, cr.IntentTags, cr.MatchesSkips, cr.AwarenessLevel
-				r.OpenNeed, r.WhyNow, r.Ungated = extra.OpenNeed, extra.WhyNow, r.Got
-				if variant == "need" && extra.OpenNeed == "none" { // the gate: nothing open, not a lead
-					r.Got = false
-				}
+				r.OpenNeed, r.WhyNow = cr.OpenNeed, cr.WhyNow
 			}
 			mu.Lock()
 			spent += r.CostUSD
@@ -202,6 +215,11 @@ func TestFeedbackEval(t *testing.T) {
 	if variant != "" {
 		name += "-" + variant
 	}
+	if tag := os.Getenv("EVAL_TAG"); tag != "" { // e.g. the rules and examples files used
+		name += "-" + tag
+		report["tag"] = tag
+	}
+	report["cases_file"], report["rules_file"], report["examples_file"] = envOr("EVAL_CASES", "cases.jsonl"), os.Getenv("EVAL_RULES_FILE"), os.Getenv("EVAL_EXAMPLES_FILE")
 	out := filepath.Join(dir, fmt.Sprintf("report-%s-%s.json", name, time.Now().UTC().Format("20060102T150405Z")))
 	raw, _ := json.MarshalIndent(report, "", " ")
 	if err := os.WriteFile(out, raw, 0o600); err != nil {

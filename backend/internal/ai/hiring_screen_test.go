@@ -44,11 +44,15 @@ func TestResearchBriefCarriesNotABuyer(t *testing.T) {
 	}
 }
 
-// A buyer who describes the problem in their own team, without asking for a
-// tool, is a lead (6+): in production these were scored 3 to 5.5 and lost.
+// A buyer who describes the problem in their own team as unsolved, without
+// asking for a tool, is a lead (6+): in production these were scored 3 to 5.5
+// and lost. The same problem told as already handled is not (rubric 5).
 func TestRubricScoresABuyerDescribingTheirOwnProblemAsALead(t *testing.T) {
 	rules := productFitRules("P")
-	for _, want := range []string{"6-7.5", "their own team or company", "workaround they built"} {
+	if strings.Contains(rules, "workaround they built") {
+		t.Error("rubric still scores a workaround that works as a lead")
+	}
+	for _, want := range []string{"6-7.5", "their own team or company", "as unsolved today", "already handled"} {
 		if !strings.Contains(rules, want) {
 			t.Errorf("rubric lacks %q", want)
 		}

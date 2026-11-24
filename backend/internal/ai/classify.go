@@ -40,6 +40,25 @@ type ScoringContext struct {
 // MaxScoringRules caps learned rules per prompt.
 const MaxScoringRules = 10
 
+// openNeedFields and openNeedRule are the open-need part of the base prompt:
+// what is still open for the author, why now, and the rule that a post with
+// nothing open is not a lead. A right-kind-of-person talking about the right
+// problem was the classifier's main false positive (see the signal spec with
+// the eval set). They are separate constants so the eval can rebuild the
+// prompt without them (variant "v1").
+const openNeedFields = `- "open_need": what in this post is still open for the author (their own need, or their team's or client's), one of:
+  "asking": asks for a tool, vendor, service or recommendation, or asks how others handle a job they have to do themselves
+  "evaluating": weighs named options, is trialling one, or asks a question about a named product before choosing or paying for it
+  "switching": says they are leaving, or want to leave, a tool or vendor they use
+  "unsolved_pain": states a problem of their own as current and unsolved: it is still costing them, what they tried does not fully work, or the tool that worked for them is gone; with or without a question
+  "none": nothing is open. A story, retrospective or progress update; a past incident told to make a point; a workaround, process or tool the author already uses and presents as their answer; an opinion, prediction, critique or advice; a passing gripe from a user who is otherwise staying; a warning or vent with no sign of wanting something else; a question put to the audience out of curiosity or to start a discussion that says nothing of the author's own situation; a wish stated hypothetically ("I'd want ..."); text cut off or too short to show a need
+  Judge only what the text says: a post about the right problem by the right kind of person is still "none" when nothing is open
+- "why_now": when open_need is not "none", the fact in the post that makes it timely, in under 20 words and in the post's own numbers or words (a deadline, a trial ending, an incident, what it costs, what they just tried); otherwise ""
+`
+
+const openNeedRule = `- When open_need is "none" the post is not a lead, however exact the topic and the author: do not tag buying_intent, seeking_alternative or recommendation_request, and keep relevance_score at 5.5 or below. This holds over the score bands and the workspace rules below.
+`
+
 const classifyBasePrompt = `You are an intent classifier for social media mentions. Analyze the post and classify it.
 
 Return ONLY valid JSON (no markdown, no code fences) with these fields:
@@ -48,7 +67,7 @@ Return ONLY valid JSON (no markdown, no code fences) with these fields:
 - "post_type": one of "question", "discussion", "announcement", "thought_leadership", "proof_point", "other" (see Post type)
 - "author_role": one of "buyer", "non_buyer", "unknown" (see Author role)
 - "ask": the need, frustration or objection the author voices about the problem this listener's product works on, as one plain sentence in their terms (max 25 words), e.g. "A way to tell which candidates are using AI during a live interview" or "To be told how a take-home will be graded before spending a weekend on it". Write it whoever the author is: a buyer, or someone on the other side of the problem (for a hiring product, a candidate saying what went wrong in how they were assessed), because both say what the market wants. Write it too when the author asks peers how to do the job such a product does. Use "" when no need is voiced: news and reports of what some company does, jokes, asking for moral support, opinion with no need behind it, a need that has nothing to do with the product's problem, and someone promoting or building their own tool
-- "matches_skips": boolean (true if the post matches anything the listener SKIPS; false when no SKIPS are given)
+` + openNeedFields + `- "matches_skips": boolean (true if the post matches anything the listener SKIPS; false when no SKIPS are given)
 - "conversion_probability": float 0.0-1.0 (how likely this person will buy/convert)
 - "relevance_score": float 0.0-10.0 (how relevant this is for a B2B SaaS product)
 - "reasoning": brief one-sentence explanation
@@ -72,7 +91,7 @@ Tag definitions:
 Hard rules:
 - Announcements, launches ("Show HN", "Launch HN", "Introducing", "I built", release notes), thought-leadership, opinion essays, tutorials and "how we did X" posts must NEVER be tagged buying_intent or seeking_alternative, even if they mention competitors or say "alternative to". The author is selling or teaching, not shopping. Tag launches "promotional" and essays "content_opportunity".
 - Only tag buying_intent / seeking_alternative / recommendation_request when the AUTHOR is the one looking.
-
+` + openNeedRule + `
 Post type: "thought_leadership" is advice, predictions or opinion addressed to an audience in which the author reports nothing from their own work. A post in which the author reports what happened in their own work (what they tried, what failed, who slipped through, what it cost) is "discussion", however polished or essay-like it reads, even when most of it is the opinion they drew from that experience, and even when it ends with advice or a question to the audience. "proof_point" is someone on the buying side presenting, as a success, the way they already solved the problem for themselves (their own process or tool, with nothing left that does not work): they are not a prospect, but still write the "ask" their solution answers.
 
 Author role: judge the PERSON who wrote the post, not the topic.
@@ -144,6 +163,10 @@ func cleanRules(in []string) []string {
 	return out
 }
 
+// maxExampleNote caps the note shown with an example: long enough for one
+// sentence saying what is, or is not, open for the author.
+const maxExampleNote = 300
+
 func formatExamples(ex []ScoringExample) string {
 	if len(ex) > MaxScoringExamples {
 		ex = ex[:MaxScoringExamples]
@@ -156,7 +179,7 @@ func formatExamples(ex []ScoringExample) string {
 		}
 		fmt.Fprintf(&b, "- [%s] Title: %s | Content: %s", label, truncate(e.Title, 150), truncate(e.Content, 400))
 		if e.Note != "" {
-			fmt.Fprintf(&b, " | User note: %s", truncate(e.Note, 100))
+			fmt.Fprintf(&b, " | User note: %s", truncate(e.Note, maxExampleNote))
 		}
 		b.WriteString("\n")
 	}

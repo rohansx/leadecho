@@ -201,6 +201,27 @@ func fableLabel(ctx context.Context, client anthropic.Client, system []anthropic
 	r = goldRow{Model: goldModel, Effort: effort}
 	var u Usage
 	defer func() { r.Tokens, r.CostUSD = u, goldCostUSD(u) }()
+	var l goldLabel
+	r.ServedBy, r.Refused, r.Err = fableJSON(ctx, client, system, user, effort, goldSchema(adjudicate), &u, func(text string) error {
+		if err := json.Unmarshal([]byte(text), &l); err != nil {
+			return fmt.Errorf("bad JSON: %w", err)
+		}
+		if err := l.check(); err != nil {
+			return fmt.Errorf("invalid label: %w", err)
+		}
+		return nil
+	})
+	if r.Err == "" {
+		r.goldLabel = l
+	}
+	return r
+}
+
+// fableJSON asks goldModel for an answer in schema and hands the text to
+// accept. A failed call or an answer accept rejects is tried three times; a
+// refusal (after the server-side fallback model) is final. u gets the usage
+// of every attempt. errText is "" on success.
+func fableJSON(ctx context.Context, client anthropic.Client, system []anthropic.BetaTextBlockParam, user, effort string, schema map[string]any, u *Usage, accept func(text string) error) (servedBy string, refused bool, errText string) {
 	for attempt := 0; attempt < 3; attempt++ {
 		if attempt > 0 {
 			time.Sleep(time.Duration(attempt) * 5 * time.Second)
@@ -214,13 +235,13 @@ func fableLabel(ctx context.Context, client anthropic.Client, system []anthropic
 			Messages:  []anthropic.BetaMessageParam{anthropic.NewBetaUserMessage(anthropic.NewBetaTextBlock(user))},
 			OutputConfig: anthropic.BetaOutputConfigParam{
 				Effort: anthropic.BetaOutputConfigEffort(effort),
-				Format: anthropic.BetaJSONOutputFormatParam{Schema: goldSchema(adjudicate)},
+				Format: anthropic.BetaJSONOutputFormatParam{Schema: schema},
 			},
 			Betas:     []anthropic.AnthropicBeta{anthropic.AnthropicBetaServerSideFallback2026_07_01},
 			Fallbacks: anthropic.BetaFallbacksParamOfDefault(),
 		})
 		if err != nil {
-			r.Err = err.Error()
+			errText = err.Error()
 			continue
 		}
 		// usage.iterations lists every attempt when a fallback ran; top-level
@@ -229,42 +250,32 @@ func fableLabel(ctx context.Context, client anthropic.Client, system []anthropic
 		// Read from the raw JSON: SDK v2.5.0 leaves the typed iteration
 		// entries zero (their "model" is null on a plain message).
 		type tok struct {
-			In, Out, Read, Write int32
+			In    int32 `json:"input_tokens"`
+			Out   int32 `json:"output_tokens"`
+			Read  int32 `json:"cache_read_input_tokens"`
+			Write int32 `json:"cache_creation_input_tokens"`
 		}
 		var raw struct {
-			In         int32 `json:"input_tokens"`
-			Out        int32 `json:"output_tokens"`
-			Read       int32 `json:"cache_read_input_tokens"`
-			Write      int32 `json:"cache_creation_input_tokens"`
-			Iterations []struct {
-				In    int32 `json:"input_tokens"`
-				Out   int32 `json:"output_tokens"`
-				Read  int32 `json:"cache_read_input_tokens"`
-				Write int32 `json:"cache_creation_input_tokens"`
-			} `json:"iterations"`
+			tok
+			Iterations []tok `json:"iterations"`
 		}
 		if err := json.Unmarshal([]byte(resp.Usage.RawJSON()), &raw); err != nil {
-			r.Err = "usage: " + err.Error() // cost unknown: stop rather than spend blind
-			return r
+			return servedBy, false, "usage: " + err.Error() // cost unknown: stop rather than spend blind
 		}
-		attempts := []tok{{raw.In, raw.Out, raw.Read, raw.Write}}
+		attempts := []tok{raw.tok}
 		if len(raw.Iterations) > 0 {
-			attempts = attempts[:0]
-			for _, it := range raw.Iterations {
-				attempts = append(attempts, tok{it.In, it.Out, it.Read, it.Write})
-			}
+			attempts = raw.Iterations
 		}
 		for _, a := range attempts {
 			u.Add(Usage{PromptTokens: a.In, CompletionTokens: a.Out, CacheReadTokens: a.Read, CacheWriteTokens: a.Write})
 		}
-		r.ServedBy = string(resp.Model)
+		servedBy = string(resp.Model)
 		switch resp.StopReason {
 		case anthropic.BetaStopReasonRefusal: // the fallback refused too; retrying gets the same answer
-			r.Refused, r.Err = true, fmt.Sprintf("refusal (category %q)", resp.StopDetails.Category)
-			return r
+			return servedBy, true, fmt.Sprintf("refusal (category %q)", resp.StopDetails.Category)
 		case anthropic.BetaStopReasonEndTurn:
 		default:
-			r.Err = "stop_reason " + string(resp.StopReason)
+			errText = "stop_reason " + string(resp.StopReason)
 			continue
 		}
 		var text string
@@ -273,17 +284,11 @@ func fableLabel(ctx context.Context, client anthropic.Client, system []anthropic
 				text += tb.Text
 			}
 		}
-		var l goldLabel
-		if err := json.Unmarshal([]byte(text), &l); err != nil {
-			r.Err = "bad JSON: " + err.Error()
+		if err := accept(text); err != nil {
+			errText = err.Error()
 			continue
 		}
-		if err := l.check(); err != nil {
-			r.Err = "invalid label: " + err.Error()
-			continue
-		}
-		r.goldLabel, r.Err = l, ""
-		return r
+		return servedBy, false, ""
 	}
-	return r
+	return servedBy, false, errText
 }

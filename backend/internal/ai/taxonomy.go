@@ -89,15 +89,54 @@ func normalizeAsk(s string) string {
 // maxNonBuyerScore keeps non-buyers under the lead threshold (6).
 const maxNonBuyerScore = 4
 
+// MaxNoNeedScore keeps a post with nothing open for its author under every
+// lead line, the loosest included (database.LeadLoose is 5; a test in
+// monitor holds the two together), and above the "worth watching" line (4).
+const MaxNoNeedScore = 4.5
+
+// openNeedTag is the tag an open need stands for when the model gave the
+// post no buying-type tag: someone asking a vendor about a named product
+// often gets only competitor_mention or feature_request, and lead
+// qualification reads the intent derived from the tags.
+var openNeedTag = map[string]string{
+	"asking":        "recommendation_request",
+	"evaluating":    "comparison",
+	"switching":     "seeking_alternative",
+	"unsolved_pain": "pain_point",
+}
+
+// normalizeOpenNeed keeps the five known values; anything else is "" (not
+// said), which leaves the verdict to the tags and the score as before.
+func normalizeOpenNeed(s string) string {
+	s = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), "-", "_")
+	if _, ok := openNeedTag[s]; ok || s == "none" {
+		return s
+	}
+	return ""
+}
+
 // NormalizeClassifyResult cleans a raw model result: canonical tags only,
 // valid sentiment, announcement and skips rules enforced, and the legacy
 // Intent field derived from the tags so existing consumers keep working.
+// The open need decides with the score whether a post is a lead: nothing
+// open is capped under every lead line, and something open counts as a
+// buying-type intent even when the model's tags did not say so.
 func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 	tags := normalizeTags(cr.IntentTags)
 	if len(tags) == 0 {
 		if t, ok := legacyIntentTag[strings.ToLower(strings.TrimSpace(cr.Intent))]; ok {
 			tags = []string{t}
 		}
+	}
+	cr.OpenNeed = normalizeOpenNeed(cr.OpenNeed)
+	cr.WhyNow = normalizeAsk(cr.WhyNow)
+	if t, ok := openNeedTag[cr.OpenNeed]; ok && intentFromTags(tags) == "general" {
+		tags = appendTag(tags, t)
+	}
+	if cr.OpenNeed == "none" {
+		tags = dropLeadTags(tags)
+		cr.RelevanceScore = min(cr.RelevanceScore, MaxNoNeedScore)
+		cr.WhyNow = ""
 	}
 
 	pt := strings.ToLower(strings.TrimSpace(cr.PostType))
