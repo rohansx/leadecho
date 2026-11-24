@@ -79,6 +79,10 @@ func mentionFilters(r *http.Request, workspaceID string) (database.ListMentionsC
 	if msg := validateTagFilters(p); msg != "" { // scoring
 		return p, msg
 	}
+	var msg string
+	if p.Since, p.Until, msg = parseDateRange(q.Get("since"), q.Get("until")); msg != "" {
+		return p, msg
+	}
 	// Reject unknown enum filter values up front (400) rather than letting them
 	// fail an enum cast deep in the query (500). platform_type is shared with
 	// keywords (validKeywordPlatforms).
@@ -101,6 +105,26 @@ func mentionFilters(r *http.Request, workspaceID string) (database.ListMentionsC
 		return p, "invalid action_kind"
 	}
 	return p, ""
+}
+
+// parseDateRange reads the optional RFC 3339 "since" / "until" filters.
+func parseDateRange(since, until string) (time.Time, time.Time, string) {
+	var s, u time.Time
+	var err error
+	if since != "" {
+		if s, err = time.Parse(time.RFC3339, since); err != nil {
+			return s, u, "invalid since: want RFC 3339"
+		}
+	}
+	if until != "" {
+		if u, err = time.Parse(time.RFC3339, until); err != nil {
+			return s, u, "invalid until: want RFC 3339"
+		}
+	}
+	if !s.IsZero() && !u.IsZero() && !s.Before(u) {
+		return s, u, "since must be before until"
+	}
+	return s, u, ""
 }
 
 func fmtTime(t time.Time) string { return t.UTC().Format(time.RFC3339) }

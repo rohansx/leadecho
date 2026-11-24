@@ -1,9 +1,11 @@
 import { motion } from "motion/react";
 import { stripMarkdown } from "@/lib/markdown";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
-import { ACTION_KINDS, INBOX_QUEUES, INTENT_TAGS, MENTION_STATUSES, SENTIMENTS } from "@/lib/constants";
+import { ACTION_KINDS, INBOX_QUEUES, INTENT_LABELS, INTENT_TAGS, MENTION_STATUSES, SENTIMENTS } from "@/lib/constants";
+import { POSTED_RANGES, postedSince } from "@/lib/posted-range";
+import { intentTone, scoreBand } from "@/lib/tones";
 import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
 import { hiringText } from "@/lib/lead-age";
 import { PlatformLogo } from "@/components/ui/platform-logo";
@@ -18,11 +20,6 @@ const actionLabel: Record<string, string> = {
 };
 
 // Gold is reserved for the top band, so a gold tile means "look here first".
-function scoreClass(score: number | null) {
-  if (score == null || score < 7) return "border border-border text-muted-foreground";
-  if (score >= 8.5) return "bg-primary/15 text-primary-ink";
-  return "bg-secondary text-foreground";
-}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -99,6 +96,10 @@ export function LeadList({
   onTagChange,
   sentimentFilter = "",
   onSentimentChange,
+  intentFilter = "",
+  onClearIntent,
+  postedFilter = "",
+  onPostedChange,
   search,
   onSearchChange,
   onRefresh,
@@ -135,6 +136,10 @@ export function LeadList({
   onTagChange?: (tag: string) => void;
   sentimentFilter?: string;
   onSentimentChange?: (sentiment: string) => void;
+  intentFilter?: string;
+  onClearIntent?: () => void;
+  postedFilter?: string;
+  onPostedChange?: (range: string) => void;
   search: string;
   onSearchChange: (v: string) => void;
   onRefresh: () => void;
@@ -228,7 +233,7 @@ export function LeadList({
                 kind="mentions"
                 params={
                   queueFilter === INBOX_QUEUES.ALL
-                    ? { queue: queueFilter, platform: platformFilter, status: statusFilter, search }
+                    ? { queue: queueFilter, platform: platformFilter, status: statusFilter, search, intent: intentFilter, since: postedSince(postedFilter) }
                     : { queue: queueFilter, action_kind: queueFilter === INBOX_QUEUES.ACTION_REQUIRED ? actionKind : undefined }
                 }
               />
@@ -363,6 +368,32 @@ export function LeadList({
                 </select>
               </div>
             )}
+            {onPostedChange && (
+              <select
+                value={postedFilter}
+                onChange={(e) => onPostedChange(e.target.value)}
+                aria-label="Filter by when it was posted"
+                className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)]"
+              >
+                <option value="">Posted any time</option>
+                {POSTED_RANGES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            {intentFilter && onClearIntent && (
+              <button
+                type="button"
+                onClick={onClearIntent}
+                aria-label="Clear intent filter"
+                className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-primary-ink cursor-pointer"
+              >
+                Intent: {INTENT_LABELS[intentFilter] ?? intentFilter}
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </>
         )}
       </div>
@@ -458,11 +489,12 @@ export function LeadList({
                   selectedId === m.id ? "bg-accent" : "hover:bg-accent/50"
                 }`}
               >
-                <div
-                  className={`shrink-0 h-9 w-9 rounded-lg flex flex-col items-center justify-center text-[13px] font-[family-name:var(--font-head)] font-medium tabular-nums ${scoreClass(m.relevance_score)}`}
+                <span
+                  title={scoreBand(m.relevance_score).label}
+                  className={`shrink-0 self-start mt-0.5 h-6 min-w-11 px-2 rounded-full inline-flex items-center justify-center text-xs font-[family-name:var(--font-head)] font-semibold tabular-nums ${scoreBand(m.relevance_score).tone}`}
                 >
                   {m.relevance_score != null ? m.relevance_score.toFixed(1) : "–"}
-                </div>
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1 flex-wrap">
                     {badge && (
@@ -472,10 +504,9 @@ export function LeadList({
                     )}
                     <PlatformLogo platform={m.platform} />
                     {m.intent && (
-                      <>
-                        <span>·</span>
-                        <span>{m.intent.replace("_", " ")}</span>
-                      </>
+                      <span className={`rounded-full px-1.5 py-px text-[10px] font-medium ${intentTone(m.intent)}`}>
+                        {INTENT_LABELS[m.intent] ?? m.intent.replace(/_/g, " ")}
+                      </span>
                     )}
                     <span className="ml-auto shrink-0">
                       {timeAgo(m.platform_created_at ?? m.created_at)}

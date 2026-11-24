@@ -1,10 +1,9 @@
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Moon, Sun, Bell, LogOut, Menu } from "lucide-react";
+import { Moon, Sun, Bell, Menu } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
-import { useAuth } from "@/lib/auth";
-import { mentionCounts } from "@/lib/api";
-import { QUERY_KEYS } from "@/lib/constants";
+import { mentionQueueCounts } from "@/lib/api";
+import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 
 interface HeaderProps {
   /** Phones: opens the navigation drawer. */
@@ -13,24 +12,15 @@ interface HeaderProps {
 
 export function Header({ onMenu }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const { data: counts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionCounts],
-    queryFn: mentionCounts,
+  // Leads waiting for you (the Inbox "Leads" queue), not every unread post.
+  const { data: queueCounts } = useQuery({
+    queryKey: [QUERY_KEYS.mentionQueueCounts],
+    queryFn: mentionQueueCounts,
+    refetchInterval: 60_000,
   });
-  const newCount = counts?.find((c) => c.status === "new")?.count ?? 0;
-
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
+  const newCount = queueCounts?.queues.find((q) => q.queue === INBOX_QUEUES.ACTION_REQUIRED)?.count ?? 0;
 
   return (
     <header className="flex h-[var(--header-height)] shrink-0 items-center gap-4 border-b border-border bg-background/80 px-3 backdrop-blur md:px-5">
@@ -53,36 +43,18 @@ export function Header({ onMenu }: HeaderProps) {
         </button>
         <button
           type="button"
-          onClick={() => pathname !== "/inbox" && navigate({ to: "/inbox" })}
-          aria-label="New mentions"
+          onClick={() => navigate({ to: "/inbox", search: { queue: INBOX_QUEUES.ACTION_REQUIRED } })}
+          aria-label={newCount ? `${newCount} leads waiting` : "No leads waiting"}
+          title="Leads waiting for you"
           className="relative flex size-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Bell className="h-4 w-4" />
           {newCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full border border-border bg-secondary text-foreground text-[10px] leading-none font-medium tabular-nums flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-none font-semibold tabular-nums flex items-center justify-center">
               {newCount > 99 ? "99+" : newCount}
             </span>
           )}
         </button>
-        {user ? (
-          <>
-            <div className="ml-1 size-7 rounded-full border border-border bg-secondary text-foreground-soft flex items-center justify-center text-[11px] font-medium">
-              {initials}
-            </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
-              title="Log out"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </>
-        ) : (
-          <div className="ml-1 size-7 rounded-full border border-border bg-secondary text-foreground-soft flex items-center justify-center text-[11px] font-medium">
-            U
-          </div>
-        )}
       </div>
     </header>
   );

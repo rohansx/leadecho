@@ -2,8 +2,8 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { mentionTierCounts } from "@/lib/api";
-import { MENTION_TIERS, QUERY_KEYS } from "@/lib/constants";
+import { mentionQueueCounts } from "@/lib/api";
+import { INBOX_QUEUES, QUERY_KEYS } from "@/lib/constants";
 import { Logo } from "@/components/marketing/logo";
 import {
   Inbox,
@@ -20,39 +20,43 @@ import {
   Lightbulb,
   Binoculars,
 } from "lucide-react";
-import { ShieldCheck, Sparkles, X } from "lucide-react"; // chat (P2 #15), ops
+import { ChevronRight, ShieldCheck, Sparkles, X } from "lucide-react"; // chat (P2 #15), ops
 import { opsMe } from "@/lib/ops-api";
+import { useState } from "react";
+import { AccountMenu } from "./account-menu";
 
+// Lead work first, then what steers it. Everything else sits under "More"
+// (collapsed) until we decide what stays.
 const navGroups = [
   {
-    label: "Work",
+    label: "Leads",
     items: [
       { to: "/inbox", label: "Inbox", icon: Inbox },
       { to: "/pipeline", label: "Pipeline", icon: GitBranch },
       { to: "/analytics", label: "Analytics", icon: BarChart3 },
-      { to: "/demand", label: "Demand", icon: Lightbulb }, // what the market is asking for
-      { to: "/competitors", label: "Competitors", icon: Binoculars }, // competitor watch
-      { to: "/chat", label: "Ask LeadEcho", icon: Sparkles }, // chat (P2 #15)
     ],
   },
   {
-    label: "Targeting",
+    label: "Setup",
     items: [
       { to: "/keywords", label: "Keywords", icon: Search },
       { to: "/profiles", label: "Profiles", icon: Target },
       { to: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
-      { to: "/workflows", label: "Workflows", icon: Zap },
-      { to: "/engagers", label: "LinkedIn engagers", icon: Users }, // enrich
-    ],
-  },
-  {
-    label: "Workspace",
-    items: [
-      { to: "/alerts", label: "Alerts", icon: Bell },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
   },
 ] as const;
+
+const moreItems = [
+  { to: "/demand", label: "Demand", icon: Lightbulb }, // what the market is asking for
+  { to: "/competitors", label: "Competitors", icon: Binoculars }, // competitor watch
+  { to: "/chat", label: "Ask LeadEcho", icon: Sparkles }, // chat (P2 #15)
+  { to: "/workflows", label: "Workflows", icon: Zap },
+  { to: "/engagers", label: "LinkedIn engagers", icon: Users }, // enrich
+  { to: "/alerts", label: "Alerts", icon: Bell },
+] as const;
+
+type NavItem = (typeof navGroups)[number]["items"][number] | (typeof moreItems)[number];
 
 interface SidebarProps {
   /** Phones: the sidebar is a drawer, shown while open. */
@@ -64,13 +68,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const router = useRouterState();
   const pathname = router.location.pathname;
 
-  const { data: tierCounts } = useQuery({
-    queryKey: [QUERY_KEYS.mentionTierCounts],
-    queryFn: mentionTierCounts,
+  // Same number as the bell and the Inbox "Leads" tab: leads waiting for you.
+  const { data: queueCounts } = useQuery({
+    queryKey: [QUERY_KEYS.mentionQueueCounts],
+    queryFn: mentionQueueCounts,
+    refetchInterval: 60_000,
   });
-  const leadsReady = tierCounts?.find((c) => c.tier === MENTION_TIERS.LEADS_READY)?.count ?? 0;
+  const leadsReady = queueCounts?.queues.find((q) => q.queue === INBOX_QUEUES.ACTION_REQUIRED)?.count ?? 0;
   // ops: only the operator's allowlisted emails get a 200 here.
   const { data: isOps } = useQuery({ queryKey: ["ops", "me"], queryFn: opsMe, retry: false, staleTime: 5 * 60_000 });
+  // null = not toggled yet: open on one of its pages so the current page shows.
+  const [moreOpen, setMoreOpen] = useState<boolean | null>(null);
+  const showMore = moreOpen ?? moreItems.some((i) => pathname.startsWith(i.to));
 
   return (
     <>
@@ -109,50 +118,61 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               {group.label}
             </p>
             <div className="space-y-px">
-              {group.items.map((item) => {
-                const isActive = pathname.startsWith(item.to);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    className={cn(
-                      "relative flex h-9 md:h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors duration-150",
-                      isActive
-                        ? "font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                    )}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="sidebar-active"
-                        className="absolute inset-0 rounded-md bg-accent shadow-[inset_0_0_0_1px_var(--border)]"
-                        transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                      />
-                    )}
-                    <Icon
-                      className={cn(
-                        "relative z-10 h-4 w-4 shrink-0",
-                        isActive ? "text-primary-ink" : "text-muted-foreground",
-                      )}
-                    />
-                    <span className="relative z-10 flex-1">{item.label}</span>
-                    {item.to === "/inbox" && leadsReady > 0 && (
-                      <span
-                        aria-label={`${leadsReady} leads ready`}
-                        className="relative z-10 min-w-5 rounded-md bg-accent-soft px-1.5 py-px text-center text-[11px] font-medium text-primary-ink tabular-nums"
-                      >
-                        {leadsReady}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+              {group.items.map((item) => <NavLink key={item.label} item={item} pathname={pathname} badge={item.to === "/inbox" ? leadsReady : 0} />)}
             </div>
           </div>
         ))}
+        <div>
+          <button
+            type="button"
+            onClick={() => setMoreOpen(!showMore)}
+            aria-expanded={showMore}
+            className="flex w-full cursor-pointer items-center gap-1 px-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80 hover:text-foreground"
+          >
+            More
+            <ChevronRight className={cn("h-3 w-3 transition-transform", showMore && "rotate-90")} />
+          </button>
+          {showMore && (
+            <div className="space-y-px">
+              {moreItems.map((item) => <NavLink key={item.label} item={item} pathname={pathname} />)}
+            </div>
+          )}
+        </div>
       </nav>
+      <AccountMenu onNavigate={onClose} />
     </aside>
     </>
+  );
+}
+
+function NavLink({ item, pathname, badge = 0 }: { item: NavItem; pathname: string; badge?: number }) {
+  const isActive = pathname.startsWith(item.to);
+  const Icon = item.icon;
+  return (
+    <Link
+      to={item.to}
+      className={cn(
+        "relative flex h-9 md:h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors duration-150",
+        isActive ? "font-medium text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+      )}
+    >
+      {isActive && (
+        <motion.div
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-md bg-accent shadow-[inset_0_0_0_1px_var(--border)]"
+          transition={{ type: "spring", stiffness: 500, damping: 40 }}
+        />
+      )}
+      <Icon className={cn("relative z-10 h-4 w-4 shrink-0", isActive ? "text-primary-ink" : "text-muted-foreground")} />
+      <span className="relative z-10 flex-1">{item.label}</span>
+      {badge > 0 && (
+        <span
+          aria-label={`${badge} leads ready`}
+          className="relative z-10 min-w-5 rounded-md bg-accent-soft px-1.5 py-px text-center text-[11px] font-medium text-primary-ink tabular-nums"
+        >
+          {badge}
+        </span>
+      )}
+    </Link>
   );
 }

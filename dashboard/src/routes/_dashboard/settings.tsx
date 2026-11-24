@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Text } from "@/components/ui/text";
@@ -10,7 +12,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download } from "lucide-react";
+import { Puzzle, Copy, Check, AlertTriangle, Router, KeyRound, Activity, Download, LogOut } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { IntegrationsCard } from "@/components/settings/integrations-card";
 import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
@@ -33,7 +35,20 @@ import {
   type LLMProviderStatus,
 } from "@/lib/api";
 
+const TABS = [
+  { key: "account", label: "Account" },
+  { key: "billing", label: "Plan & billing" },
+  { key: "replies", label: "Replies" },
+  { key: "integrations", label: "Integrations" },
+  { key: "ai", label: "AI providers" }, // self-hosted only
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+const isTab = (v: unknown): v is TabKey => TABS.some((t) => t.key === v);
+
 export const Route = createFileRoute("/_dashboard/settings")({
+  validateSearch: (search: Record<string, unknown>): { tab?: TabKey } => ({
+    tab: isTab(search.tab) ? search.tab : undefined,
+  }),
   component: SettingsPage,
 });
 
@@ -598,40 +613,91 @@ function ChromeExtensionCard() {
   );
 }
 
+function AccountCard() {
+  const { user, logout } = useAuth();
+  const rows = [
+    ["Name", user?.name || "—"],
+    ["Email", user?.email || "—"],
+    ["Role", user?.role || "—"],
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Your account</CardTitle>
+        <CardDescription>Who is signed in to this workspace.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <dl className="divide-y divide-border rounded-lg border border-border">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex items-center justify-between gap-4 px-3 py-2.5 text-sm">
+              <dt className="text-muted-foreground">{k}</dt>
+              <dd className="truncate font-medium">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+        >
+          <LogOut className="h-3.5 w-3.5" /> Log out
+        </button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SettingsPage() {
   const { data: billing } = useQuery({ queryKey: BILLING_QUERY, queryFn: getBilling, staleTime: 60_000 });
-  const hosted = !!billing?.enforced;
+  // Until billing loads, treat the instance as hosted so the AI tab never flashes.
+  const hosted = !billing || !!billing.enforced;
+  // Hosted AI is paid for with credits; bring-your-own-keys is a self-host setting.
+  const tabs = TABS.filter((t) => t.key !== "ai" || !hosted);
+  const requested = Route.useSearch().tab;
+  const tab: TabKey = requested && tabs.some((t) => t.key === requested) ? requested : "account";
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Text as="h2">Settings</Text>
         <Text as="p" className="text-muted-foreground mt-1">
-          Plan, integrations and access for this workspace.
+          Your account, plan, integrations and access for this workspace.
         </Text>
       </div>
 
-      <ErrorBoundary>
-        <BillingCard />
+      <nav className="flex gap-1 overflow-x-auto border-b border-border" aria-label="Settings sections">
+        {tabs.map((t) => (
+          <Link
+            key={t.key}
+            to="/settings"
+            search={{ tab: t.key }}
+            className={cn(
+              "-mb-px shrink-0 border-b-2 px-3 py-2 text-sm transition-colors",
+              tab === t.key
+                ? "border-primary-ink font-medium text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {/* keyed by tab: a card that crashes takes down only its own tab */}
+      <ErrorBoundary key={tab}>
+        {tab === "account" && <AccountCard />}
+        {tab === "billing" && <BillingCard />}
+        {tab === "replies" && <DraftsCard />}
+        {tab === "integrations" && (
+          <div className="space-y-6">
+            <IntegrationsCard />
+            <ChromeExtensionCard />
+            {/* mcp: workspace API keys + MCP connect */}
+            <ApiMcpCard />
+          </div>
+        )}
+        {tab === "ai" && <LLMRouterCard />}
       </ErrorBoundary>
-
-      {/* Hosted AI is paid for with credits; bring-your-own-keys is a self-host setting. */}
-      {!hosted && (
-        <ErrorBoundary>
-          <LLMRouterCard />
-        </ErrorBoundary>
-      )}
-
-      <ErrorBoundary>
-        <DraftsCard />
-      </ErrorBoundary>
-
-      <ChromeExtensionCard />
-
-      <IntegrationsCard />
-
-      {/* mcp: workspace API keys + MCP connect */}
-      <ApiMcpCard />
-
     </div>
   );
 }

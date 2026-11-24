@@ -34,7 +34,8 @@ import {
   listResponseProfiles,
   updateMentionStatus,
 } from "@/lib/api";
-import { API_BASE_URL, QUERY_KEYS } from "@/lib/constants";
+import { API_BASE_URL, INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
+import { intentTone, platformTone, scoreBand } from "@/lib/tones";
 import type { Mention, Reply } from "@/lib/types";
 import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
@@ -238,8 +239,7 @@ function OverviewTab({
     <div className="space-y-5">
       <article className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-          <span className="font-medium text-foreground-soft">{mention.platform}</span>
-          <span>·</span>
+          <span className={`rounded-full px-2 py-0.5 font-medium capitalize ${platformTone(mention.platform)}`}>{mention.platform}</span>
           {mention.person ? (
             <span className="text-foreground">
               <button type="button" onClick={onOpenPerson} title="Open Person360" className="font-medium cursor-pointer hover:underline underline-offset-2">
@@ -287,7 +287,7 @@ function OverviewTab({
         )}
         {!companySignal && (
           // Primary until there is a draft; then the draft card's action is.
-          <Button size="sm" variant={draft ? "ghost" : "default"} onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
+          <Button size="sm" variant={draft ? "ghost" : "accent"} onClick={() => draftMutation.mutate()} disabled={draftMutation.isPending}>
             {draftMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
@@ -316,7 +316,7 @@ function OverviewTab({
             onClick={() => markRepliedMutation.mutate()}
             disabled={markRepliedMutation.isPending}
           >
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             Mark as replied
           </Button>
         )}
@@ -739,12 +739,22 @@ function SignalsPanel({ mention }: { mention: Mention }) {
     | { label?: string; reason?: string }
     | undefined;
   const reasoning = typeof mention.scoring_metadata?.reasoning === "string" ? mention.scoring_metadata.reasoning : null;
+  const band = scoreBand(mention.relevance_score);
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <h5 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">Why this is here</h5>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h5 className="text-xs font-medium uppercase tracking-wide text-primary-ink">Why this is here</h5>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${band.tone}`}>
+          {mention.relevance_score != null && <span className="tabular-nums">{mention.relevance_score.toFixed(1)} · </span>}
+          {band.label}
+        </span>
+      </div>
       {reasoning && <p className="mb-3 text-sm leading-relaxed text-foreground-soft">{signalText(mention, reasoning)}</p>}
-      <SignalRow label="Platform" value={<span className="capitalize">{mention.platform}</span>} />
+      <SignalRow
+        label="Platform"
+        value={<span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${platformTone(mention.platform)}`}>{mention.platform}</span>}
+      />
       {subreddit && <SignalRow label="Community" value={subreddit} />}
       <SignalRow label="Author" value={mention.author_username ? `@${mention.author_username}` : null} />
       <SignalRow label="Karma" value={mention.author_karma} />
@@ -752,10 +762,23 @@ function SignalsPanel({ mention }: { mention: Mention }) {
         label="Account age"
         value={mention.author_account_age_days != null ? `${mention.author_account_age_days}d` : null}
       />
-      <SignalRow label="Type" value={mention.intent ? mention.intent.replace(/_/g, " ") : null} />
+      <SignalRow
+        label="Type"
+        value={
+          mention.intent ? (
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${intentTone(mention.intent)}`}>
+              {INTENT_LABELS[mention.intent] ?? mention.intent.replace(/_/g, " ")}
+            </span>
+          ) : null
+        }
+      />
       <SignalRow
         label="Fit score"
-        value={mention.relevance_score != null ? `${mention.relevance_score.toFixed(1)} / 10` : null}
+        value={
+          mention.relevance_score != null ? (
+            <span className="font-medium text-foreground tabular-nums">{mention.relevance_score.toFixed(1)} / 10</span>
+          ) : null
+        }
       />
       {feedback?.label && (
         <SignalRow
@@ -768,7 +791,7 @@ function SignalsPanel({ mention }: { mention: Mention }) {
           <div className="text-xs text-muted-foreground mb-1.5">Found by</div>
           <div className="flex flex-wrap gap-1">
             {mention.keyword_matches.map((k) => (
-              <span key={k} className="text-xs rounded-full bg-muted px-2 py-0.5">
+              <span key={k} className="text-xs rounded-full bg-accent-soft text-primary-ink px-2 py-0.5">
                 {k}
               </span>
             ))}

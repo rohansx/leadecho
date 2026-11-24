@@ -14,6 +14,22 @@ import (
 	"leadecho/internal/database"
 )
 
+func TestParseDateRange(t *testing.T) {
+	cases := []struct{ since, until, wantErr string }{
+		{"", "", ""},
+		{"2026-11-01T00:00:00Z", "", ""},
+		{"2026-11-01T00:00:00Z", "2026-11-02T00:00:00+05:30", ""},
+		{"yesterday", "", "invalid since: want RFC 3339"},
+		{"", "2026-11-01", "invalid until: want RFC 3339"},
+		{"2026-11-02T00:00:00Z", "2026-11-01T00:00:00Z", "since must be before until"},
+	}
+	for _, c := range cases {
+		if _, _, msg := parseDateRange(c.since, c.until); msg != c.wantErr {
+			t.Errorf("parseDateRange(%q, %q) = %q, want %q", c.since, c.until, msg, c.wantErr)
+		}
+	}
+}
+
 func TestCSVSafe(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{"hello", "hello"},

@@ -57,10 +57,14 @@ export function listMentions(params?: {
   escalation_kind?: string;
   tag?: string;
   sentiment?: string;
+  since?: string; // RFC 3339; when the post was written
+  until?: string;
   limit?: number;
   offset?: number;
 }) {
   const q = new URLSearchParams();
+  if (params?.since) q.set("since", params.since);
+  if (params?.until) q.set("until", params.until);
   if (params?.status) q.set("status", params.status);
   if (params?.platform) q.set("platform", params.platform);
   if (params?.intent) q.set("intent", params.intent);
@@ -214,8 +218,10 @@ export async function mentionPlatformCounts(params?: {
   search?: string;
   tag?: string;
   sentiment?: string;
+  since?: string;
 }) {
   const q = new URLSearchParams();
+  if (params?.since) q.set("since", params.since);
   if (params?.queue) q.set("queue", params.queue);
   if (params?.tag) q.set("tag", params.tag);
   if (params?.sentiment) q.set("sentiment", params.sentiment);

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Text } from "@/components/ui/text";
@@ -18,7 +18,7 @@ import {
   scoringPrecision,
   replyAttribution,
 } from "@/lib/api";
-import { QUERY_KEYS } from "@/lib/constants";
+import { INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
 import {
   TrendingUp,
   MessageSquare,
@@ -34,18 +34,14 @@ import {
   MousePointerClick,
 } from "lucide-react";
 
-import { platformTone, stageTone } from "@/lib/tones";
+import { intentBar, platformBar, platformTone, stageBar, stageTone } from "@/lib/tones";
 export const Route = createFileRoute("/_dashboard/analytics")({
   component: AnalyticsPage,
 });
 
-const intentLabels: Record<string, string> = {
-  buy_signal: "Buy Signal",
-  complaint: "Complaint",
-  recommendation_ask: "Recommendation",
-  comparison: "Comparison",
-  general: "General",
-};
+// Every count here covers the last 30 days; links open the Inbox on the same window.
+const INBOX_30D = { queue: "all", posted: "30d" } as const;
+const rowLink = "-mx-2 block rounded-md px-2 py-1 transition-colors hover:bg-accent";
 
 function AnalyticsPage() {
   const queryClient = useQueryClient();
@@ -99,13 +95,13 @@ function AnalyticsPage() {
   });
 
   const stats = [
-    { label: "Mentions (30d)", value: overview?.mentions_30d, icon: MessageSquare },
-    { label: "New / Unread", value: overview?.mentions_new, icon: Zap },
-    { label: "Total Leads", value: overview?.total_leads, icon: Users },
-    { label: "Converted", value: overview?.converted_leads, icon: TrendingUp },
+    { label: "Mentions (30d)", value: overview?.mentions_30d, icon: MessageSquare, to: "/inbox", search: INBOX_30D },
+    { label: "New / Unread", value: overview?.mentions_new, icon: Zap, to: "/inbox", search: { queue: "all", status: "new" } },
+    { label: "Total Leads", value: overview?.total_leads, icon: Users, to: "/pipeline" },
+    { label: "Converted", value: overview?.converted_leads, icon: TrendingUp, to: "/pipeline" },
     { label: "Replies Posted", value: overview?.replies_posted, icon: Send },
-    { label: "Active Keywords", value: overview?.active_keywords, icon: Target },
-  ];
+    { label: "Active Keywords", value: overview?.active_keywords, icon: Target, to: "/keywords" },
+  ] as const;
 
   const conversionRate =
     overview && overview.total_leads > 0
@@ -120,8 +116,8 @@ function AnalyticsPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {stats.map((s) => {
           const Icon = s.icon;
-          return (
-            <Card key={s.label}>
+          const card = (
+            <Card className={"to" in s ? "h-full transition-colors hover:border-foreground/20 hover:bg-accent/40" : "h-full"}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span className="text-xs font-medium">{s.label}</span>
@@ -132,6 +128,11 @@ function AnalyticsPage() {
                 </p>
               </CardContent>
             </Card>
+          );
+          return "to" in s ? (
+            <Link key={s.label} to={s.to} search={"search" in s ? s.search : undefined}>{card}</Link>
+          ) : (
+            <div key={s.label}>{card}</div>
           );
         })}
       </div>
@@ -209,15 +210,15 @@ function AnalyticsPage() {
               const total = (platforms ?? []).reduce((a, x) => a + x.count, 0);
               const pct = total > 0 ? (p.count / total) * 100 : 0;
               return (
-                <div key={p.platform} className="space-y-1">
+                <Link key={p.platform} to="/inbox" search={{ ...INBOX_30D, platform: p.platform }} className={`${rowLink} space-y-1`}>
                   <div className="flex items-center justify-between">
                     <Badge className={platformTone(p.platform)} size="sm">{p.platform}</Badge>
-                    <Text as="span" className="text-sm font-medium">{p.count}</Text>
+                    <Text as="span" className="text-sm font-medium tabular-nums">{p.count}</Text>
                   </div>
                   <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-foreground/70 rounded-full" style={{ width: `${pct}%` }} />
+                    <div className={`h-full rounded-full ${platformBar(p.platform)}`} style={{ width: `${pct}%` }} />
                   </div>
-                </div>
+                </Link>
               );
             })}
           </CardContent>
@@ -232,15 +233,15 @@ function AnalyticsPage() {
               const total = (intents ?? []).reduce((a, x) => a + x.count, 0);
               const pct = total > 0 ? (item.count / total) * 100 : 0;
               return (
-                <div key={item.intent} className="space-y-1">
+                <Link key={item.intent} to="/inbox" search={{ ...INBOX_30D, intent: item.intent }} className={`${rowLink} space-y-1`}>
                   <div className="flex items-center justify-between">
-                    <Text as="span" className="text-sm">{intentLabels[item.intent] ?? item.intent}</Text>
-                    <Text as="span" className="text-sm font-medium">{item.count}</Text>
+                    <Text as="span" className="text-sm">{INTENT_LABELS[item.intent] ?? item.intent}</Text>
+                    <Text as="span" className="text-sm font-medium tabular-nums">{item.count}</Text>
                   </div>
                   <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${item.intent === "buy_signal" ? "bg-foreground" : "bg-foreground/40"}`} style={{ width: `${pct}%` }} />
+                    <div className={`h-full rounded-full ${intentBar(item.intent)}`} style={{ width: `${pct}%` }} />
                   </div>
-                </div>
+                </Link>
               );
             })}
           </CardContent>
@@ -259,14 +260,13 @@ function AnalyticsPage() {
               const max = Math.max(...(funnel ?? []).map((f) => f.count), 1);
               const pct = (count / max) * 100;
               return (
-                <div key={stage} className="flex items-center gap-3">
+                <Link key={stage} to="/pipeline" className="flex items-center gap-3 rounded-md transition-opacity hover:opacity-80">
                   <Badge className={`${stageTone(stage)} w-24 justify-center`} size="sm">{stage}</Badge>
-                  <div className="flex-1 h-6 bg-secondary rounded-lg border border-border overflow-hidden">
-                    <div className="h-full bg-foreground/70 rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(pct, 8)}%` }}>
-                      <span className="text-xs font-medium text-background tabular-nums">{count}</span>
-                    </div>
+                  <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${stageBar(stage)}`} style={{ width: `${count ? Math.max(pct, 2) : 0}%` }} />
                   </div>
-                </div>
+                  <span className="w-10 text-right text-xs font-medium tabular-nums">{count}</span>
+                </Link>
               );
             })}
           </CardContent>
@@ -277,15 +277,15 @@ function AnalyticsPage() {
           <CardHeader><CardTitle>Top Keywords</CardTitle></CardHeader>
           <CardContent>
             {!(keywords ?? []).length && <Text as="p" className="text-sm text-muted-foreground">No keywords tracked yet.</Text>}
-            <div className="space-y-2">
+            <div className="space-y-1">
               {(keywords ?? []).map((kw, i) => (
-                <div key={kw.term} className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-5">{i + 1}.</span>
-                    <Text as="span" className="text-sm font-medium">{kw.term}</Text>
+                <Link key={kw.term} to="/inbox" search={{ ...INBOX_30D, q: kw.term }} className={`${rowLink} flex items-center justify-between`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-muted-foreground w-5 shrink-0">{i + 1}.</span>
+                    <Text as="span" className="text-sm font-medium truncate">{kw.term}</Text>
                   </div>
                   <Badge variant="outline" size="sm">{kw.mention_count} mentions</Badge>
-                </div>
+                </Link>
               ))}
             </div>
           </CardContent>
@@ -296,7 +296,7 @@ function AnalyticsPage() {
       <Card id="utm-links">
         <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4" /> UTM Tracking Links
+            <Link2 className="h-4 w-4" /> Tracked links
           </CardTitle>
           <Button size="sm" variant="outline" onClick={() => setShowNewLink((v) => !v)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> New Link
@@ -337,7 +337,10 @@ function AnalyticsPage() {
             </div>
           )}
           {utmLinks.length === 0 && !showNewLink && (
-            <Text as="p" className="text-sm text-muted-foreground">No tracking links yet. Create one to start attributing conversions.</Text>
+            <Text as="p" className="text-sm text-muted-foreground">
+              A tracked link is a short link to your site (for example in a reply you post). Each click is counted here,
+              and signups reported by your conversion webhook show up as "Signups" above.
+            </Text>
           )}
           <div className="space-y-1">
             {utmLinks.map((link) => (
