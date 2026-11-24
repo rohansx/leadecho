@@ -10,7 +10,7 @@ import (
 
 func TestSoloPlan(t *testing.T) {
 	p, ok := PlanByID("solo")
-	if !ok || p.PriceCents != 1900 || p.MonthlyCredits != 1500 || p.KeywordLimit != 5 || p.PaidData {
+	if !ok || p.PriceCents != 1900 || p.MonthlyCredits != 1500 || p.KeywordLimit != 5 || !p.PaidData {
 		t.Fatalf("solo = %+v %v", p, ok)
 	}
 	for _, id := range []string{"starter", "pro"} {

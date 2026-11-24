@@ -162,7 +162,7 @@ type foundPerson struct {
 func (m *Monitor) scanHiring(ctx context.Context, wsID string) {
 	// Checked before claiming today's run: a run that can't make paid calls
 	// must not count as "ran today".
-	if m.hiringPlanner == nil || !m.treg.Enabled() || m.credits.PaidPlatformsLocked(ctx, wsID) || m.credits.PaidDataPaused(ctx) {
+	if m.hiringPlanner == nil || !m.treg.Enabled() || m.linkedInLocked(ctx, wsID) || m.credits.PaidDataPaused(ctx) {
 		return
 	}
 	bp, err := m.q.GetBrandProfile(ctx, wsID)

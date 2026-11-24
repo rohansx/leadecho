@@ -4,9 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 	"leadecho/internal/monitor"
 )
+
+// allLocked: a plan without paid data.
+var allLocked = billing.LockedFor("free", false)
 
 var setupT0 = time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
 
@@ -21,7 +25,7 @@ func TestBuildSetupStatus(t *testing.T) {
 		check  func(t *testing.T, s setupStatus)
 	}{
 		"free plan, the round has not reached it": {
-			f:      setupFacts{Searches: 6, PaidLocked: true, CompanyEnabled: true},
+			f:      setupFacts{Searches: 6, Locked: allLocked, CompanyEnabled: true},
 			states: [4]string{stageWaiting, stageWaiting, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.Stages[0].EveryMinutes != 5 || s.Stages[2].Reason != "plan" || s.Stages[3].Reason != "plan" || s.FinishedEmpty {
@@ -29,8 +33,17 @@ func TestBuildSetupStatus(t *testing.T) {
 				}
 			},
 		},
+		"solo plan: Reddit searched, no company leads": {
+			f:      setupFacts{Counts: counts(40, 0, 0, 0), Searches: 6, Searched: 6, PaidSearches: 2, PaidSearched: 2, Locked: billing.LockedFor("solo", true), CompanyEnabled: true},
+			states: [4]string{stageDone, stageDone, stageDone, stageNotIncluded},
+			check: func(t *testing.T, s setupStatus) {
+				if s.Stages[3].Reason != "plan" {
+					t.Errorf("%+v", s)
+				}
+			},
+		},
 		"free plan, searching and scoring": {
-			f:      setupFacts{Counts: counts(40, 15, 0, 0), Searches: 6, Searched: 2, PaidLocked: true, CompanyEnabled: true},
+			f:      setupFacts{Counts: counts(40, 15, 0, 0), Searches: 6, Searched: 2, Locked: allLocked, CompanyEnabled: true},
 			states: [4]string{stageRunning, stageRunning, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if *s.Stages[0].Posts != 40 || *s.Stages[1].Scored != 25 || *s.Stages[1].Unscored != 15 || s.FinishedEmpty {
@@ -39,7 +52,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"free plan, searched, still scoring": {
-			f:      setupFacts{Counts: counts(40, 3, 0, 0), Searches: 6, Searched: 6, PaidLocked: true},
+			f:      setupFacts{Counts: counts(40, 3, 0, 0), Searches: 6, Searched: 6, Locked: allLocked},
 			states: [4]string{stageDone, stageRunning, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.FinishedEmpty || s.Stages[3].Reason != "server" {
@@ -48,7 +61,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"free plan, finished with nothing": {
-			f:      setupFacts{Counts: counts(40, 0, 0, 0), Searches: 6, Searched: 6, PaidLocked: true, CompanyEnabled: true},
+			f:      setupFacts{Counts: counts(40, 0, 0, 0), Searches: 6, Searched: 6, Locked: allLocked, CompanyEnabled: true},
 			states: [4]string{stageDone, stageDone, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if !s.FinishedEmpty || s.HasLead {
@@ -57,7 +70,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"finished with a lead is not empty": {
-			f:      setupFacts{Counts: counts(40, 0, 2, 0), Searches: 6, Searched: 6, PaidLocked: true},
+			f:      setupFacts{Counts: counts(40, 0, 2, 0), Searches: 6, Searched: 6, Locked: allLocked},
 			states: [4]string{stageDone, stageDone, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.FinishedEmpty || !s.HasLead || s.Leads.Post != 2 {
@@ -122,7 +135,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"out of credits: posts wait unscored, nothing is called finished": {
-			f:      setupFacts{Counts: counts(30, 30, 0, 0), Searches: 6, Searched: 6, PaidLocked: true, Blocked: "out_of_credits"},
+			f:      setupFacts{Counts: counts(30, 30, 0, 0), Searches: 6, Searched: 6, Locked: allLocked, Blocked: "out_of_credits"},
 			states: [4]string{stageDone, stageWaiting, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.Stages[1].Reason != "out_of_credits" || s.Blocked != "out_of_credits" || s.FinishedEmpty {
@@ -161,7 +174,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"a lead and unscored posts: not empty, scoring still runs": {
-			f:      setupFacts{Counts: counts(40, 5, 1, 0), Searches: 6, Searched: 6, PaidLocked: true},
+			f:      setupFacts{Counts: counts(40, 5, 1, 0), Searches: 6, Searched: 6, Locked: allLocked},
 			states: [4]string{stageDone, stageRunning, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.FinishedEmpty || !s.HasLead {
@@ -170,7 +183,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"searched and found no post at all: finished empty": {
-			f:      setupFacts{Searches: 6, Searched: 6, PaidLocked: true},
+			f:      setupFacts{Searches: 6, Searched: 6, Locked: allLocked},
 			states: [4]string{stageDone, stageDone, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if !s.FinishedEmpty || *s.Stages[1].Scored != 0 {
@@ -179,7 +192,7 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"paused by an operator mid-search: waiting, not running, not finished": {
-			f:      setupFacts{Counts: counts(10, 0, 0, 0), Searches: 6, Searched: 2, PaidLocked: true, Blocked: "paused"},
+			f:      setupFacts{Counts: counts(10, 0, 0, 0), Searches: 6, Searched: 2, Locked: allLocked, Blocked: "paused"},
 			states: [4]string{stageWaiting, stageWaiting, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.Stages[0].Reason != "paused" || s.FinishedEmpty {
@@ -197,11 +210,11 @@ func TestBuildSetupStatus(t *testing.T) {
 			},
 		},
 		"this process is scanning the workspace": {
-			f:      setupFacts{Searches: 6, Scanning: true, PaidLocked: true},
+			f:      setupFacts{Searches: 6, Scanning: true, Locked: allLocked},
 			states: [4]string{stageRunning, stageWaiting, stageNotIncluded, stageNotIncluded},
 		},
 		"no active keyword": {
-			f:      setupFacts{PaidLocked: true},
+			f:      setupFacts{Locked: allLocked},
 			states: [4]string{stageWaiting, stageWaiting, stageNotIncluded, stageNotIncluded},
 			check: func(t *testing.T, s setupStatus) {
 				if s.Stages[0].Reason != "no_keywords" || s.FinishedEmpty {
@@ -236,14 +249,19 @@ func TestSearchProgress(t *testing.T) {
 		{KeywordID: "a", Platform: "twitter", LastScannedAt: setupT0.Add(-time.Hour)},    // every 6h: next in 5h
 		{KeywordID: "c", Platform: "hackernews", LastScannedAt: setupT0.Add(-time.Hour)}, // inactive: not counted
 	}
-	searches, searched, paid, paidSearched, next := searchProgress(kws, scans, false)
+	searches, searched, paid, paidSearched, next := searchProgress(kws, scans, nil)
 	if searches != 5 || searched != 3 || paid != 3 || paidSearched != 2 || !next.Equal(setupT0.Add(5*time.Hour)) {
 		t.Fatalf("paid plan: %d %d %d %d %v", searches, searched, paid, paidSearched, next)
 	}
 	// Without paid data the paid platforms are not searched at all.
-	searches, searched, paid, paidSearched, next = searchProgress(kws, scans, true)
+	searches, searched, paid, paidSearched, next = searchProgress(kws, scans, allLocked)
 	if searches != 2 || searched != 1 || paid != 0 || paidSearched != 0 || !next.IsZero() {
 		t.Fatalf("free plan: %d %d %d %d %v", searches, searched, paid, paidSearched, next)
+	}
+	// Solo: Reddit counts as a paid search; X and LinkedIn are not searched.
+	searches, searched, paid, paidSearched, next = searchProgress(kws, scans, billing.LockedFor("solo", true))
+	if searches != 3 || searched != 2 || paid != 1 || paidSearched != 1 || !next.Equal(setupT0.Add(24*time.Hour)) {
+		t.Fatalf("solo plan: %d %d %d %d %v", searches, searched, paid, paidSearched, next)
 	}
 }
 

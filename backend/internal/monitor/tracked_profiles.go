@@ -55,6 +55,12 @@ func (m *Monitor) pollTrackedProfiles(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+		if m.credits.LockedPlatforms(ctx, p.WorkspaceID)[trackedPlatform(p.Platform)] {
+			// The plan doesn't include this platform: wait an interval rather
+			// than come back every tick.
+			_ = m.q.MarkTrackedProfilePolled(ctx, database.MarkTrackedProfilePolledParams{ID: p.ID, WorkspaceID: p.WorkspaceID})
+			continue
+		}
 		alerts, ok := m.pollTrackedProfile(ctx, p)
 		if !ok { // fetch failed (treg paused/outage): retry next tick, don't skip a whole interval
 			continue
@@ -91,6 +97,15 @@ func (m *Monitor) pollTrackedProfile(ctx context.Context, p database.TrackedProf
 		}
 	}
 	return alerts, true
+}
+
+// trackedPlatform maps a tracked profile's platform ("x", "linkedin") to the
+// billing platform name.
+func trackedPlatform(p string) string {
+	if p == "x" {
+		return "twitter"
+	}
+	return p
 }
 
 func trackedRequest(p database.TrackedProfile) (string, map[string]any) {

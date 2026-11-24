@@ -10,8 +10,10 @@ export interface Plan {
   price_cents: number;
   monthly_credits: number;
   keyword_limit: number;
-  /** Includes X, Reddit and LinkedIn (paid data). */
+  /** Includes paid data (X, Reddit and LinkedIn, less locked_platforms). */
   paid_data: boolean;
+  /** Paid platforms the plan still can't search (Solo: X and LinkedIn). */
+  locked_platforms: string[] | null;
 }
 
 export interface BillingState {
@@ -29,8 +31,8 @@ export interface BillingState {
   can_checkout: boolean;
   /** Items this server can sell (a plan with no Dodo product is left out). */
   checkout_items: CheckoutItem[];
-  /** X, Reddit and LinkedIn need a paid plan on this workspace. */
-  paid_platforms_locked: boolean;
+  /** Platforms this workspace's plan can't search; the app shows them locked. */
+  locked_platforms: string[];
   /** The daily prospect scan runs for this workspace (Pro, not switched off). */
   prospect_daily: boolean;
   /** This workspace may switch daily prospecting on (Pro, or self-host). */
@@ -43,8 +45,8 @@ export async function setProspectDaily(on: boolean): Promise<void> {
   await request("/billing/prospecting", { method: "PUT", body: JSON.stringify({ on }) });
 }
 
-/** Platforms searched with paid data (mirrors billing.PaidPlatforms). */
-export const PAID_PLATFORMS: readonly string[] = ["twitter", "linkedin", "reddit"];
+/** Platforms searched with paid data (mirrors billing.PaidPlatforms), with their labels. */
+export const PAID_PLATFORMS: readonly (readonly [string, string])[] = [["twitter", "X"], ["reddit", "Reddit"], ["linkedin", "LinkedIn"]];
 
 export const BILLING_QUERY = ["billing"];
 

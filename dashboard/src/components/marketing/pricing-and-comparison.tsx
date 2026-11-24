@@ -12,15 +12,15 @@ const plans = [
     for: "Try it on the free sources",
     price: 0,
     features: ["300 credits a month", "3 active keywords", "Hacker News, Dev.to, Bluesky", "AI scoring and reply drafts", "Slack, Discord and email alerts"],
-    locked: ["X, Reddit and LinkedIn"],
+    locked: ["Reddit (Solo and up)", "X and LinkedIn (Starter and up)"],
     cta: "Start free",
   },
   {
     name: "Solo",
     for: "For founders finding their first customers",
     price: 19,
-    features: ["1,500 credits a month", "5 active keywords", "Hacker News, Dev.to, Bluesky", "AI scoring and reply drafts", "Slack, Discord and email alerts"],
-    locked: ["X, Reddit and LinkedIn"],
+    features: ["1,500 credits a month", "5 active keywords", "Reddit, Hacker News, Dev.to, Bluesky", "AI scoring and reply drafts", "Slack, Discord and email alerts"],
+    locked: ["X and LinkedIn (Starter and up)"],
     cta: "Choose Solo",
   },
   {
@@ -100,9 +100,7 @@ export function PricingSection() {
               {p.locked?.map((f) => (
                 <li key={f} className="flex gap-2.5 text-muted-foreground">
                   <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>
-                    {f} <span className="text-[13px]">(Starter and up)</span>
-                  </span>
+                  <span>{f}</span>
                 </li>
               ))}
             </ul>

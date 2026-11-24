@@ -297,6 +297,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 				engScorer = rs
 			}
 			engH := handler.NewEngagersHandler(engagers.NewImporter(queries, mon.Treg(), engScorer, logger), queries, crm)
+			engH.Locked = credits.LockedPlatforms // billing: Solo has no LinkedIn
 			r.With(middleware.WorkspaceQuota(engagerQuota)).Post("/linkedin/engagers", engH.Pull)
 			r.Post("/linkedin/engagers/push", engH.Push)
 			trackedH := handler.NewTrackedProfilesHandler(queries)

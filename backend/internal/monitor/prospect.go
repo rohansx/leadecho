@@ -142,7 +142,7 @@ func (m *Monitor) prospectDailyOn(ctx context.Context, wsID string) bool {
 }
 
 func (m *Monitor) scanProspects(ctx context.Context, wsID string) {
-	if m.prospectJudge == nil || m.hiringPlanner == nil || !m.treg.Enabled() || m.credits.PaidPlatformsLocked(ctx, wsID) || m.credits.PaidDataPaused(ctx) {
+	if m.prospectJudge == nil || m.hiringPlanner == nil || !m.treg.Enabled() || m.linkedInLocked(ctx, wsID) || m.credits.PaidDataPaused(ctx) {
 		return
 	}
 	if forcedScan(ctx) != ScanProspects && !m.prospectDailyOn(ctx, wsID) {

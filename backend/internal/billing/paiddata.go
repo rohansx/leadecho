@@ -19,15 +19,35 @@ var (
 // can't use them; the app shows them locked and the monitor skips them.
 var PaidPlatforms = map[string]bool{"twitter": true, "linkedin": true, "reddit": true}
 
-// PaidPlatformsLocked reports whether this workspace can't use PaidPlatforms:
-// hosted (credits enforced) with paid data off. Self-host is never locked,
-// and a lookup error fails open so monitoring doesn't stop.
-func (c *Credits) PaidPlatformsLocked(ctx context.Context, wsID string) bool {
-	if !c.Enforced() {
-		return false
+// LockedFor returns the platforms a workspace on plan planID can't search:
+// every PaidPlatform without paid data, otherwise the plan's LockedPlatforms.
+func LockedFor(planID string, paidData bool) map[string]bool {
+	out := map[string]bool{}
+	if !paidData {
+		for p := range PaidPlatforms {
+			out[p] = true
+		}
+		return out
 	}
-	access, err := c.q.GetWorkspaceAccess(ctx, wsID)
-	return err == nil && !access.PaidData
+	plan, _ := PlanByID(planID)
+	for _, p := range plan.LockedPlatforms {
+		out[p] = true
+	}
+	return out
+}
+
+// LockedPlatforms returns the platforms this workspace can't search (see
+// LockedFor). nil on self-host (credits not enforced) and on a lookup error,
+// which fails open so monitoring doesn't stop.
+func (c *Credits) LockedPlatforms(ctx context.Context, wsID string) map[string]bool {
+	if !c.Enforced() {
+		return nil
+	}
+	st, err := c.q.GetBillingState(ctx, wsID)
+	if err != nil {
+		return nil
+	}
+	return LockedFor(st.Plan, st.PaidData)
 }
 
 // PaidDataPaused reports whether the operator switched paid data off for

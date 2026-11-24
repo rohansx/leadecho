@@ -121,7 +121,7 @@ func sameSet(a, b []string) bool {
 // Apply carries out the review's suggestions that plan allows and records
 // each as decided by the judge. keywordLimit is the plan's keyword cap (0 or
 // less: no keywords are added). It returns a note for the ops console.
-func Apply(ctx context.Context, q *database.Queries, wsID string, st *Stored, keywordLimit int, paidLocked bool, now time.Time) (string, error) {
+func Apply(ctx context.Context, q *database.Queries, wsID string, st *Stored, keywordLimit int, locked map[string]bool, now time.Time) (string, error) {
 	kws, err := q.ListKeywords(ctx, wsID)
 	if err != nil {
 		return "", fmt.Errorf("list keywords: %w", err)
@@ -161,7 +161,7 @@ func Apply(ctx context.Context, q *database.Queries, wsID string, st *Stored, ke
 	}
 	var paused, moved, added int
 	var firstErr error
-	for _, a := range plan(cur, kws, leads, Platforms(paidLocked), room, now) {
+	for _, a := range plan(cur, kws, leads, Platforms(locked), room, now) {
 		if err := applyOne(ctx, q, wsID, profileID, a); err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s %q: %w", a.kind, a.term+termOf(a.kw), err)

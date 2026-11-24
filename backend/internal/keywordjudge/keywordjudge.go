@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"leadecho/internal/ai"
-	"leadecho/internal/billing"
 	"leadecho/internal/database"
 )
 
@@ -106,12 +105,12 @@ func Brief(bp database.BrandProfile) ai.ProductBrief {
 	return b
 }
 
-// Platforms are the sources a suggestion may use: all of them, or only the
-// free ones when the workspace cannot use paid data.
-func Platforms(paidLocked bool) []string {
+// Platforms are the sources a suggestion may use: all of them less the
+// workspace's locked ones (billing.Credits.LockedPlatforms).
+func Platforms(locked map[string]bool) []string {
 	out := []string{}
 	for _, p := range ai.KeywordPlatforms {
-		if paidLocked && billing.PaidPlatforms[p] {
+		if locked[p] {
 			continue
 		}
 		out = append(out, p)
@@ -120,7 +119,7 @@ func Platforms(paidLocked bool) []string {
 }
 
 // Suggest asks for count new keywords for the workspace.
-func Suggest(ctx context.Context, q *database.Queries, s Suggester, wsID string, paidLocked bool, count int) ([]ai.SuggestedKeyword, error) {
+func Suggest(ctx context.Context, q *database.Queries, s Suggester, wsID string, locked map[string]bool, count int) ([]ai.SuggestedKeyword, error) {
 	bp, err := q.GetBrandProfile(ctx, wsID)
 	if err != nil || bp.Product == "" {
 		return nil, ErrNoProfile
@@ -134,14 +133,14 @@ func Suggest(ctx context.Context, q *database.Queries, s Suggester, wsID string,
 		existing = append(existing, k.Term)
 	}
 	return s.SuggestKeywords(ctx, wsID, ai.KeywordSuggestRequest{
-		Brief: Brief(bp), Existing: existing, Platforms: Platforms(paidLocked), Count: count,
+		Brief: Brief(bp), Existing: existing, Platforms: Platforms(locked), Count: count,
 	})
 }
 
 // Review runs the judge for one workspace and stores its report. by is who
 // asked ("weekly", or an email). With rs set it also tests the scoring
 // rules the judge proposes and keeps them if they pass (see rules.go).
-func Review(ctx context.Context, q *database.Queries, r Reviewer, rs Rescorer, wsID, by string, paidLocked bool, now time.Time) (*Stored, error) {
+func Review(ctx context.Context, q *database.Queries, r Reviewer, rs Rescorer, wsID, by string, locked map[string]bool, now time.Time) (*Stored, error) {
 	bp, err := q.GetBrandProfile(ctx, wsID)
 	if err != nil || bp.Product == "" {
 		return nil, ErrNoProfile
@@ -173,7 +172,7 @@ func Review(ctx context.Context, q *database.Queries, r Reviewer, rs Rescorer, w
 	}
 	in := ai.KeywordReviewInput{
 		Brief: Brief(bp), Keywords: stats, Posts: reviewPosts(posts),
-		Platforms: Platforms(paidLocked), Previous: previousText(prev, stats), Days: int(Window.Hours() / 24),
+		Platforms: Platforms(locked), Previous: previousText(prev, stats), Days: int(Window.Hours() / 24),
 		Rules: rules.Texts(), Removed: rules.Removed,
 	}
 	rev, err := r.ReviewKeywords(ctx, wsID, in)
