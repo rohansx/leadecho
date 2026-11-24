@@ -14,7 +14,6 @@
 package ai
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,24 +21,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 )
-
-// evalCase is one line of cases.jsonl.
-type evalCase struct {
-	ID        string `json:"id"`
-	Workspace string `json:"workspace"` // anonymised, e.g. ws_03
-	Context   string `json:"context"`   // key into contexts.json
-	Platform  string `json:"platform"`
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	Label     string `json:"label"`  // lead | not_lead
-	Source    string `json:"source"` // where the label came from
-	Reason    string `json:"reason,omitempty"`
-}
 
 type evalResult struct {
 	evalCase
@@ -60,7 +45,10 @@ func TestFeedbackEval(t *testing.T) {
 		t.Skip("ANTHROPIC_API_KEY and LEADECHO_EVAL_DIR must be set")
 	}
 	model := envOr("EVAL_MODEL", classifyEvalModel)
-	maxUSD, _ := strconv.ParseFloat(envOr("EVAL_MAX_USD", "8"), 64)
+	maxUSD, err := evalBudget(model, envOr("EVAL_MAX_USD", "8"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	cases, contexts := loadEvalSet(t, dir)
 	if n, _ := strconv.Atoi(os.Getenv("EVAL_LIMIT")); n > 0 && n < len(cases) {
 		cases = cases[:n]
@@ -167,57 +155,6 @@ func group(m map[string]*evalMetrics, k string) *evalMetrics {
 		m[k] = &evalMetrics{}
 	}
 	return m[k]
-}
-
-// withoutCase drops a few-shot example that is the case itself, so a post
-// the workspace already labelled is not scored with its own answer.
-func withoutCase(sc ScoringContext, c evalCase) ScoringContext {
-	key := clip(c.Title+c.Content, 200)
-	var ex []ScoringExample
-	for _, e := range sc.Examples {
-		if clip(e.Title+e.Content, 200) != key {
-			ex = append(ex, e)
-		}
-	}
-	sc.Examples = ex
-	return sc
-}
-
-func loadEvalSet(t *testing.T, dir string) ([]evalCase, map[string]ScoringContext) {
-	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(dir, "contexts.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	contexts := map[string]ScoringContext{}
-	if err := json.Unmarshal(raw, &contexts); err != nil {
-		t.Fatalf("contexts.json: %v", err)
-	}
-	f, err := os.Open(filepath.Join(dir, "cases.jsonl"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	var cases []evalCase
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 1<<20), 1<<20)
-	for sc.Scan() {
-		if strings.TrimSpace(sc.Text()) == "" {
-			continue
-		}
-		var c evalCase
-		if err := json.Unmarshal(sc.Bytes(), &c); err != nil {
-			t.Fatalf("cases.jsonl line %d: %v", len(cases)+1, err)
-		}
-		if c.Label != "lead" && c.Label != "not_lead" {
-			t.Fatalf("%s: label %q", c.ID, c.Label)
-		}
-		cases = append(cases, c)
-	}
-	if err := sc.Err(); err != nil {
-		t.Fatal(err)
-	}
-	return cases, contexts
 }
 
 func fmtMetrics(m *evalMetrics) string {
