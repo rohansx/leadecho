@@ -56,17 +56,6 @@ func TestMergeAgentKeepsOnlyWhatPagesShow(t *testing.T) {
 	}
 }
 
-func TestConfirmRaisesOneLinkWithoutMutating(t *testing.T) {
-	p := &Profile{Links: []Link{{Kind: KindLinkedIn, URL: "https://www.linkedin.com/in/x", Confidence: 0.7}}}
-	q := Confirm(p, "https://www.linkedin.com/in/x", 0.9, "name_confirmed")
-	if _, ok := q.Best(KindLinkedIn); !ok {
-		t.Fatal("confirmed link should be shown")
-	}
-	if p.Links[0].Confidence != 0.7 {
-		t.Fatal("Confirm must not modify its input")
-	}
-}
-
 func TestMergeAgentNeedsExactLinkNotSubstring(t *testing.T) {
 	base := &Profile{Links: []Link{{Kind: KindWebsite, URL: "https://jane.dev", Confidence: 0.95}}}
 	f := &ai.PersonFindings{

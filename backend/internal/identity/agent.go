@@ -299,20 +299,6 @@ func upsertLink(links []Link, l Link) []Link {
 	return append(links, l)
 }
 
-// Confirm returns a copy of p with the link at u raised to conf (a paid
-// lookup confirmed it is this person).
-func Confirm(p *Profile, u string, conf float64, method string) *Profile {
-	out := *p
-	out.Links = make([]Link, len(p.Links))
-	for i, l := range p.Links {
-		if l.URL == u && l.Confidence < conf {
-			l.Confidence, l.Method = conf, method
-		}
-		out.Links[i] = l
-	}
-	return &out
-}
-
 // normalize makes "https://Jane.dev/about/" and "http://jane.dev/about" one key.
 // ponytail: a search-result URL with tracking params won't match its clean form.
 func normalize(s string) string {

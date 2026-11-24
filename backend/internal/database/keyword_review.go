@@ -123,14 +123,14 @@ WHERE id = $1 AND settings->'keyword_review'->'suggestions' @> jsonb_build_array
 	return tag.RowsAffected() == 1, nil
 }
 
-// ListWorkspacesDueKeywordReview returns the Pro workspaces with active
+// ListWorkspacesDueKeywordReview returns the paid workspaces with active
 // keywords whose last review, or last attempt at one, was before `before`
 // (or that were created before it and never reviewed), with no scan waiting
 // or running; at most limit of them.
 func (q *Queries) ListWorkspacesDueKeywordReview(ctx context.Context, before time.Time, limit int) ([]string, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT w.id::text FROM workspaces w
-WHERE w.plan = 'pro' AND NOT w.scanning_paused
+WHERE w.plan <> 'free' AND NOT w.scanning_paused
   AND EXISTS (SELECT 1 FROM keywords k WHERE k.workspace_id = w.id AND k.is_active)
   AND EXISTS (SELECT 1 FROM brand_profiles b WHERE b.workspace_id = w.id AND b.product <> '')
   AND COALESCE(GREATEST((w.settings->'keyword_review'->>'generated_at')::timestamptz,

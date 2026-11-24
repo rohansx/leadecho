@@ -168,7 +168,10 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 					bestSim = similar[0].Similarity
 				}
 
-				if lowPainPointSimilarity(len(similar), bestSim) {
+				// A re-score never lets this cheap gate overrule the model's
+				// earlier lead verdict: it dropped real leads (similarity
+				// 0.30-0.40) and left their lead rows with no score.
+				if lowPainPointSimilarity(len(similar), bestSim) && !m.rescoringLead(ctx, wsID, a.ID) {
 					// Low similarity, update metadata and skip
 					if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 						ID:              a.ID,
@@ -439,6 +442,15 @@ func scoreStage1Rules(title, content string) bool {
 	}
 
 	return true
+}
+
+// rescoringLead: an operator re-score of a post that is already a lead.
+func (m *Monitor) rescoringLead(ctx context.Context, ws, mentionID string) bool {
+	if !operatorRescore(ctx) {
+		return false
+	}
+	_, err := m.q.GetLeadByMention(ctx, database.GetLeadByMentionParams{MentionID: pgUUID(mentionID), WorkspaceID: ws})
+	return err == nil
 }
 
 // operatorRescore: an operator's re-score of posts already scored, which the

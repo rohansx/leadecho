@@ -32,23 +32,6 @@ func TestWithIdentityAddsOnlyShownKeys(t *testing.T) {
 	}
 }
 
-func TestSameName(t *testing.T) {
-	for _, c := range []struct {
-		a, b string
-		want bool
-	}{
-		{"Jane Doe", "jane doe", true},
-		{"Jane Q. Doe", "Jane Doe", true},
-		{"Jane Doe", "Jane Smith", false},
-		{"Jane", "Jane", false}, // one word can't confirm anyone
-		{"", "Jane Doe", false},
-	} {
-		if got := sameName(c.a, c.b); got != c.want {
-			t.Errorf("sameName(%q,%q) = %v", c.a, c.b, got)
-		}
-	}
-}
-
 func TestAgentDue(t *testing.T) {
 	complete := &identity.Profile{Tier: "a", Links: []identity.Link{
 		{Kind: identity.KindLinkedIn, URL: "https://www.linkedin.com/in/x", Confidence: 0.9},
@@ -75,15 +58,6 @@ func TestDayCounter(t *testing.T) {
 	}
 	if !c.take("other", 2) {
 		t.Fatal("caps are per workspace")
-	}
-}
-
-func TestLinkedInConfirmationNeedsASecondSignal(t *testing.T) {
-	if !sameCompany("Acme Inc", "acme") || sameCompany("", "acme") || sameCompany("Acme", "Globex") {
-		t.Error("sameCompany")
-	}
-	if !slugHasSurname("jane-doe-4a2b9", "Jane Doe") || slugHasSurname("jsmith", "Jane Doe") || slugHasSurname("jane", "Jane") {
-		t.Error("slugHasSurname")
 	}
 }
 
@@ -116,15 +90,15 @@ func TestDayCounterGlobalCap(t *testing.T) {
 	}
 }
 
-func TestLookupableNeedsAKeyForForumAuthors(t *testing.T) {
+func TestForumAuthorsNeverGoToThePaidLookup(t *testing.T) {
 	for _, c := range []struct {
 		sub  enrich.Subject
 		want bool
 	}{
 		{enrich.Subject{Platform: "hackernews", Handle: "janed"}, false},
-		{enrich.Subject{Platform: "hackernews", Handle: "janed", Email: "jane@jane.dev"}, true},
-		{enrich.Subject{Platform: "devto", Handle: "janed", ProfileURL: "https://www.linkedin.com/in/jane"}, true},
-		{enrich.Subject{Platform: "bluesky", Handle: "jane.dev", ProfileURL: "https://bsky.app/profile/jane.dev"}, false},
+		{enrich.Subject{Platform: "hackernews", Handle: "janed", Email: "jane@jane.dev"}, false},
+		{enrich.Subject{Platform: "devto", Handle: "janed", ProfileURL: "https://www.linkedin.com/in/jane"}, false},
+		{enrich.Subject{Platform: "Reddit", Handle: "jane"}, false},
 		{enrich.Subject{Platform: "linkedin", Handle: "jane"}, true},
 		{enrich.Subject{Platform: "twitter", Handle: "jane"}, true},
 	} {

@@ -13,7 +13,7 @@ import (
 
 // The keyword judge runs as a manual scan of kind "keywords": an operator
 // asks in the ops console, the customer asks on the Keywords page, or the
-// weekly loop below asks for every Pro workspace. One path, so it gets the
+// weekly loop below asks for every paid workspace. One path, so it gets the
 // same claim, restart recovery and status as every other scan.
 
 // ScanByWeekly is who asked when the weekly loop requests a review.
@@ -56,6 +56,14 @@ func (m *Monitor) runKeywordReview(ctx context.Context, ws, by string) string {
 		return KeywordReviewFailed
 	}
 	note := topUp + fmt.Sprintf("reviewed %d posts and %d leads from the last %d days: %d suggestions", st.Posts, st.Leads, st.Days, len(st.Suggestions))
+	applied, err := keywordjudge.Apply(ctx, m.q, ws, st, m.keywordLimit(ctx, ws), m.credits.PaidPlatformsLocked(ctx, ws), now)
+	if applied != "" {
+		note += "; " + applied
+	}
+	if err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review: apply")
+		note += "; some changes could not be applied"
+	}
 	lr, err := keywordjudge.LoadRules(ctx, m.q, ws)
 	if err != nil || lr.LastTest == nil || !lr.LastTest.At.Equal(now) {
 		return note // no new rules proposed this time
@@ -81,7 +89,8 @@ func (m *Monitor) rescoreAfterRules(ctx context.Context, ws string) string {
 	return fmt.Sprintf("re-scored %d posts", done)
 }
 
-// watchKeywordReviews asks for a review of each Pro workspace once a week.
+// watchKeywordReviews asks for a review of each paid workspace once a week;
+// the review then applies itself (keywordjudge.Apply).
 func (m *Monitor) watchKeywordReviews(ctx context.Context) {
 	if m.keywordReviewer == nil {
 		return
@@ -133,6 +142,18 @@ func (m *Monitor) RescoreWith(ctx context.Context, wsID, mentionID string, rules
 		return false, err
 	}
 	return qualifiesAsLead(res.RelevanceScore, m.leadLine(ctx, wsID), res.Intent), nil
+}
+
+// keywordLimit is how many active keywords the workspace's plan allows.
+func (m *Monitor) keywordLimit(ctx context.Context, ws string) int {
+	if !m.credits.Enforced() {
+		return keywordjudge.TargetKeywords
+	}
+	bs, err := m.q.GetBillingState(ctx, ws)
+	if err != nil {
+		return 0
+	}
+	return int(bs.KeywordLimit)
 }
 
 // topUpKeywords brings a Pro workspace (any workspace on self-host) up to

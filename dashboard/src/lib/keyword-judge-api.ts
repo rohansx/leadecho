@@ -31,7 +31,7 @@ export interface KeywordReview {
   lead_quality: string;
   suggestions: KeywordSuggestion[];
   scoring: { post: string; note: string }[];
-  decisions: Record<string, "applied" | "dismissed">;
+  decisions: Record<string, "applied" | "dismissed" | "auto">; // auto: the judge applied it itself
 }
 
 export interface ScoringRule {

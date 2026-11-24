@@ -24,6 +24,8 @@ const KIND_LABEL: Record<KeywordSuggestion["kind"], string> = {
   keep: "Keep",
 };
 
+const AUTO_LABEL: Partial<Record<KeywordSuggestion["kind"], string>> = { add: "Added", pause: "Paused", platforms: "Narrowed" };
+
 interface KeywordReviewCardProps {
   keywords: Keyword[];
 }
@@ -75,6 +77,7 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
   const running = data.scan != null && data.scan.state !== "done";
   const open = (review?.suggestions ?? []).filter((s) => s.kind !== "keep" && !review?.decisions?.[s.id]);
   const kept = (review?.suggestions ?? []).filter((s) => s.kind === "keep");
+  const auto = (review?.suggestions ?? []).filter((s) => review?.decisions?.[s.id] === "auto");
   const count = topUpCount(data);
 
   return (
@@ -90,7 +93,7 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
             <CardDescription>
               {review
                 ? `Read ${review.posts} posts and ${review.leads} leads from the last ${review.days} days · ${new Date(review.generated_at).toLocaleDateString()}${review.by === "weekly" ? " (weekly)" : ""}`
-                : "An AI judge reads what your keywords found, as you would, and suggests what to add, pause or move. Pro workspaces get one every week."}
+                : "Every week an AI judge reads what your keywords found, as you would. Once a keyword has had a week of posts, the judge pauses or narrows it if it found nothing worth replying to, and adds keywords that match how your buyers write."}
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -118,6 +121,21 @@ export function KeywordReviewCard({ keywords }: KeywordReviewCardProps) {
               <Text as="p" className="text-sm">{review.summary}</Text>
               {review.lead_quality && <Text as="p" className="text-xs text-muted-foreground">Leads: {review.lead_quality}</Text>}
             </div>
+
+            {auto.length > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-border p-3">
+                <Text as="p" className="text-sm font-medium">Changed by the judge</Text>
+                <ul className="space-y-1">
+                  {auto.map((s) => (
+                    <li key={s.id} className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{AUTO_LABEL[s.kind] ?? s.kind}</span> “{s.term}”
+                      {s.kind !== "pause" && s.platforms && s.platforms.length > 0 ? ` (${s.platforms.join(" · ")})` : ""}: {s.why}
+                    </li>
+                  ))}
+                </ul>
+                <Text as="p" className="text-xs text-muted-foreground">Disagree? Turn a keyword back on or edit it in the list below.</Text>
+              </div>
+            )}
 
             {open.length > 0 ? (
               <div className="space-y-2">
