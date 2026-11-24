@@ -14,6 +14,7 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/llm"
 	"leadecho/internal/monitor"
+	"leadecho/internal/subrules"
 )
 
 func (d *Drafter) markEscalation(ctx context.Context, wsID, mentionID string, existingMeta []byte, reason string) {
@@ -41,8 +42,28 @@ type Drafter struct {
 	llmRouter llm.ReplyGenerator
 	scrapling *browser.ScraplingClient
 	kb        KBRetriever
-	shortBase string           // voice: public base for /r/{code} tracking links
-	credits   *billing.Credits // billing: nil or unenforced never blocks
+	shortBase string            // voice: public base for /r/{code} tracking links
+	credits   *billing.Credits  // billing: nil or unenforced never blocks
+	rules     *subrules.Service // ban-safe: subreddit rules; nil = none
+}
+
+// SetSubredditRules makes Reddit drafts follow the subreddit's rules.
+func (d *Drafter) SetSubredditRules(s *subrules.Service) { d.rules = s }
+
+// SubredditRules is the rules service (nil when unset), shared with the API.
+func (d *Drafter) SubredditRules() *subrules.Service {
+	if d == nil {
+		return nil
+	}
+	return d.rules
+}
+
+// RulesFor is the subreddit summary for a Reddit mention, else nil.
+func RulesFor(ctx context.Context, s *subrules.Service, m database.Mention) *subrules.Summary {
+	if s == nil || m.Platform != string(database.PlatformTypeReddit) {
+		return nil
+	}
+	return s.Get(ctx, m.WorkspaceID, subrules.SubredditOf(m.Url, m.PlatformMetadata))
 }
 
 // SetCredits charges each draft (billing.CostDraft), refunded if drafting fails.
@@ -189,6 +210,7 @@ func (d *Drafter) draft(ctx context.Context, mention database.Mention, profileID
 	}
 
 	templateStyle := selectTemplateStyle(intent, preFilter.AwarenessLevel)
+	rules := RulesFor(ctx, d.rules, mention)
 
 	result, err := d.llmRouter.DraftReplyEnhanced(ctx, wsID, ai.DraftReplyOptions{
 		Title:          title,
@@ -206,6 +228,7 @@ func (d *Drafter) draft(ctx context.Context, mention database.Mention, profileID
 		Positioning:        positioning,
 		Voice:              VoiceInstructions(voice),
 		StyleExample:       ExampleForPlatform(voice.Examples, string(mention.Platform)),
+		CommunityRules:     subrules.PromptSection(rules),
 	})
 	if err != nil {
 		return nil, err
@@ -222,7 +245,9 @@ func (d *Drafter) draft(ctx context.Context, mention database.Mention, profileID
 	if err != nil {
 		return nil, err
 	}
-	reply = d.attachTrackingLink(ctx, reply, voice)
+	if !rules.BlocksLinks() { // a link would break the subreddit's rules
+		reply = d.attachTrackingLink(ctx, reply, voice)
+	}
 
 	return &DraftResult{
 		Reply:             reply,

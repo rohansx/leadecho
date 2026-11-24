@@ -43,6 +43,7 @@ import { EnrichmentCard } from "./enrichment-card"; // enrich
 import { IdentityCard } from "./identity-card"; // identity
 import { DossierCard, PersonPosts } from "./dossier-card"; // person360 profile
 import { LeadAssistant } from "./lead-assistant";
+import { SubredditRulesBox } from "./subreddit-rules"; // ban-safe
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 import { hiringText, leadAge } from "@/lib/lead-age";
 
@@ -188,10 +189,11 @@ function OverviewTab({
   };
 
   const approveMutation = useMutation({
-    mutationFn: (replyId: string) =>
+    // ban-safe: no tracked link appended where the subreddit bans links.
+    mutationFn: ({ replyId, appendLink }: { replyId: string; appendLink: boolean }) =>
       approveReply(replyId, {
         destination_url: destinationURL.trim() || undefined,
-        append_short_url: true,
+        append_short_url: appendLink,
       }),
     onSuccess: (reply) => {
       setApproveError(null);
@@ -235,6 +237,12 @@ function OverviewTab({
   const replyBody = draft?.reply
     ? draft.reply.edited_content ?? draft.reply.content
     : "";
+  // ban-safe: the list endpoint carries the subreddit rules and warnings; a
+  // fresh draft picks them up once the list refetches.
+  const ruleReply = savedReplies?.find((r: Reply) => r.id === draft?.reply?.id) ?? draft?.reply;
+  const communityRules = ruleReply?.community_rules;
+  // A link in the reply would break the rules (mirrors subrules.BlocksLinks).
+  const linksBlocked = !!communityRules && (communityRules.self_promo === "banned" || communityRules.links_allowed === false);
 
   return (
     <div className="space-y-5">
@@ -462,6 +470,9 @@ function OverviewTab({
                       Check this contact before sending: their profile lists {mention.person?.company}, not {signalCompany}. They may have moved, or this may be a different person.
                     </p>
                   )}
+                  {communityRules && draft.reply.status === "draft" && (
+                    <SubredditRulesBox rules={communityRules} warnings={ruleReply?.rule_warnings} />
+                  )}
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{replyBody}</p>
 
                   {draft.reply.status === "draft" && (
@@ -477,7 +488,9 @@ function OverviewTab({
                         className="h-9 text-sm"
                       />
                       <p className="text-[11px] text-muted-foreground">
-                        Approving creates a tracked short link (it replaces your product URL, or is added when the reply names your product) and queues the reply for the Chrome extension.
+                        {linksBlocked
+                          ? "This subreddit does not allow promotional links, so approving tracks the URL without adding a link to the reply, and queues the reply for the Chrome extension."
+                          : "Approving creates a tracked short link (it replaces your product URL, or is added when the reply names your product) and queues the reply for the Chrome extension."}
                       </p>
                       {approveError && (
                         <p className="text-xs text-destructive">{approveError}</p>
@@ -485,7 +498,7 @@ function OverviewTab({
                       <Button
                         size="sm"
                         variant={emailPrimary ? "outline" : "default"}
-                        onClick={() => approveMutation.mutate(draft.reply!.id)}
+                        onClick={() => approveMutation.mutate({ replyId: draft.reply!.id, appendLink: !linksBlocked })}
                         disabled={approveMutation.isPending}
                       >
                         {approveMutation.isPending ? (

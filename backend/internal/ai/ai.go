@@ -123,6 +123,9 @@ type DraftReplyOptions struct {
 	// platform-matched example reply used as a style sample.
 	Voice        string
 	StyleExample string
+	// CommunityRules is the subreddit's rules block (subrules.PromptSection);
+	// it outranks style and voice.
+	CommunityRules string
 }
 
 // voicePromptSection renders the response-profile block of the system prompt.
@@ -596,7 +599,7 @@ RULES (apply to ALL styles):
 Return ONLY valid JSON (no markdown, no code fences) with:
 - "reply": the drafted reply text
 - "tone": one of "helpful", "empathetic", "technical", "casual"
-- "template_style": "%s"`, templateGuide, opts.TemplateStyle) + voicePromptSection(opts) + replyAlwaysRules
+- "template_style": "%s"`, templateGuide, opts.TemplateStyle) + voicePromptSection(opts) + opts.CommunityRules + replyAlwaysRules
 
 	user = fmt.Sprintf("Platform: %s\nIntent: %s\nAwareness: %s\nTitle: %s\nContent: %s",
 		opts.Platform, opts.Intent, opts.AwarenessLevel, opts.Title, opts.Content)
