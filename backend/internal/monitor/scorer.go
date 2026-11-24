@@ -196,8 +196,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	}
 
 	// Stage 3: Intent classification (bounded parallel LLM calls)
+	leadMin := m.leadLine(ctx, wsID) // once per batch: every alert here is wsID's
 	m.forEachConcurrent(ctx, len(candidates), func(i int) {
-		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity)
+		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity, leadMin)
 	})
 	m.notifyFirstLeads(ctx, wsID)
 
@@ -511,8 +512,9 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 	}
 }
 
-// classifyAndStore runs stage 3 (intent) and stage 4 (lead qualification) for one mention.
-func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAlert, similarity float64) {
+// classifyAndStore runs stage 3 (intent) and stage 4 (lead qualification) for
+// one mention; leadMin is the workspace's line for posts (Monitor.leadLine).
+func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAlert, similarity, leadMin float64) {
 	c := struct {
 		alert      mentionAlert
 		similarity float64
@@ -572,11 +574,11 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 	m.publishMentionScored(ctx, c.alert, result)
 
 	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
-	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, result.Intent) {
+	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, leadMin, result.Intent) {
 		m.qualifyAsLead(ctx, c.alert, result)
 	}
 	m.runWorkflows(ctx, c.alert, result)
-	m.autoDraft(ctx, c.alert, result) // after workflows: one of them may have drafted already
+	m.autoDraft(ctx, c.alert, result, leadMin) // after workflows: one of them may have drafted already
 }
 
 // runWorkflows runs the workspace's real-time workflows inline, unless the
@@ -602,15 +604,29 @@ func classifyErrorStage(err error) string {
 	return "stage3_classification_error"
 }
 
-// leadScoreThreshold must match the leads_ready SQL predicate in
-// database/mentions_composed.go and queries/mentions.sql.
-const leadScoreThreshold = 6.0
+// leadScoreThreshold is the balanced lead line: a workspace's strictness can
+// move it for posts, never for company signals (database.LeadLine), which is
+// why hiring and prospect scores build on it directly.
+const leadScoreThreshold = database.LeadMinScore
+
+// leadLine is the workspace's lead line for posts. The scorer and the
+// qualifier only ever see posts: company signals are scored and made leads by
+// their own path (createCompanyLead) and the re-score skips them. A failed
+// read is logged and falls back to the balanced line.
+func (m *Monitor) leadLine(ctx context.Context, wsID string) float64 {
+	line, err := m.q.LeadMinScoreFor(ctx, wsID)
+	if err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("scorer: lead strictness unreadable, using the balanced line")
+	}
+	return line
+}
 
 // qualifiesAsLead: scores are product-aware (competitor launches score 0-3),
-// so 6+ with buying-type intent is a real prospect. comparison counts: someone
-// weighing options is shopping.
-func qualifiesAsLead(score float64, intent string) bool {
-	if score < leadScoreThreshold {
+// so minScore (the workspace's line, 6 by default) or more with buying-type
+// intent is a real prospect. comparison counts: someone weighing options is
+// shopping.
+func qualifiesAsLead(score, minScore float64, intent string) bool {
+	if score < minScore {
 		return false
 	}
 	switch database.IntentType(intent) {

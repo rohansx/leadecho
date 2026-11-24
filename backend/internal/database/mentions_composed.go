@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -153,23 +154,37 @@ func freshPredicate() string {
 }
 
 // What makes a mention a lead: the one rule behind the inbox queue, the tier
-// counts and the next-action badge.
+// counts and the next-action badge. LeadMinScore is the balanced line; a
+// workspace moves it with its lead strictness (lead_strictness.go).
 const LeadMinScore = 6.0
 
 var leadIntents = []IntentType{IntentTypeBuySignal, IntentTypeRecommendationAsk, IntentTypeComplaint, IntentTypeComparison}
 
-// leadIntentPredicate is the rule as SQL.
+// leadIntentPredicate is the rule as SQL: posts at the workspace's strictness,
+// company signals at the balanced line (LeadLine). Every query using it binds
+// the workspace id as $1: the line is then looked up once, where a per-row
+// lookup cost ~80ms on a 40k-mention workspace.
 func leadIntentPredicate() string {
 	names := make([]string, len(leadIntents))
 	for i, in := range leadIntents {
 		names[i] = "'" + string(in) + "'"
 	}
-	return fmt.Sprintf("relevance_score >= %.1f AND intent IN (%s)", LeadMinScore, strings.Join(names, ", "))
+	return fmt.Sprintf("%s AND intent IN (%s)", leadScoreSQL("", "$1"), strings.Join(names, ", "))
 }
 
-// IsLead is the same rule for a row in hand.
-func (m Mention) IsLead() bool {
-	return m.RelevanceScore.Valid && m.RelevanceScore.Float32 >= LeadMinScore && m.Intent.Valid && slices.Contains(leadIntents, m.Intent.IntentType)
+// IsLead is the same rule for a row in hand; postLine is the workspace's
+// line (Queries.LeadMinScoreFor).
+func (m Mention) IsLead(postLine float64) bool {
+	return m.RelevanceScore.Valid && float64(m.RelevanceScore.Float32) >= LeadLine(postLine, m.IsCompanySignal()) &&
+		m.Intent.Valid && slices.Contains(leadIntents, m.Intent.IntentType)
+}
+
+// IsCompanySignal: a hiring, funding or prospect lead rather than a post.
+func (m Mention) IsCompanySignal() bool {
+	var meta struct {
+		Signal string `json:"signal"`
+	}
+	return json.Unmarshal(m.PlatformMetadata, &meta) == nil && meta.Signal != ""
 }
 
 func escalationFlaggedPredicate() string {

@@ -21,6 +21,7 @@ import {
 import type { MonitoringProfile } from "@/lib/types";
 import { Plus, Trash2, Power, PowerOff, Target } from "lucide-react";
 import { ListenerIntent } from "@/components/profiles/listener-intent";
+import { LeadStrictnessCard } from "@/components/profiles/lead-strictness-card";
 
 export const Route = createFileRoute("/_dashboard/profiles")({
   component: ProfilesPage,
@@ -76,6 +77,8 @@ function ProfilesPage() {
           Describe the problems your product solves. The system uses semantic matching to find people expressing these pain points.
         </Text>
       </div>
+
+      <LeadStrictnessCard />
 
       {/* Add profile */}
       <Card>

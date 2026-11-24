@@ -132,7 +132,7 @@ func (m *Monitor) RescoreWith(ctx context.Context, wsID, mentionID string, rules
 	if err != nil {
 		return false, err
 	}
-	return qualifiesAsLead(res.RelevanceScore, res.Intent), nil
+	return qualifiesAsLead(res.RelevanceScore, m.leadLine(ctx, wsID), res.Intent), nil
 }
 
 // topUpKeywords brings a Pro workspace (any workspace on self-host) up to

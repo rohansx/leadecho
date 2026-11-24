@@ -20,6 +20,15 @@ func TestWhoLine(t *testing.T) {
 	}
 }
 
+// Strict raises the draft line; loose never lowers it under balanced.
+func TestMinDraftLeadScore(t *testing.T) {
+	for line, want := range map[float64]float64{7.5: 7.5, 6: 6, 5: 6} {
+		if got := minDraftLeadScore(line); got != want {
+			t.Errorf("minDraftLeadScore(%v) = %v, want %v", line, got, want)
+		}
+	}
+}
+
 func TestPipelineCounts(t *testing.T) {
 	got := PipelineCounts(map[string]int{"converted": 1, "prospect": 14, "engaged": 2, "lost": 0, "unknown": 9})
 	want := []Count{{"to reply", 14}, {"in conversation", 2}, {"won", 1}}

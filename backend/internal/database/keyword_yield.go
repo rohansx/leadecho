@@ -25,7 +25,7 @@ SELECT k.id::text, k.term, m.platform::text,
        COUNT(*)::int,
        COUNT(*) FILTER (WHERE COALESCE(m.scoring_metadata->>'stage', '') NOT IN ('', 'stage3_classification_error', 'stage3_refused'))::int,
        COUNT(*) FILTER (WHERE m.scoring_metadata->>'stage' LIKE 'stage2%' OR m.scoring_metadata->>'stage' LIKE 'stage3%')::int,
-       COUNT(*) FILTER (WHERE m.relevance_score >= 6.0)::int,
+       COUNT(*) FILTER (WHERE `+leadScoreSQL("m.", "$1")+`)::int,
        COUNT(*) FILTER (WHERE COALESCE(m.scoring_metadata->>'ask', '') <> '')::int
 FROM mentions m
 JOIN keywords k ON k.id = m.keyword_id

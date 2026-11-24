@@ -195,12 +195,14 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]MentionResponse, len(mentions))
 	draftIDs := map[string]bool{}
+	leadMin := database.LeadMinScore
 	if params.Queue == "action_required" && len(mentions) > 0 {
 		ids := make([]string, len(mentions))
 		for i, m := range mentions {
 			ids[i] = m.ID
 		}
 		draftIDs, _ = h.q.MentionIDsWithDraftOrApprovedReply(ctx, workspaceID, ids)
+		leadMin, _ = h.q.LeadMinScoreFor(ctx, workspaceID) // unreadable: the balanced line
 	}
 	allIDs := make([]string, len(mentions))
 	for i, m := range mentions {
@@ -216,7 +218,7 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 			resp[i].Person = &p
 		}
 		if params.Queue == "action_required" {
-			action := nextActionFor(m, draftIDs[m.ID])
+			action := nextActionFor(m, draftIDs[m.ID], leadMin)
 			if action != "" {
 				resp[i].NextAction = &action
 			}
@@ -504,12 +506,12 @@ func (h *MentionHandler) Person360(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, view)
 }
 
-func nextActionFor(m database.Mention, hasDraftReply bool) string {
+func nextActionFor(m database.Mention, hasDraftReply bool, leadMinScore float64) string {
 	flagged := bytesContainsTrue(m.ScoringMetadata, "needs_escalation")
 	if flagged {
 		return "needs_review"
 	}
-	if !m.IsLead() { // the queue's own rule: a lead in the queue always has a badge
+	if !m.IsLead(leadMinScore) { // the queue's own rule: a lead in the queue always has a badge
 		return ""
 	}
 	if hasDraftReply {
