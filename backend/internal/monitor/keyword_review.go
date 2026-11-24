@@ -46,7 +46,7 @@ func (m *Monitor) runKeywordReview(ctx context.Context, ws, by string) string {
 	// and every keyword is searched now, so the review reads fresh posts.
 	topUp := m.topUpKeywords(ctx, ws)
 	now := time.Now().UTC()
-	st, err := keywordjudge.Review(ctx, m.q, m.keywordReviewer, rs, ws, by, m.credits.PaidPlatformsLocked(ctx, ws), now)
+	st, err := keywordjudge.Review(ctx, m.q, m.keywordReviewer, rs, ws, by, m.credits.LockedPlatforms(ctx, ws), now)
 	if st != nil && err != nil { // the review was saved; only the rules step failed
 		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword review: scoring rules")
 		err = nil
@@ -56,7 +56,7 @@ func (m *Monitor) runKeywordReview(ctx context.Context, ws, by string) string {
 		return KeywordReviewFailed
 	}
 	note := topUp + fmt.Sprintf("reviewed %d posts and %d leads from the last %d days: %d suggestions", st.Posts, st.Leads, st.Days, len(st.Suggestions))
-	applied, err := keywordjudge.Apply(ctx, m.q, ws, st, m.keywordLimit(ctx, ws), m.credits.PaidPlatformsLocked(ctx, ws), now)
+	applied, err := keywordjudge.Apply(ctx, m.q, ws, st, m.keywordLimit(ctx, ws), m.credits.LockedPlatforms(ctx, ws), now)
 	if applied != "" {
 		note += "; " + applied
 	}
@@ -187,7 +187,7 @@ func (m *Monitor) topUpKeywords(ctx context.Context, ws string) string {
 	if err != nil || len(profiles) == 0 {
 		return ""
 	}
-	sugg, err := keywordjudge.Suggest(ctx, m.q, m.keywordReviewer, ws, m.credits.PaidPlatformsLocked(ctx, ws), want)
+	sugg, err := keywordjudge.Suggest(ctx, m.q, m.keywordReviewer, ws, m.credits.LockedPlatforms(ctx, ws), want)
 	if err != nil {
 		m.logger.Warn().Err(err).Str("workspace_id", ws).Msg("keyword top-up: suggest")
 		return "could not write new keywords; "

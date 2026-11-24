@@ -72,10 +72,10 @@ func (h *BillingHandler) Get(w http.ResponseWriter, r *http.Request) {
 			"post": billing.CostPost, "search": billing.CostSearch, "draft": billing.CostDraft, "chat": billing.CostChat,
 		},
 		"enforced": h.credits.Enforced(),
-		// X, Reddit and LinkedIn need a paid plan; the app shows them locked.
-		"paid_platforms_locked": h.credits.Enforced() && !st.PaidData,
-		"can_checkout":          h.dodo != nil,
-		"checkout_items":        checkoutItems(h.dodo),
+		// Platforms the plan can't search; the app shows them locked.
+		"locked_platforms": lockedList(h.credits.Enforced(), st.Plan, st.PaidData),
+		"can_checkout":     h.dodo != nil,
+		"checkout_items":   checkoutItems(h.dodo),
 	})
 }
 
@@ -153,6 +153,18 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"checkout_url": url})
+}
+
+// lockedList: the plan's locked platforms, sorted ([] on self-host).
+func lockedList(enforced bool, plan string, paidData bool) []string {
+	out := []string{}
+	if enforced {
+		for p := range billing.LockedFor(plan, paidData) {
+			out = append(out, p)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // checkoutItems: the items this server can sell (a plan without a Dodo

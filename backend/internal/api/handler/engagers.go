@@ -32,6 +32,9 @@ type EngagersHandler struct {
 	puller engagerPuller
 	leads  leadGetter
 	crm    crmEmitter
+	// Locked returns the platforms the workspace's plan can't use
+	// (billing.Credits.LockedPlatforms); nil means nothing is locked.
+	Locked func(ctx context.Context, ws string) map[string]bool
 }
 
 func NewEngagersHandler(p *engagers.Importer, q *database.Queries, crm *crmsync.Dispatcher) *EngagersHandler {
@@ -52,6 +55,10 @@ const (
 func (h *EngagersHandler) Pull(w http.ResponseWriter, r *http.Request) {
 	if h.puller == nil || !h.puller.Enabled() {
 		writeError(w, http.StatusServiceUnavailable, "LinkedIn engagers need treg (TREG_TOKEN) on this server")
+		return
+	}
+	if h.Locked != nil && h.Locked(r.Context(), middleware.WorkspaceID(r.Context()))["linkedin"] {
+		writeError(w, http.StatusPaymentRequired, "LinkedIn engagers are part of the Starter and Pro plans")
 		return
 	}
 	var body struct {

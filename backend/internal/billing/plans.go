@@ -13,8 +13,11 @@ type Plan struct {
 	PriceCents     int    `json:"price_cents"`
 	MonthlyCredits int    `json:"monthly_credits"`
 	KeywordLimit   int    `json:"keyword_limit"`
-	// PaidData: the plan includes PaidPlatforms (X, Reddit, LinkedIn).
+	// PaidData: the plan includes paid data (PaidPlatforms, less LockedPlatforms).
 	PaidData bool `json:"paid_data"`
+	// LockedPlatforms are PaidPlatforms the plan still can't search, and the
+	// features built on them (hiring signals, prospecting, engagers, ...).
+	LockedPlatforms []string `json:"locked_platforms"`
 }
 
 // Plans in display order. Measured cost is ~$0.0035 per post scored on
@@ -22,8 +25,8 @@ type Plan struct {
 // full use.
 var Plans = []Plan{
 	{ID: "free", Name: "Free", PriceCents: 0, MonthlyCredits: 300, KeywordLimit: 3},
-	// Solo: free sources only (no paid data), for pre-revenue founders.
-	{ID: "solo", Name: "Solo", PriceCents: 1900, MonthlyCredits: 1500, KeywordLimit: 5},
+	// Solo: free sources plus Reddit, for pre-revenue founders.
+	{ID: "solo", Name: "Solo", PriceCents: 1900, MonthlyCredits: 1500, KeywordLimit: 5, PaidData: true, LockedPlatforms: []string{"twitter", "linkedin"}},
 	{ID: "starter", Name: "Starter", PriceCents: 4900, MonthlyCredits: 5000, KeywordLimit: 15, PaidData: true},
 	{ID: "pro", Name: "Pro", PriceCents: 14900, MonthlyCredits: 20000, KeywordLimit: 50, PaidData: true},
 }

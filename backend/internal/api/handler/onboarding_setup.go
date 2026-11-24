@@ -68,9 +68,9 @@ type setupFacts struct {
 	// X, LinkedIn and Reddit.
 	Searches, Searched         int
 	PaidSearches, PaidSearched int
-	PaidNextAt                 time.Time // earliest next search of a paid source; zero when unknown
-	PaidLocked                 bool      // the plan has no paid data
-	PaidPaused                 bool      // an operator paused paid data for everyone
+	PaidNextAt                 time.Time       // earliest next search of a paid source; zero when unknown
+	Locked                     map[string]bool // platforms the plan can't search (billing.LockedFor)
+	PaidPaused                 bool            // an operator paused paid data for everyone
 	Blocked                    string
 	// Scanning: a scan of the workspace is running or asked for. Only known
 	// when this process runs the monitor or a requested scan is stored.
@@ -132,7 +132,7 @@ func buildSetupStatus(f setupFacts) setupStatus {
 
 	paid := setupStage{Key: "paid_sources", State: stageDone, NextAt: at(f.PaidNextAt)}
 	switch {
-	case f.PaidLocked:
+	case allPaidLocked(f.Locked):
 		paid = setupStage{Key: "paid_sources", State: stageNotIncluded, Reason: "plan"}
 	case f.PaidSearches == 0:
 		paid = setupStage{Key: "paid_sources", State: stageNotIncluded, Reason: "not_selected"}
@@ -148,7 +148,7 @@ func buildSetupStatus(f setupFacts) setupStatus {
 	switch {
 	case !f.CompanyEnabled:
 		company = setupStage{Key: "company_leads", State: stageNotIncluded, Reason: "server"}
-	case f.PaidLocked:
+	case f.Locked["linkedin"]: // company leads are found with LinkedIn data
 		company = setupStage{Key: "company_leads", State: stageNotIncluded, Reason: "plan"}
 	case f.CompanyScan == monitor.CompanyScanNoFit:
 		company = setupStage{Key: "company_leads", State: stageNotIncluded, Reason: "no_fit"}
@@ -172,6 +172,16 @@ func buildSetupStatus(f setupFacts) setupStatus {
 	return s
 }
 
+// allPaidLocked: the plan includes none of the paid platforms.
+func allPaidLocked(locked map[string]bool) bool {
+	for p := range billing.PaidPlatforms {
+		if !locked[p] {
+			return false
+		}
+	}
+	return true
+}
+
 // searchProgress counts the workspace's searches (active keyword x platform)
 // and how many have run, leaving out the paid platforms when the plan has
 // none. paidNextAt is the earliest time a paid search is next due: its last
@@ -179,7 +189,7 @@ func buildSetupStatus(f setupFacts) setupStatus {
 // ponytail: a keyword slowed down for bringing posts and no leads is searched
 // once a day whatever its cadence; that is not reflected here (the paid
 // default is already once a day).
-func searchProgress(kws []database.ListKeywordCadencesRow, scans []database.ListKeywordPlatformScansRow, paidLocked bool) (searches, searched, paid, paidSearched int, paidNextAt time.Time) {
+func searchProgress(kws []database.ListKeywordCadencesRow, scans []database.ListKeywordPlatformScansRow, locked map[string]bool) (searches, searched, paid, paidSearched int, paidNextAt time.Time) {
 	last := map[[2]string]time.Time{}
 	for _, s := range scans {
 		last[[2]string{s.KeywordID, s.Platform}] = s.LastScannedAt
@@ -194,7 +204,7 @@ func searchProgress(kws []database.ListKeywordCadencesRow, scans []database.List
 		}
 		for _, p := range k.Platforms {
 			isPaid := billing.PaidPlatforms[p]
-			if isPaid && paidLocked {
+			if locked[p] {
 				continue
 			}
 			t, ran := last[[2]string{k.ID, p}]
@@ -241,8 +251,8 @@ func (h *OnboardingHandler) setupFacts(ctx context.Context, wsID string) (setupF
 	if err != nil {
 		return f, err
 	}
-	f.PaidLocked, f.PaidPaused = h.credits.PaidPlatformsLocked(ctx, wsID), h.credits.PaidDataPaused(ctx)
-	f.Searches, f.Searched, f.PaidSearches, f.PaidSearched, f.PaidNextAt = searchProgress(kws, scans, f.PaidLocked)
+	f.Locked, f.PaidPaused = h.credits.LockedPlatforms(ctx, wsID), h.credits.PaidDataPaused(ctx)
+	f.Searches, f.Searched, f.PaidSearches, f.PaidSearched, f.PaidNextAt = searchProgress(kws, scans, f.Locked)
 	if bs, err := h.q.GetBillingState(ctx, wsID); err == nil { // the same reading as billing.Credits.ScanAllowed
 		switch {
 		case bs.ScanningPaused:
@@ -288,7 +298,7 @@ func (h *OnboardingHandler) SetupStatus(w http.ResponseWriter, r *http.Request) 
 // It is not the operator's "scan now": nothing that already ran today runs
 // twice (monitor.ScanByOnboarding). A request already waiting is kept.
 func (h *OnboardingHandler) requestFirstScan(ctx context.Context, wsID string) {
-	if !h.credits.ScanAllowed(ctx, wsID) || h.credits.PaidPlatformsLocked(ctx, wsID) || h.credits.PaidDataPaused(ctx) {
+	if !h.credits.ScanAllowed(ctx, wsID) || h.credits.LockedPlatforms(ctx, wsID)["linkedin"] || h.credits.PaidDataPaused(ctx) {
 		return
 	}
 	now := time.Now().UTC()

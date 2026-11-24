@@ -56,7 +56,10 @@ func NewService(pool *pgxpool.Pool, q *database.Queries, model Model, mon *monit
 	}
 	if credits.Enforced() {
 		s.Credits = credits
-		s.Locked = credits.PaidPlatformsLocked
+		s.Locked = func(ctx context.Context, ws string) bool { // X and LinkedIn sources
+			l := credits.LockedPlatforms(ctx, ws)
+			return l["twitter"] || l["linkedin"]
+		}
 		s.Limit = func(ctx context.Context, ws string) int {
 			plan, err := q.GetWorkspacePlan(ctx, ws)
 			if err != nil {

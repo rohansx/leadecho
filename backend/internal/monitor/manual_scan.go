@@ -372,8 +372,8 @@ func (m *Monitor) hiringBlocked(ctx context.Context, ws string) string {
 		return "hiring signals are not set up on this server"
 	case m.credits.PaidDataPaused(ctx):
 		return "paid data is paused for everyone"
-	case m.credits.PaidPlatformsLocked(ctx, ws):
-		return "paid data is off for this workspace"
+	case m.linkedInLocked(ctx, ws):
+		return "LinkedIn data is not on this workspace's plan"
 	}
 	if bp, err := m.q.GetBrandProfile(ctx, ws); err != nil || bp.Product == "" {
 		return "the workspace has not finished onboarding"

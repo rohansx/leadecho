@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { creditState, formatPrice } from "@/lib/credits";
 import {
   BILLING_QUERY,
+  PAID_PLATFORMS,
   USAGE_LABELS,
   getBilling,
   openBillingPortal,
@@ -19,6 +20,14 @@ import {
   type CheckoutItem,
   type Plan,
 } from "@/lib/billing-api";
+
+/** The sources a plan adds beyond the free ones. */
+function sourcesLine(plan: Plan): string {
+  const locked = plan.locked_platforms ?? [];
+  const adds = plan.paid_data ? PAID_PLATFORMS.filter(([id]) => !locked.includes(id)).map(([, label]) => label) : [];
+  if (adds.length === 0) return "Hacker News, Dev.to, Bluesky";
+  return `Adds ${adds.length > 1 ? `${adds.slice(0, -1).join(", ")} and ${adds[adds.length - 1]}` : adds[0]}`;
+}
 
 interface PlanTileProps {
   plan: Plan;
@@ -43,7 +52,7 @@ function PlanTile({ plan, current, canBuy, busy, prospecting, onChoose }: PlanTi
       <ul className="space-y-1 text-[13px] text-muted-foreground">
         <li>{plan.monthly_credits.toLocaleString()} credits / month</li>
         <li>{plan.keyword_limit} active keywords</li>
-        <li>{plan.paid_data ? "Adds X, Reddit and LinkedIn" : "Hacker News, Dev.to, Bluesky"}</li>
+        <li>{sourcesLine(plan)}</li>
         {prospecting && <li>Daily prospecting: buyers with confirmed emails</li>}
       </ul>
       {current ? (

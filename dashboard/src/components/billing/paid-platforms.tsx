@@ -5,7 +5,7 @@ import { Lock } from "lucide-react";
 export function LockedChip({ label }: { label: string }) {
   return (
     <span
-      title="Available on Starter and Pro"
+      title="Not on your plan"
       className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground"
     >
       <Lock className="h-3 w-3" aria-hidden="true" />
@@ -18,7 +18,7 @@ export function LockedChip({ label }: { label: string }) {
 export function PaidPlatformsNote() {
   return (
     <p className="text-xs text-muted-foreground">
-      X, Reddit and LinkedIn are searched with paid data and come with Starter and Pro.{" "}
+      Reddit comes with Solo and up; X and LinkedIn with Starter and Pro.{" "}
       <Link to="/settings" search={{ tab: "billing" }} className="font-medium text-foreground underline underline-offset-2">
         Upgrade
       </Link>

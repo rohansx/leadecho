@@ -243,8 +243,8 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	if bp, err := m.q.GetBrandProfile(ctx, wsID); err == nil {
 		ctx = withScanBrand(ctx, newBrand(bp.Product, bp.SourceUrl))
 	}
-	if m.credits.PaidPlatformsLocked(ctx, wsID) { // billing: X/Reddit/LinkedIn need a paid plan
-		kws = withoutPaidPlatforms(kws)
+	if locked := m.credits.LockedPlatforms(ctx, wsID); len(locked) > 0 { // billing: platforms the plan can't search
+		kws = withoutPlatforms(kws, locked)
 	}
 	if forcedScan(ctx) != ScanPosts { // an operator's "scan now" covers every platform, due or not
 		kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence

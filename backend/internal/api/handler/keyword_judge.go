@@ -229,7 +229,7 @@ func (h *KeywordJudgeHandler) Suggest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "still writing the last batch; try again in a few seconds")
 		return
 	}
-	out, err := keywordjudge.Suggest(r.Context(), h.q, h.suggester, wsID, h.credits.PaidPlatformsLocked(r.Context(), wsID), body.Count)
+	out, err := keywordjudge.Suggest(r.Context(), h.q, h.suggester, wsID, h.credits.LockedPlatforms(r.Context(), wsID), body.Count)
 	switch {
 	case errors.Is(err, keywordjudge.ErrNoProfile):
 		writeError(w, http.StatusConflict, "finish onboarding first: keywords are written from your product profile")

@@ -1,11 +1,13 @@
 package keywordjudge
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"leadecho/internal/ai"
+	"leadecho/internal/billing"
 	"leadecho/internal/database"
 )
 
@@ -77,12 +79,16 @@ func TestToStoredGivesStableIDs(t *testing.T) {
 }
 
 func TestPlatformsWithoutPaidData(t *testing.T) {
-	for _, p := range Platforms(true) {
+	for _, p := range Platforms(billing.LockedFor("free", false)) {
 		if p == "twitter" || p == "linkedin" || p == "reddit" {
 			t.Errorf("paid platform %q offered to a workspace without paid data", p)
 		}
 	}
-	if len(Platforms(false)) != len(ai.KeywordPlatforms) {
-		t.Error("with paid data every platform is offered")
+	if len(Platforms(nil)) != len(ai.KeywordPlatforms) {
+		t.Error("with nothing locked every platform is offered")
+	}
+	solo := Platforms(billing.LockedFor("solo", true))
+	if !slices.Contains(solo, "reddit") || slices.Contains(solo, "twitter") || slices.Contains(solo, "linkedin") {
+		t.Errorf("solo platforms = %v, want reddit without X and LinkedIn", solo)
 	}
 }
