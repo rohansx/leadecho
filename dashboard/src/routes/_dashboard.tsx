@@ -64,7 +64,7 @@ function DashboardLayout() {
   }
 
   return (
-    <div className="relative isolate flex h-dvh overflow-hidden bg-background">
+    <div className="app-glass relative isolate flex h-dvh overflow-hidden bg-background">
       <div className="app-aura" aria-hidden="true" />
       <FeedbackWidget />
       <KeywordTopUp />
