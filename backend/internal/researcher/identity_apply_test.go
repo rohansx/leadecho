@@ -2,6 +2,7 @@ package researcher
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -130,5 +131,28 @@ func TestLookupableNeedsAKeyForForumAuthors(t *testing.T) {
 		if got := lookupable(c.sub); got != c.want {
 			t.Errorf("%+v: got %v, want %v", c.sub, got, c.want)
 		}
+	}
+}
+
+func TestDeepDueOnlyForIdentifiedPeopleOnce(t *testing.T) {
+	known := &identity.Profile{Name: "Jane Doe", Tier: "b", Links: []identity.Link{
+		{Kind: identity.KindGitHub, URL: "https://github.com/janed", Confidence: 0.9},
+	}}
+	if !deepDue(known) {
+		t.Error("a named, verified person should get one deep run")
+	}
+	done := *known
+	done.DeepAt = time.Now()
+	if deepDue(&done) {
+		t.Error("one deep run per person")
+	}
+	if deepDue(&identity.Profile{Name: "Jane", Links: known.Links}) {
+		t.Error("a first name alone is not identified")
+	}
+	if deepDue(&identity.Profile{Name: "Jane Doe"}) {
+		t.Error("no verified link: not identified")
+	}
+	if deepDue(nil) {
+		t.Error("nil profile")
 	}
 }

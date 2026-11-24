@@ -68,13 +68,32 @@ type Profile struct {
 	Links       []Link   `json:"links"`
 	RecentPosts []Post   `json:"recent_posts,omitempty"`
 	// Notes: what they said about themselves, for the research agent.
-	Notes      []string  `json:"notes,omitempty"`
+	Notes []string `json:"notes,omitempty"`
+	// Works: what they published (posts, talks, repos...), each provably theirs.
+	Works []Work `json:"works,omitempty"`
+	// DeepAt: when their whole public footprint was last mapped (zero = never).
+	DeepAt     time.Time `json:"deep_at,omitzero"`
 	Tier       string    `json:"tier"` // "a" (public profiles) or "b" (research agent)
 	Fetched    []string  `json:"fetched,omitempty"`
 	ResolvedAt time.Time `json:"resolved_at"`
 	// Incomplete: a source failed (rate limit, outage), so this is not the
 	// whole answer. It is used but not cached or stored as final.
 	Incomplete bool `json:"-"`
+}
+
+// Work is something the person published.
+type Work struct {
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	Date     string `json:"date,omitempty"`
+	Evidence string `json:"evidence,omitempty"`
+}
+
+// Identified: a real name and at least one verified link: enough to map
+// their whole footprint without guessing who they are.
+func (p *Profile) Identified() bool {
+	return p != nil && len(strings.Fields(p.Name)) >= 2 && p.HasShown()
 }
 
 // Best returns the most confident link of a kind at or above Shown.

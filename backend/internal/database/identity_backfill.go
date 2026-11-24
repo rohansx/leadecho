@@ -56,8 +56,9 @@ func (q *Queries) FillLeadContact(ctx context.Context, workspaceID, leadID, name
 }
 
 // ListLeadsForPerson360 returns the newest open Leads Ready leads whose
-// author has no Person360 profile yet, or whose identity found a LinkedIn or
-// email that the paid lookup has not used. Skips leads tried in the last day.
+// author has no Person360 profile yet, is identified but was never mapped in
+// depth, or whose identity found a LinkedIn or email that the paid lookup has
+// not used. Skips leads tried in the last day.
 func (q *Queries) ListLeadsForPerson360(ctx context.Context, workspaceID string, limit int32) ([]LeadRef, error) {
 	rows, err := q.db.Query(ctx, `
 		SELECT l.id::text, l.workspace_id::text
@@ -70,6 +71,11 @@ func (q *Queries) ListLeadsForPerson360(ctx context.Context, workspaceID string,
 		  AND coalesce((l.metadata->>'person360_attempt_at')::timestamptz, 'epoch') < now() - interval '1 day'
 		  AND (
 		        p.id IS NULL OR NOT (p.metadata ? 'dossier')
+		     -- identified (a full name and a verified link) but never mapped in depth
+		     OR (l.metadata->'identity'->>'deep_at' IS NULL
+		         AND l.metadata->'identity'->>'name' LIKE '% %'
+		         AND EXISTS (SELECT 1 FROM jsonb_array_elements(l.metadata->'identity'->'links') y
+		                     WHERE (y->>'confidence')::float >= 0.8 AND y->>'method' <> 'origin'))
 		     OR (NOT (l.metadata ? 'enrichment') AND EXISTS (
 		           SELECT 1 FROM jsonb_array_elements(l.metadata->'identity'->'links') x
 		           WHERE (x->>'confidence')::float >= 0.8 AND x->>'kind' IN ('linkedin', 'email')))
