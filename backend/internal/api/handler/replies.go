@@ -16,13 +16,15 @@ import (
 	"leadecho/internal/database"
 	"leadecho/internal/events"
 	"leadecho/internal/events/publishers"
+	"leadecho/internal/subrules"
 )
 
 type ReplyHandler struct {
 	q          *database.Queries
 	publisher  *publishers.Publisher
 	streamsOn  bool
-	publicBase string // e.g. http://localhost:8090 — builds /r/{code} short links
+	publicBase string            // e.g. http://localhost:8090 — builds /r/{code} short links
+	rules      *subrules.Service // ban-safe: nil = no subreddit rules on replies
 }
 
 func NewReplyHandler(q *database.Queries, publisher *publishers.Publisher, streamsOn bool, publicBase string) *ReplyHandler {
@@ -41,6 +43,10 @@ type ReplyResponse struct {
 	ShortURL      *string `json:"short_url,omitempty"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
+	// ban-safe: the subreddit's rules and how this reply would break them
+	// (Reddit replies only).
+	CommunityRules *subrules.Summary  `json:"community_rules,omitempty"`
+	RuleWarnings   []subrules.Warning `json:"rule_warnings,omitempty"`
 }
 
 func (h *ReplyHandler) replyToResponse(ctx context.Context, r database.Reply) ReplyResponse {
@@ -69,7 +75,7 @@ func (h *ReplyHandler) replyToResponse(ctx context.Context, r database.Reply) Re
 			resp.ShortURL = &short
 		}
 	}
-	return resp
+	return h.withRules(ctx, resp)
 }
 
 // draftLinkShortURL is the short URL of the link already on a reply, or "" (voice).

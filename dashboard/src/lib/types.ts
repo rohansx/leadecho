@@ -160,6 +160,26 @@ export interface Reply {
   short_url?: string | null;
   created_at: string;
   updated_at: string;
+  // ban-safe: Reddit replies only
+  community_rules?: CommunityRules;
+  rule_warnings?: RuleWarning[];
+}
+
+export interface CommunityRules {
+  subreddit: string;
+  available: boolean;
+  self_promo: "allowed" | "limited" | "banned" | "unknown";
+  links_allowed: boolean | null;
+  min_karma?: number;
+  min_account_age?: string;
+  promo_thread?: string;
+  quotes: string[];
+  rules_url: string;
+}
+
+export interface RuleWarning {
+  code: string;
+  message: string;
 }
 
 export interface ProductAnalysis {

@@ -210,6 +210,7 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 
 			// Replies
 			replies := handler.NewReplyHandler(queries, eventPublisher, cfg.StreamsEnabled, cfg.FrontendURL)
+			replies.SetSubredditRules(replyDrafter.SubredditRules()) // ban-safe
 			r.Get("/mentions/{mentionId}/replies", replies.ListByMention)
 			r.Post("/replies", replies.Create)
 			r.Patch("/replies/{id}/content", replies.UpdateContent)

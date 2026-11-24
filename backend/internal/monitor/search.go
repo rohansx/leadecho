@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -173,14 +172,7 @@ func (s *PublicSources) SubredditNew(ctx context.Context, subreddit string, sinc
 // configured, else from the public "<path>.json" endpoint.
 func (s *PublicSources) redditListing(ctx context.Context, pathAndQuery string, since time.Time) ([]Post, error) {
 	var listing redditListing
-	var err error
-	if s.RedditOAuth != nil {
-		err = s.RedditOAuth.getJSON(ctx, s.Client, pathAndQuery, &listing)
-	} else {
-		path, query, _ := strings.Cut(pathAndQuery, "?")
-		err = s.getJSON(ctx, s.RedditBase+path+".json?"+query, &listing)
-	}
-	if err != nil {
+	if err := s.redditGet(ctx, pathAndQuery, &listing); err != nil {
 		return nil, err
 	}
 	var posts []Post
