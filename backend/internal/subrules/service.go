@@ -3,6 +3,7 @@ package subrules
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"regexp"
 	"strings"
@@ -16,10 +17,14 @@ type Cache interface {
 	Set(ctx context.Context, key string, val []byte, ttl time.Duration)
 }
 
-// FetchFunc reads a subreddit's rules from Reddit. wsID is the workspace a
-// paid fallback (treg) is billed to; the result is shared by every workspace.
-// (monitor.SubredditRulesFetcher).
+// FetchFunc reads a subreddit's rules from Reddit
+// (monitor.SubredditRulesFetcher). wsID tags a treg fallback call; the
+// result is shared by every workspace.
 type FetchFunc func(ctx context.Context, wsID, sub string) (Raw, error)
+
+// ErrRefused wraps a fetch error that is about the caller or our account (a
+// meter, cap or pause refusal), not the subreddit. It is never cached.
+var ErrRefused = errors.New("subrules: fetch refused")
 
 const (
 	cacheTTL     = 7 * 24 * time.Hour
@@ -64,7 +69,8 @@ func (s *Service) Get(ctx context.Context, wsID, sub string) *Summary {
 	defer cancel()
 	raw, err := s.fetch(fctx, wsID, sub)
 	c := cached{OK: err == nil, Raw: raw}
-	if s.cache != nil && ctx.Err() == nil {
+	// A refusal says nothing about the subreddit: the next caller may be allowed.
+	if s.cache != nil && ctx.Err() == nil && !errors.Is(err, ErrRefused) {
 		ttl := cacheTTL
 		if err != nil {
 			ttl = failTTL

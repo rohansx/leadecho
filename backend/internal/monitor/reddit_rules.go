@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/subrules"
 	"leadecho/internal/treg"
 )
@@ -32,11 +34,24 @@ func SubredditRulesFetcher(s *PublicSources, t *treg.Client) subrules.FetchFunc 
 	}
 }
 
+// tregRefusal: treg did not try the page because of who asked or our account
+// (meter, pause, caps, balance), so the subreddit's result is unknown.
+func tregRefusal(err error) bool {
+	var apiErr *treg.APIError
+	return treg.IsOperatorError(err) || errors.Is(err, treg.ErrCustomerDailyCap) || errors.Is(err, treg.ErrNotConfigured) ||
+		errors.Is(err, billing.ErrNoPaidData) || errors.Is(err, billing.ErrPaidDataPaused) || errors.Is(err, billing.ErrNoCredits) ||
+		(errors.As(err, &apiErr) && apiErr.Treg)
+}
+
 // tregSubredditRules scrapes old.reddit.com/r/<sub>/about/rules, whose page
-// also carries the sidebar, so one metered call gets both.
+// also carries the sidebar, so one call gets both. t should be the platform's
+// overhead client (billing.OverheadMeter): wsID only tags the call.
 func tregSubredditRules(ctx context.Context, t *treg.Client, wsID, sub string) (subrules.Raw, error) {
 	resp, err := t.Call(ctx, treg.Request{WorkspaceID: wsID, Tool: tregPageTool, Body: map[string]string{
 		"url": "https://old.reddit.com/r/" + url.PathEscape(sub) + "/about/rules", "format": "md"}})
+	if tregRefusal(err) {
+		return subrules.Raw{}, fmt.Errorf("%w: %w", subrules.ErrRefused, err)
+	}
 	if err != nil {
 		return subrules.Raw{}, err
 	}

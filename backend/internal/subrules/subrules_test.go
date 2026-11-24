@@ -3,6 +3,7 @@ package subrules
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -214,6 +215,30 @@ func TestServiceGet(t *testing.T) {
 	svc.Get(ctx, "ws", "startups")
 	if calls != 2 {
 		t.Fatalf("a cached failure must not refetch, calls = %d", calls)
+	}
+}
+
+// One workspace's refusal (no paid data, no credits, a cap) must not hide a
+// subreddit's rules from the next caller.
+func TestServiceRefusalNotCached(t *testing.T) {
+	cache := &memCache{m: map[string][]byte{}, ttl: map[string]time.Duration{}}
+	refuse := true
+	svc := New(func(_ context.Context, ws, _ string) (Raw, error) {
+		if refuse {
+			return Raw{}, fmt.Errorf("%w: %w", ErrRefused, errors.New("paid data is not enabled"))
+		}
+		return Raw{Rules: []Rule{{ShortName: "No self-promotion"}}}, nil
+	}, cache)
+	ctx := context.Background()
+	if s := svc.Get(ctx, "free-ws", "SaaS"); s == nil || s.Available {
+		t.Fatalf("refused fetch: %+v", s)
+	}
+	if len(cache.m) != 0 {
+		t.Fatalf("a refusal was cached: %v", cache.ttl)
+	}
+	refuse = false
+	if s := svc.Get(ctx, "other-ws", "SaaS"); s == nil || s.SelfPromo != PromoBanned {
+		t.Fatalf("next caller should fetch: %+v", s)
 	}
 }
 

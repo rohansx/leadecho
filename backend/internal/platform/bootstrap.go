@@ -159,8 +159,15 @@ func Bootstrap(ctx context.Context, logger zerolog.Logger) (*Shared, error) {
 	replyDrafter.SetCredits(credits)
 	replyDrafter.SetShortLinkBase(cfg.FrontendURL) // voice: tracked links at draft time
 	// ban-safe: subreddit rules the way posts are read (Reddit API, else treg),
-	// cached in Redis for a week per subreddit.
-	replyDrafter.SetSubredditRules(subrules.New(monitor.SubredditRulesFetcher(monitor.DefaultPublicSources(), tregClient), treg.NewRedisCache(redis)))
+	// cached in Redis for a week per subreddit. The treg call is platform
+	// overhead ($0.00025 per subreddit per week, shared by every workspace):
+	// its own client, ledgered like any call, gated only by the /ops pause,
+	// never by a workspace's paid-data flag or credits.
+	overheadTreg := treg.New(treg.Config{Token: cfg.TregToken, OrgID: cfg.TregOrgID, BaseURL: cfg.TregBaseURL, MaxCostMicro: cfg.TregMaxCostMicro}, queries, logger)
+	if overheadTreg.Enabled() {
+		overheadTreg.SetMeter(billing.OverheadMeter{Credits: credits})
+	}
+	replyDrafter.SetSubredditRules(subrules.New(monitor.SubredditRulesFetcher(monitor.DefaultPublicSources(), overheadTreg), treg.NewRedisCache(redis)))
 	workflowEngine := workflow.NewEngine(queries, logger)
 	workflowEngine.SetDrafter(func(ctx context.Context, wsID, mentionID string) error {
 		_, err := replyDrafter.DraftForMention(ctx, wsID, mentionID)

@@ -11,9 +11,53 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"leadecho/internal/billing"
 	"leadecho/internal/subrules"
 	"leadecho/internal/treg"
 )
+
+type refusingMeter struct{ err error }
+
+func (m refusingMeter) Spend(context.Context, string, int, string) error { return m.err }
+func (refusingMeter) Refund(context.Context, string, int, string)        {}
+
+func TestTregSubredditRulesRefusal(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path == "/call/"+tregPageTool && calls.Load() == 1 {
+			w.WriteHeader(http.StatusBadGateway) // the provider failed: a real failure
+			_, _ = w.Write([]byte(`{"error":"route_failed"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"markdown":"1. No self-promotion of any kind here."}`))
+	}))
+	defer srv.Close()
+
+	// A metered client refusing the workspace: wrapped as ErrRefused, never fetched.
+	for _, refusal := range []error{billing.ErrNoPaidData, billing.ErrNoCredits, billing.ErrPaidDataPaused} {
+		tc := treg.New(treg.Config{Token: "tok", BaseURL: srv.URL}, nil, zerolog.Nop())
+		tc.SetMeter(refusingMeter{refusal})
+		_, err := tregSubredditRules(context.Background(), tc, tregTestWS, "SaaS")
+		if !errors.Is(err, subrules.ErrRefused) || !errors.Is(err, refusal) {
+			t.Fatalf("%v: got %v, want ErrRefused", refusal, err)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("a refused call reached treg %d times", calls.Load())
+	}
+
+	// The overhead meter does not ask for paid data or credits (credits off here).
+	tc := treg.New(treg.Config{Token: "tok", BaseURL: srv.URL}, nil, zerolog.Nop())
+	tc.SetMeter(billing.OverheadMeter{Credits: billing.New(nil, true)})
+	_, err := tregSubredditRules(context.Background(), tc, tregTestWS, "SaaS")
+	if err == nil || errors.Is(err, subrules.ErrRefused) {
+		t.Fatalf("an upstream failure must stay cacheable, got %v", err)
+	}
+	if raw, err := tregSubredditRules(context.Background(), tc, tregTestWS, "SaaS"); err != nil || len(raw.Rules) != 1 {
+		t.Fatalf("overhead call: raw=%+v err=%v", raw, err)
+	}
+}
 
 // A scraped old.reddit rules page, as crawl4ai.web.scrape answers it.
 const oldRedditRulesMD = `# [r/SaaS](https://old.reddit.com/r/SaaS)

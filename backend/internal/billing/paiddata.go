@@ -75,6 +75,20 @@ func (m *PaidDataMeter) Refund(ctx context.Context, wsID string, n int, reason s
 	}
 }
 
+// OverheadMeter gates treg calls the platform pays for itself (shared,
+// cached lookups such as subreddit rules): only the global /ops switch, no
+// workspace paid-data flag and no credit. It implements treg.Meter.
+type OverheadMeter struct{ Credits *Credits }
+
+func (m OverheadMeter) Spend(ctx context.Context, _ string, _ int, _ string) error {
+	if m.Credits.PaidDataPaused(ctx) {
+		return ErrPaidDataPaused
+	}
+	return nil
+}
+
+func (OverheadMeter) Refund(context.Context, string, int, string) {}
+
 // ScanAllowed: false when /ops paused the workspace's scanning (always
 // honoured) or, with credits enforced, when its balance is empty.
 func (c *Credits) ScanAllowed(ctx context.Context, wsID string) bool {
