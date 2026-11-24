@@ -17,8 +17,12 @@ func TestQualifiesAsLead(t *testing.T) {
 		{8, "", false},
 	}
 	for _, c := range cases {
-		if got := qualifiesAsLead(c.score, c.intent); got != c.want {
+		if got := qualifiesAsLead(c.score, leadScoreThreshold, c.intent); got != c.want {
 			t.Errorf("qualifiesAsLead(%v, %q) = %v, want %v", c.score, c.intent, got, c.want)
 		}
+	}
+	// the workspace's strictness moves the line
+	if qualifiesAsLead(7, 7.5, "buy_signal") || !qualifiesAsLead(5, 5, "buy_signal") {
+		t.Error("qualifiesAsLead ignores the workspace's lead line")
 	}
 }

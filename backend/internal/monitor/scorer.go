@@ -572,11 +572,12 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 	m.publishMentionScored(ctx, c.alert, result)
 
 	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
-	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, result.Intent) {
+	leadMin := m.q.LeadMinScoreFor(ctx, c.alert.WorkspaceID)
+	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, leadMin, result.Intent) {
 		m.qualifyAsLead(ctx, c.alert, result)
 	}
 	m.runWorkflows(ctx, c.alert, result)
-	m.autoDraft(ctx, c.alert, result) // after workflows: one of them may have drafted already
+	m.autoDraft(ctx, c.alert, result, leadMin) // after workflows: one of them may have drafted already
 }
 
 // runWorkflows runs the workspace's real-time workflows inline, unless the
@@ -602,15 +603,16 @@ func classifyErrorStage(err error) string {
 	return "stage3_classification_error"
 }
 
-// leadScoreThreshold must match the leads_ready SQL predicate in
-// database/mentions_composed.go and queries/mentions.sql.
-const leadScoreThreshold = 6.0
+// leadScoreThreshold is the balanced lead line (a workspace's strictness can
+// move it; see database.LeadStrictness).
+const leadScoreThreshold = database.LeadMinScore
 
 // qualifiesAsLead: scores are product-aware (competitor launches score 0-3),
-// so 6+ with buying-type intent is a real prospect. comparison counts: someone
-// weighing options is shopping.
-func qualifiesAsLead(score float64, intent string) bool {
-	if score < leadScoreThreshold {
+// so minScore (the workspace's line, 6 by default) or more with buying-type
+// intent is a real prospect. comparison counts: someone weighing options is
+// shopping.
+func qualifiesAsLead(score, minScore float64, intent string) bool {
+	if score < minScore {
 		return false
 	}
 	switch database.IntentType(intent) {

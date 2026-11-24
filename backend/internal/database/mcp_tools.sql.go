@@ -113,7 +113,7 @@ SELECT
     (SELECT COUNT(*) FROM mentions m
        WHERE m.workspace_id = $1
          AND m.created_at >= NOW() - make_interval(days => $2::int)
-         AND m.relevance_score >= 6.0
+         AND m.relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0)
          AND m.intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))::int AS high_intent,
     (SELECT COUNT(*) FROM mentions m
        WHERE m.workspace_id = $1

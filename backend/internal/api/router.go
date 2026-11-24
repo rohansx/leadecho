@@ -178,6 +178,9 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 			r.Post("/response-profiles/{id}/default", responseProfiles.SetDefault)
 			r.Get("/settings/drafts", responseProfiles.GetDraftSettings)
 			r.Put("/settings/drafts", responseProfiles.PutDraftSettings)
+			leadStrictness := handler.NewLeadStrictnessHandler(queries)
+			r.Get("/settings/lead-strictness", leadStrictness.Get)
+			r.Put("/settings/lead-strictness", leadStrictness.Put)
 
 			// Leads
 			leads := handler.NewLeadHandler(queries, crm)

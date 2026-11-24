@@ -291,7 +291,7 @@ func (q *Queries) ReplyStats(ctx context.Context, workspaceID string) ([]ReplySt
 const scoringPrecisionByBand = `-- name: ScoringPrecisionByBand :many
 SELECT
     CASE
-        WHEN relevance_score >= 6.0 THEN 'leads_ready'
+        WHEN relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) THEN 'leads_ready'
         WHEN relevance_score >= 4.0 THEN 'worth_watching'
         ELSE 'filtered'
     END::text AS score_band,

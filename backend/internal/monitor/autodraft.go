@@ -21,17 +21,17 @@ type AutoDrafter interface {
 // SetAutoDrafter turns auto-drafts on.
 func (m *Monitor) SetAutoDrafter(d AutoDrafter) { m.autoDrafter = d }
 
-// autoDraftable: a lead by the Leads tab's own rule, scored 7 or more, whose
-// author is a buyer. An unknown role is not enough: a reply written to a
-// candidate or a vendor is worse than none.
-func autoDraftable(r *ai.ClassifyResult) bool {
-	return r != nil && r.RelevanceScore >= autoDraftMinScore && qualifiesAsLead(r.RelevanceScore, r.Intent) && r.AuthorRole == "buyer"
+// autoDraftable: a lead by the Leads tab's own rule (at the workspace's
+// leadMin), scored 7 or more, whose author is a buyer. An unknown role is not
+// enough: a reply written to a candidate or a vendor is worse than none.
+func autoDraftable(r *ai.ClassifyResult, leadMin float64) bool {
+	return r != nil && r.RelevanceScore >= autoDraftMinScore && qualifiesAsLead(r.RelevanceScore, leadMin, r.Intent) && r.AuthorRole == "buyer"
 }
 
 // autoDraft drafts the reply for a post that was just scored (or re-scored)
 // as a strong lead. Best effort: the lead stands without it.
-func (m *Monitor) autoDraft(ctx context.Context, a mentionAlert, r *ai.ClassifyResult) {
-	if m.autoDrafter == nil || !autoDraftable(r) {
+func (m *Monitor) autoDraft(ctx context.Context, a mentionAlert, r *ai.ClassifyResult, leadMin float64) {
+	if m.autoDrafter == nil || !autoDraftable(r, leadMin) {
 		return
 	}
 	drafted, err := m.autoDrafter.AutoDraft(ctx, a.WorkspaceID, a.ID)

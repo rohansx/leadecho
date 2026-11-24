@@ -132,8 +132,8 @@ func (q *Queries) CountMentionsByStatus(ctx context.Context, workspaceID string)
 const countMentionsByTier = `-- name: CountMentionsByTier :many
 SELECT
     CASE
-        WHEN relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison') THEN 'leads_ready'
-        WHEN relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false) THEN 'worth_watching'
+        WHEN relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison') THEN 'leads_ready'
+        WHEN relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false) THEN 'worth_watching'
         ELSE 'filtered'
     END as tier,
     COUNT(*)::int as count
@@ -596,7 +596,7 @@ func (q *Queries) ListMentionsByStatus(ctx context.Context, arg ListMentionsBySt
 const listMentionsFiltered = `-- name: ListMentionsFiltered :many
 SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
-AND NOT (COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
+AND NOT (COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
 AND COALESCE(relevance_score, 0) < 4.0
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $2
@@ -668,7 +668,7 @@ const listMentionsLeadsReady = `-- name: ListMentionsLeadsReady :many
 
 SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content, content_tsv, author_username, author_profile_url, author_karma, author_account_age_days, relevance_score, intent, conversion_probability, status, assigned_to, platform_metadata, engagement_metrics, keyword_matches, platform_created_at, created_at, updated_at, content_embedding, scoring_metadata, awareness_level, intent_tags, sentiment, canonical_url, content_simhash FROM mentions
 WHERE workspace_id = $1
-AND relevance_score >= 6.0
+AND relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0)
 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT $3 OFFSET $2
@@ -738,7 +738,7 @@ SELECT id, workspace_id, keyword_id, platform, platform_id, url, title, content,
 WHERE workspace_id = $1
 AND relevance_score IS NOT NULL
 AND relevance_score >= 4.0
-AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)
+AND NOT COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT $3 OFFSET $2
 `
@@ -807,8 +807,8 @@ SELECT id, platform, url, title, content, author_username,
 FROM mentions
 WHERE workspace_id = $1
   AND (
-    (relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))
-    OR (relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= 6.0 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
+    (relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))
+    OR (relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = $1), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
   )
 ORDER BY created_at DESC
 LIMIT $2

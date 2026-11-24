@@ -21,6 +21,7 @@ import type {
   PlatformCount,
   QueueCount,
 } from "./types";
+import type { LeadStrictness } from "./lead-strictness";
 
 const BASE = "/api/v1";
 
@@ -1059,6 +1060,24 @@ export function saveDraftSettings(settings: DraftSettings) {
   return request<DraftSettings>("/settings/drafts", {
     method: "PUT",
     body: JSON.stringify(settings),
+  });
+}
+
+// ─── Lead strictness ───────────────────────────────────
+export interface LeadStrictnessSetting {
+  strictness: LeadStrictness;
+  /** The lowest score that is a lead at this level. */
+  min_score: number;
+}
+
+export function getLeadStrictness() {
+  return request<LeadStrictnessSetting>("/settings/lead-strictness");
+}
+
+export function saveLeadStrictness(strictness: LeadStrictness) {
+  return request<LeadStrictnessSetting>("/settings/lead-strictness", {
+    method: "PUT",
+    body: JSON.stringify({ strictness }),
   });
 }
 
