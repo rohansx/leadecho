@@ -2,17 +2,19 @@ package database
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DB-backed: marking posted keeps the first posted_at and the pasted URL;
 // the payoff list carries the link's clicks/sign-ups, is workspace-scoped and
-// leaves out unposted, unclicked drafts; event ids are seen per link.
+// leaves out unposted, unclicked drafts; a draft cannot be marked posted.
 func TestReplyPayoffDB(t *testing.T) {
 	dsn := os.Getenv("LEADECHO_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -65,6 +67,15 @@ VALUES ($1, 'reddit', $2, 'https://reddit.com/r/x/'||$2, 'need a crm', 'post', '
 		t.Fatal(err)
 	}
 
+	if _, err := q.MarkReplyPostedURL(ctx, posted.ID, ws, ""); !errors.Is(err, ErrReplyNotApproved) {
+		t.Fatalf("a draft must not be marked posted: %v", err)
+	}
+	if _, err := q.MarkReplyPostedURL(ctx, "00000000-0000-0000-0000-000000000000", ws, ""); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("unknown reply: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE replies SET status = 'approved' WHERE id = $1`, posted.ID); err != nil {
+		t.Fatal(err)
+	}
 	first, err := q.MarkReplyPostedURL(ctx, posted.ID, ws, "https://reddit.com/r/x/comments/abc")
 	if err != nil || first.Status != ReplyStatusPosted || !first.PostedAt.Valid {
 		t.Fatalf("mark posted: %+v %v", first, err)
@@ -91,15 +102,5 @@ VALUES ($1, 'reddit', $2, 'https://reddit.com/r/x/'||$2, 'need a crm', 'post', '
 	}
 	if rows, _ := q.ListReplyPayoff(ctx, other, time.Now().Add(-time.Hour)); len(rows) != 0 {
 		t.Fatalf("other workspace sees %+v", rows)
-	}
-
-	if seen, err := q.UTMEventSeen(ctx, link.ID, "evt_1"); err != nil || seen {
-		t.Fatalf("unseen event: %v %v", seen, err)
-	}
-	if _, err := q.CreateUTMEvent(ctx, CreateUTMEventParams{UtmLinkID: link.ID, EventType: "signup", Metadata: []byte(`{"event_id":"evt_1"}`)}); err != nil {
-		t.Fatal(err)
-	}
-	if seen, err := q.UTMEventSeen(ctx, link.ID, "evt_1"); err != nil || !seen {
-		t.Fatalf("seen event: %v %v", seen, err)
 	}
 }

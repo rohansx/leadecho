@@ -49,6 +49,29 @@ func TestWorkspaceQuotaMiddleware(t *testing.T) {
 	}
 }
 
+// KeyedQuota counts per key: one client IP running out leaves another alone.
+func TestKeyedQuotaPerKey(t *testing.T) {
+	q := NewQuota(1, time.Hour)
+	h := KeyedQuota(q, func(r *http.Request) string { return r.RemoteAddr }, "slow down")(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))
+	do := func(ip string) int {
+		req := httptest.NewRequest("POST", "/api/v1/hooks/conversion", nil)
+		req.RemoteAddr = ip
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if c := do("1.1.1.1:1"); c != 204 {
+		t.Fatalf("first = %d", c)
+	}
+	if c := do("1.1.1.1:1"); c != http.StatusTooManyRequests {
+		t.Fatalf("same ip again = %d, want 429", c)
+	}
+	if c := do("2.2.2.2:1"); c != 204 {
+		t.Fatalf("other ip = %d, want 204", c)
+	}
+}
+
 // fakeCounter is a shared (Redis-like) counter; fail makes every call error.
 type fakeCounter struct {
 	n    map[string]int64

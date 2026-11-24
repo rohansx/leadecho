@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,21 +12,27 @@ import (
 // the /r/{code} redirect, sign-ups from the conversion API, both on the reply's
 // utm_links row. Hand-written (no sqlc codegen).
 
-// MarkReplyPostedURL marks the reply posted, keeping the first posted_at, and
-// records the URL of the posted comment when one is given ("" keeps the old).
+// ErrReplyNotApproved: only an approved (or already posted) reply can be marked posted.
+var ErrReplyNotApproved = errors.New("reply is not approved")
+
+// MarkReplyPostedURL marks an approved (or already posted) reply posted,
+// keeping the first posted_at, and records the URL of the posted comment when
+// one is given ("" keeps the old). pgx.ErrNoRows when the workspace has no
+// such reply, ErrReplyNotApproved when it is still a draft (or failed).
 func (q *Queries) MarkReplyPostedURL(ctx context.Context, id, workspaceID, postedURL string) (Reply, error) {
 	tag, err := q.db.Exec(ctx, `
 UPDATE replies
 SET status = 'posted', posted_at = COALESCE(posted_at, NOW()),
     posted_url = COALESCE(NULLIF($3, ''), posted_url), updated_at = NOW()
-WHERE id = $1 AND workspace_id = $2`, id, workspaceID, postedURL)
+WHERE id = $1 AND workspace_id = $2 AND status IN ('approved', 'posted')`, id, workspaceID, postedURL)
 	if err != nil {
 		return Reply{}, err
 	}
-	if tag.RowsAffected() == 0 {
-		return Reply{}, pgx.ErrNoRows
+	r, err := q.GetReply(ctx, GetReplyParams{ID: id, WorkspaceID: workspaceID})
+	if err == nil && tag.RowsAffected() == 0 {
+		return Reply{}, ErrReplyNotApproved
 	}
-	return q.GetReply(ctx, GetReplyParams{ID: id, WorkspaceID: workspaceID})
+	return r, err
 }
 
 // ReplyPayoffRow is one reply that was posted (or whose link was clicked).
@@ -77,12 +84,22 @@ LIMIT 1000`, workspaceID, since)
 	return out, rows.Err()
 }
 
-// UTMEventSeen reports whether a conversion with this caller-supplied event id
-// was already recorded on the link (webhook retries must not double-count).
-func (q *Queries) UTMEventSeen(ctx context.Context, utmLinkID, eventID string) (bool, error) {
-	var seen bool
-	err := q.db.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM utm_events WHERE utm_link_id = $1 AND metadata->>'event_id' = $2)`,
-		utmLinkID, eventID).Scan(&seen)
-	return seen, err
+// InTx runs fn on Queries bound to one transaction: committed when fn returns
+// nil, rolled back otherwise. Works on a pool or inside a transaction (savepoint).
+func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
+	b, ok := q.db.(interface {
+		Begin(context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return errors.New("database: InTx needs a pool or transaction")
+	}
+	tx, err := b.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op after Commit
+	if err := fn(q.WithTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

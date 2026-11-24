@@ -86,13 +86,20 @@ func (q *Quota) allowLocal(key string) bool {
 
 // WorkspaceQuota answers 429 once the caller's workspace exceeds q.
 func WorkspaceQuota(q *Quota) func(http.Handler) http.Handler {
+	return KeyedQuota(q, func(r *http.Request) string { return WorkspaceID(r.Context()) },
+		"too many requests for this workspace, try again shortly")
+}
+
+// KeyedQuota answers 429 once key(r) exceeds q (e.g. per client IP on a
+// public endpoint). msg must be JSON-safe.
+func KeyedQuota(q *Quota, key func(*http.Request) string, msg string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if ok, wait := q.allow(r.Context(), WorkspaceID(r.Context())); !ok {
+			if ok, wait := q.allow(r.Context(), key(r)); !ok {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 				w.WriteHeader(http.StatusTooManyRequests)
-				_, _ = w.Write([]byte(`{"error":"too many requests for this workspace, try again shortly"}`))
+				_, _ = w.Write([]byte(`{"error":"` + msg + `"}`))
 				return
 			}
 			next.ServeHTTP(w, r)

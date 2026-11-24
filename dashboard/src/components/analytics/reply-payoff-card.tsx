@@ -35,7 +35,8 @@ export function ReplyPayoffCard() {
           <Text as="p" className="text-xs text-muted-foreground">
             No posted replies yet. After you post a reply, press "I posted it" on the lead. Clicks on its tracked link are
             counted here; report sign-ups from your server with POST /api/public/v1/conversions (an API key with write
-            access, and the utm_content your landing page received).
+            access, the utm_content your landing page received, and an event_id such as your user id so a retry
+            never counts twice).
           </Text>
         )}
 

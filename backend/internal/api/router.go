@@ -20,6 +20,7 @@ import (
 	"leadecho/internal/automation" // automations (P2 #17)
 	"leadecho/internal/billing"
 	"leadecho/internal/browser"
+	"leadecho/internal/clientip"
 	"leadecho/internal/competitors"
 	"leadecho/internal/config"
 	"leadecho/internal/crmsync"
@@ -68,9 +69,17 @@ func NewRouter(logger zerolog.Logger, db *pgxpool.Pool, redis *goredis.Client, c
 	utmPublic := handler.NewUTMHandler(queries, attrib)
 	r.Get("/r/{code}", utmPublic.RedirectUTM)
 
-	// Public conversion webhook (secret auth in body)
-	convHook := handler.NewConversionWebhookHandler(queries, attrib)
-	r.Post("/api/v1/hooks/conversion", convHook.RecordConversion)
+	// Public conversion webhook (secret auth in body), capped per IP and per workspace.
+	convIPQuota := middleware.NewQuota(60, time.Minute)
+	convWSQuota := middleware.NewQuota(120, time.Minute)
+	if redis != nil {
+		shared := auth.NewRedisCounter(redis)
+		convIPQuota.Shared(shared, "conv_hook_ip")
+		convWSQuota.Shared(shared, "conv_hook_ws")
+	}
+	convHook := handler.NewConversionWebhookHandler(queries, attrib, convWSQuota)
+	r.With(middleware.KeyedQuota(convIPQuota, func(r *http.Request) string { return clientip.From(r, cfg.TrustedProxyHops) },
+		"too many requests, try again shortly")).Post("/api/v1/hooks/conversion", convHook.RecordConversion)
 
 	// billing: credits + Dodo Payments. The webhook is public; its signature is the auth.
 	credits := billing.New(queries, cfg.CreditsEnforced())

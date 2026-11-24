@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -61,7 +62,7 @@ func TestRecordConversionAPIRejects(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := oneKeyStore{database.WorkspaceApiKey{ID: "k1", WorkspaceID: "ws-1", KeyHash: key.Hash, Scopes: []string{"read", "write"}}}
-	h := middleware.APIKeyAuth(store, nil, 0)(http.HandlerFunc(NewConversionWebhookHandler(nil, nil).RecordConversionAPI))
+	h := middleware.APIKeyAuth(store, nil, 0)(http.HandlerFunc(NewConversionWebhookHandler(nil, nil, nil).RecordConversionAPI))
 	tests := []struct {
 		name   string
 		body   string
@@ -86,6 +87,26 @@ func TestRecordConversionAPIRejects(t *testing.T) {
 				t.Fatalf("status = %d, want %d (%s)", rec.Code, tt.status, rec.Body.String())
 			}
 		})
+	}
+}
+
+// The legacy hook caps each workspace_id before the secret is checked.
+func TestLegacyConversionHookWorkspaceQuota(t *testing.T) {
+	h := NewConversionWebhookHandler(nil, nil, middleware.NewQuota(1, time.Hour))
+	do := func(ws string) int {
+		body := `{"workspace_id":"` + ws + `","secret":"guess","utm_code":"aB3dE6gH","event_type":"click"}`
+		rec := httptest.NewRecorder()
+		h.RecordConversion(rec, httptest.NewRequest(http.MethodPost, "/api/v1/hooks/conversion", strings.NewReader(body)))
+		return rec.Code
+	}
+	if c := do("ws-a"); c != http.StatusBadRequest { // within quota; rejected by validation
+		t.Fatalf("first = %d, want 400", c)
+	}
+	if c := do("ws-a"); c != http.StatusTooManyRequests {
+		t.Fatalf("second = %d, want 429", c)
+	}
+	if c := do("ws-b"); c != http.StatusBadRequest {
+		t.Fatalf("other workspace = %d, want 400", c)
 	}
 }
 

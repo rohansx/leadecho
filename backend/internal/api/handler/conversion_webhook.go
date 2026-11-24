@@ -15,12 +15,13 @@ import (
 
 // ConversionWebhookHandler accepts signup/purchase events from external systems.
 type ConversionWebhookHandler struct {
-	q      *database.Queries
-	attrib *attribution.Service
+	q       *database.Queries
+	attrib  *attribution.Service
+	wsQuota *middleware.Quota // legacy hook, per workspace_id; nil = unlimited
 }
 
-func NewConversionWebhookHandler(q *database.Queries, attrib *attribution.Service) *ConversionWebhookHandler {
-	return &ConversionWebhookHandler{q: q, attrib: attrib}
+func NewConversionWebhookHandler(q *database.Queries, attrib *attribution.Service, wsQuota *middleware.Quota) *ConversionWebhookHandler {
+	return &ConversionWebhookHandler{q: q, attrib: attrib, wsQuota: wsQuota}
 }
 
 const (
@@ -101,23 +102,14 @@ func (h *ConversionWebhookHandler) RecordConversionAPI(w http.ResponseWriter, r 
 		writeError(w, status, msg)
 		return
 	}
-	if in.EventID != "" {
-		seen, err := h.q.UTMEventSeen(r.Context(), link.ID, in.EventID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to record conversion")
-			return
-		}
-		if seen {
-			writeJSON(w, http.StatusOK, map[string]any{"recorded": false, "duplicate": true})
-			return
-		}
-	}
-	// ponytail: check-then-insert; two concurrent retries of one event_id can
-	// both count. A unique index on (utm_link_id, metadata->>'event_id') if that shows up.
 	updated, err := h.attrib.RecordConversion(r.Context(), wsID, attribution.ConversionRequest{
 		UTMCode: link.Code, EventType: in.EventType, RevenueCents: in.RevenueCents,
 		Metadata: withEventID(in.Metadata, in.EventID),
 	})
+	if errors.Is(err, attribution.ErrDuplicateConversion) {
+		writeJSON(w, http.StatusOK, map[string]any{"recorded": false, "duplicate": true})
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to record conversion")
 		return
@@ -178,6 +170,12 @@ func (h *ConversionWebhookHandler) RecordConversion(w http.ResponseWriter, r *ht
 		writeError(w, http.StatusBadRequest, "workspace_id and secret are required")
 		return
 	}
+	// Per-workspace cap before the secret check, so guessing one workspace's
+	// secret from many IPs is throttled too (the route also caps per IP).
+	if h.wsQuota != nil && !h.wsQuota.Allow(r.Context(), body.WorkspaceID) {
+		writeError(w, http.StatusTooManyRequests, "too many requests for this workspace, try again shortly")
+		return
+	}
 	in, err := body.conversionInput.validate()
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -205,6 +203,10 @@ func (h *ConversionWebhookHandler) RecordConversion(w http.ResponseWriter, r *ht
 		RevenueCents: in.RevenueCents,
 		Metadata:     withEventID(in.Metadata, in.EventID),
 	})
+	if errors.Is(err, attribution.ErrDuplicateConversion) {
+		writeJSON(w, http.StatusOK, map[string]any{"recorded": false, "duplicate": true})
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusNotFound, "conversion not recorded")
 		return

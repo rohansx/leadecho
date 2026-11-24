@@ -219,6 +219,10 @@ func (h *ReplyHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "reply not found")
 			return
 		}
+		if errors.Is(err, database.ErrReplyNotApproved) {
+			writeError(w, http.StatusConflict, "approve the reply before marking it posted")
+			return
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to mark reply posted")
 			return
