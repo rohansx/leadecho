@@ -18,6 +18,7 @@ import { IntegrationsCard } from "@/components/settings/integrations-card";
 import { ApiMcpCard } from "@/components/settings/api-mcp-card"; // mcp
 import { BillingCard } from "@/components/settings/billing-card"; // billing
 import { DraftsCard } from "@/components/settings/drafts-card";
+import { ProductTypeCard } from "@/components/settings/product-type-card";
 import { BILLING_QUERY, getBilling } from "@/lib/billing-api";
 import {
   getExtensionToken,
@@ -39,6 +40,7 @@ const TABS = [
   { key: "account", label: "Account" },
   { key: "billing", label: "Plan & billing" },
   { key: "replies", label: "Replies" },
+  { key: "product", label: "Product" },
   { key: "integrations", label: "Integrations" },
   { key: "ai", label: "AI providers" }, // self-hosted only
 ] as const;
@@ -688,6 +690,7 @@ function SettingsPage() {
         {tab === "account" && <AccountCard />}
         {tab === "billing" && <BillingCard />}
         {tab === "replies" && <DraftsCard />}
+        {tab === "product" && <ProductTypeCard />}
         {tab === "integrations" && (
           <div className="space-y-6">
             <IntegrationsCard />

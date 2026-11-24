@@ -34,7 +34,9 @@ type BrandProfile struct {
 	Features         []string             `json:"features"`
 	TargetAudience   string               `json:"target_audience"`
 	SourceURL        string               `json:"source_url"`
-	UpdatedAt        *time.Time           `json:"updated_at,omitempty"`
+	// Archetype picks the lead facts read from posts (ai.Archetypes; "" = none).
+	Archetype string     `json:"archetype"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 // FromAnalysis builds a brand profile from a product analysis, deriving the
@@ -52,6 +54,7 @@ func FromAnalysis(pa *ai.ProductAnalysis, sourceURL string) BrandProfile {
 		Features:         pa.Features,
 		TargetAudience:   string(pa.TargetAudience),
 		SourceURL:        sourceURL,
+		Archetype:        ai.NormalizeArchetype(pa.Archetype),
 	}
 	if len(bp.CustomerSegments) == 0 {
 		for _, name := range cleanList(strings.Split(bp.TargetAudience, ","), 5) {
@@ -117,6 +120,10 @@ func (bp BrandProfile) Normalized() (BrandProfile, error) {
 	out.SourceURL = strings.TrimSpace(bp.SourceURL)
 	if out.SourceURL != "" && !isHTTPURL(out.SourceURL) {
 		return out, errors.New("source_url must be an http(s) URL")
+	}
+	out.Archetype = ai.NormalizeArchetype(bp.Archetype)
+	if out.Archetype == "" && strings.TrimSpace(bp.Archetype) != "" {
+		return out, errors.New("archetype must be one of: " + strings.Join(ai.Archetypes, ", "))
 	}
 	out.Overview = capLen(strings.TrimSpace(bp.Overview), maxTextLen)
 	out.Positioning = capLen(strings.TrimSpace(bp.Positioning), maxTextLen)
@@ -193,6 +200,7 @@ func (bp BrandProfile) Params(workspaceID string) database.UpsertBrandProfilePar
 		Features:         nonNil(bp.Features),
 		TargetAudience:   bp.TargetAudience,
 		SourceUrl:        bp.SourceURL,
+		Archetype:        bp.Archetype,
 	}
 }
 
@@ -206,6 +214,7 @@ func FromRow(r database.BrandProfile) BrandProfile {
 		Features:       r.Features,
 		TargetAudience: r.TargetAudience,
 		SourceURL:      r.SourceUrl,
+		Archetype:      r.Archetype,
 	}
 	if !r.UpdatedAt.IsZero() {
 		t := r.UpdatedAt

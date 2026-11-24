@@ -32,7 +32,7 @@ func (q *Queries) CountDocumentsBySourceURL(ctx context.Context, arg CountDocume
 
 const getBrandProfile = `-- name: GetBrandProfile :one
 
-SELECT workspace_id, overview, product, positioning, customer_segments, competitors, pain_points, keywords, features, target_audience, source_url, created_at, updated_at FROM brand_profiles WHERE workspace_id = $1
+SELECT workspace_id, overview, product, positioning, customer_segments, competitors, pain_points, keywords, features, target_audience, source_url, created_at, updated_at, archetype FROM brand_profiles WHERE workspace_id = $1
 `
 
 // ─── Brand profile (onboarding) ───────────────────────
@@ -53,6 +53,7 @@ func (q *Queries) GetBrandProfile(ctx context.Context, workspaceID string) (Bran
 		&i.SourceUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Archetype,
 	)
 	return i, err
 }
@@ -146,10 +147,12 @@ func (q *Queries) SetMonitoringProfileIntent(ctx context.Context, arg SetMonitor
 const upsertBrandProfile = `-- name: UpsertBrandProfile :one
 INSERT INTO brand_profiles (
     workspace_id, overview, product, positioning, customer_segments,
-    competitors, pain_points, keywords, features, target_audience, source_url
+    competitors, pain_points, keywords, features, target_audience, source_url,
+    archetype
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10, $11
+    $6, $7, $8, $9, $10, $11,
+    $12
 )
 ON CONFLICT (workspace_id) DO UPDATE SET
     overview = EXCLUDED.overview,
@@ -161,8 +164,9 @@ ON CONFLICT (workspace_id) DO UPDATE SET
     keywords = EXCLUDED.keywords,
     features = EXCLUDED.features,
     target_audience = EXCLUDED.target_audience,
-    source_url = EXCLUDED.source_url
-RETURNING workspace_id, overview, product, positioning, customer_segments, competitors, pain_points, keywords, features, target_audience, source_url, created_at, updated_at
+    source_url = EXCLUDED.source_url,
+    archetype = EXCLUDED.archetype
+RETURNING workspace_id, overview, product, positioning, customer_segments, competitors, pain_points, keywords, features, target_audience, source_url, created_at, updated_at, archetype
 `
 
 type UpsertBrandProfileParams struct {
@@ -177,6 +181,7 @@ type UpsertBrandProfileParams struct {
 	Features         []string `json:"features"`
 	TargetAudience   string   `json:"target_audience"`
 	SourceUrl        string   `json:"source_url"`
+	Archetype        string   `json:"archetype"`
 }
 
 func (q *Queries) UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfileParams) (BrandProfile, error) {
@@ -192,6 +197,7 @@ func (q *Queries) UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfile
 		arg.Features,
 		arg.TargetAudience,
 		arg.SourceUrl,
+		arg.Archetype,
 	)
 	var i BrandProfile
 	err := row.Scan(
@@ -208,6 +214,7 @@ func (q *Queries) UpsertBrandProfile(ctx context.Context, arg UpsertBrandProfile
 		&i.SourceUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Archetype,
 	)
 	return i, err
 }

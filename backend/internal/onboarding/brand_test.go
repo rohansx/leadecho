@@ -138,3 +138,18 @@ func has(list []string, s string) bool {
 	}
 	return false
 }
+
+func TestNormalizedArchetype(t *testing.T) {
+	if bp, err := (BrandProfile{Product: "P", Archetype: " DevTool "}).Normalized(); err != nil || bp.Archetype != "devtool" {
+		t.Errorf("archetype %q, err %v", bp.Archetype, err)
+	}
+	if _, err := (BrandProfile{Product: "P", Archetype: "agency"}).Normalized(); err == nil {
+		t.Error("an unknown archetype must be rejected")
+	}
+	if bp := FromAnalysis(&ai.ProductAnalysis{ProductName: "P", Archetype: "agency"}, ""); bp.Archetype != "" {
+		t.Errorf("an unknown analysed archetype is dropped, got %q", bp.Archetype)
+	}
+	if p := (BrandProfile{Archetype: "hiring"}).Params("ws"); p.Archetype != "hiring" || FromRow(database.BrandProfile{Archetype: "hiring"}).Archetype != "hiring" {
+		t.Error("archetype not carried to/from the row")
+	}
+}

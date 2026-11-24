@@ -6,10 +6,12 @@ SELECT * FROM brand_profiles WHERE workspace_id = @workspace_id;
 -- name: UpsertBrandProfile :one
 INSERT INTO brand_profiles (
     workspace_id, overview, product, positioning, customer_segments,
-    competitors, pain_points, keywords, features, target_audience, source_url
+    competitors, pain_points, keywords, features, target_audience, source_url,
+    archetype
 ) VALUES (
     @workspace_id, @overview, @product, @positioning, @customer_segments,
-    @competitors, @pain_points, @keywords, @features, @target_audience, @source_url
+    @competitors, @pain_points, @keywords, @features, @target_audience, @source_url,
+    @archetype
 )
 ON CONFLICT (workspace_id) DO UPDATE SET
     overview = EXCLUDED.overview,
@@ -21,7 +23,8 @@ ON CONFLICT (workspace_id) DO UPDATE SET
     keywords = EXCLUDED.keywords,
     features = EXCLUDED.features,
     target_audience = EXCLUDED.target_audience,
-    source_url = EXCLUDED.source_url
+    source_url = EXCLUDED.source_url,
+    archetype = EXCLUDED.archetype
 RETURNING *;
 
 -- ─── Listener builder ─────────────────────────────────

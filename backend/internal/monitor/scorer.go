@@ -621,6 +621,9 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 	if result.WhyNow != "" {
 		meta["why_now"] = result.WhyNow
 	}
+	if len(result.Facts) > 0 { // what the post states about its author (lead facts)
+		meta["facts"] = result.Facts
+	}
 
 	// Update mention with classification + awareness level
 	if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{

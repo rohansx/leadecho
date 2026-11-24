@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"leadecho/internal/ai"
 	"leadecho/internal/database"
 )
 
@@ -162,12 +163,16 @@ func (h *ChatHandler) leadContext(ctx context.Context, ws, mentionID string) (st
 		}
 	}
 	var sm struct {
-		Reasoning  string `json:"reasoning"`
-		AuthorRole string `json:"author_role"`
+		Reasoning  string    `json:"reasoning"`
+		AuthorRole string    `json:"author_role"`
+		Facts      []ai.Fact `json:"facts"`
 	}
 	_ = json.Unmarshal(m.ScoringMetadata, &sm)
 	line("Why LeadEcho flagged it", sm.Reasoning)
 	line("Author looks like a", sm.AuthorRole)
+	for _, f := range sm.Facts { // stated in the post, read by the classifier
+		line("Post says ("+f.Name+")", f.Value)
+	}
 
 	if lead, err := h.leads.GetLeadByMention(ctx, database.GetLeadByMentionParams{MentionID: parseUUID(mentionID), WorkspaceID: ws}); err == nil {
 		var lm struct {

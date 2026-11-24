@@ -137,6 +137,7 @@ func NormalizeClassifyResult(cr ClassifyResult, title string) ClassifyResult {
 		tags = dropLeadTags(tags)
 		cr.RelevanceScore = min(cr.RelevanceScore, MaxNoNeedScore)
 		cr.WhyNow = ""
+		cr.Facts = nil // facts are for leads
 	}
 
 	pt := strings.ToLower(strings.TrimSpace(cr.PostType))
