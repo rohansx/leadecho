@@ -5,12 +5,14 @@ package monitor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"time"
 
 	"leadecho/internal/cadence"
 	"leadecho/internal/database"
 	"leadecho/internal/mutes"
+	"leadecho/internal/treg"
 )
 
 // Mutes exposes the monitor's mute store so the API shares its cache.
@@ -102,17 +104,55 @@ func bulkFilterPairs(rows []database.KeywordYield) map[[2]string]bool {
 	return out
 }
 
-// recordScans stamps last_scanned for each platform just crawled, except the
-// failed ones: those stay due and are tried again on the next tick.
-//
-// ponytail: a failed paid search is retried every tick until it answers. The
-// treg client's own pauses (5 min after an account refusal, 30 min per
-// workspace cap) keep that cheap; a provider rejecting one query outright is
-// re-asked every tick (refused calls are free). Add a retry backoff if that
-// ever shows up in treg_calls.
+// retryGap is the least time between two tries of a paid search treg refused
+// for now, so a long account outage costs one refused call per keyword and
+// platform per half hour, not one per tick.
+const retryGap = 30 * time.Minute
+
+// retryLater: treg refused the search before running it (our account's
+// balance or platform cap, or this workspace's daily cap) and will answer
+// once that clears. Anything else (a provider error, a timeout, a billing
+// gate on our side) is stamped as scanned as before: the provider may have
+// been paid, and retrying it every tick could cost far more than once a day.
+func retryLater(err error) bool {
+	return treg.IsOperatorError(err) || errors.Is(err, treg.ErrCustomerDailyCap)
+}
+
+func retryKey(wsID, kwID, platform string) string { return wsID + "\x00" + kwID + "\x00" + platform }
+
+// withoutRetryWait drops platforms still inside their retryGap. Inputs are not
+// mutated. ponytail: in memory, so a restart retries at once; fine for one
+// refused call per keyword.
+func (m *Monitor) withoutRetryWait(wsID string, kws []database.ListActiveKeywordsRow) []database.ListActiveKeywordsRow {
+	now := time.Now()
+	out := make([]database.ListActiveKeywordsRow, 0, len(kws))
+	for _, kw := range kws {
+		platforms := make([]string, 0, len(kw.Platforms))
+		for _, p := range kw.Platforms {
+			if until, ok := m.scanRetry.Load(retryKey(wsID, kw.ID, p)); ok && now.Before(until.(time.Time)) {
+				continue
+			}
+			platforms = append(platforms, p)
+		}
+		if len(platforms) > 0 {
+			kw.Platforms = platforms
+			out = append(out, kw)
+		}
+	}
+	return out
+}
+
+// recordScans stamps last_scanned for each platform just crawled. A failed
+// one (retryLater) stays due and is tried again after retryGap.
 func (m *Monitor) recordScans(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow, failed []string) {
 	for _, p := range kw.Platforms {
+		key := retryKey(wsID, kw.ID, p)
 		if slices.Contains(failed, p) {
+			m.scanRetry.Store(key, time.Now().Add(retryGap))
+			continue
+		}
+		m.scanRetry.Delete(key)
+		if m.q == nil {
 			continue
 		}
 		if err := m.q.UpsertKeywordPlatformScan(ctx, database.UpsertKeywordPlatformScanParams{Platform: p, KeywordID: kw.ID, WorkspaceID: wsID}); err != nil {

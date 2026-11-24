@@ -93,13 +93,13 @@ func providerRejected(err error) bool {
 	return errors.As(err, &apiErr) && !apiErr.Treg && apiErr.Status >= 400 && apiErr.Status < 500
 }
 
-// crawlTwitterTreg returns ok=false when treg is off or failed. After the
+// crawlTwitterTreg returns an error when treg is off (ErrTregOff) or failed. After the
 // first poll it asks only for posts newer than the newest one already fetched
 // (X's since_id operator), so a quiet keyword returns nothing instead of the
 // same page of posts again.
-func (m *Monitor) crawlTwitterTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, bool) {
+func (m *Monitor) crawlTwitterTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, error) {
 	if !m.treg.Enabled() {
-		return nil, false
+		return nil, ErrTregOff
 	}
 	key := tregStateKey("x_since", wsID, kw)
 	since := m.tregStateGet(ctx, key)
@@ -116,7 +116,7 @@ func (m *Monitor) crawlTwitterTreg(ctx context.Context, wsID string, kw database
 		if since != "" && providerRejected(err) {
 			m.tregStateSet(ctx, key, "", xSinceTTL)
 		}
-		return nil, false
+		return nil, err
 	}
 	alerts, failed := m.insertTregPosts(ctx, wsID, kw, tregXTool, posts, tregTwitterParams)
 	// Move the cursor only once every post is stored: past a failed insert,
@@ -124,7 +124,7 @@ func (m *Monitor) crawlTwitterTreg(ctx context.Context, wsID string, kw database
 	if newest := newestTweetID(posts, since); newest != since && !failed {
 		m.tregStateSet(ctx, key, newest, xSinceTTL)
 	}
-	return alerts, true
+	return alerts, nil
 }
 
 // newestTweetID returns the highest numeric post ID among posts and since
@@ -149,27 +149,27 @@ func newestTweetID(posts []tregPost, since string) string {
 // crawlLinkedInTreg polls a keyword at most once per linkedInPollEvery, and
 // searches only the past day when the previous poll is recent enough to have
 // covered the rest of the week.
-func (m *Monitor) crawlLinkedInTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, bool) {
+func (m *Monitor) crawlLinkedInTreg(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) ([]mentionAlert, error) {
 	if !m.treg.Enabled() {
-		return nil, false
+		return nil, ErrTregOff
 	}
 	key := tregStateKey("li_polled", wsID, kw)
 	window := "last-week"
 	if at, err := strconv.ParseInt(m.tregStateGet(ctx, key), 10, 64); err == nil {
 		if time.Since(time.Unix(at, 0)) < linkedInPollEvery {
-			return nil, true // polled recently: nothing to do, not a failure
+			return nil, nil // polled recently: nothing to do, not a failure
 		}
 		window = "last-day"
 	}
-	posts, ok := m.tregSearch(ctx, wsID, tregLinkedInTool, map[string]string{"query": brandFrom(ctx).quote(kw.Term), "datePosted": window})
-	if !ok {
-		return nil, false
+	posts, err := m.tregCall(ctx, treg.Request{WorkspaceID: wsID, Tool: tregLinkedInTool, Body: map[string]string{"query": brandFrom(ctx).quote(kw.Term), "datePosted": window}})
+	if err != nil {
+		return nil, err
 	}
 	// The key expires after linkedInDayCover, so a keyword not polled for that
 	// long goes back to a full-week search.
 	m.tregStateSet(ctx, key, strconv.FormatInt(time.Now().Unix(), 10), linkedInDayCover)
 	alerts, _ := m.insertTregPosts(ctx, wsID, kw, tregLinkedInTool, posts, tregLinkedInParams)
-	return alerts, true
+	return alerts, nil
 }
 
 type tregMapper func(string, database.ListActiveKeywordsRow, tregPost) (database.CreateMentionParams, bool)

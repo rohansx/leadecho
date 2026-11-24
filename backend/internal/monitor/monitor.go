@@ -38,6 +38,7 @@ type Monitor struct {
 	resendAPIKey      string
 	redditBackoffNs   atomic.Int64             // unix-nano; skip Reddit crawls until then (set on 429/403). Atomic: scans run concurrently.
 	scanning          sync.Map                 // workspaceID -> struct{}; prevents overlapping scans of one workspace
+	scanRetry         sync.Map                 // retryKey -> time.Time a refused paid search may be tried again
 	painPointsChecked sync.Map                 // workspaceID -> struct{}; pain-point embedding backfill done
 	llmRouter         llm.MentionScorer        // workspace-aware LLM/embedding router
 	scrapling         *browser.ScraplingClient // Scrapling website-reading sidecar (nil if not configured)
@@ -246,6 +247,7 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	}
 	if forcedScan(ctx) != ScanPosts { // an operator's "scan now" covers every platform, due or not
 		kws = m.applyCadence(ctx, wsID, kws) // sources: per-platform cadence
+		kws = m.withoutRetryWait(wsID, kws)
 	}
 	var alerts []mentionAlert
 	for i, kw := range kws {
@@ -317,9 +319,11 @@ func (m *Monitor) setRedditBackoff(d time.Duration) {
 // It recovers from panics so that one misbehaving platform/keyword cannot abort
 // the whole tick or crash the process; the offending keyword is simply skipped.
 //
-// failed lists the paid platforms whose treg search did not answer (balance
-// empty, cap, paused, provider error). They are not stamped as scanned: under
-// the 24h paid cadence one refused search would otherwise cost a day of leads.
+// failed lists the paid platforms whose treg search treg refused for now
+// (retryLater). They are not stamped as scanned: under the 24h paid cadence
+// one refused search would otherwise cost a day of leads. Reddit is never
+// listed: when its treg search fails the public crawler runs instead, and
+// retrying that every tick would get us blocked by Reddit.
 func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.ListActiveKeywordsRow) (alerts []mentionAlert, failed []string) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -346,7 +350,6 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 					alerts = append(alerts, tregAlerts...)
 					break
 				}
-				failed = append(failed, platform)
 			}
 			// Fallback: existing unauthenticated crawler
 			if m.redditBackedOff() {
@@ -368,16 +371,16 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 			}
 		case database.PlatformTypeTwitter:
 			// treg feature: hosted search is the only X source.
-			if a, ok := m.crawlTwitterTreg(ctx, wsID, akw); ok {
-				alerts = append(alerts, a...)
-			} else if m.treg.Enabled() {
+			a, err := m.crawlTwitterTreg(ctx, wsID, akw)
+			alerts = append(alerts, a...)
+			if retryLater(err) {
 				failed = append(failed, platform)
 			}
 		case database.PlatformTypeLinkedin:
 			// treg feature: hosted search is the only LinkedIn source.
-			if a, ok := m.crawlLinkedInTreg(ctx, wsID, akw); ok {
-				alerts = append(alerts, a...)
-			} else if m.treg.Enabled() {
+			a, err := m.crawlLinkedInTreg(ctx, wsID, akw)
+			alerts = append(alerts, a...)
+			if retryLater(err) {
 				failed = append(failed, platform)
 			}
 		default:
