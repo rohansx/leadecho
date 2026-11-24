@@ -738,12 +738,19 @@ const scoringConcurrency = 4
 
 // forEachConcurrent calls fn(0..n-1) with at most scoringConcurrency in flight
 // and returns when all are done. Stops launching new work once ctx is cancelled.
+// The first call runs alone: a batch's calls share the workspace's cached
+// prompt prefix, and launched together they all miss and all pay to write it
+// (seen in prod: 11 writes in 15 filter calls); one call first writes it and
+// the rest read it at a tenth of the price.
 func (m *Monitor) forEachConcurrent(ctx context.Context, n int, fn func(i int)) {
 	sem := make(chan struct{}, scoringConcurrency)
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		if ctx.Err() != nil {
 			break
+		}
+		if i == 1 {
+			wg.Wait() // the first call has written the cache
 		}
 		sem <- struct{}{}
 		wg.Add(1)
