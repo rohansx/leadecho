@@ -13,6 +13,8 @@ type Plan struct {
 	PriceCents     int    `json:"price_cents"`
 	MonthlyCredits int    `json:"monthly_credits"`
 	KeywordLimit   int    `json:"keyword_limit"`
+	// PaidData: the plan includes PaidPlatforms (X, Reddit, LinkedIn).
+	PaidData bool `json:"paid_data"`
 }
 
 // Plans in display order. Measured cost is ~$0.0035 per post scored on
@@ -20,8 +22,10 @@ type Plan struct {
 // full use.
 var Plans = []Plan{
 	{ID: "free", Name: "Free", PriceCents: 0, MonthlyCredits: 300, KeywordLimit: 3},
-	{ID: "starter", Name: "Starter", PriceCents: 4900, MonthlyCredits: 5000, KeywordLimit: 15},
-	{ID: "pro", Name: "Pro", PriceCents: 14900, MonthlyCredits: 20000, KeywordLimit: 50},
+	// Solo: free sources only (no paid data), for pre-revenue founders.
+	{ID: "solo", Name: "Solo", PriceCents: 1900, MonthlyCredits: 1500, KeywordLimit: 5},
+	{ID: "starter", Name: "Starter", PriceCents: 4900, MonthlyCredits: 5000, KeywordLimit: 15, PaidData: true},
+	{ID: "pro", Name: "Pro", PriceCents: 14900, MonthlyCredits: 20000, KeywordLimit: 50, PaidData: true},
 }
 
 // Top-up pack: one-time purchase, credits never expire.

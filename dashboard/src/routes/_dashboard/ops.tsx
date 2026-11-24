@@ -241,6 +241,7 @@ function OpsPage() {
                           }}
                         >
                           <option value="free">Free</option>
+                          <option value="solo">Solo</option>
                           <option value="starter">Starter</option>
                           <option value="pro">Pro</option>
                         </select>

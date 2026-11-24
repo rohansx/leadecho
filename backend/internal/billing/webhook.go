@@ -58,13 +58,20 @@ func VerifyWebhook(secret string, h http.Header, body []byte, now time.Time) err
 
 // Products maps Dodo product ids to what they sell.
 type Products struct {
-	Starter, Pro, Topup string
+	Solo, Starter, Pro, Topup string
+}
+
+// ForItem returns the product id for a checkout item ("" when not configured).
+func (p Products) ForItem(item string) string {
+	return map[string]string{"solo": p.Solo, "starter": p.Starter, "pro": p.Pro, "topup": p.Topup}[item]
 }
 
 func (p Products) plan(productID string) (Plan, bool) {
 	switch {
 	case productID == "":
 		return Plan{}, false
+	case productID == p.Solo:
+		return PlanByID("solo")
 	case productID == p.Starter:
 		return PlanByID("starter")
 	case productID == p.Pro:
@@ -155,10 +162,10 @@ func (s *Service) HandleEvent(ctx context.Context, e Event) error {
 }
 
 func (s *Service) setPlan(ctx context.Context, ws string, plan Plan, customerID, subID string, renews *time.Time) error {
-	// A paid Dodo plan includes paid data (treg); dropping to Free removes it.
-	source, paid := "dodo", true
+	// Starter and Pro include paid data (treg); Solo and Free don't.
+	source, paid := "dodo", plan.PaidData
 	if plan.PriceCents == 0 {
-		source, paid = "free", false
+		source = "free"
 	}
 	params := database.SetWorkspacePlanParams{
 		WorkspaceID: ws, Plan: plan.ID, KeywordLimit: int32(plan.KeywordLimit), PlanSource: source, PaidData: paid,

@@ -1,7 +1,8 @@
 // billing: plan, credits, Dodo checkout and customer portal.
 import { request } from "./api";
 
-export type PlanId = "free" | "starter" | "pro";
+export type PlanId = "free" | "solo" | "starter" | "pro";
+export type CheckoutItem = Exclude<PlanId, "free"> | "topup";
 
 export interface Plan {
   id: PlanId;
@@ -9,6 +10,8 @@ export interface Plan {
   price_cents: number;
   monthly_credits: number;
   keyword_limit: number;
+  /** Includes X, Reddit and LinkedIn (paid data). */
+  paid_data: boolean;
 }
 
 export interface BillingState {
@@ -24,6 +27,8 @@ export interface BillingState {
   costs: { post: number; search: number; draft: number; chat: number };
   enforced: boolean;
   can_checkout: boolean;
+  /** Items this server can sell (a plan with no Dodo product is left out). */
+  checkout_items: CheckoutItem[];
   /** X, Reddit and LinkedIn need a paid plan on this workspace. */
   paid_platforms_locked: boolean;
   /** The daily prospect scan runs for this workspace (Pro, not switched off). */
@@ -48,7 +53,7 @@ export function getBilling(): Promise<BillingState> {
 }
 
 /** Starts a Dodo hosted checkout and returns the URL to send the user to. */
-export async function startCheckout(item: "starter" | "pro" | "topup"): Promise<string> {
+export async function startCheckout(item: CheckoutItem): Promise<string> {
   const res = await request<{ checkout_url: string }>("/billing/checkout", {
     method: "POST",
     body: JSON.stringify({ item }),

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -74,6 +75,7 @@ func (h *BillingHandler) Get(w http.ResponseWriter, r *http.Request) {
 		// X, Reddit and LinkedIn need a paid plan; the app shows them locked.
 		"paid_platforms_locked": h.credits.Enforced() && !st.PaidData,
 		"can_checkout":          h.dodo != nil,
+		"checkout_items":        checkoutItems(h.dodo),
 	})
 }
 
@@ -128,9 +130,12 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Item string `json:"item"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil ||
-		(body.Item != "starter" && body.Item != "pro" && body.Item != "topup") {
-		writeError(w, http.StatusBadRequest, `item must be "starter", "pro" or "topup"`)
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil || !slices.Contains(billing.CheckoutItems, body.Item) {
+		writeError(w, http.StatusBadRequest, `item must be "solo", "starter", "pro" or "topup"`)
+		return
+	}
+	if !h.dodo.Sells(body.Item) {
+		writeError(w, http.StatusBadRequest, body.Item+" is not available yet")
 		return
 	}
 	customerID := ""
@@ -148,6 +153,18 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"checkout_url": url})
+}
+
+// checkoutItems: the items this server can sell (a plan without a Dodo
+// product, e.g. Solo before DODO_PRODUCT_SOLO is set, is left out).
+func checkoutItems(d *billing.Dodo) []string {
+	out := []string{}
+	for _, it := range billing.CheckoutItems {
+		if d.Sells(it) {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // Portal returns a Dodo customer-portal link (manage plan, card, invoices).

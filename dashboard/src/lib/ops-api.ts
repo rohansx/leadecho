@@ -22,7 +22,7 @@ export interface OpsWorkspace {
   name: string;
   owner_email: string;
   created_at: string;
-  plan: "free" | "starter" | "pro";
+  plan: "free" | "solo" | "starter" | "pro";
   plan_source: "free" | "dodo" | "comp";
   credit_balance: number;
   keyword_limit: number;

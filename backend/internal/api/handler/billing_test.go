@@ -98,6 +98,20 @@ func withClaims(r *http.Request, role string) *http.Request {
 	return r.WithContext(middleware.WithClaims(r.Context(), &auth.Claims{UserID: "u1", WorkspaceID: "ws-1", Email: "a@b.co", Role: role}))
 }
 
+func TestCheckoutItemsHidesUnconfigured(t *testing.T) {
+	if got := checkoutItems(nil); len(got) != 0 {
+		t.Fatalf("billing off: %v", got)
+	}
+	d := billing.NewDodo(billing.DodoConfig{APIKey: "k", Products: billing.Products{Starter: "pdt_s", Pro: "pdt_p", Topup: "pdt_t"}})
+	if got := strings.Join(checkoutItems(d), ","); got != "starter,pro,topup" {
+		t.Fatalf("no solo product: %s", got)
+	}
+	d = billing.NewDodo(billing.DodoConfig{APIKey: "k", Products: billing.Products{Solo: "pdt_solo", Starter: "pdt_s"}})
+	if got := strings.Join(checkoutItems(d), ","); got != "solo,starter" {
+		t.Fatalf("with solo: %s", got)
+	}
+}
+
 func TestBillingCheckoutGuards(t *testing.T) {
 	cases := []struct {
 		name string
@@ -109,6 +123,7 @@ func TestBillingCheckoutGuards(t *testing.T) {
 		{"not configured", &BillingHandler{}, "admin", `{"item":"starter"}`, http.StatusServiceUnavailable},
 		{"members can't buy", &BillingHandler{dodo: billing.NewDodo(billing.DodoConfig{APIKey: "k", BaseURL: "http://127.0.0.1:1"})}, "member", `{"item":"starter"}`, http.StatusForbidden},
 		{"unknown item", &BillingHandler{dodo: billing.NewDodo(billing.DodoConfig{APIKey: "k", BaseURL: "http://127.0.0.1:1"})}, "admin", `{"item":"enterprise"}`, http.StatusBadRequest},
+		{"solo without a product", &BillingHandler{dodo: billing.NewDodo(billing.DodoConfig{APIKey: "k", BaseURL: "http://127.0.0.1:1", Products: billing.Products{Starter: "pdt_s"}})}, "admin", `{"item":"solo"}`, http.StatusBadRequest},
 	}
 	for _, c := range cases {
 		w := httptest.NewRecorder()
