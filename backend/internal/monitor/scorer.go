@@ -177,6 +177,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 						AwarenessLevel:  pgtype.Text{},
 					}); err != nil {
 						m.logger.Error().Err(err).Str("mention_id", a.ID).Msg("scorer: failed to record stage2 filter")
+					} else {
+						tallyOf(ctx).verdict()
+						m.demoted(ctx, a)
 					}
 					continue
 				}
@@ -457,7 +460,7 @@ func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, sta
 		// A post that was classified before keeps its tags otherwise.
 		_ = m.q.UpdateMentionTags(ctx, database.UpdateMentionTagsParams{IntentTags: []string{}, ID: alert.ID, WorkspaceID: alert.WorkspaceID})
 	}
-	_, _ = m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
+	if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 		ID:          alert.ID,
 		WorkspaceID: alert.WorkspaceID,
 		ScoringMetadata: jsonBytes(map[string]any{
@@ -468,7 +471,24 @@ func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, sta
 			"rubric":      ScoringRubric,
 		}),
 		AwarenessLevel: pgtype.Text{},
-	})
+	}); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("scorer: failed to record a filtered post")
+		return
+	}
+	tallyOf(ctx).verdict()
+	m.demoted(ctx, alert)
+}
+
+// demoted: an operator's re-score found the post is no longer a lead, so it
+// leaves "needs review" too (the re-screen record stays). A new post has no
+// review flag to clear.
+func (m *Monitor) demoted(ctx context.Context, alert mentionAlert) {
+	if !operatorRescore(ctx) {
+		return
+	}
+	if err := m.q.ClearMentionEscalation(ctx, alert.WorkspaceID, alert.ID); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("scorer: failed to clear a demoted post's review flag")
+	}
 }
 
 // qualifyAsLead auto-creates a lead for high-intent mentions.
@@ -545,9 +565,12 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		if verdictsOnly(ctx) {
 			// Keep the old verdict but mark the post tried: one refused post
 			// must not hold up the run (a re-score once stopped at 0 posts).
-			if err := m.q.StampMentionScoredAt(ctx, wsID, c.alert.ID, classifyErrorStage(err)); err != nil {
+			stage := classifyErrorStage(err)
+			if err := m.q.StampMentionScoredAt(ctx, wsID, c.alert.ID, stage); err != nil {
 				m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to stamp a failed re-score")
+				return
 			}
+			tallyOf(ctx).failure(stage == "stage3_refused")
 			return
 		}
 		if forcedScan(ctx) == ScanRescore {
@@ -592,6 +615,14 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
 	}); err != nil {
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
+		if verdictsOnly(ctx) {
+			return // not stamped: the next request tries it again
+		}
+	} else {
+		tallyOf(ctx).verdict()
+		if !qualifiesAsLead(result.RelevanceScore, leadMin, result.Intent) {
+			m.demoted(ctx, c.alert)
+		}
 	}
 
 	m.storeIntentTags(ctx, c.alert.WorkspaceID, c.alert.ID, result) // scoring

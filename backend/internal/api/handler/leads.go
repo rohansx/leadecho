@@ -222,6 +222,10 @@ func (h *LeadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	l, err := h.q.CreateLead(ctx, params)
+	if isUniqueViolation(err) { // one lead per post (leads_mention_id_unique)
+		writeError(w, http.StatusConflict, "this post is already a lead")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create lead")
 		return

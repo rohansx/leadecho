@@ -57,6 +57,31 @@ type ManualScan struct {
 	Note        string    `json:"note,omitempty"` // why a run did nothing, or what a re-screen did
 	// Restarts is how many times a server restart cut this scan short.
 	Restarts int `json:"restarts,omitempty"`
+	// Leads re-score only. Since: posts scored before it are due (zero = the
+	// request time); a request after an unfinished run keeps that run's, so it
+	// carries on instead of starting over. Complete: the run got through
+	// every due post with no provider failure left to retry.
+	Since    time.Time `json:"since,omitzero"`
+	Complete bool      `json:"complete,omitempty"`
+}
+
+// ScoredBefore is the leads re-score's cutoff: posts scored before it are due.
+func (s ManualScan) ScoredBefore() time.Time {
+	if !s.Since.IsZero() {
+		return s.Since
+	}
+	return s.RequestedAt
+}
+
+// ContinueFrom makes a leads re-score request carry on from prev, the
+// workspace's last manual scan, when that was a leads re-score that did not
+// finish (cut short, stopped on provider failures, or lost to a restart):
+// what it already scored is not scored, and paid for, again.
+func (s ManualScan) ContinueFrom(prev ManualScan) ManualScan {
+	if s.Kind == ScanRescoreLeads && prev.Kind == ScanRescoreLeads && !prev.Complete {
+		s.Since = prev.ScoredBefore()
+	}
+	return s
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
@@ -290,7 +315,7 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 			return
 		}
 		defer m.scanning.Delete(ws)
-		note = m.rescoreLeads(ctx, ws, scan.RequestedAt)
+		note, scan.Complete = m.rescoreLeads(ctx, ws, scan.ScoredBefore())
 	case ScanRescreen:
 		if m.hiringPlanner == nil {
 			note = "no AI provider is set up on this server"

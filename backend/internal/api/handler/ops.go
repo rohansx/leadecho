@@ -326,6 +326,14 @@ func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `kind must be "posts", "hiring", "prospects", "rescore", "rescore_leads", "rescreen", "keywords", "identity" or "person360"`)
 		return
 	}
+	// A leads re-score asked for again after one that did not finish carries
+	// on from it rather than scoring (and paying for) the same leads twice.
+	if prevRaw, err := h.q.GetWorkspaceSettingsKey(r.Context(), ws, "manual_scan"); err == nil && len(prevRaw) > 0 {
+		var prev monitor.ManualScan
+		if json.Unmarshal(prevRaw, &prev) == nil {
+			scan = scan.ContinueFrom(prev)
+		}
+	}
 	raw, _ := json.Marshal(scan)
 	stored, err := h.q.RequestManualScan(r.Context(), ws, raw, monitor.StaleBefore(now))
 	if err == nil && !stored {
