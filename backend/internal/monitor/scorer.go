@@ -55,7 +55,7 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	// billing: one credit per post sent to the AI. Posts beyond the balance
 	// stay unscored (no stage) and the backfill scores them once credits return.
 	// An operator's re-score is not the customer's spend: no credits taken.
-	if m.llmRouter != nil && m.credits.Enforced() && forcedScan(ctx) != ScanRescore {
+	if m.llmRouter != nil && m.credits.Enforced() && !operatorRescore(ctx) {
 		taken, err := m.credits.Take(ctx, wsID, len(scoreable), billing.ReasonPost)
 		if err != nil {
 			m.logger.Error().Err(err).Str("workspace_id", wsID).Msg("scorer: credit check failed, not scoring")
@@ -177,6 +177,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 						AwarenessLevel:  pgtype.Text{},
 					}); err != nil {
 						m.logger.Error().Err(err).Str("mention_id", a.ID).Msg("scorer: failed to record stage2 filter")
+					} else {
+						tallyOf(ctx).verdict()
+						m.demoted(ctx, a)
 					}
 					continue
 				}
@@ -200,7 +203,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	m.forEachConcurrent(ctx, len(candidates), func(i int) {
 		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity, leadMin)
 	})
-	m.notifyFirstLeads(ctx, wsID)
+	if !verdictsOnly(ctx) {
+		m.notifyFirstLeads(ctx, wsID)
+	}
 
 	m.logger.Info().
 		Int("total", len(alerts)).
@@ -436,12 +441,26 @@ func scoreStage1Rules(title, content string) bool {
 	return true
 }
 
+// operatorRescore: an operator's re-score of posts already scored, which the
+// customer is not charged for.
+func operatorRescore(ctx context.Context) bool {
+	k := forcedScan(ctx)
+	return k == ScanRescore || k == ScanRescoreLeads
+}
+
+// verdictsOnly: the leads re-score changes verdicts and nothing else: no
+// leads row (no paid enrichment, no CRM event), no workflow, no draft, no
+// event for the streams pipeline, no first-leads email.
+func verdictsOnly(ctx context.Context) bool { return forcedScan(ctx) == ScanRescoreLeads }
+
+// markStageFiltered records a post dropped before classification. Its intent
+// and score are cleared, so a post that was a lead stops being one.
 func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, stage, reason string) {
-	if forcedScan(ctx) == ScanRescore {
+	if operatorRescore(ctx) {
 		// A post that was classified before keeps its tags otherwise.
 		_ = m.q.UpdateMentionTags(ctx, database.UpdateMentionTagsParams{IntentTags: []string{}, ID: alert.ID, WorkspaceID: alert.WorkspaceID})
 	}
-	_, _ = m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
+	if _, err := m.q.UpdateMentionScoring(ctx, database.UpdateMentionScoringParams{
 		ID:          alert.ID,
 		WorkspaceID: alert.WorkspaceID,
 		ScoringMetadata: jsonBytes(map[string]any{
@@ -452,7 +471,24 @@ func (m *Monitor) markStageFiltered(ctx context.Context, alert mentionAlert, sta
 			"rubric":      ScoringRubric,
 		}),
 		AwarenessLevel: pgtype.Text{},
-	})
+	}); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("scorer: failed to record a filtered post")
+		return
+	}
+	tallyOf(ctx).verdict()
+	m.demoted(ctx, alert)
+}
+
+// demoted: an operator's re-score found the post is no longer a lead, so it
+// leaves "needs review" too (the re-screen record stays). A new post has no
+// review flag to clear.
+func (m *Monitor) demoted(ctx context.Context, alert mentionAlert) {
+	if !operatorRescore(ctx) {
+		return
+	}
+	if err := m.q.ClearMentionEscalation(ctx, alert.WorkspaceID, alert.ID); err != nil {
+		m.logger.Error().Err(err).Str("mention_id", alert.ID).Msg("scorer: failed to clear a demoted post's review flag")
+	}
 }
 
 // qualifyAsLead auto-creates a lead for high-intent mentions.
@@ -526,6 +562,17 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		// metadata, which is indistinguishable from "never reached stage 3":
 		// it is not retried, not surfaced as filtered, and silently stalls.
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: classification failed")
+		if verdictsOnly(ctx) {
+			// Keep the old verdict but mark the post tried: one refused post
+			// must not hold up the run (a re-score once stopped at 0 posts).
+			stage := classifyErrorStage(err)
+			if err := m.q.StampMentionScoredAt(ctx, wsID, c.alert.ID, stage); err != nil {
+				m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to stamp a failed re-score")
+				return
+			}
+			tallyOf(ctx).failure(stage == "stage3_refused")
+			return
+		}
 		if forcedScan(ctx) == ScanRescore {
 			// The post already has a verdict: a failed second opinion must not
 			// erase it. Left unstamped, the next re-score tries it again.
@@ -568,9 +615,20 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 		AwarenessLevel:        pgtype.Text{String: result.AwarenessLevel, Valid: result.AwarenessLevel != ""},
 	}); err != nil {
 		m.logger.Error().Err(err).Str("mention_id", c.alert.ID).Msg("scorer: failed to persist classification")
+		if verdictsOnly(ctx) {
+			return // not stamped: the next request tries it again
+		}
+	} else {
+		tallyOf(ctx).verdict()
+		if !qualifiesAsLead(result.RelevanceScore, leadMin, result.Intent) {
+			m.demoted(ctx, c.alert)
+		}
 	}
 
 	m.storeIntentTags(ctx, c.alert.WorkspaceID, c.alert.ID, result) // scoring
+	if verdictsOnly(ctx) {
+		return
+	}
 	m.publishMentionScored(ctx, c.alert, result)
 
 	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)

@@ -46,6 +46,62 @@ LIMIT $4`, workspaceID, since, rubric, limit, rulesStamp)
 	return out, rows.Err()
 }
 
+// LeadsToRescoreWhere is the leads re-score's candidate rule as SQL over
+// mentions, with the workspace id as $1 and the run's cutoff as $2: posts the
+// inbox shows as leads (leadIntentPredicate, the workspace's line), not
+// company signals, not spam or archived, and either not scored since the
+// cutoff or last tried with a provider failure (rescore_error other than a
+// refusal, which is final). The dry run in ~/.config/workz/leadecho-rescore
+// mirrors it.
+func LeadsToRescoreWhere() string {
+	return `workspace_id = $1
+  AND ` + leadIntentPredicate() + `
+  AND COALESCE(platform_metadata->>'signal', '') = ''
+  AND status NOT IN ('spam', 'archived')
+  AND (scoring_metadata->>'scored_at' IS NULL OR (scoring_metadata->>'scored_at')::timestamptz < $2
+       OR COALESCE(scoring_metadata->>'rescore_error', 'stage3_refused') <> 'stage3_refused')`
+}
+
+// ListLeadsToRescore returns up to limit posts by LeadsToRescoreWhere,
+// newest first, leaving out the ids in tried (this run's: a failed post is
+// due again on the next request, not in the same run). Unlike
+// ListMentionsToRescore it takes posts that have a leads row: the point is to
+// score the shown leads again. Hand-written.
+func (q *Queries) ListLeadsToRescore(ctx context.Context, workspaceID string, scoredBefore time.Time, tried []string, limit int32) ([]RescoreMention, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT id::text, platform::text, COALESCE((SELECT k.term FROM keywords k WHERE k.id = mentions.keyword_id), ''),
+       COALESCE(title, ''), url, COALESCE(author_username, ''), content
+FROM mentions
+WHERE `+LeadsToRescoreWhere()+`
+  AND NOT (id::text = ANY(COALESCE($4::text[], '{}')))
+ORDER BY created_at DESC, id
+LIMIT $3`, workspaceID, scoredBefore, limit, tried)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RescoreMention
+	for rows.Next() {
+		var r RescoreMention
+		if err := rows.Scan(&r.ID, &r.Platform, &r.Keyword, &r.Title, &r.URL, &r.Author, &r.Content); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// StampMentionScoredAt marks a post as tried by a re-score without touching
+// its verdict (the call was refused or failed), with why under
+// rescore_error: a refusal is final, a failure is due again next request.
+func (q *Queries) StampMentionScoredAt(ctx context.Context, workspaceID, mentionID, reason string) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE mentions
+SET scoring_metadata = COALESCE(scoring_metadata, '{}'::jsonb) || jsonb_build_object('scored_at', now(), 'rescore_error', $3::text)
+WHERE id = $1 AND workspace_id = $2`, mentionID, workspaceID, reason)
+	return err
+}
+
 // CompanyLead is a lead found as a company (a hiring signal or a prospect)
 // that is still waiting in the inbox.
 type CompanyLead struct {
@@ -92,4 +148,14 @@ WHERE id = $1 AND workspace_id = $2 AND status = 'new'`, mentionID, workspaceID,
 		return false, err
 	}
 	return tag.RowsAffected() == 1, nil
+}
+
+// ClearMentionEscalation takes a post out of "needs review": a re-score
+// found it is no longer a lead. The re-screen record is kept.
+func (q *Queries) ClearMentionEscalation(ctx context.Context, workspaceID, mentionID string) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE mentions
+SET scoring_metadata = scoring_metadata - 'needs_escalation' - 'escalation_reason'
+WHERE id = $1 AND workspace_id = $2 AND scoring_metadata ? 'needs_escalation'`, mentionID, workspaceID)
+	return err
 }

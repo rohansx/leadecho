@@ -305,7 +305,7 @@ func (h *OpsHandler) SetScanning(w http.ResponseWriter, r *http.Request) {
 
 // ScanNow asks for one workspace to be scanned now ("posts", "hiring" or "prospects")
 // without waiting for the schedule, or for what it already holds to be checked
-// again ("rescore", "rescreen"). The request is picked up by whichever
+// again ("rescore", "rescore_leads", "rescreen"). The request is picked up by whichever
 // process runs the monitor (the worker in production). It runs the normal
 // scan: the workspace's credits, plan and paid-data caps all still apply.
 func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
@@ -323,8 +323,16 @@ func (h *OpsHandler) ScanNow(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	scan, err := monitor.NewManualScan(body.Kind, actor, now)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, `kind must be "posts", "hiring", "prospects", "rescore", "rescreen" or "keywords"`)
+		writeError(w, http.StatusBadRequest, `kind must be "posts", "hiring", "prospects", "rescore", "rescore_leads", "rescreen", "keywords", "identity" or "person360"`)
 		return
+	}
+	// A leads re-score asked for again after one that did not finish carries
+	// on from it rather than scoring (and paying for) the same leads twice.
+	if prevRaw, err := h.q.GetWorkspaceSettingsKey(r.Context(), ws, "manual_scan"); err == nil && len(prevRaw) > 0 {
+		var prev monitor.ManualScan
+		if json.Unmarshal(prevRaw, &prev) == nil {
+			scan = scan.ContinueFrom(prev)
+		}
 	}
 	raw, _ := json.Marshal(scan)
 	stored, err := h.q.RequestManualScan(r.Context(), ws, raw, monitor.StaleBefore(now))

@@ -24,6 +24,11 @@ const (
 	ScanIdentity  = "identity"  // find who is behind older HN/Dev.to/Bluesky leads
 	ScanPerson360 = "person360" // write missing Person360 profiles, use found keys for the paid lookup
 
+	// ScanRescoreLeads scores the posts shown as leads again with today's
+	// classifier: verdicts only (no new leads rows, drafts, workflows or
+	// emails) and no credits taken.
+	ScanRescoreLeads = "rescore_leads"
+
 	// ScanByOnboarding is who asked when a workspace finishes onboarding (the
 	// By of an operator's request is their email).
 	ScanByOnboarding = "onboarding"
@@ -52,10 +57,37 @@ type ManualScan struct {
 	Note        string    `json:"note,omitempty"` // why a run did nothing, or what a re-screen did
 	// Restarts is how many times a server restart cut this scan short.
 	Restarts int `json:"restarts,omitempty"`
+	// Leads re-score only. Since: posts scored before it are due (zero = the
+	// request time); a request after an unfinished run keeps that run's, so it
+	// carries on instead of starting over. Complete: the run got through
+	// every due post with no provider failure left to retry.
+	Since    time.Time `json:"since,omitzero"`
+	Complete bool      `json:"complete,omitempty"`
+}
+
+// ScoredBefore is the leads re-score's cutoff: posts scored before it are due.
+func (s ManualScan) ScoredBefore() time.Time {
+	if !s.Since.IsZero() {
+		return s.Since
+	}
+	return s.RequestedAt
+}
+
+// ContinueFrom makes a leads re-score request carry on from prev, the
+// workspace's last manual scan, when that was a leads re-score that did not
+// finish (cut short, stopped on provider failures, or lost to a restart):
+// what it already scored is not scored, and paid for, again.
+func (s ManualScan) ContinueFrom(prev ManualScan) ManualScan {
+	if s.Kind == ScanRescoreLeads && prev.Kind == ScanRescoreLeads && !prev.Complete {
+		s.Since = prev.ScoredBefore()
+	}
+	return s
 }
 
 func NewManualScan(kind, by string, now time.Time) (ManualScan, error) {
-	if kind != ScanPosts && kind != ScanHiring && kind != ScanProspects && kind != ScanRescore && kind != ScanRescreen && kind != ScanKeywords && kind != ScanIdentity && kind != ScanPerson360 {
+	switch kind {
+	case ScanPosts, ScanHiring, ScanProspects, ScanRescore, ScanRescoreLeads, ScanRescreen, ScanKeywords, ScanIdentity, ScanPerson360:
+	default:
 		return ManualScan{}, ErrScanKind
 	}
 	return ManualScan{Kind: kind, State: ScanRequested, By: by, RequestedAt: now}, nil
@@ -273,6 +305,17 @@ func (m *Monitor) runManualScan(ws string, scan ManualScan, requestID string) {
 		case done == 0:
 			note = "no recent post was scored under older rules"
 		}
+	case ScanRescoreLeads:
+		if m.llmRouter == nil {
+			note = "no AI provider is set up on this server"
+			return
+		}
+		if _, taken := m.scanning.LoadOrStore(ws, struct{}{}); taken {
+			busy = true
+			return
+		}
+		defer m.scanning.Delete(ws)
+		note, scan.Complete = m.rescoreLeads(ctx, ws, scan.ScoredBefore())
 	case ScanRescreen:
 		if m.hiringPlanner == nil {
 			note = "no AI provider is set up on this server"

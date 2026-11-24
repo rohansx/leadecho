@@ -49,6 +49,9 @@ function ScanNowCell({ ws, busy, onScan }: { ws: OpsWorkspace; busy: boolean; on
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescore")} title="Score the last 30 days of posts again with the current rules. No credits are taken from the customer.">
           Re-score
         </Button>
+        <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescore_leads")} title="Score every post now shown as a lead again with the current classifier. Changes verdicts only: no new leads, drafts, workflows or emails. About $0.02 per lead in AI spend; no credits are taken from the customer. If the last run stopped early, this carries on from it: leads already re-scored are not scored again, and leads the AI provider failed on are retried. Back up first (see the runbook).">
+          Re-score leads
+        </Button>
         <Button size="sm" variant="outline" disabled={blocked} onClick={() => onScan("rescreen")} title="Check the last 30 days of company leads again with the current posting screen and archive the ones that fail. No paid data is used and no credits are taken from the customer.">
           Re-screen company leads
         </Button>
