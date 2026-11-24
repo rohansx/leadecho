@@ -28,7 +28,12 @@ func toLeadStrictnessResponse(s database.LeadStrictness) leadStrictnessResponse 
 
 // Get — GET /settings/lead-strictness
 func (h *LeadStrictnessHandler) Get(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, toLeadStrictnessResponse(h.q.GetLeadStrictness(r.Context(), middleware.WorkspaceID(r.Context()))))
+	s, err := h.q.GetLeadStrictness(r.Context(), middleware.WorkspaceID(r.Context()))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read lead strictness")
+		return
+	}
+	writeJSON(w, http.StatusOK, toLeadStrictnessResponse(s))
 }
 
 // Put — PUT /settings/lead-strictness {"strictness": "strict"|"balanced"|"loose"}

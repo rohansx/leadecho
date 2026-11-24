@@ -9,7 +9,10 @@ import (
 
 // Lead strictness: how sure a post must be to count as a lead, under
 // workspaces.settings.lead_strictness. Unset is "balanced", the line every
-// workspace had before the setting existed. Hand-written (no sqlc codegen).
+// workspace had before the setting existed. Company signals (hiring, funding,
+// prospects: platform_metadata.signal set) are exempt and always use the
+// balanced line: their score is a fit score from a paid, confirmed lookup, not
+// the classifier's confidence. Hand-written (no sqlc codegen).
 
 type LeadStrictness string
 
@@ -50,22 +53,45 @@ func leadMinScoreSQL(wsExpr string) string {
 		LeadStrictnessKey, LeadStrict, strictLeadMinScore, LeadLoose, looseLeadMinScore, wsExpr, LeadMinScore)
 }
 
-// GetLeadStrictness returns the workspace's level; balanced when none is
-// stored or it cannot be read.
-func (q *Queries) GetLeadStrictness(ctx context.Context, workspaceID string) LeadStrictness {
-	var s string
-	if raw, err := q.GetWorkspaceSettingsKey(ctx, workspaceID, LeadStrictnessKey); err == nil && len(raw) > 0 {
-		_ = json.Unmarshal(raw, &s)
+// LeadLine is a row's lead line: postLine (the workspace's) for a post, the
+// balanced line for a company signal.
+func LeadLine(postLine float64, companySignal bool) float64 {
+	if companySignal {
+		return LeadMinScore
 	}
-	if v, err := ParseLeadStrictness(s); err == nil {
-		return v
-	}
-	return LeadBalanced
+	return postLine
 }
 
-// LeadMinScoreFor is the workspace's lead line.
-func (q *Queries) LeadMinScoreFor(ctx context.Context, workspaceID string) float64 {
-	return q.GetLeadStrictness(ctx, workspaceID).MinScore()
+// leadScoreSQL is "the row's score clears its lead line" as SQL (LeadLine):
+// col prefixes the row's columns ("" or "m."), wsExpr is the workspace id.
+// The LEAST(...) bound keeps the (workspace_id, relevance_score) index usable.
+func leadScoreSQL(col, wsExpr string) string {
+	return fmt.Sprintf(`%[1]srelevance_score >= LEAST(%.1[2]f, %[3]s) AND %[1]srelevance_score >= CASE WHEN COALESCE(%[1]splatform_metadata->>'signal', '') <> '' THEN %.1[2]f ELSE %[3]s END`,
+		col, LeadMinScore, leadMinScoreSQL(wsExpr))
+}
+
+// GetLeadStrictness returns the workspace's level; balanced when none is
+// stored, and balanced with the error when it cannot be read.
+func (q *Queries) GetLeadStrictness(ctx context.Context, workspaceID string) (LeadStrictness, error) {
+	raw, err := q.GetWorkspaceSettingsKey(ctx, workspaceID, LeadStrictnessKey)
+	if err != nil {
+		return LeadBalanced, err
+	}
+	var s string
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &s) // not a string: unset
+	}
+	if v, err := ParseLeadStrictness(s); err == nil {
+		return v, nil
+	}
+	return LeadBalanced, nil
+}
+
+// LeadMinScoreFor is the workspace's lead line for posts (balanced, with the
+// error, when it cannot be read).
+func (q *Queries) LeadMinScoreFor(ctx context.Context, workspaceID string) (float64, error) {
+	s, err := q.GetLeadStrictness(ctx, workspaceID)
+	return s.MinScore(), err
 }
 
 // SetLeadStrictness stores the workspace's level.

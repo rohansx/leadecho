@@ -132,7 +132,7 @@ RETURNING *;
 -- name: ListMentionsLeadsReady :many
 SELECT * FROM mentions
 WHERE workspace_id = @workspace_id
-AND relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)
+AND relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END
 AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison')
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT @lim OFFSET @off;
@@ -142,7 +142,7 @@ SELECT * FROM mentions
 WHERE workspace_id = @workspace_id
 AND relevance_score IS NOT NULL
 AND relevance_score >= 4.0
-AND NOT COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)
+AND NOT COALESCE(relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false)
 ORDER BY relevance_score DESC, created_at DESC
 LIMIT @lim OFFSET @off;
 
@@ -153,7 +153,7 @@ LIMIT @lim OFFSET @off;
 -- list and the tier counts stay in lockstep.
 SELECT * FROM mentions
 WHERE workspace_id = @workspace_id
-AND NOT (COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
+AND NOT (COALESCE(relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
 AND COALESCE(relevance_score, 0) < 4.0
 ORDER BY created_at DESC
 LIMIT @lim OFFSET @off;
@@ -164,8 +164,8 @@ SELECT id, platform, url, title, content, author_username,
 FROM mentions
 WHERE workspace_id = @workspace_id
   AND (
-    (relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))
-    OR (relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
+    (relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))
+    OR (relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false))
   )
 ORDER BY created_at DESC
 LIMIT @lim;
@@ -173,8 +173,8 @@ LIMIT @lim;
 -- name: CountMentionsByTier :many
 SELECT
     CASE
-        WHEN relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison') THEN 'leads_ready'
-        WHEN relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false) THEN 'worth_watching'
+        WHEN relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison') THEN 'leads_ready'
+        WHEN relevance_score >= 4.0 AND NOT COALESCE(relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END AND intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'), false) THEN 'worth_watching'
         ELSE 'filtered'
     END as tier,
     COUNT(*)::int as count

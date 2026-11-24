@@ -18,10 +18,13 @@ func pgUUID(s string) pgtype.UUID {
 
 // Only the best few leads get a drafted reply in the digest: each new draft
 // costs credits, and a short list is what gets acted on.
-const (
-	maxDraftedLeads   = 3
-	minDraftLeadScore = 6.0 // the scorer's lead threshold
-)
+const maxDraftedLeads = 3
+
+// minDraftLeadScore: a strict workspace pays for no draft under its own line,
+// and nothing under the balanced line ever gets one.
+func minDraftLeadScore(workspaceLine float64) float64 {
+	return max(workspaceLine, database.LeadMinScore)
+}
 
 // DraftFunc writes (and saves) a reply draft for a mention and returns its
 // text; "" means the drafter decided the post isn't worth a reply.
@@ -37,9 +40,14 @@ func (s *Service) withActionables(ctx context.Context, wsID string, d Data) Data
 	if d.Kind != KindDaily {
 		return d
 	}
+	line, err := s.q.LeadMinScoreFor(ctx, wsID)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("digest: lead strictness unreadable, using the balanced line")
+	}
+	minScore := minDraftLeadScore(line)
 	leads := append([]Lead(nil), d.TopLeads...)
 	for i := range leads {
-		if i >= maxDraftedLeads || leads[i].Score < minDraftLeadScore {
+		if i >= maxDraftedLeads || leads[i].Score < minScore {
 			break // sorted by score, so the rest are lower
 		}
 		l := &leads[i]

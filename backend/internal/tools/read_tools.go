@@ -14,7 +14,7 @@ func readTools(d Deps) []Tool {
 	return []Tool{
 		{
 			Name:        "search_mentions",
-			Description: "Search or list social mentions found by LeadEcho listeners, newest first. Give at most one of query (full-text), status, intent, platform or tier=leads_ready (high-intent, score >= 6). With none, returns the latest mentions.",
+			Description: "Search or list social mentions found by LeadEcho listeners, newest first. Give at most one of query (full-text), status, intent, platform or tier=leads_ready (high-intent and at or above the workspace's lead line: 6 by default, 7.5 strict, 5 loose; company signals always 6). With none, returns the latest mentions.",
 			Scope:       apikey.ScopeRead,
 			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{
 "query":{"type":"string","maxLength":500,"description":"Full-text search over title and content"},

@@ -41,7 +41,7 @@ func (m *Monitor) NotifyMentions(ctx context.Context, wsID string, alerts []Sign
 
 // QualifyMentionFromScore runs lead qualification from a mention.scored event payload.
 func (m *Monitor) QualifyMentionFromScore(ctx context.Context, payload events.MentionScoredPayload) {
-	if !qualifiesAsLead(float64(payload.RelevanceScore), m.q.LeadMinScoreFor(ctx, payload.WorkspaceID), payload.Intent) {
+	if !qualifiesAsLead(float64(payload.RelevanceScore), m.leadLine(ctx, payload.WorkspaceID), payload.Intent) {
 		return
 	}
 

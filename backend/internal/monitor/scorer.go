@@ -196,8 +196,9 @@ func (m *Monitor) batchScoreMentions(ctx context.Context, wsID string, alerts []
 	}
 
 	// Stage 3: Intent classification (bounded parallel LLM calls)
+	leadMin := m.leadLine(ctx, wsID) // once per batch: every alert here is wsID's
 	m.forEachConcurrent(ctx, len(candidates), func(i int) {
-		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity)
+		m.classifyAndStore(ctx, wsID, candidates[i].alert, candidates[i].similarity, leadMin)
 	})
 	m.notifyFirstLeads(ctx, wsID)
 
@@ -511,8 +512,9 @@ func (m *Monitor) qualifyAsLead(ctx context.Context, alert mentionAlert, result 
 	}
 }
 
-// classifyAndStore runs stage 3 (intent) and stage 4 (lead qualification) for one mention.
-func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAlert, similarity float64) {
+// classifyAndStore runs stage 3 (intent) and stage 4 (lead qualification) for
+// one mention; leadMin is the workspace's line for posts (Monitor.leadLine).
+func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAlert, similarity, leadMin float64) {
 	c := struct {
 		alert      mentionAlert
 		similarity float64
@@ -572,7 +574,6 @@ func (m *Monitor) classifyAndStore(ctx context.Context, wsID string, a mentionAl
 	m.publishMentionScored(ctx, c.alert, result)
 
 	// Stage 4: Lead qualification (inline unless async qualifier consumer is enabled)
-	leadMin := m.q.LeadMinScoreFor(ctx, c.alert.WorkspaceID)
 	if !m.qualifierAsync && qualifiesAsLead(result.RelevanceScore, leadMin, result.Intent) {
 		m.qualifyAsLead(ctx, c.alert, result)
 	}
@@ -603,9 +604,22 @@ func classifyErrorStage(err error) string {
 	return "stage3_classification_error"
 }
 
-// leadScoreThreshold is the balanced lead line (a workspace's strictness can
-// move it; see database.LeadStrictness).
+// leadScoreThreshold is the balanced lead line: a workspace's strictness can
+// move it for posts, never for company signals (database.LeadLine), which is
+// why hiring and prospect scores build on it directly.
 const leadScoreThreshold = database.LeadMinScore
+
+// leadLine is the workspace's lead line for posts. The scorer and the
+// qualifier only ever see posts: company signals are scored and made leads by
+// their own path (createCompanyLead) and the re-score skips them. A failed
+// read is logged and falls back to the balanced line.
+func (m *Monitor) leadLine(ctx context.Context, wsID string) float64 {
+	line, err := m.q.LeadMinScoreFor(ctx, wsID)
+	if err != nil {
+		m.logger.Warn().Err(err).Str("workspace_id", wsID).Msg("scorer: lead strictness unreadable, using the balanced line")
+	}
+	return line
+}
 
 // qualifiesAsLead: scores are product-aware (competitor launches score 0-3),
 // so minScore (the workspace's line, 6 by default) or more with buying-type

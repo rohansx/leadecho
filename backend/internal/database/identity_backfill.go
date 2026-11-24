@@ -23,7 +23,7 @@ func (q *Queries) ListLeadsWithoutIdentity(ctx context.Context, workspaceID stri
 		  AND l.stage::text NOT IN ('lost', 'converted')
 		  AND m.platform::text IN ('hackernews', 'devto', 'bluesky')
 		  AND coalesce(m.author_username, '') <> ''
-		  AND m.relevance_score >= `+leadMinScoreSQL("m.workspace_id")+` -- Leads Ready, as the live path enriches
+		  AND `+leadScoreSQL("m.", "m.workspace_id")+` -- Leads Ready, as the live path enriches
 		  AND ($2 = '' OR l.workspace_id::text = $2)
 		ORDER BY l.created_at DESC
 		LIMIT $1`, limit, workspaceID)
@@ -68,7 +68,7 @@ func (q *Queries) ListLeadsForPerson360(ctx context.Context, workspaceID string,
 		LEFT JOIN persons p ON p.id = l.person_id
 		WHERE l.workspace_id::text = $2
 		  AND l.stage::text NOT IN ('lost', 'converted')
-		  AND m.relevance_score >= `+leadMinScoreSQL("m.workspace_id")+`
+		  AND `+leadScoreSQL("m.", "m.workspace_id")+`
 		  AND coalesce((l.metadata->>'person360_attempt_at')::timestamptz, 'epoch') < now() - interval '1 day'
 		  AND (
 		        p.id IS NULL OR NOT (p.metadata ? 'dossier')

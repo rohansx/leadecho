@@ -81,7 +81,7 @@ WHERE workspace_id = @workspace_id AND is_active = true;
 -- name: ScoringPrecisionByBand :many
 SELECT
     CASE
-        WHEN relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) THEN 'leads_ready'
+        WHEN relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND relevance_score >= CASE WHEN COALESCE(platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END THEN 'leads_ready'
         WHEN relevance_score >= 4.0 THEN 'worth_watching'
         ELSE 'filtered'
     END::text AS score_band,

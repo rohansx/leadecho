@@ -202,7 +202,7 @@ func (h *MentionHandler) List(w http.ResponseWriter, r *http.Request) {
 			ids[i] = m.ID
 		}
 		draftIDs, _ = h.q.MentionIDsWithDraftOrApprovedReply(ctx, workspaceID, ids)
-		leadMin = h.q.LeadMinScoreFor(ctx, workspaceID)
+		leadMin, _ = h.q.LeadMinScoreFor(ctx, workspaceID) // unreadable: the balanced line
 	}
 	allIDs := make([]string, len(mentions))
 	for i, m := range mentions {

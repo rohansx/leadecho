@@ -31,7 +31,7 @@ export function LeadStrictnessCard() {
           <div>
             <CardTitle>Lead strictness</CardTitle>
             <CardDescription>
-              Stricter shows fewer leads that are more likely to buy but may miss some; looser catches more buyers along with more posts you will skip.
+              Applies to posts. Stricter shows fewer posts that are more likely to buy but may miss some; looser catches more buyers along with more posts you will skip. Company signals (hiring, funding, prospects) are not affected.
             </CardDescription>
           </div>
         </div>

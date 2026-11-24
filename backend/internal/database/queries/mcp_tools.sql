@@ -32,7 +32,7 @@ SELECT
     (SELECT COUNT(*) FROM mentions m
        WHERE m.workspace_id = @workspace_id
          AND m.created_at >= NOW() - make_interval(days => @days::int)
-         AND m.relevance_score >= COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)
+         AND m.relevance_score >= LEAST(6.0, COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0)) AND m.relevance_score >= CASE WHEN COALESCE(m.platform_metadata->>'signal', '') <> '' THEN 6.0 ELSE COALESCE((SELECT CASE w.settings->>'lead_strictness' WHEN 'strict' THEN 7.5 WHEN 'loose' THEN 5.0 END FROM workspaces w WHERE w.id = @workspace_id), 6.0) END
          AND m.intent IN ('buy_signal', 'recommendation_ask', 'complaint', 'comparison'))::int AS high_intent,
     (SELECT COUNT(*) FROM mentions m
        WHERE m.workspace_id = @workspace_id

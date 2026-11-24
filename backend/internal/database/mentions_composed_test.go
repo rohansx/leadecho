@@ -36,7 +36,7 @@ func TestListMentionsComposedParams_buildWhere_queueAutoFlowing(t *testing.T) {
 	if len(args) != 1 || args[0] != "ws-1" {
 		t.Fatalf("args = %v, want workspace id only", args)
 	}
-	for _, want := range []string{"relevance_score >= " + leadMinScoreSQL("$1"), "comparison", "replies r", "needs_escalation"} {
+	for _, want := range []string{leadScoreSQL("", "$1"), "comparison", "replies r", "needs_escalation"} {
 		if !strings.Contains(where, want) {
 			t.Fatalf("where missing %q: %s", want, where)
 		}

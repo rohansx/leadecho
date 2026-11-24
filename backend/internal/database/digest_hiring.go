@@ -11,8 +11,8 @@ import (
 // Hand-written (no sqlc codegen needed).
 func (q *Queries) DigestHiringSignals(ctx context.Context, workspaceID string, start, end time.Time) (confirmed, held int, err error) {
 	err = q.db.QueryRow(ctx, `
-SELECT COUNT(*) FILTER (WHERE relevance_score >= `+leadMinScoreSQL("$1")+` AND status <> 'archived')::int,
-       COUNT(*) FILTER (WHERE relevance_score IS NULL OR relevance_score < `+leadMinScoreSQL("$1")+`)::int
+SELECT COUNT(*) FILTER (WHERE relevance_score >= 6.0 AND status <> 'archived')::int,
+       COUNT(*) FILTER (WHERE relevance_score IS NULL OR relevance_score < 6.0)::int
 FROM mentions
 WHERE workspace_id = $1 AND created_at >= $2 AND created_at < $3
   AND platform_metadata->>'signal' IN ('hiring', 'funding')
