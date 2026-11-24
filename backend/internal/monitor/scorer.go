@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -406,6 +407,20 @@ func filterAbout(bp database.BrandProfile) string {
 	about := bp.Product + ": " + truncateRunes(bp.Overview, 450)
 	if who := strings.TrimSpace(bp.TargetAudience); who != "" {
 		about += " Bought by: " + who
+	}
+	// The problems it solves: what a relevant post talks about. They also
+	// lift the filter's cached prefix (instructions + this) past the 512-token
+	// minimum, below which nothing was cached.
+	var pains []ai.PainPointDetail
+	_ = json.Unmarshal(bp.PainPoints, &pains) // a bad blob just means none
+	var ps []string
+	for _, pp := range pains {
+		if t := strings.TrimSpace(pp.Problem); t != "" && len(ps) < 8 {
+			ps = append(ps, truncateRunes(t, 160))
+		}
+	}
+	if len(ps) > 0 {
+		about += "\nProblems it solves: " + strings.Join(ps, "; ")
 	}
 	return about
 }

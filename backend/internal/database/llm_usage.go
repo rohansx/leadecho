@@ -20,6 +20,8 @@ type CreateLLMUsageEventParams struct {
 	PromptTokens     int32
 	CompletionTokens int32
 	TotalTokens      int32
+	CacheReadTokens  int32
+	CacheWriteTokens int32
 	EstimatedCostUSD string
 	LatencyMs        int32
 	ErrorMessage     pgtype.Text
@@ -32,11 +34,13 @@ func (q *Queries) CreateLLMUsageEvent(ctx context.Context, arg CreateLLMUsageEve
 		INSERT INTO llm_usage_events (
 			workspace_id, task, provider, model, status,
 			prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd,
-			latency_ms, error_message, fallback_from, key_source
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::numeric, $10, $11, $12, $13)
+			latency_ms, error_message, fallback_from, key_source,
+			cache_read_tokens, cache_write_tokens
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::numeric, $10, $11, $12, $13, $14, $15)
 	`, arg.WorkspaceID, arg.Task, arg.Provider, arg.Model, arg.Status,
 		arg.PromptTokens, arg.CompletionTokens, arg.TotalTokens, arg.EstimatedCostUSD,
-		arg.LatencyMs, arg.ErrorMessage, arg.FallbackFrom, arg.KeySource)
+		arg.LatencyMs, arg.ErrorMessage, arg.FallbackFrom, arg.KeySource,
+		arg.CacheReadTokens, arg.CacheWriteTokens)
 	if isUndefinedTable(err) {
 		return nil
 	}
