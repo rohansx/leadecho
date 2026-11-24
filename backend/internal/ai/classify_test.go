@@ -101,7 +101,7 @@ func TestFormatExamplesTruncatesAndCaps(t *testing.T) {
 // decides the verdict; a reply without the field parses as before.
 func TestClassifyIntentOpenNeed(t *testing.T) {
 	base := buildClassifyPrompt(ScoringContext{Product: "- Acme: CRM"})
-	for _, want := range []string{`"open_need"`, `"why_now"`, `When open_need is "none" the post is not a lead`, `(open_need "unsolved_pain")`, "- 4-5.5:"} {
+	for _, want := range []string{`"open_need"`, `"why_now"`, `When open_need is "none" the post is not a lead`, `(open_need "unsolved_pain")`, "- 4-5.5:", "- Fit: if the author states a requirement", "This rule does not cover price shopping"} {
 		if !strings.Contains(base, want) {
 			t.Errorf("classifier prompt lacks %q", want)
 		}
