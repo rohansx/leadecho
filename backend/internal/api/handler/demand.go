@@ -4,6 +4,7 @@ package handler
 // people behind each one and a follow-up once a theme ships.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -39,6 +40,8 @@ type demandResponse struct {
 	MinThemePeople int `json:"min_theme_people"`
 	FollowUpCost   int `json:"follow_up_cost"`
 	MaxFollowUps   int `json:"max_follow_ups"`
+	// Improvements: product changes the themes point to; null until made.
+	Improvements *demand.Improvements `json:"improvements"`
 }
 
 // Get (GET /demand) returns the workspace's themes.
@@ -53,7 +56,7 @@ func (h *DemandHandler) Get(w http.ResponseWriter, r *http.Request) {
 	themes, other := demand.Fold(state.View(time.Now()))
 	resp := demandResponse{
 		Themes: themes, Other: other, MinNewAsks: demand.MinNewAsks, MinThemePeople: demand.MinThemePeople,
-		FollowUpCost: demand.FollowUpCost, MaxFollowUps: demand.MaxFollowUps,
+		FollowUpCost: demand.FollowUpCost, MaxFollowUps: demand.MaxFollowUps, Improvements: state.Improvements,
 	}
 	if !state.LastRun.IsZero() {
 		resp.LastRun = &state.LastRun
@@ -73,8 +76,19 @@ func (h *DemandHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "could not group the asks right now; try again")
 		return
 	}
+	// The suggestions take another model call, longer than the request may
+	// wait: they are worked out in the background and show on the next load.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), improveTimeout)
+		defer cancel()
+		if _, err := h.svc.Improve(ctx, ws, time.Now().UTC(), demand.RefreshImproveCooldown); err != nil {
+			h.logger.Warn().Err(err).Str("workspace_id", ws).Msg("demand: improvements")
+		}
+	}()
 	writeJSON(w, http.StatusOK, map[string]int{"placed": placed})
 }
+
+const improveTimeout = 2 * time.Minute
 
 // Ship (POST /demand/themes/{id}/ship) marks a theme as shipped and,
 // optionally, drafts a follow-up for the people who asked.

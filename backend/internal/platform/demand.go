@@ -65,13 +65,18 @@ func (s *Shared) runDemand(ctx context.Context, svc *demand.Service) {
 		}
 		rctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		placed, err := svc.Refresh(rctx, ws, time.Now().UTC())
-		cancel()
 		if err != nil {
+			cancel()
 			s.Logger.Warn().Err(err).Str("workspace_id", ws).Msg("demand: grouping failed")
 			continue
 		}
 		if placed > 0 {
 			s.Logger.Info().Int("asks", placed).Str("workspace_id", ws).Msg("demand: themes updated")
 		}
+		// The suggestions follow the themes; a run with the same input is skipped.
+		if _, err := svc.Improve(rctx, ws, time.Now().UTC(), 0); err != nil {
+			s.Logger.Warn().Err(err).Str("workspace_id", ws).Msg("demand: improvements failed")
+		}
+		cancel()
 	}
 }

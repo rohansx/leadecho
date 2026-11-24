@@ -47,6 +47,9 @@ type Store interface {
 	// RecentAsks returns the asks from recently scored posts, newest first.
 	RecentAsks(ctx context.Context, ws string) ([]Ask, error)
 	Product(ctx context.Context, ws string) (Product, error)
+	// AskSignals returns intent, score, lead stage and any stated budget for
+	// the posts behind the given asks, keyed by mention id.
+	AskSignals(ctx context.Context, ws string, mentionIDs []string) (map[string]Signal, error)
 	// CreateDraft saves a follow-up as the mention's draft message.
 	CreateDraft(ctx context.Context, ws, mentionID, text string) error
 }

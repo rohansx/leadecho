@@ -44,6 +44,33 @@ export interface DemandResponse {
   min_theme_people: number;
   follow_up_cost: number;
   max_follow_ups: number;
+  /** Product changes the themes point to. Null until first worked out. */
+  improvements?: DemandImprovements | null;
+}
+
+export interface DemandEvidence {
+  mention_id: string;
+  quote: string;
+  url?: string;
+  platform?: string;
+  author?: string;
+  buyer?: boolean;
+}
+
+export interface DemandImprovement {
+  title: string;
+  change: string;
+  why: string;
+  for_whom: string;
+  kind: "feature" | "pricing" | "positioning" | "onboarding";
+  themes: string[];
+  evidence: DemandEvidence[];
+}
+
+export interface DemandImprovements {
+  items: DemandImprovement[];
+  /** Unset until a run succeeded. */
+  generated_at?: string;
 }
 
 export type CoverageTone = "good" | "warn" | "gap" | "muted";

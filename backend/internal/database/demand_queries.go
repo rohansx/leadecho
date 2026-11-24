@@ -16,6 +16,40 @@ type MentionAsk struct {
 	At         time.Time
 }
 
+// AskSignal is what the workspace knows about the post behind an ask.
+type AskSignal struct {
+	MentionID string
+	Intent    string
+	Score     float64
+	Stage     string // the lead's stage; "" when the post is not a lead
+	Content   string // the post, clipped
+}
+
+// ListAskSignals returns intent, score, lead stage and the start of the post
+// for the given mentions of the workspace. Hand-written.
+func (q *Queries) ListAskSignals(ctx context.Context, workspaceID string, mentionIDs []string) ([]AskSignal, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT m.id::text, COALESCE(m.intent::text, ''), COALESCE(m.relevance_score, 0)::float8,
+       COALESCE((SELECT l.stage::text FROM leads l WHERE l.workspace_id = m.workspace_id AND l.mention_id = m.id
+                 ORDER BY l.updated_at DESC LIMIT 1), ''),
+       LEFT(COALESCE(m.title, '') || ' ' || m.content, 2000)
+FROM mentions m
+WHERE m.workspace_id = $1 AND m.id = ANY($2::uuid[])`, workspaceID, mentionIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AskSignal
+	for rows.Next() {
+		var s AskSignal
+		if err := rows.Scan(&s.MentionID, &s.Intent, &s.Score, &s.Stage, &s.Content); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // ListMentionAsks returns the asks from posts scored since `since`, newest
 // first. Left out: spam and the workspace's company signals (a company, not
 // a person stating a need). A buyer's or an unknown author's post needs a

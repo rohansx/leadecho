@@ -1,7 +1,7 @@
 // demand: what people in the customer's market are asking for, grouped into
 // themes, with who asked and a follow-up once a theme ships.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2, RefreshCw, Rocket } from "lucide-react";
 import { Text } from "@/components/ui/text";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { INBOX_QUEUES } from "@/lib/constants";
 import { DEMAND_KEY, getDemand, refreshDemand, shipTheme } from "@/lib/demand-api";
 import { COMPETITORS_KEY, getCompetitors, movesForTheme, type Competitor } from "@/lib/competitors-api";
-import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandAsk, type DemandResponse, type DemandTheme } from "@/lib/demand";
+import { askRole, askSource, coverageText, followUpEstimate, peopleLine, splitThemes, type CoverageTone, type DemandAsk, type DemandImprovement, type DemandResponse, type DemandTheme } from "@/lib/demand";
 
 export const Route = createFileRoute("/_dashboard/demand")({
   component: DemandPage,
@@ -196,13 +196,122 @@ function AskList({ asks }: { asks: DemandAsk[] }) {
   );
 }
 
+const kindLabel: Record<DemandImprovement["kind"], string> = {
+  feature: "Feature",
+  pricing: "Pricing",
+  positioning: "Positioning",
+  onboarding: "Onboarding",
+};
+
+function ImprovementCard({ item, rank, themeTitles }: { item: DemandImprovement; rank: number; themeTitles: Map<string, string> }) {
+  const from = item.themes.map((id) => themeTitles.get(id)).filter(Boolean);
+  return (
+    <li className="rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h3 className="min-w-0 font-[family-name:var(--font-head)] text-lg font-medium leading-snug">
+          {rank}. {item.title}
+        </h3>
+        <span className={cn("shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium", toneClass.muted)}>{kindLabel[item.kind] ?? item.kind}</span>
+      </div>
+      <p className="mt-2 text-sm text-foreground">{item.change}</p>
+      {item.why && <p className="mt-1 text-sm text-foreground-soft">{item.why}</p>}
+      <p className="mt-1 text-xs text-muted-foreground">
+        {item.for_whom && <>For {item.for_whom}. </>}
+        {from.length > 0 && <>From: {from.join(", ")}.</>}
+      </p>
+      <ul className="mt-3 space-y-2">
+        {item.evidence.map((e) => (
+          <li key={e.mention_id} className="border-l-2 border-border pl-3 text-sm">
+            <span className="text-foreground">{e.quote}</span>
+            <span className="mt-0.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span>{[e.author, e.buyer ? "buyer" : "", e.platform].filter(Boolean).join(", ")}</span>
+              <Link to="/inbox" search={{ queue: INBOX_QUEUES.ALL, id: e.mention_id }} className="text-foreground underline underline-offset-2">
+                Open post
+              </Link>
+              {e.url && /^https?:\/\//i.test(e.url) && (
+                <a href={e.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">
+                  Source <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+function Improvements({ d, onSuggest, suggesting }: { d: DemandResponse; onSuggest: () => void; suggesting: boolean }) {
+  const items = d.improvements?.items ?? [];
+  // Unset until a run succeeded (a failed run is remembered, not shown).
+  const made = d.improvements?.generated_at;
+  const themeTitles = new Map(d.themes.map((t) => [t.id, t.title]));
+  return (
+    <section className="space-y-3" aria-label="How to improve your product">
+      <div>
+        <Text as="h3" className="font-medium">How to improve your product</Text>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {made
+            ? `Changes the themes below point to, most valuable first, each with the posts behind it. Worked out ${daysAgo(made)}; updated when the themes change.`
+            : "Changes the themes below point to, with the posts behind each one."}
+        </p>
+      </div>
+      {items.length > 0 ? (
+        <ol className="space-y-3">
+          {items.map((it, i) => (
+            <ImprovementCard key={it.title} item={it} rank={i + 1} themeTitles={themeTitles} />
+          ))}
+        </ol>
+      ) : (
+        <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          {suggesting ? (
+            <p>Working out suggestions. This takes a minute or two.</p>
+          ) : (
+            <>
+              <p>
+                {made
+                  ? "No change is backed clearly enough by what people asked yet. This is looked at again when the themes change."
+                  : "Not worked out yet. Suggestions are made after the daily grouping run."}
+              </p>
+              {!made && (
+                <Button size="sm" variant="outline" className="mt-3" onClick={onSuggest}>
+                  Suggest changes now
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// How long the page polls for suggestions worked out in the background.
+const SUGGEST_POLL_MS = 10_000;
+const SUGGEST_WAIT_MS = 150_000;
+
 function DemandPage() {
   const qc = useQueryClient();
-  const demand = useQuery({ queryKey: DEMAND_KEY, queryFn: getDemand });
+  // Set while suggestions are worked out in the background: the generated_at
+  // seen when it started. Cleared after SUGGEST_WAIT_MS.
+  const [suggest, setSuggest] = useState<{ from: string | null } | null>(null);
+  const demand = useQuery({
+    queryKey: DEMAND_KEY,
+    queryFn: getDemand,
+    refetchInterval: (q) => (suggest && (q.state.data?.improvements?.generated_at ?? null) === suggest.from ? SUGGEST_POLL_MS : false),
+  });
+  useEffect(() => {
+    if (!suggest) return;
+    const t = setTimeout(() => setSuggest(null), SUGGEST_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [suggest]);
   const refresh = useMutation({
     mutationFn: refreshDemand,
+    onMutate: () => setSuggest({ from: demand.data?.improvements?.generated_at ?? null }),
+    onError: () => setSuggest(null),
     onSettled: () => qc.invalidateQueries({ queryKey: DEMAND_KEY }),
   });
+  const suggesting = !!suggest && (demand.data?.improvements?.generated_at ?? null) === suggest.from;
   const d = demand.data;
   // Competitor moves linked to a theme. Optional: the page works without them.
   const rivals = useQuery({ queryKey: COMPETITORS_KEY, queryFn: getCompetitors, retry: false }).data?.data ?? [];
@@ -249,8 +358,11 @@ function DemandPage() {
         </div>
       )}
 
+      {d && open.length > 0 && <Improvements d={d} onSuggest={() => refresh.mutate()} suggesting={suggesting} />}
+
       {open.length > 0 && (
         <section className="space-y-3" aria-label="Open themes">
+          <Text as="h3" className="font-medium">What people asked for</Text>
           {open.map((t) => (
             <ThemeCard key={t.id} theme={t} meta={d as DemandResponse} competitors={rivals} />
           ))}
