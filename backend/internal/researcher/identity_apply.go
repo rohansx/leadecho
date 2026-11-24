@@ -38,11 +38,7 @@ type SandboxSession interface {
 // SandboxFactory opens a session; nil means research without a sandbox.
 type SandboxFactory func() SandboxSession
 
-const (
-	agentTimeout = 8 * time.Minute
-	// minNameLen: a "name" shorter than this ("J") can't confirm a LinkedIn.
-	minNameLen = 5
-)
+const agentTimeout = 8 * time.Minute
 
 // agentSlots bounds concurrent research agents (each holds a sandbox).
 var agentSlots = make(chan struct{}, 3)
@@ -203,17 +199,23 @@ func withIdentity(sub enrich.Subject, p *identity.Profile) enrich.Subject {
 	return sub
 }
 
-// lookupable: the paid lookup has something to match on. A forum author
-// with no LinkedIn URL or email would only skip every step and still use
-// one of the workspace's daily enrichments, which then blocks the authors
-// the research agent does find a key for. LinkedIn and X authors are
-// matched by their handle (X through its profile), so they always go.
-func lookupable(sub enrich.Subject) bool {
-	switch strings.ToLower(sub.Platform) {
+// forumAuthor: an author whose identity comes only from what they published
+// (tier a, the research agent in its sandbox, deep research), never from the
+// paid lookup. The public trail already gives their LinkedIn, X, site and
+// any email they published; a paid match on top of it adds cost and the
+// risk of a stranger's record.
+func forumAuthor(platform string) bool {
+	switch strings.ToLower(platform) {
 	case "hackernews", "devto", "bluesky", "reddit", "indiehackers", "lobsters":
-		return sub.Email != "" || strings.Contains(strings.ToLower(sub.ProfileURL), "linkedin.com/in/")
+		return true
 	}
-	return true
+	return false
+}
+
+// lookupable: the paid lookup may run. LinkedIn and X authors are matched by
+// their handle (X through its profile); forum authors never go (forumAuthor).
+func lookupable(sub enrich.Subject) bool {
+	return !forumAuthor(sub.Platform)
 }
 
 // needsEnrichment: never enriched, or enriched as a bare handle (every paid
@@ -292,8 +294,8 @@ func (c *dayCounter) take(ws string, limit int) bool {
 // workspaces (the result is cached for all of them when it finishes).
 var inflightAuthors sync.Map
 
-// researchAsync runs tier b in the background, then the paid lookup again
-// with whatever new key it found.
+// researchAsync runs tier b (and deep research) in the background. Public
+// data only: forum authors never go to the paid lookup.
 func (s *Service) researchAsync(ws, leadID, personID string, mention database.Mention, platform, handle, profileURL string, prof *identity.Profile) {
 	if s.agent == nil || (!agentDue(prof) && !deepDue(prof)) {
 		return
@@ -321,13 +323,25 @@ func (s *Service) researchAsync(ws, leadID, personID string, mention database.Me
 		case <-ctx.Done():
 			return
 		}
-		if err := s.research(ctx, ws, leadID, personID, mention, platform, handle, profileURL, prof); err != nil {
+		next, err := s.research(ctx, ws, leadID, personID, mention, platform, handle, profileURL, prof)
+		if err != nil {
 			s.logger.Warn().Err(err).Str("lead_id", leadID).Msg("identity: research agent")
+			return
+		}
+		// Identified just now: map their whole public footprint straight
+		// away rather than at their next post (one more run from the caps).
+		if deepDue(next) && agentRuns.takeBoth(ws, s.agentCap, s.agentGlobalCap) {
+			deepCtx, deepCancel := context.WithTimeout(context.Background(), agentTimeout)
+			defer deepCancel()
+			if _, err := s.research(deepCtx, ws, leadID, personID, mention, platform, handle, profileURL, next); err != nil {
+				s.logger.Warn().Err(err).Str("lead_id", leadID).Msg("identity: deep research")
+			}
 		}
 	}()
 }
 
-func (s *Service) research(ctx context.Context, ws, leadID, personID string, mention database.Mention, platform, handle, profileURL string, prof *identity.Profile) error {
+// research runs the agent once and returns the merged profile it saved.
+func (s *Service) research(ctx context.Context, ws, leadID, personID string, mention database.Mention, platform, handle, profileURL string, prof *identity.Profile) (*identity.Profile, error) {
 	in := ai.PersonResearch{Platform: platform, Handle: handle, ProfileURL: profileURL, Name: prof.Name, Notes: prof.Notes, Deep: deepDue(prof),
 		Post: strings.TrimSpace(mention.Title.String + "\n" + mention.Content)}
 	for _, l := range prof.Links {
@@ -349,63 +363,10 @@ func (s *Service) research(ctx context.Context, ws, leadID, personID string, men
 	if in.Deep {
 		next.DeepAt = time.Now().UTC() // one deep run per person, even if it found little
 	}
-	next = s.confirmLinkedIn(saveCtx, ws, next)
 	s.identity.Store(saveCtx, identity.Seed{Platform: platform, Handle: handle}, next)
 	if serr := s.saveIdentity(saveCtx, ws, leadID, personID, next); serr != nil {
-		return fmt.Errorf("save: %w", serr)
-	}
-	if fresh, gerr := s.q.GetLead(saveCtx, database.GetLeadParams{ID: leadID, WorkspaceID: ws}); gerr == nil {
-		s.enrichWithTreg(saveCtx, ws, fresh, personID, platform, handle, profileURL, next)
+		return nil, fmt.Errorf("save: %w", serr)
 	}
 	s.dossierAsync(ws, personID, platform, handle) // with what the agent found
-	return err
-}
-
-// confirmLinkedIn checks the best LinkedIn candidate the agent found by
-// searching (below Shown) with one person lookup per run. It is kept only
-// when the profile's name is the person's name AND a second thing agrees
-// (the company, or the slug spells the surname): a common name alone would
-// put a stranger's job and email on the lead. The full enrichment that
-// follows asks the same question and is served from treg's cache.
-func (s *Service) confirmLinkedIn(ctx context.Context, ws string, p *identity.Profile) *identity.Profile {
-	if _, ok := p.Best(identity.KindLinkedIn); ok || len([]rune(p.Name)) < minNameLen || !s.enricher.Enabled() {
-		return p
-	}
-	var best identity.Link
-	for _, l := range p.Links {
-		if l.Kind == identity.KindLinkedIn && l.Confidence >= 0.6 && l.Confidence > best.Confidence {
-			best = l
-		}
-	}
-	if best.URL == "" {
-		return p
-	}
-	m, err := s.enricher.PersonLookup(ctx, ws, best.URL)
-	if err != nil || !sameName(m.Name, p.Name) {
-		return p
-	}
-	if sameCompany(m.Company, p.Company) || slugHasSurname(best.Handle, p.Name) {
-		return identity.Confirm(p, best.URL, 0.9, "name_confirmed")
-	}
-	return p
-}
-
-func sameCompany(a, b string) bool {
-	a, b = strings.ToLower(strings.TrimSpace(a)), strings.ToLower(strings.TrimSpace(b))
-	return len(a) >= 3 && len(b) >= 3 && (strings.Contains(a, b) || strings.Contains(b, a))
-}
-
-func slugHasSurname(slug, name string) bool {
-	f := strings.Fields(strings.ToLower(name))
-	return len(f) >= 2 && len([]rune(f[len(f)-1])) >= 3 && strings.Contains(strings.ToLower(slug), f[len(f)-1])
-}
-
-// sameName: "Jane Doe" and "jane doe" match; "Jane Q. Doe" matches "Jane Doe"
-// (same first and last word).
-func sameName(a, b string) bool {
-	fa, fb := strings.Fields(strings.ToLower(a)), strings.Fields(strings.ToLower(b))
-	if len(fa) < 2 || len(fb) < 2 {
-		return false
-	}
-	return fa[0] == fb[0] && fa[len(fa)-1] == fb[len(fb)-1]
+	return next, err
 }
