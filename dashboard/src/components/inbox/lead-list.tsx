@@ -487,7 +487,7 @@ export function LeadList({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.15 }}
-                className={`group border-b border-border transition-colors ${
+                className={`group relative border-b border-border transition-colors ${
                   selectedId === m.id ? "bg-accent" : "hover:bg-accent/50"
                 }`}
               >
@@ -496,7 +496,7 @@ export function LeadList({
                 onClick={(e) =>
                   onSelect(m.id, (e.target as HTMLElement).closest("[data-open-person]") ? "person360" : undefined)
                 }
-                className={`w-full text-left px-4 pt-3.5 pb-2 flex gap-3 cursor-pointer ${vote === "down" ? "opacity-60" : ""}`}
+                className={`w-full text-left px-4 py-3.5 flex gap-3 cursor-pointer ${vote === "down" ? "opacity-60" : ""}`}
               >
                 <span
                   title={scoreBand(m.relevance_score).label}
@@ -554,8 +554,15 @@ export function LeadList({
                   </div>
                 </div>
               </button>
-              {/* Always shown on touch and narrow screens; with a mouse, on hover or keyboard focus. */}
-              <div className="flex justify-end px-4 pb-2.5 md:[@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+              {/* Over the row's bottom-right corner, so it takes no height. Always on the open
+                  row; else on hover or keyboard focus, and on touch / narrow screens until voted. */}
+              <div
+                className={`absolute bottom-2 right-3 transition-opacity ${
+                  selectedId === m.id
+                    ? ""
+                    : `${vote ? "opacity-0 pointer-events-none" : "md:[@media(hover:hover)]:opacity-0 md:[@media(hover:hover)]:pointer-events-none"} group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto`
+                }`}
+              >
                 <VoteButtons mention={m} />
               </div>
               </motion.div>

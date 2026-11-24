@@ -141,6 +141,7 @@ export function GlobalSearch() {
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh] backdrop-blur-sm" onMouseDown={hide}>
           <div
             role="dialog"
+            aria-modal="true"
             aria-label="Search"
             className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
             onMouseDown={(e) => e.stopPropagation()}

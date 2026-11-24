@@ -5,7 +5,8 @@ import { sendMentionFeedback } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import type { Mention } from "@/lib/types";
 import { tagTone, voteTone } from "@/lib/tones";
-import { lastVote, type Vote } from "@/lib/lead-vote";
+import { lastVote, VOTE_TEXT, voteAriaLabel, type Vote } from "@/lib/lead-vote";
+import { cn } from "@/lib/utils";
 
 // scoring: intent tag chips, sentiment marker and the Lead / Not a lead vote.
 
@@ -53,51 +54,60 @@ export function TagChips({ tags, sentiment, max = 3 }: TagChipsProps) {
   );
 }
 
-/** Sends a vote; stays pending until the lists have refetched, so the row shows the new state. */
-export function useVote() {
+export const INBOX_KEYS = [QUERY_KEYS.mentions, QUERY_KEYS.mentionCounts, QUERY_KEYS.mentionQueueCounts, QUERY_KEYS.scoringPrecision];
+
+/** Mutations on one lead share this scope, so they run one after another. */
+export const leadScope = (id: string | undefined) => (id ? { id: `lead:${id}` } : undefined);
+
+/**
+ * Sends a vote; stays pending until the lists have refetched, so the row shows
+ * the new state. Pass the lead's id to queue votes on it behind each other.
+ */
+export function useVote(mentionId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: leadScope(mentionId),
     mutationFn: ({ id, label, note }: { id: string; label: Vote; note?: string }) => sendMentionFeedback(id, label, note),
-    onSuccess: () =>
-      Promise.all(
-        [QUERY_KEYS.mentions, QUERY_KEYS.mentionCounts, QUERY_KEYS.mentionQueueCounts, QUERY_KEYS.scoringPrecision].map((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] }),
-        ),
-      ),
+    onSuccess: () => Promise.all(INBOX_KEYS.map((key) => queryClient.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
-const VOTE_COPY: Record<Vote, { text: string; title: string; key: string }> = {
-  up: { text: "Lead", title: "Lead: score more like this", key: "y" },
-  down: { text: "Not a lead", title: "Not a lead: score fewer like this", key: "n" },
+const VOTE_HINT: Record<Vote, { title: string; key: string }> = {
+  up: { title: "Lead: score more like this", key: "y" },
+  down: { title: "Not a lead: score fewer like this", key: "n" },
 };
 
-/** "Lead" / "Not a lead" on a mention; each vote becomes a few-shot example for its listener. */
-export function VoteButtons({ mention }: { mention: Mention }) {
-  const vote = useVote();
-  const pending = vote.isPending && vote.variables?.id === mention.id ? vote.variables.label : null;
+/**
+ * "Lead" / "Not a lead" on a mention; each vote becomes a few-shot example for
+ * its listener. `shortcuts` shows the y / n keys, which act on the open lead.
+ */
+export function VoteButtons({ mention, shortcuts = false }: { mention: Mention; shortcuts?: boolean }) {
+  const vote = useVote(mention.id);
+  const pending = vote.isPending ? vote.variables.label : null;
   const current = pending ?? lastVote(mention);
 
   const button = (label: Vote) => {
     const Icon = label === "up" ? Check : X;
     const active = current === label;
-    const copy = VOTE_COPY[label];
+    const hint = VOTE_HINT[label];
     return (
       <Button
         size="sm"
         variant="outline"
-        className={active ? `${voteTone(label)} border-transparent` : undefined}
+        className={cn(active && `${voteTone(label)} border-transparent`, vote.isPending && "opacity-60 cursor-wait")}
         onClick={(e) => {
           e.stopPropagation();
-          vote.mutate({ id: mention.id, label });
+          if (!vote.isPending) vote.mutate({ id: mention.id, label });
         }}
-        disabled={vote.isPending}
+        // aria-disabled, not disabled: a disabled button drops keyboard focus.
+        aria-disabled={vote.isPending}
         aria-pressed={active}
-        title={`${copy.title} (${copy.key})`}
-        aria-keyshortcuts={copy.key}
+        aria-label={shortcuts ? undefined : voteAriaLabel(label, mention)}
+        title={shortcuts ? `${hint.title} (${hint.key})` : hint.title}
+        aria-keyshortcuts={shortcuts ? hint.key : undefined}
       >
         {pending === label ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
-        {copy.text}
+        {VOTE_TEXT[label]}
       </Button>
     );
   };
@@ -106,7 +116,11 @@ export function VoteButtons({ mention }: { mention: Mention }) {
     <div className="flex items-center gap-1.5">
       {button("up")}
       {button("down")}
-      {vote.isError && <span className="text-xs text-destructive">{vote.error.message || "Failed to save"}</span>}
+      {vote.isError && (
+        <span role="alert" className="text-xs text-destructive">
+          {vote.error.message || "Failed to save"}
+        </span>
+      )}
     </div>
   );
 }

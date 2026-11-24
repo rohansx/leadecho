@@ -19,15 +19,30 @@ interface KeyLike {
   ctrlKey: boolean;
   altKey: boolean;
   repeat?: boolean;
+  isComposing?: boolean;
+  defaultPrevented?: boolean;
   target: unknown;
 }
 
-/** y = Lead, n = Not a lead; null while typing, with a modifier held, or on key repeat. */
-export function voteKey(e: KeyLike): Vote | null {
-  if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return null;
+/**
+ * y = Lead, n = Not a lead. Null while typing or composing (IME), with a
+ * modifier held, on key repeat, when something else handled the key, or while
+ * a modal is open.
+ */
+export function voteKey(e: KeyLike, modalOpen = false): Vote | null {
+  if (modalOpen || e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.isComposing || e.defaultPrevented) return null;
   const t = e.target as { tagName?: string; isContentEditable?: boolean } | null;
   if (t?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t?.tagName ?? "")) return null;
   if (e.key === "y") return "up";
   if (e.key === "n") return "down";
   return null;
+}
+
+export const VOTE_TEXT: Record<Vote, string> = { up: "Lead", down: "Not a lead" };
+
+/** A row button's accessible name, "Lead: <title>", so a screen reader can tell the rows apart. */
+export function voteAriaLabel(vote: Vote, m: { title?: string | null; content?: string | null }): string {
+  const what = (m.title || m.content || "").replace(/\s+/g, " ").trim();
+  if (!what) return VOTE_TEXT[vote];
+  return `${VOTE_TEXT[vote]}: ${what.length > 80 ? `${what.slice(0, 79)}…` : what}`;
 }

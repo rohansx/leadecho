@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PostMarkdown } from "@/components/ui/post-markdown";
 import { isCompanySignal, parseFunding, parseResearch, parseSegmentFit, sourceHost } from "@/lib/research";
 import { splitLeadSections } from "@/lib/lead-sections";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArchiveIcon,
@@ -37,7 +37,7 @@ import {
 import { API_BASE_URL, INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
 import { intentTone, openNeedTone, platformTone, scoreBand } from "@/lib/tones";
 import type { Mention, Reply } from "@/lib/types";
-import { TagChips, useVote, VoteButtons } from "@/components/inbox/intent-tags";
+import { TagChips, VoteButtons } from "@/components/inbox/intent-tags";
 import { lastVote, NOT_A_FIT_REASONS, notAFitNote } from "@/lib/lead-vote";
 import { MarkPosted } from "@/components/inbox/mark-posted";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
@@ -824,25 +824,18 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   );
 }
 
+/** Down vote with a reason, then archive with it: one sequence, owned by the inbox page. */
+export type NotAFitMutation = UseMutationResult<void, Error, { mentionId: string; note: string }>;
+
 /**
  * "Is this a lead?" at the top of every tab. After "Not a lead", a reason chip
  * re-sends the vote with that note and archives the lead with it (as the old
- * "Not a fit…" menu did), which also moves on to the next lead.
+ * "Not a fit…" menu did), then moves on if this lead is still open.
  */
-function LeadVoteBar({
-  mention,
-  onFeedback,
-}: {
-  mention: Mention;
-  onFeedback: (status: "spam" | "archived", reason?: string) => void;
-}) {
-  const vote = useVote();
+function LeadVoteBar({ mention, notAFit }: { mention: Mention; notAFit: NotAFitMutation }) {
   const band = scoreBand(mention.relevance_score);
-  const pick = (reason: string) => {
-    const note = notAFitNote(reason);
-    // Vote first: the archive overwrites last_feedback, so it must land second.
-    vote.mutate({ id: mention.id, label: "down", note }, { onSuccess: () => onFeedback("archived", note) });
-  };
+  const mine = notAFit.variables?.mentionId === mention.id;
+  const busy = notAFit.isPending && mine;
   return (
     <div className="flex flex-wrap items-center gap-2 px-6 py-2.5 border-b border-border shrink-0">
       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${band.tone}`}>
@@ -850,7 +843,7 @@ function LeadVoteBar({
         {band.label}
       </span>
       <span className="text-sm text-muted-foreground">Is this a lead?</span>
-      <VoteButtons key={mention.id} mention={mention} />
+      <VoteButtons key={mention.id} mention={mention} shortcuts />
       {lastVote(mention) === "down" && mention.status !== "archived" && (
         <div role="group" aria-label="Why not? Archives the lead" className="flex flex-wrap items-center gap-1">
           <span className="text-xs text-muted-foreground">Why not?</span>
@@ -858,14 +851,19 @@ function LeadVoteBar({
             <button
               key={r}
               type="button"
-              onClick={() => pick(r)}
-              disabled={vote.isPending}
+              onClick={() => !busy && notAFit.mutate({ mentionId: mention.id, note: notAFitNote(r) })}
+              aria-disabled={busy}
               title={`Not a lead: ${r.toLowerCase()}. Archives it.`}
-              className="rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-foreground-soft hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/40 cursor-pointer disabled:opacity-50"
+              className="rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-foreground-soft hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/40 cursor-pointer aria-disabled:opacity-50 aria-disabled:cursor-wait"
             >
-              {vote.isPending && vote.variables?.note === notAFitNote(r) ? <Loader2 className="inline h-3 w-3 animate-spin" /> : r}
+              {busy && notAFit.variables?.note === notAFitNote(r) ? <Loader2 className="inline h-3 w-3 animate-spin" /> : r}
             </button>
           ))}
+          {notAFit.isError && mine && (
+            <span role="alert" className="text-xs text-destructive">
+              {notAFit.error.message || "Failed to save"}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -884,6 +882,7 @@ export function LeadDetail({
   archiving,
   onFeedback,
   feedbackPending,
+  notAFit,
   tab = "overview",
   onTabChange,
 }: {
@@ -896,6 +895,7 @@ export function LeadDetail({
   archiving: boolean;
   onFeedback: (status: "spam" | "archived", reason?: string) => void;
   feedbackPending: boolean;
+  notAFit: NotAFitMutation;
   /** The open tab; kept in the URL (?tab=) so a username can link to Person360. */
   tab?: DetailTab;
   onTabChange: (tab: DetailTab) => void;
@@ -951,7 +951,7 @@ export function LeadDetail({
         </div>
       </div>
 
-      <LeadVoteBar mention={mention} onFeedback={onFeedback} />
+      <LeadVoteBar mention={mention} notAFit={notAFit} />
 
       <div className="flex gap-1 px-6 pt-3 border-b border-border shrink-0">
         {(["overview", "person360", "thread"] as const).map((t) => (

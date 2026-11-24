@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lastVote, notAFitNote, voteKey } from "./lead-vote.ts";
+import { lastVote, notAFitNote, voteAriaLabel, voteKey } from "./lead-vote.ts";
 
 test("lastVote reads up/down only; archive and spam flags are not votes", () => {
   assert.equal(lastVote({ scoring_metadata: { last_feedback: { label: "up" } } }), "up");
@@ -32,4 +32,19 @@ test("voteKey stays out of the way while typing or with a modifier", () => {
   assert.equal(key("n", { ctrlKey: true }), null);
   assert.equal(key("n", { altKey: true }), null);
   assert.equal(key("n", { repeat: true }), null);
+  assert.equal(key("n", { isComposing: true }), null);
+  assert.equal(key("n", { defaultPrevented: true }), null);
+});
+
+test("voteKey is off while a modal is open", () => {
+  assert.equal(voteKey({ key: "y", metaKey: false, ctrlKey: false, altKey: false, target: null }, true), null);
+});
+
+test("voteAriaLabel names the post, kept short, else the bare label", () => {
+  assert.equal(voteAriaLabel("up", { title: "Best CRM?", content: "x" }), "Lead: Best CRM?");
+  assert.equal(voteAriaLabel("down", { title: "", content: "line one\n  line two" }), "Not a lead: line one line two");
+  assert.equal(voteAriaLabel("down", { title: null, content: "" }), "Not a lead");
+  const long = voteAriaLabel("up", { content: "a".repeat(200) });
+  assert.equal(long.length, "Lead: ".length + 80);
+  assert.ok(long.endsWith("…"));
 });
