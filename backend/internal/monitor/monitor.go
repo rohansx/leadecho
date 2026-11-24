@@ -249,8 +249,9 @@ func (m *Monitor) scanWorkspace(ctx context.Context, wsID string, kws []database
 	}
 	var alerts []mentionAlert
 	for i, kw := range kws {
-		alerts = append(alerts, m.crawlKeyword(ctx, wsID, kw)...)
-		m.recordScans(ctx, wsID, kw) // sources
+		found, failed := m.crawlKeyword(ctx, wsID, kw)
+		alerts = append(alerts, found...)
+		m.recordScans(ctx, wsID, kw, failed) // sources
 		// Pause between keywords to avoid hammering APIs
 		if i < len(kws)-1 {
 			select {
@@ -315,7 +316,11 @@ func (m *Monitor) setRedditBackoff(d time.Duration) {
 // crawlKeyword runs every configured platform crawler for a single keyword.
 // It recovers from panics so that one misbehaving platform/keyword cannot abort
 // the whole tick or crash the process; the offending keyword is simply skipped.
-func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.ListActiveKeywordsRow) (alerts []mentionAlert) {
+//
+// failed lists the paid platforms whose treg search did not answer (balance
+// empty, cap, paused, provider error). They are not stamped as scanned: under
+// the 24h paid cadence one refused search would otherwise cost a day of leads.
+func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.ListActiveKeywordsRow) (alerts []mentionAlert, failed []string) {
 	defer func() {
 		if r := recover(); r != nil {
 			m.logger.Error().
@@ -341,6 +346,7 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 					alerts = append(alerts, tregAlerts...)
 					break
 				}
+				failed = append(failed, platform)
 			}
 			// Fallback: existing unauthenticated crawler
 			if m.redditBackedOff() {
@@ -364,11 +370,15 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 			// treg feature: hosted search is the only X source.
 			if a, ok := m.crawlTwitterTreg(ctx, wsID, akw); ok {
 				alerts = append(alerts, a...)
+			} else if m.treg.Enabled() {
+				failed = append(failed, platform)
 			}
 		case database.PlatformTypeLinkedin:
 			// treg feature: hosted search is the only LinkedIn source.
 			if a, ok := m.crawlLinkedInTreg(ctx, wsID, akw); ok {
 				alerts = append(alerts, a...)
+			} else if m.treg.Enabled() {
+				failed = append(failed, platform)
 			}
 		default:
 			// Phase 2 platforms
@@ -387,7 +397,7 @@ func (m *Monitor) crawlKeyword(ctx context.Context, wsID string, akw database.Li
 		}
 	}
 
-	return alerts
+	return alerts, failed
 }
 
 // insertMention creates a mention if it does not already exist.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -67,6 +68,33 @@ func TestCrawlTregFallbackSignals(t *testing.T) {
 				if ok != tc.wantOK || len(alerts) != 0 {
 					t.Fatalf("ok=%v alerts=%d, want ok=%v", ok, len(alerts), tc.wantOK)
 				}
+			}
+		})
+	}
+}
+
+// A refused paid search must stay due (not stamped as scanned): with a 24h paid
+// cadence, stamping it lost a day of X/LinkedIn leads per refusal.
+func TestCrawlKeywordReportsFailedPaidPlatforms(t *testing.T) {
+	kw := cursorKW
+	kw.Platforms = []string{"twitter", "linkedin"}
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+		want   []string
+	}{
+		{"balance empty", 402, `{"detail":{"error":"insufficient_balance"}}`, []string{"twitter", "linkedin"}},
+		{"answered", 200, `{"output":{"posts":[]}}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := tregMonitor(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			})
+			_, failed := m.crawlKeyword(context.Background(), tregTestWS, kw)
+			if !slices.Equal(failed, tc.want) {
+				t.Fatalf("failed=%q, want %q", failed, tc.want)
 			}
 		})
 	}

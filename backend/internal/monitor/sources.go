@@ -5,6 +5,7 @@ package monitor
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"time"
 
 	"leadecho/internal/cadence"
@@ -101,9 +102,19 @@ func bulkFilterPairs(rows []database.KeywordYield) map[[2]string]bool {
 	return out
 }
 
-// recordScans stamps last_scanned for each platform just crawled.
-func (m *Monitor) recordScans(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow) {
+// recordScans stamps last_scanned for each platform just crawled, except the
+// failed ones: those stay due and are tried again on the next tick.
+//
+// ponytail: a failed paid search is retried every tick until it answers. The
+// treg client's own pauses (5 min after an account refusal, 30 min per
+// workspace cap) keep that cheap; a provider rejecting one query outright is
+// re-asked every tick (refused calls are free). Add a retry backoff if that
+// ever shows up in treg_calls.
+func (m *Monitor) recordScans(ctx context.Context, wsID string, kw database.ListActiveKeywordsRow, failed []string) {
 	for _, p := range kw.Platforms {
+		if slices.Contains(failed, p) {
+			continue
+		}
 		if err := m.q.UpsertKeywordPlatformScan(ctx, database.UpsertKeywordPlatformScanParams{Platform: p, KeywordID: kw.ID, WorkspaceID: wsID}); err != nil {
 			m.logger.Warn().Err(err).Str("keyword_id", kw.ID).Str("platform", p).Msg("cadence: record scan failed")
 		}
