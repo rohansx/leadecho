@@ -116,7 +116,7 @@ function ProofStrip() {
             MIT licensed, open source
           </a>
         </li>
-        <li>10 sources</li>
+        <li>Reddit, HN, X, LinkedIn and more</li>
         <li>Self-hostable, bring your own AI keys</li>
       </ul>
     </div>
@@ -130,13 +130,13 @@ export function Hero() {
         <div>
           <p className="inline-flex items-center gap-2 mkt-glass rounded-full border border-border px-3 py-1 text-[13px] text-foreground-soft">
             <span className="mkt-live size-2 rounded-full bg-foreground" aria-hidden="true" />
-            Listening on 10 sources, open source
+            Listening on Reddit, HN, X and more, open source
           </p>
           <h1 className="mt-7 text-[clamp(2.9rem,6.2vw,5rem)] leading-[0.96] font-semibold tracking-[-0.045em] text-balance [font-stretch:90%]">
             Find the people already asking for what you sell.
           </h1>
           <p className="mt-6 max-w-[33rem] text-[18px] leading-relaxed text-foreground-soft">
-            LeadEcho reads Reddit, Hacker News, X, LinkedIn and developer communities around the clock, keeps the
+            LeadEcho reads Reddit, Hacker News, X, LinkedIn and developer communities on a schedule, keeps the
             posts that look like someone who could buy, explains why, and drafts a reply you approve before it goes out.
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
