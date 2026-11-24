@@ -1,13 +1,13 @@
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sendMentionFeedback } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import type { Mention } from "@/lib/types";
-import { tagTone } from "@/lib/tones";
+import { tagTone, voteTone } from "@/lib/tones";
+import { lastVote, type Vote } from "@/lib/lead-vote";
 
-// scoring: intent tag chips, sentiment marker and 👍/👎 scorer feedback.
+// scoring: intent tag chips, sentiment marker and the Lead / Not a lead vote.
 
 // Coloured by what the tag means for a seller (see tagTone); noise stays neutral.
 
@@ -53,61 +53,60 @@ export function TagChips({ tags, sentiment, max = 3 }: TagChipsProps) {
   );
 }
 
-function lastVote(m: Mention): "up" | "down" | null {
-  const last = (m.scoring_metadata?.last_feedback ?? null) as { label?: string } | null;
-  return last?.label === "up" || last?.label === "down" ? last.label : null;
-}
-
-interface FeedbackButtonsProps {
-  mention: Mention;
-}
-
-/** 👍/👎 on a mention; each vote becomes a few-shot example for its listener. */
-export function FeedbackButtons({ mention }: FeedbackButtonsProps) {
+/** Sends a vote; stays pending until the lists have refetched, so the row shows the new state. */
+export function useVote() {
   const queryClient = useQueryClient();
-  const [vote, setVote] = useState<"up" | "down" | null>(lastVote(mention));
-  const [error, setError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: (label: "up" | "down") => sendMentionFeedback(mention.id, label),
-    onSuccess: (_, label) => {
-      setVote(label);
-      setError(null);
-      // Feedback can move a mention between queues: refresh the badges too.
-      for (const key of [QUERY_KEYS.mentions, QUERY_KEYS.mentionCounts, QUERY_KEYS.mentionQueueCounts, QUERY_KEYS.scoringPrecision])
-        queryClient.invalidateQueries({ queryKey: [key] });
-    },
-    onError: (err) => setError(err instanceof Error ? err.message : "Failed to save feedback"),
+  return useMutation({
+    mutationFn: ({ id, label, note }: { id: string; label: Vote; note?: string }) => sendMentionFeedback(id, label, note),
+    onSuccess: () =>
+      Promise.all(
+        [QUERY_KEYS.mentions, QUERY_KEYS.mentionCounts, QUERY_KEYS.mentionQueueCounts, QUERY_KEYS.scoringPrecision].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      ),
   });
+}
 
-  const button = (label: "up" | "down") => {
-    const Icon = label === "up" ? ThumbsUp : ThumbsDown;
-    const active = vote === label;
+const VOTE_COPY: Record<Vote, { text: string; title: string; key: string }> = {
+  up: { text: "Lead", title: "Lead: score more like this", key: "y" },
+  down: { text: "Not a lead", title: "Not a lead: score fewer like this", key: "n" },
+};
+
+/** "Lead" / "Not a lead" on a mention; each vote becomes a few-shot example for its listener. */
+export function VoteButtons({ mention }: { mention: Mention }) {
+  const vote = useVote();
+  const pending = vote.isPending && vote.variables?.id === mention.id ? vote.variables.label : null;
+  const current = pending ?? lastVote(mention);
+
+  const button = (label: Vote) => {
+    const Icon = label === "up" ? Check : X;
+    const active = current === label;
+    const copy = VOTE_COPY[label];
     return (
       <Button
         size="sm"
-        variant={active ? "default" : "outline"}
-        onClick={() => mutation.mutate(label)}
-        disabled={mutation.isPending}
+        variant="outline"
+        className={active ? `${voteTone(label)} border-transparent` : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          vote.mutate({ id: mention.id, label });
+        }}
+        disabled={vote.isPending}
         aria-pressed={active}
-        aria-label={label === "up" ? "Good lead" : "Not relevant"}
-        title={label === "up" ? "Good lead — score more like this" : "Not relevant — score fewer like this"}
+        title={`${copy.title} (${copy.key})`}
+        aria-keyshortcuts={copy.key}
       >
-        {mutation.isPending && mutation.variables === label ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Icon className="h-3.5 w-3.5" />
-        )}
+        {pending === label ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
+        {copy.text}
       </Button>
     );
   };
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">Good lead?</span>
       {button("up")}
       {button("down")}
-      {error && <span className="text-xs text-destructive">{error}</span>}
+      {vote.isError && <span className="text-xs text-destructive">{vote.error.message || "Failed to save"}</span>}
     </div>
   );
 }

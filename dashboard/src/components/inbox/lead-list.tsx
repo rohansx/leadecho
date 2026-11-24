@@ -5,8 +5,9 @@ import { useEffect, useRef } from "react";
 import type { HumanProposal, InboxQueueCountsResponse, Mention } from "@/lib/types";
 import { ACTION_KINDS, INBOX_QUEUES, INTENT_LABELS, INTENT_TAGS, MENTION_STATUSES, SENTIMENTS } from "@/lib/constants";
 import { POSTED_RANGES, postedSince } from "@/lib/posted-range";
-import { intentTone, scoreBand } from "@/lib/tones";
-import { TagChips, tagLabel } from "@/components/inbox/intent-tags";
+import { intentTone, scoreBand, voteTone } from "@/lib/tones";
+import { lastVote } from "@/lib/lead-vote";
+import { TagChips, tagLabel, VoteButtons } from "@/components/inbox/intent-tags";
 import { hiringText } from "@/lib/lead-age";
 import { PlatformLogo } from "@/components/ui/platform-logo";
 import { ExportCsvButton } from "@/components/sources/export-csv-button"; // sources
@@ -477,18 +478,25 @@ export function LeadList({
           mentions.map((m) => {
             // A filter that already names the action would repeat it on every row.
             const badge = m.next_action && !(isActionView && actionKind) ? actionLabel[m.next_action] : null;
+            const vote = lastVote(m);
+            // A down vote does not take a post out of the queue (only archive
+            // does), so it stays, dimmed, with its chip.
             return (
-              <motion.button
+              <motion.div
                 key={m.id}
-                onClick={(e) =>
-                  onSelect(m.id, (e.target as HTMLElement).closest("[data-open-person]") ? "person360" : undefined)
-                }
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.15 }}
-                className={`w-full text-left px-4 py-3.5 border-b border-border flex gap-3 transition-colors cursor-pointer ${
+                className={`group border-b border-border transition-colors ${
                   selectedId === m.id ? "bg-accent" : "hover:bg-accent/50"
                 }`}
+              >
+              <button
+                type="button"
+                onClick={(e) =>
+                  onSelect(m.id, (e.target as HTMLElement).closest("[data-open-person]") ? "person360" : undefined)
+                }
+                className={`w-full text-left px-4 pt-3.5 pb-2 flex gap-3 cursor-pointer ${vote === "down" ? "opacity-60" : ""}`}
               >
                 <span
                   title={scoreBand(m.relevance_score).label}
@@ -510,6 +518,11 @@ export function LeadList({
                       </span>
                     )}
                     <SearchRankBadge meta={m.platform_metadata} />
+                    {vote && (
+                      <span className={`rounded-full px-1.5 py-px text-[10px] font-medium ${voteTone(vote)}`}>
+                        {vote === "up" ? "Lead" : "Not a lead"}
+                      </span>
+                    )}
                     <span className="ml-auto shrink-0">
                       {timeAgo(m.platform_created_at ?? m.created_at)}
                     </span>
@@ -540,7 +553,12 @@ export function LeadList({
                     <TagChips tags={m.intent_tags} sentiment={m.sentiment} />
                   </div>
                 </div>
-              </motion.button>
+              </button>
+              {/* Always shown on touch and narrow screens; with a mouse, on hover or keyboard focus. */}
+              <div className="flex justify-end px-4 pb-2.5 md:[@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                <VoteButtons mention={m} />
+              </div>
+              </motion.div>
             );
           })}
 

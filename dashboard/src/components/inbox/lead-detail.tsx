@@ -37,7 +37,8 @@ import {
 import { API_BASE_URL, INTENT_LABELS, QUERY_KEYS } from "@/lib/constants";
 import { intentTone, openNeedTone, platformTone, scoreBand } from "@/lib/tones";
 import type { Mention, Reply } from "@/lib/types";
-import { FeedbackButtons, TagChips } from "@/components/inbox/intent-tags";
+import { TagChips, useVote, VoteButtons } from "@/components/inbox/intent-tags";
+import { lastVote, NOT_A_FIT_REASONS, notAFitNote } from "@/lib/lead-vote";
 import { MarkPosted } from "@/components/inbox/mark-posted";
 import { EnrichmentCard } from "./enrichment-card"; // enrich
 import { IdentityCard } from "./identity-card"; // identity
@@ -47,9 +48,6 @@ import { SubredditRulesBox } from "./subreddit-rules"; // ban-safe
 import { companyMismatch, mailtoHref, safeHttpUrl } from "@/lib/outreach";
 import { hiringText, leadAge } from "@/lib/lead-age";
 import { leadFacts } from "@/lib/lead-facts";
-
-// Why the customer says a lead is wrong; stored with the archived mention.
-const NOT_A_FIT_REASONS = ["Wrong company", "Not a buyer", "Too old", "Other"];
 
 /** A hiring signal's text with the posting's real age in place of "this week". */
 function signalText(mention: Mention, text: string): string {
@@ -341,23 +339,6 @@ function OverviewTab({
             Spam
           </Button>
         )}
-        {mention.status !== "archived" && (
-          <select
-            aria-label="Not a fit"
-            title="Archive this lead and say why it is wrong"
-            value=""
-            onChange={(e) => e.target.value && onFeedback("archived", e.target.value)}
-            className="h-8 rounded-lg border border-border bg-card px-2 text-[13px] text-foreground shadow-xs cursor-pointer"
-          >
-            <option value="">Not a fit…</option>
-            {NOT_A_FIT_REASONS.map((r) => (
-              <option key={r} value={`Not a fit: ${r.toLowerCase()}`}>{r}</option>
-            ))}
-          </select>
-        )}
-        <div className="ml-auto">
-          <FeedbackButtons key={mention.id} mention={mention} />
-        </div>
       </div>
 
       <AnimatePresence>
@@ -843,6 +824,54 @@ function SignalsPanel({ mention }: { mention: Mention }) {
   );
 }
 
+/**
+ * "Is this a lead?" at the top of every tab. After "Not a lead", a reason chip
+ * re-sends the vote with that note and archives the lead with it (as the old
+ * "Not a fit…" menu did), which also moves on to the next lead.
+ */
+function LeadVoteBar({
+  mention,
+  onFeedback,
+}: {
+  mention: Mention;
+  onFeedback: (status: "spam" | "archived", reason?: string) => void;
+}) {
+  const vote = useVote();
+  const band = scoreBand(mention.relevance_score);
+  const pick = (reason: string) => {
+    const note = notAFitNote(reason);
+    // Vote first: the archive overwrites last_feedback, so it must land second.
+    vote.mutate({ id: mention.id, label: "down", note }, { onSuccess: () => onFeedback("archived", note) });
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-6 py-2.5 border-b border-border shrink-0">
+      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${band.tone}`}>
+        {mention.relevance_score != null && <span className="tabular-nums">{mention.relevance_score.toFixed(1)} · </span>}
+        {band.label}
+      </span>
+      <span className="text-sm text-muted-foreground">Is this a lead?</span>
+      <VoteButtons key={mention.id} mention={mention} />
+      {lastVote(mention) === "down" && mention.status !== "archived" && (
+        <div role="group" aria-label="Why not? Archives the lead" className="flex flex-wrap items-center gap-1">
+          <span className="text-xs text-muted-foreground">Why not?</span>
+          {NOT_A_FIT_REASONS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => pick(r)}
+              disabled={vote.isPending}
+              title={`Not a lead: ${r.toLowerCase()}. Archives it.`}
+              className="rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-foreground-soft hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/40 cursor-pointer disabled:opacity-50"
+            >
+              {vote.isPending && vote.variables?.note === notAFitNote(r) ? <Loader2 className="inline h-3 w-3 animate-spin" /> : r}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export type DetailTab = "overview" | "person360" | "thread";
 
 export function LeadDetail({
@@ -921,6 +950,8 @@ export function LeadDetail({
           <MuteAuthorButton key={mention.id} mention={mention} />
         </div>
       </div>
+
+      <LeadVoteBar mention={mention} onFeedback={onFeedback} />
 
       <div className="flex gap-1 px-6 pt-3 border-b border-border shrink-0">
         {(["overview", "person360", "thread"] as const).map((t) => (

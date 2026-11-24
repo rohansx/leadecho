@@ -89,6 +89,7 @@ export const stageTone = (stage: string | null | undefined): string => TONE[hue(
 export const stageBar = (stage: string | null | undefined): string => BAR[hue(STAGE_HUE, stage)];
 export const intentBar = (intent: string | null | undefined): string => BAR[hue(INTENT_HUE, intent)];
 export const intentTone = (intent: string | null | undefined): string => TONE[hue(INTENT_HUE, intent)];
+export const voteTone = (vote: "up" | "down"): string => (vote === "up" ? TONE.emerald : TONE.red);
 export const tagTone = (tag: string): string => TONE[hue(TAG_HUE, tag)];
 
 export interface ScoreBand {

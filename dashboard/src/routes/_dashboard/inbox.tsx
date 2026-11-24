@@ -6,6 +6,8 @@ import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LeadList } from "@/components/inbox/lead-list";
 import { LeadDetail, type DetailTab } from "@/components/inbox/lead-detail";
+import { useVote } from "@/components/inbox/intent-tags";
+import { voteKey } from "@/lib/lead-vote";
 import { LoosenedBanner } from "@/components/onboarding/loosened-banner"; // onboarding
 import {
   getMention,
@@ -279,6 +281,20 @@ function InboxPage() {
     advanceSelection();
     feedbackMutation.mutate({ mentionId: selected.id, status: nextStatus, reason });
   };
+
+  // y = Lead, n = Not a lead on the open lead, then on to the next one.
+  const vote = useVote();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const label = voteKey(e);
+      if (!label || !selected) return;
+      e.preventDefault();
+      vote.mutate({ id: selected.id, label });
+      goNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }); // ponytail: re-subscribes each render so the handler never sees a stale selection
 
   const handleRefresh = () => {
     if (isProposalsView) {
